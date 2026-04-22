@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1775138745089,
-      "tag": "0000_flimsy_preak",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1775339455677,
-      "tag": "0001_wandering_rawhide_kid",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1775496299708,
-      "tag": "0002_sweet_giant_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1775818856002,
-      "tag": "0003_sweet_human_fly",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1776355633997,
-      "tag": "0004_bitter_stardust",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1776399511664,
-      "tag": "0005_complex_nocturne",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1776439208271,
-      "tag": "0006_burly_the_order",
+      "when": 1776703062589,
+      "tag": "0000_premium_lady_vermin",
       "breakpoints": true
     }
   ]

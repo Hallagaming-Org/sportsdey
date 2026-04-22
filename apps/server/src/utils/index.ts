@@ -70,3 +70,5 @@ export const parseDateString = (dateStr?: string): string => {
 		Date.UTC(year, month, day, hours, minutes, seconds),
 	).toISOString();
 };
+
+export { verifySlotitegrationSignature } from "./slotegrator";

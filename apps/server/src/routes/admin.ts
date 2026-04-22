@@ -49,7 +49,7 @@ adminRoute.post("/auth/sign-in", async (c) => {
 		c.req.header("user-agent") || undefined,
 	);
 
-	c.header("Set-Cookie", setSessionCookie(token), { append: true });
+	c.header("Set-Cookie", setSessionCookie(token, c.env.NODE_ENV), { append: true });
 
 	return c.json({
 		success: true,

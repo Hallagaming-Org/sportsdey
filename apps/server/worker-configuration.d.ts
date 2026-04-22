@@ -42,8 +42,10 @@ declare namespace Cloudflare {
 		LAGOS_RUSH_BASE_URL: string;
 		POCKETS_SECRET_KEY: string;
 		API_SPORTS_KEY: string;
+		SANITY_WRITE_TOKEN: string;
 		SLOTITEGRATION_MERCHANT_ID: string;
 		SLOTITEGRATION_MERCHANT_KEY: string;
+		SLOTEGRATOR_API_URL: string;
 	}
 }
 export interface CloudflareBindings extends Cloudflare.Env {}
@@ -8919,7 +8921,7 @@ declare module "cloudflare:email" {
 		prototype: EmailMessage;
 		new (from: string, to: string, raw: ReadableStream | string): EmailMessage;
 	};
-	export { _EmailMessage as EmailMessage };
+	export type { _EmailMessage as EmailMessage };
 }
 /**
  * Hello World binding to serve as an explanatory example. DO NOT USE
@@ -9748,7 +9750,7 @@ declare module "cloudflare:sockets" {
 		address: string | SocketAddress,
 		options?: SocketOptions,
 	): Socket;
-	export { _connect as connect };
+	export type { _connect as connect };
 }
 type MarkdownDocument = {
 	name: string;

@@ -60,6 +60,56 @@ const UpdateUserResponseSchema = z.object({
 	data: UserResponseSchema,
 });
 
+const GetAllUsersQuerySchema = z.object({
+	page: z
+		.string()
+		.optional()
+		.openapi({ description: "Page number (default: 1)", example: "1" }),
+	limit: z
+		.string()
+		.optional()
+		.openapi({
+			description: "Items per page (default: 10, max: 100)",
+			example: "10",
+		}),
+	sort: z
+		.enum(["asc", "desc"])
+		.optional()
+		.openapi({ description: "Sort order", example: "asc" }),
+	search: z
+		.string()
+		.optional()
+		.openapi({
+			description: "Search by name, email, or user ID",
+			example: "john",
+		}),
+	tab: z
+		.enum(["all", "recent", "pending"])
+		.optional()
+		.openapi({ description: "Filter by tab", example: "all" }),
+});
+
+const UserListItemSchema = z.object({
+	id: z.string().openapi({ description: "User ID" }),
+	name: z.string().openapi({ description: "User's name" }),
+	email: z.string().openapi({ description: "User's email" }),
+	wallet: z.number().openapi({ description: "Wallet balance" }),
+	status: z.string().openapi({ description: "Verification status" }),
+	suspended: z.boolean().openapi({ description: "Suspension status" }),
+	registeredDate: z.string().openapi({ description: "Registration date" }),
+});
+
+const GetAllUsersResponseSchema = z.object({
+	success: z.literal(true),
+	data: z.object({
+		users: z.array(UserListItemSchema),
+		total: z.number().openapi({ description: "Total number of users" }),
+		page: z.number().openapi({ description: "Current page" }),
+		limit: z.number().openapi({ description: "Items per page" }),
+		totalPages: z.number().openapi({ description: "Total number of pages" }),
+	}),
+});
+
 const getUserRoute = createRoute({
 	method: "get",
 	path: "/",
@@ -257,7 +307,52 @@ userRoute.openapi(updateUserRoute, async (c) => {
 	);
 });
 
-userRoute.get("/all", async (c) => {
+const getAllUsersRoute = createRoute({
+	method: "get",
+	path: "/all",
+	tags: ["User"],
+	summary: "Get all users (admin only)",
+	description:
+		"Retrieve all users with pagination, sorting, search, and filtering options (admin only)",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: GetAllUsersQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Users retrieved successfully",
+			content: {
+				"application/json": {
+					schema: GetAllUsersResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+	},
+});
+
+userRoute.openapi(getAllUsersRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(

@@ -1,1 +1,0 @@
-ALTER TABLE `user` ADD `suspended` integer DEFAULT false NOT NULL;

@@ -247,8 +247,14 @@ export const getSessionToken = (headers: Headers): string | undefined => {
 	return undefined;
 };
 
-export const setSessionCookie = (token: string): string => {
-	return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 60 * 60}`;
+export const setSessionCookie = (
+	token: string,
+	env?: string,
+): string => {
+	const isProdOrStaging =
+		!env || env === "staging" || env === "production";
+	const secureFlag = isProdOrStaging ? "; Secure" : "";
+	return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
 };
 
 export const clearSessionCookie = (): string => {
