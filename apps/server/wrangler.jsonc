@@ -27,7 +27,7 @@
 					"database_name": "staging-db",
 					"database_id": "dc69f144-8a25-4033-8cf1-3a7d218f5933",
 					"remote": false,
-					"migrations_dir": "./src/db/migrations"
+					"migrations_dir": "src/db/migrations"
 				}
 			],
 			"kv_namespaces": [
