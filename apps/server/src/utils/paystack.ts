@@ -20,24 +20,34 @@ export async function initializeTransaction(
 	email: string,
 	metadata?: Record<string, unknown>,
 	callbackUrl?: string,
+	proxyUrl?: string,
+	proxySecret?: string,
 ): Promise<InitializeTransactionResponse> {
-	const response = await fetch(
-		"https://api.paystack.co/transaction/initialize",
-		{
-			method: "POST",
-			headers: {
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl
+		? "/paystack/transaction/initialize"
+		: "/transaction/initialize";
+	const headers: Record<string, string> = proxyUrl
+		? {
+				"X-Proxy-Auth": proxySecret || "",
 				Authorization: `Bearer ${secretKey}`,
 				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				amount: amount * 100,
-				email,
-				currency: "NGN",
-				metadata,
-				callback_url: callbackUrl,
-			}),
-		},
-	);
+			}
+		: {
+				Authorization: `Bearer ${secretKey}`,
+				"Content-Type": "application/json",
+			};
+	const response = await fetch(`${baseUrl}${endpoint}`, {
+		method: "POST",
+		headers,
+		body: JSON.stringify({
+			amount: amount * 100,
+			email,
+			currency: "NGN",
+			metadata,
+			callback_url: callbackUrl,
+		}),
+	});
 
 	const data = (await response.json()) as {
 		status: boolean;
@@ -58,15 +68,22 @@ export async function initializeTransaction(
 export async function verifyTransaction(
 	secretKey: string,
 	reference: string,
+	proxyUrl?: string,
+	proxySecret?: string,
 ): Promise<PaystackTransaction> {
-	const response = await fetch(
-		`https://api.paystack.co/transaction/verify/${reference}`,
-		{
-			headers: {
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl
+		? `/paystack/transaction/verify/${reference}`
+		: `/transaction/verify/${reference}`;
+	const headers: Record<string, string> = proxyUrl
+		? {
+				"X-Proxy-Auth": proxySecret || "",
 				Authorization: `Bearer ${secretKey}`,
-			},
-		},
-	);
+			}
+		: {
+				Authorization: `Bearer ${secretKey}`,
+			};
+	const response = await fetch(`${baseUrl}${endpoint}`, { headers });
 
 	const data = (await response.json()) as {
 		status: boolean;
@@ -106,7 +123,21 @@ export async function createTransferRecipient(
 	accountNumber: string,
 	name: string,
 	currency = "NGN",
+	proxyUrl?: string,
+	proxySecret?: string,
 ): Promise<TransferRecipient> {
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl ? "/paystack/transferrecipient" : "/transferrecipient";
+	const headers: Record<string, string> = proxyUrl
+		? {
+				"X-Proxy-Auth": proxySecret || "",
+				Authorization: `Bearer ${secretKey}`,
+				"Content-Type": "application/json",
+			}
+		: {
+				Authorization: `Bearer ${secretKey}`,
+				"Content-Type": "application/json",
+			};
 	const body = {
 		type: "nuban",
 		bank_code: bankCode,
@@ -116,12 +147,9 @@ export async function createTransferRecipient(
 	};
 	console.log("Paystack create recipient:", body);
 
-	const response = await fetch("https://api.paystack.co/transferrecipient", {
+	const response = await fetch(`${baseUrl}${endpoint}`, {
 		method: "POST",
-		headers: {
-			Authorization: `Bearer ${secretKey}`,
-			"Content-Type": "application/json",
-		},
+		headers,
 		body: JSON.stringify(body),
 	});
 
@@ -152,7 +180,21 @@ export async function initiateTransfer(
 	recipientCode: string,
 	source = "balance",
 	reason = "Withdrawal",
+	proxyUrl?: string,
+	proxySecret?: string,
 ): Promise<{ reference: string; status: string }> {
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl ? "/paystack/transfer" : "/transfer";
+	const headers: Record<string, string> = proxyUrl
+		? {
+				"X-Proxy-Auth": proxySecret || "",
+				Authorization: `Bearer ${secretKey}`,
+				"Content-Type": "application/json",
+			}
+		: {
+				Authorization: `Bearer ${secretKey}`,
+				"Content-Type": "application/json",
+			};
 	const body = {
 		amount: amount * 100,
 		recipient: recipientCode,
@@ -161,12 +203,9 @@ export async function initiateTransfer(
 	};
 	console.log("Paystack initiate transfer:", body);
 
-	const response = await fetch("https://api.paystack.co/transfer", {
+	const response = await fetch(`${baseUrl}${endpoint}`, {
 		method: "POST",
-		headers: {
-			Authorization: `Bearer ${secretKey}`,
-			"Content-Type": "application/json",
-		},
+		headers,
 		body: JSON.stringify(body),
 	});
 
@@ -205,15 +244,25 @@ export async function verifyAccountNumber(
 	secretKey: string,
 	accountNumber: string,
 	bankCode: string,
+	proxyUrl?: string,
+	proxySecret?: string,
 ): Promise<AccountVerification> {
-	const url = `https://api.paystack.co/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`;
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl
+		? `/paystack/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`
+		: `/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`;
+	const headers: Record<string, string> = proxyUrl
+		? {
+				"X-Proxy-Auth": proxySecret || "",
+				Authorization: `Bearer ${secretKey}`,
+			}
+		: {
+				Authorization: `Bearer ${secretKey}`,
+			};
+	const url = `${baseUrl}${endpoint}`;
 	console.log("Paystack verify account:", { url, accountNumber, bankCode });
 
-	const response = await fetch(url, {
-		headers: {
-			Authorization: `Bearer ${secretKey}`,
-		},
-	});
+	const response = await fetch(url, { headers });
 
 	const data = (await response.json()) as {
 		status: boolean;
@@ -246,15 +295,22 @@ export async function verifyAccountNumber(
 
 export async function getNigerianBanks(
 	secretKey: string,
+	proxyUrl?: string,
+	proxySecret?: string,
 ): Promise<NigerianBank[]> {
-	const response = await fetch(
-		"https://api.paystack.co/bank?country=nigeria&use_cursor=false&perPage=500",
-		{
-			headers: {
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl
+		? "/paystack/bank?country=nigeria&use_cursor=false&perPage=500"
+		: "/bank?country=nigeria&use_cursor=false&perPage=500";
+	const headers: Record<string, string> = proxyUrl
+		? {
+				"X-Proxy-Auth": proxySecret || "",
 				Authorization: `Bearer ${secretKey}`,
-			},
-		},
-	);
+			}
+		: {
+				Authorization: `Bearer ${secretKey}`,
+			};
+	const response = await fetch(`${baseUrl}${endpoint}`, { headers });
 
 	const data = (await response.json()) as {
 		status: boolean;

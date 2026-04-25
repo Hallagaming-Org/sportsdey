@@ -592,6 +592,8 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				type: "wallet_funding",
 			},
 			callbackUrl,
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
 		);
 
 		await db.insert(schema.walletTransaction).values({
@@ -741,7 +743,7 @@ walletRoute.openapi(getBanksRoute, async (c) => {
 	}
 
 	try {
-		const banks = await getNigerianBanks(c.env.PAYSTACK_SECRET_KEY);
+		const banks = await getNigerianBanks(c.env.PAYSTACK_SECRET_KEY, c.env.PROXY_URL, c.env.PROXY_SECRET);
 		const normalizedBanks = banks
 			.map((bank) => ({ name: bank.name, code: bank.code }))
 			.sort((a, b) => a.name.localeCompare(b.name));
@@ -785,7 +787,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 		}
 
 		try {
-			const tx = await verifyTransaction(c.env.PAYSTACK_SECRET_KEY, reference);
+			const tx = await verifyTransaction(c.env.PAYSTACK_SECRET_KEY, reference, c.env.PROXY_URL, c.env.PROXY_SECRET);
 			const txStatus = tx.status.toLowerCase();
 			status =
 				txStatus === "success"
@@ -1145,6 +1147,8 @@ walletRoute.openapi(createWithdrawalAccountRoute, async (c) => {
 			c.env.PAYSTACK_SECRET_KEY,
 			accountNumber,
 			bankCode,
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
 		);
 
 		if (!verification.isValid) {
@@ -1416,6 +1420,9 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			bankCode,
 			accountNumber,
 			accountName,
+			"NGN",
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
 		);
 
 		const transfer = await initiateTransfer(
@@ -1424,6 +1431,8 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			recipient.recipient_code,
 			"balance",
 			"Withdrawal from wallet",
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
 		);
 
 		await db.insert(schema.walletTransaction).values({

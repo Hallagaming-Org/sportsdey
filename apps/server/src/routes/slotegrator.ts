@@ -1,8 +1,9 @@
-import { OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { Context } from "hono";
+import { z } from "zod";
 import * as schema from "@/db/schema";
+import { verifySlotitegrationSignature } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 type SlotitegrationContext = {
@@ -11,67 +12,84 @@ type SlotitegrationContext = {
 
 const slotegratorRoute = new OpenAPIHono<SlotitegrationContext>();
 
-/**
- * @openapi
- * /slotegrator/launch:
- *   post:
- *     summary: Initialize a Slotegrator game session
- *     description: Creates a game session and returns a launch URL for the player
- *     tags:
- *       - Slotegrator
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - game_uuid
- *             properties:
- *               game_uuid:
- *                 type: string
- *               device:
- *                 type: string
- *               return_url:
- *                 type: string
- *               language:
- *                 type: string
- *               lobby_data:
- *                 type: string
- *     responses:
- *       200:
- *         description: Game launch URL
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 url:
- *                   type: string
- *       401:
- *         description: Unauthorized
- *       422:
- *         description: Validation error
- */
-slotegratorRoute.post("/launch", async (c) => {
-	const rawBody = await c.req.text();
+const LaunchGameSchema = z.object({
+	game_uuid: z.string(),
+	device: z.string().optional(),
+});
 
-	const merchantKey = c.env.SLOTITEGRATION_MERCHANT_KEY;
-	const merchantId = c.env.SLOTITEGRATION_MERCHANT_ID;
+const LaunchGameResponseSchema = z.object({
+	url: z.string(),
+});
 
-	if (!merchantKey || !merchantId) {
-		return c.json(
-			{
-				name: "Validation Exception",
-				message: "Server configuration error",
-				code: 0,
-				status: 500,
+const LaunchGameErrorResponseSchema = z
+	.object({
+		name: z.string(),
+		message: z.string(),
+		code: z.number(),
+	})
+	.openapi({ description: "Error response" });
+
+const launchGameRoute = createRoute({
+	method: "post",
+	path: "/launch",
+	tags: ["Slotegrator"],
+	summary: "Initialize a Slotegrator game session",
+	description: "Creates a game session and returns a launch URL for the player",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: LaunchGameSchema,
+				},
 			},
-			500,
-		);
-	}
+		},
+	},
+	responses: {
+		200: {
+			description: "Game launch URL",
+			content: {
+				"application/json": {
+					schema: LaunchGameResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		422: {
+			description: "Validation error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		500: {
+			description: "Server configuration error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		502: {
+			description: "Upstream API error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
 
+slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(
@@ -79,52 +97,41 @@ slotegratorRoute.post("/launch", async (c) => {
 				name: "Validation Exception",
 				message: "Unauthorized",
 				code: 0,
-				status: 401,
 			},
 			401,
 		);
 	}
 
-	let body: Record<string, unknown>;
-	try {
-		body = JSON.parse(rawBody);
-	} catch {
-		return c.json(
-			{
-				name: "Validation Exception",
-				message: "Invalid JSON body",
-				code: 0,
-				status: 422,
-			},
-			422,
-		);
-	}
-
-	const gameUuid = body.game_uuid as string;
-	const device = body.device as string | undefined;
-	const returnUrl = body.return_url as string | undefined;
-	const language = body.language as string | undefined;
-	const lobbyData = body.lobby_data as string | undefined;
-
-	if (!gameUuid) {
+	const result = LaunchGameSchema.safeParse(await c.req.json());
+	if (!result.success) {
 		return c.json(
 			{
 				name: "Validation Exception",
 				message: "Invalid request parameters",
 				code: 0,
-				status: 422,
 			},
 			422,
 		);
 	}
 
-	const db = drizzle(c.env.DB, { schema });
+	const { game_uuid, device } = result.data;
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, user.id))
-		.limit(1);
+	const merchantKey = c.env.SLOTITEGRATION_MERCHANT_KEY;
+	const merchantId = c.env.SLOTITEGRATION_MERCHANT_ID;
+	const slotegratorApiUrl = c.env.SLOTEGRATOR_API_URL;
+
+	if (!merchantKey || !merchantId || !slotegratorApiUrl) {
+		return c.json(
+			{
+				name: "Validation Exception",
+				message: "Server configuration error",
+				code: 0,
+			},
+			500,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
 
 	const currency = "NGN";
 
@@ -137,30 +144,14 @@ slotegratorRoute.post("/launch", async (c) => {
 		status: "active",
 	});
 
-	const slotegratorApiUrl = c.env.SLOTEGRATOR_API_URL;
-	if (!slotegratorApiUrl) {
-		return c.json(
-			{
-				name: "Validation Exception",
-				message: "API URL not configured",
-				code: 0,
-				status: 500,
-			},
-			500,
-		);
-	}
-
 	const requestBody: Record<string, string> = {
-		game_uuid: gameUuid,
+		game_uuid: game_uuid,
 		player_id: user.id,
 		player_name: user.name || user.id,
 		currency: currency,
 		session_id: sessionToken,
 	};
 	if (device) requestBody.device = device;
-	if (returnUrl) requestBody.return_url = returnUrl;
-	if (language) requestBody.language = language;
-	if (lobbyData) requestBody.lobby_data = lobbyData;
 
 	const timestamp = Math.floor(Date.now() / 1000).toString();
 	const nonce = crypto.randomUUID();
@@ -196,7 +187,19 @@ slotegratorRoute.post("/launch", async (c) => {
 	});
 
 	const data = await response.json();
-	return c.json(data, response.status);
+	
+	if (!response.ok) {
+		return c.json(
+			{
+				name: "Upstream Error",
+				message: String(data),
+				code: response.status,
+			},
+			502,
+		);
+	}
+	
+	return c.json(LaunchGameResponseSchema.parse(data), 200);
 });
 
 slotegratorRoute.post("/", async (c) => {
@@ -264,7 +267,7 @@ slotegratorRoute.post("/", async (c) => {
 
 		const balance = wallet?.balance ?? 0;
 
-		return c.json(balance, 200);
+		return c.json({ balance });
 	}
 
 	if (action === "bet") {
