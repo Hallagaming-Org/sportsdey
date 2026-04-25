@@ -1,282 +1,282 @@
-CREATE TABLE `account` (
-	`id` text PRIMARY KEY NOT NULL,
-	`account_id` text NOT NULL,
-	`provider_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`access_token` text,
-	`refresh_token` text,
-	`id_token` text,
-	`access_token_expires_at` integer,
-	`refresh_token_expires_at` integer,
-	`scope` text,
-	`password` text,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `account_userId_idx` ON `account` (`user_id`);--> statement-breakpoint
-CREATE TABLE `game` (
-	`id` text PRIMARY KEY NOT NULL,
-	`name` text NOT NULL,
-	`code` text NOT NULL,
-	`image_url` text,
-	`enabled` integer DEFAULT true NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `game_code_unique` ON `game` (`code`);--> statement-breakpoint
-CREATE TABLE `game_launch_tokens` (
-	`token` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`game` text NOT NULL,
-	`used` integer DEFAULT false NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `game_sessions` (
-	`session_token` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`game` text NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `game_transactions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`provider_tx_id` text NOT NULL,
-	`type` text NOT NULL,
-	`amount` integer NOT NULL,
-	`session_token` text NOT NULL,
-	`game` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `game_transactions_provider_tx_id_unique` ON `game_transactions` (`provider_tx_id`);--> statement-breakpoint
-CREATE TABLE `game_wallet` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`balance` integer DEFAULT 0 NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `game_wallet_user_id_unique` ON `game_wallet` (`user_id`);--> statement-breakpoint
-CREATE TABLE `game_wallet_transaction` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`amount` integer NOT NULL,
-	`type` text NOT NULL,
-	`reference` text NOT NULL,
-	`status` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `game_wallet_transaction_reference_unique` ON `game_wallet_transaction` (`reference`);--> statement-breakpoint
-CREATE TABLE `pockets_transactions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`type` text NOT NULL,
-	`amount` integer NOT NULL,
-	`currency` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `session` (
-	`id` text PRIMARY KEY NOT NULL,
-	`expires_at` integer NOT NULL,
-	`token` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer NOT NULL,
-	`ip_address` text,
-	`user_agent` text,
-	`user_id` text NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `session_token_unique` ON `session` (`token`);--> statement-breakpoint
-CREATE INDEX `session_userId_idx` ON `session` (`user_id`);--> statement-breakpoint
-CREATE TABLE `slotitegration_sessions` (
-	`session_id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`currency` text DEFAULT 'NGN' NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `slotitegration_session_userId_idx` ON `slotitegration_sessions` (`user_id`);--> statement-breakpoint
-CREATE TABLE `slotitegration_transactions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`transaction_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`type` text NOT NULL,
-	`amount` integer NOT NULL,
-	`currency` text NOT NULL,
-	`round_id` text,
-	`game_id` text,
-	`session_id` text NOT NULL,
-	`original_transaction_id` text,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `slotitegration_transactions_transaction_id_unique` ON `slotitegration_transactions` (`transaction_id`);--> statement-breakpoint
-CREATE INDEX `slotitegration_tx_userId_idx` ON `slotitegration_transactions` (`user_id`);--> statement-breakpoint
-CREATE INDEX `slotitegration_tx_transactionId_idx` ON `slotitegration_transactions` (`transaction_id`);--> statement-breakpoint
-CREATE TABLE `thundr_sessions` (
-	`session_id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`game_id` text NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `thundr_transactions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`transaction_id` text NOT NULL,
-	`user_id` text NOT NULL,
-	`type` text NOT NULL,
-	`amount` integer NOT NULL,
-	`round_id` text NOT NULL,
-	`game_id` text NOT NULL,
-	`session_id` text NOT NULL,
-	`original_transaction_id` text,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `thundr_transactions_transaction_id_unique` ON `thundr_transactions` (`transaction_id`);--> statement-breakpoint
-CREATE TABLE `user` (
-	`id` text PRIMARY KEY NOT NULL,
-	`name` text NOT NULL,
-	`email` text NOT NULL,
-	`email_verified` integer DEFAULT false NOT NULL,
-	`image` text,
-	`country` text,
-	`mobile_number` text,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`verification_status` text DEFAULT 'not_verified' NOT NULL,
-	`suspended` integer DEFAULT false NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);--> statement-breakpoint
-CREATE TABLE `user_file` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`file_name` text NOT NULL,
-	`original_name` text NOT NULL,
-	`purpose` text NOT NULL,
-	`r2_key` text NOT NULL,
-	`url` text NOT NULL,
-	`mime_type` text NOT NULL,
-	`size` integer NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `utility_transaction` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`amount` integer NOT NULL,
-	`service_category` text NOT NULL,
-	`biller_code` text NOT NULL,
-	`biller_name` text NOT NULL,
-	`customer_id` text NOT NULL,
-	`customer_name` text,
-	`product_code` text NOT NULL,
-	`product_name` text NOT NULL,
-	`monnify_transaction_reference` text,
-	`vend_reference` text NOT NULL,
-	`validation_reference` text,
-	`status` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `utility_transaction_monnify_transaction_reference_unique` ON `utility_transaction` (`monnify_transaction_reference`);--> statement-breakpoint
-CREATE UNIQUE INDEX `utility_transaction_vend_reference_unique` ON `utility_transaction` (`vend_reference`);--> statement-breakpoint
-CREATE TABLE `verification` (
-	`id` text PRIMARY KEY NOT NULL,
-	`identifier` text NOT NULL,
-	`value` text NOT NULL,
-	`expires_at` integer NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);--> statement-breakpoint
-CREATE TABLE `wallet` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`balance` integer DEFAULT 0 NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `wallet_user_id_unique` ON `wallet` (`user_id`);--> statement-breakpoint
-CREATE TABLE `wallet_transaction` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`amount` integer NOT NULL,
-	`type` text NOT NULL,
-	`reference` text NOT NULL,
-	`status` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `wallet_transaction_reference_unique` ON `wallet_transaction` (`reference`);--> statement-breakpoint
-CREATE INDEX `wallet_transaction_userId_idx` ON `wallet_transaction` (`user_id`);--> statement-breakpoint
-CREATE INDEX `wallet_transaction_status_idx` ON `wallet_transaction` (`status`);--> statement-breakpoint
-CREATE TABLE `withdrawal_account` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`bank_code` text NOT NULL,
-	`bank_name` text NOT NULL,
-	`account_number` text NOT NULL,
-	`account_name` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `admin` (
-	`id` text PRIMARY KEY NOT NULL,
-	`email` text NOT NULL,
-	`password_hash` text NOT NULL,
-	`name` text NOT NULL,
-	`role` text DEFAULT 'admin' NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `admin_email_unique` ON `admin` (`email`);--> statement-breakpoint
-CREATE TABLE `admin_session` (
-	`id` text PRIMARY KEY NOT NULL,
-	`expires_at` integer NOT NULL,
-	`token` text NOT NULL,
-	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`ip_address` text,
-	`user_agent` text,
-	`admin_id` text NOT NULL,
-	FOREIGN KEY (`admin_id`) REFERENCES `admin`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `admin_session_token_unique` ON `admin_session` (`token`);--> statement-breakpoint
-CREATE INDEX `admin_session_adminId_idx` ON `admin_session` (`admin_id`);
+-- CREATE TABLE `account` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`account_id` text NOT NULL,
+-- 	`provider_id` text NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`access_token` text,
+-- 	`refresh_token` text,
+-- 	`id_token` text,
+-- 	`access_token_expires_at` integer,
+-- 	`refresh_token_expires_at` integer,
+-- 	`scope` text,
+-- 	`password` text,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE INDEX `account_userId_idx` ON `account` (`user_id`);--> statement-breakpoint
+-- CREATE TABLE `game` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`name` text NOT NULL,
+-- 	`code` text NOT NULL,
+-- 	`image_url` text,
+-- 	`enabled` integer DEFAULT true NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `game_code_unique` ON `game` (`code`);--> statement-breakpoint
+-- CREATE TABLE `game_launch_tokens` (
+-- 	`token` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`game` text NOT NULL,
+-- 	`used` integer DEFAULT false NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE TABLE `game_sessions` (
+-- 	`session_token` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`game` text NOT NULL,
+-- 	`status` text DEFAULT 'active' NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE TABLE `game_transactions` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`provider_tx_id` text NOT NULL,
+-- 	`type` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`session_token` text NOT NULL,
+-- 	`game` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `game_transactions_provider_tx_id_unique` ON `game_transactions` (`provider_tx_id`);--> statement-breakpoint
+-- CREATE TABLE `game_wallet` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`balance` integer DEFAULT 0 NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `game_wallet_user_id_unique` ON `game_wallet` (`user_id`);--> statement-breakpoint
+-- CREATE TABLE `game_wallet_transaction` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`type` text NOT NULL,
+-- 	`reference` text NOT NULL,
+-- 	`status` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `game_wallet_transaction_reference_unique` ON `game_wallet_transaction` (`reference`);--> statement-breakpoint
+-- CREATE TABLE `pockets_transactions` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`type` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`currency` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE TABLE `session` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`expires_at` integer NOT NULL,
+-- 	`token` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer NOT NULL,
+-- 	`ip_address` text,
+-- 	`user_agent` text,
+-- 	`user_id` text NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `session_token_unique` ON `session` (`token`);--> statement-breakpoint
+-- CREATE INDEX `session_userId_idx` ON `session` (`user_id`);--> statement-breakpoint
+-- CREATE TABLE `slotitegration_sessions` (
+-- 	`session_id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`currency` text DEFAULT 'NGN' NOT NULL,
+-- 	`status` text DEFAULT 'active' NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE INDEX `slotitegration_session_userId_idx` ON `slotitegration_sessions` (`user_id`);--> statement-breakpoint
+-- CREATE TABLE `slotitegration_transactions` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`transaction_id` text NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`type` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`currency` text NOT NULL,
+-- 	`round_id` text,
+-- 	`game_id` text,
+-- 	`session_id` text NOT NULL,
+-- 	`original_transaction_id` text,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `slotitegration_transactions_transaction_id_unique` ON `slotitegration_transactions` (`transaction_id`);--> statement-breakpoint
+-- CREATE INDEX `slotitegration_tx_userId_idx` ON `slotitegration_transactions` (`user_id`);--> statement-breakpoint
+-- CREATE INDEX `slotitegration_tx_transactionId_idx` ON `slotitegration_transactions` (`transaction_id`);--> statement-breakpoint
+-- CREATE TABLE `thundr_sessions` (
+-- 	`session_id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`game_id` text NOT NULL,
+-- 	`status` text DEFAULT 'active' NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE TABLE `thundr_transactions` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`transaction_id` text NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`type` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`round_id` text NOT NULL,
+-- 	`game_id` text NOT NULL,
+-- 	`session_id` text NOT NULL,
+-- 	`original_transaction_id` text,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `thundr_transactions_transaction_id_unique` ON `thundr_transactions` (`transaction_id`);--> statement-breakpoint
+-- CREATE TABLE `user` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`name` text NOT NULL,
+-- 	`email` text NOT NULL,
+-- 	`email_verified` integer DEFAULT false NOT NULL,
+-- 	`image` text,
+-- 	`country` text,
+-- 	`mobile_number` text,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`verification_status` text DEFAULT 'not_verified' NOT NULL,
+-- 	`suspended` integer DEFAULT false NOT NULL
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);--> statement-breakpoint
+-- CREATE TABLE `user_file` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`file_name` text NOT NULL,
+-- 	`original_name` text NOT NULL,
+-- 	`purpose` text NOT NULL,
+-- 	`r2_key` text NOT NULL,
+-- 	`url` text NOT NULL,
+-- 	`mime_type` text NOT NULL,
+-- 	`size` integer NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE TABLE `utility_transaction` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`service_category` text NOT NULL,
+-- 	`biller_code` text NOT NULL,
+-- 	`biller_name` text NOT NULL,
+-- 	`customer_id` text NOT NULL,
+-- 	`customer_name` text,
+-- 	`product_code` text NOT NULL,
+-- 	`product_name` text NOT NULL,
+-- 	`monnify_transaction_reference` text,
+-- 	`vend_reference` text NOT NULL,
+-- 	`validation_reference` text,
+-- 	`status` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `utility_transaction_monnify_transaction_reference_unique` ON `utility_transaction` (`monnify_transaction_reference`);--> statement-breakpoint
+-- CREATE UNIQUE INDEX `utility_transaction_vend_reference_unique` ON `utility_transaction` (`vend_reference`);--> statement-breakpoint
+-- CREATE TABLE `verification` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`identifier` text NOT NULL,
+-- 	`value` text NOT NULL,
+-- 	`expires_at` integer NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
+-- );
+-- --> statement-breakpoint
+-- CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);--> statement-breakpoint
+-- CREATE TABLE `wallet` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`balance` integer DEFAULT 0 NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `wallet_user_id_unique` ON `wallet` (`user_id`);--> statement-breakpoint
+-- CREATE TABLE `wallet_transaction` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`amount` integer NOT NULL,
+-- 	`type` text NOT NULL,
+-- 	`reference` text NOT NULL,
+-- 	`status` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `wallet_transaction_reference_unique` ON `wallet_transaction` (`reference`);--> statement-breakpoint
+-- CREATE INDEX `wallet_transaction_userId_idx` ON `wallet_transaction` (`user_id`);--> statement-breakpoint
+-- CREATE INDEX `wallet_transaction_status_idx` ON `wallet_transaction` (`status`);--> statement-breakpoint
+-- CREATE TABLE `withdrawal_account` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`user_id` text NOT NULL,
+-- 	`bank_code` text NOT NULL,
+-- 	`bank_name` text NOT NULL,
+-- 	`account_number` text NOT NULL,
+-- 	`account_name` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer NOT NULL,
+-- 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE TABLE `admin` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`email` text NOT NULL,
+-- 	`password_hash` text NOT NULL,
+-- 	`name` text NOT NULL,
+-- 	`role` text DEFAULT 'admin' NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `admin_email_unique` ON `admin` (`email`);--> statement-breakpoint
+-- CREATE TABLE `admin_session` (
+-- 	`id` text PRIMARY KEY NOT NULL,
+-- 	`expires_at` integer NOT NULL,
+-- 	`token` text NOT NULL,
+-- 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
+-- 	`ip_address` text,
+-- 	`user_agent` text,
+-- 	`admin_id` text NOT NULL,
+-- 	FOREIGN KEY (`admin_id`) REFERENCES `admin`(`id`) ON UPDATE no action ON DELETE cascade
+-- );
+-- --> statement-breakpoint
+-- CREATE UNIQUE INDEX `admin_session_token_unique` ON `admin_session` (`token`);--> statement-breakpoint
+-- CREATE INDEX `admin_session_adminId_idx` ON `admin_session` (`admin_id`);

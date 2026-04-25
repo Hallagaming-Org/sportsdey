@@ -8,6 +8,20 @@
       "when": 1776703062589,
       "tag": "0000_premium_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1777025072602,
+      "tag": "0001_melted_violations",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777051819466,
+      "tag": "0002_familiar_giant_man",
+      "breakpoints": true
     }
   ]
 }

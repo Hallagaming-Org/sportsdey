@@ -567,6 +567,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 
 	const transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
+	let currentBalance = 0;
 	const [existingWallet] = await db
 		.select()
 		.from(schema.wallet)
@@ -579,6 +580,8 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			userId: user.id,
 			balance: 0,
 		});
+	} else {
+		currentBalance = existingWallet.balance;
 	}
 
 	try {
@@ -603,6 +606,8 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			type: "credit",
 			reference: paystackResult.reference,
 			status: "pending",
+			paymentMethod: "card",
+			balance: currentBalance,
 		});
 
 		return c.json(
@@ -718,6 +723,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 	const transactionsInNaira = transactions.map((tx) => ({
 		...tx,
 		amount: tx.amount / 100,
+		balance: tx.balance / 100,
 	}));
 
 	return c.json(
@@ -796,21 +802,19 @@ walletRoute.openapi(callbackRoute, async (c) => {
 						? "failed"
 						: "pending";
 
+			const paymentMethod = tx.channel === "card" ? "card" : "bank_transfer";
+
 			if (status === "success") {
 				if (transaction && transaction.status !== "success") {
-					await db
-						.update(schema.walletTransaction)
-						.set({ status: "success" })
-						.where(eq(schema.walletTransaction.reference, reference));
-
 					const [wallet] = await db
 						.select()
 						.from(schema.wallet)
 						.where(eq(schema.wallet.userId, transaction.userId))
 						.limit(1);
 
+					let newBalance = wallet?.balance ?? 0;
 					if (wallet) {
-						const newBalance =
+						newBalance =
 							transaction.type === "credit"
 								? wallet.balance + transaction.amount
 								: wallet.balance - transaction.amount;
@@ -822,6 +826,11 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							})
 							.where(eq(schema.wallet.userId, transaction.userId));
 					}
+
+					await db
+						.update(schema.walletTransaction)
+						.set({ status: "success", paymentMethod, balance: newBalance })
+						.where(eq(schema.walletTransaction.reference, reference));
 				}
 			}
 		} catch {
@@ -1442,6 +1451,8 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			type: "debit",
 			reference,
 			status: transfer.status === "success" ? "success" : "pending",
+			paymentMethod: "paystack",
+			balance: wallet.balance - amount * 100,
 		});
 
 		await db
@@ -1589,6 +1600,8 @@ walletRoute.openapi(transferRoute, async (c) => {
 			type: "debit",
 			reference: `${reference}_sender`,
 			status: "completed",
+			paymentMethod: "wallet_transfer",
+			balance: senderWallet.balance - amount * 100,
 		});
 
 		await db.insert(schema.walletTransaction).values({
@@ -1598,6 +1611,8 @@ walletRoute.openapi(transferRoute, async (c) => {
 			type: "credit",
 			reference: `${reference}_recipient`,
 			status: "completed",
+			paymentMethod: "wallet_transfer",
+			balance: recipientWallet.balance + amount * 100,
 		});
 
 		return c.json(
@@ -1789,6 +1804,8 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			type: "debit",
 			reference: `${reference}_normal`,
 			status: "completed",
+			paymentMethod: "wallet_transfer",
+			balance: normalWallet.balance - amount * 100,
 		});
 
 		await db.insert(schema.gameWalletTransaction).values({

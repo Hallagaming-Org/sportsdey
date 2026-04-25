@@ -26,6 +26,8 @@ export const TransactionResponseSchema = z.object({
 	type: z.string().openapi({ description: "Transaction type (credit/debit)" }),
 	reference: z.string().openapi({ description: "Transaction reference" }),
 	status: z.string().openapi({ description: "Transaction status" }),
+	paymentMethod: z.string().openapi({ description: "Payment method used" }),
+	balance: z.number().openapi({ description: "Wallet balance after transaction" }),
 	createdAt: z.string().openapi({ description: "Creation timestamp" }),
 });
 

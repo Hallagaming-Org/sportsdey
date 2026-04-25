@@ -127,6 +127,8 @@ export async function getAdminByEmail(
 	email: string;
 	passwordHash: string;
 	name: string;
+	mobileNumber: string | null;
+	image: string | null;
 	role: AdminRole;
 	createdAt: Date;
 } | null> {
@@ -137,6 +139,8 @@ export async function getAdminByEmail(
 			email: admin.email,
 			passwordHash: admin.passwordHash,
 			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
 			role: admin.role,
 			createdAt: admin.createdAt,
 		})
@@ -154,6 +158,8 @@ export async function getAdminById(
 	id: string;
 	email: string;
 	name: string;
+	mobileNumber: string | null;
+	image: string | null;
 	role: AdminRole;
 	createdAt: Date;
 } | null> {
@@ -163,6 +169,8 @@ export async function getAdminById(
 			id: admin.id,
 			email: admin.email,
 			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
 			role: admin.role,
 			createdAt: admin.createdAt,
 		})
@@ -179,6 +187,8 @@ export async function createAdmin(
 		email: string;
 		password: string;
 		name: string;
+		mobileNumber?: string | null;
+		image?: string | null;
 		role: AdminRole;
 	},
 ): Promise<{ id: string }> {
@@ -192,6 +202,8 @@ export async function createAdmin(
 			email: data.email,
 			passwordHash,
 			name: data.name,
+			mobileNumber: data.mobileNumber ?? null,
+			image: data.image ?? null,
 			role: data.role,
 		})
 		.returning({ id: admin.id })
@@ -206,6 +218,62 @@ export async function deleteAdmin(
 ): Promise<void> {
 	const database = getDb(bindings);
 	await database.delete(admin).where(eq(admin.id, adminId));
+}
+
+export async function updateAdminById(
+	bindings: CloudflareBindings,
+	id: string,
+	data: {
+		name?: string;
+		email?: string;
+		mobileNumber?: string | null;
+	},
+): Promise<{
+	id: string;
+	email: string;
+	name: string;
+	mobileNumber: string | null;
+	image: string | null;
+	role: AdminRole;
+	createdAt: Date;
+} | null> {
+	const database = getDb(bindings);
+	const updates: Record<string, unknown> = {};
+
+	if (data.name !== undefined) {
+		updates.name = data.name;
+	}
+	if (data.email !== undefined) {
+		updates.email = data.email;
+	}
+	if (data.mobileNumber !== undefined) {
+		updates.mobileNumber = data.mobileNumber;
+	}
+
+	console.log("updateAdminById:", { id, updates });
+
+	if (Object.keys(updates).length === 0) {
+		return getAdminById(bindings, id);
+	}
+
+	const result = await database
+		.update(admin)
+		.set(updates)
+		.where(eq(admin.id, id))
+		.returning({
+			id: admin.id,
+			email: admin.email,
+			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
+			role: admin.role,
+			createdAt: admin.createdAt,
+		})
+		.get();
+
+	console.log("updateAdminById result:", result);
+
+	return result || null;
 }
 
 export async function listAdmins(bindings: CloudflareBindings): Promise<

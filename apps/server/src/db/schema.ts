@@ -153,6 +153,10 @@ export const walletTransaction = sqliteTable(
 		type: text("type").notNull(),
 		reference: text("reference").notNull().unique(),
 		status: text("status").notNull(),
+		paymentMethod: text("payment_method")
+			.notNull()
+			.default("card"),
+		balance: integer("balance").notNull().default(0),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
@@ -557,3 +561,4 @@ export const game = sqliteTable("game", {
 });
 
 export * from "./schema/admin";
+import { admin } from "./schema/admin";

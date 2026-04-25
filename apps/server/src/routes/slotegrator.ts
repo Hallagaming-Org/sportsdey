@@ -18,16 +18,17 @@ const LaunchGameSchema = z.object({
 });
 
 const LaunchGameResponseSchema = z.object({
-	url: z.string(),
+	success: z.boolean(),
+	data: z.object({
+		url: z.string(),
+	}),
 });
 
-const LaunchGameErrorResponseSchema = z
-	.object({
-		name: z.string(),
-		message: z.string(),
-		code: z.number(),
-	})
-	.openapi({ description: "Error response" });
+const LaunchGameErrorResponseSchema = z.object({
+	success: z.boolean(),
+	error: z.string(),
+	details: z.any(),
+});
 
 const launchGameRoute = createRoute({
 	method: "post",
@@ -94,9 +95,9 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	if (!user) {
 		return c.json(
 			{
-				name: "Validation Exception",
-				message: "Unauthorized",
-				code: 0,
+				success: false,
+				error: "Unauthorized",
+				details: null,
 			},
 			401,
 		);
@@ -106,9 +107,9 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	if (!result.success) {
 		return c.json(
 			{
-				name: "Validation Exception",
-				message: "Invalid request parameters",
-				code: 0,
+				success: false,
+				error: "Invalid request parameters",
+				details: null,
 			},
 			422,
 		);
@@ -123,9 +124,9 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	if (!merchantKey || !merchantId || !slotegratorApiUrl) {
 		return c.json(
 			{
-				name: "Validation Exception",
-				message: "Server configuration error",
-				code: 0,
+				success: false,
+				error: "Server configuration error",
+				details: null,
 			},
 			500,
 		);
@@ -133,7 +134,7 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const currency = "NGN";
+	const currency = "EUR";
 
 	const sessionToken = crypto.randomUUID();
 
@@ -153,8 +154,10 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	};
 	if (device) requestBody.device = device;
 
-	const timestamp = Math.floor(Date.now() / 1000).toString();
+	const timestamp = Math.floor((Date.now() + 3600000) / 1000).toString();
 	const nonce = crypto.randomUUID();
+
+	console.log("requestBody", requestBody);
 
 	const allParams: Record<string, string> = {
 		...requestBody,
@@ -164,17 +167,25 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	};
 
 	const sortedKeys = Object.keys(allParams).sort();
-	const queryString = sortedKeys
-		.map((key) => `${key}=${allParams[key]}`)
-		.join("&");
+	const params = new URLSearchParams();
+	for (const key of sortedKeys) {
+		params.set(key, allParams[key] ?? "");
+	}
+	const queryString = params.toString();
+
+	console.log("queryString", queryString);
 
 	const cryptoMod = await import("crypto");
 	const computedSign = cryptoMod
 		.createHmac("sha1", merchantKey)
 		.update(queryString)
 		.digest("hex");
+	console.log("X-Merchant-Id", merchantId);
+	console.log("X-Timestamp", timestamp);
+	console.log("X-Nonce", nonce);
+	console.log("X-Sign", computedSign);
 
-	const response = await fetch(slotegratorApiUrl, {
+	const response = await fetch(`${slotegratorApiUrl}/games/init`, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/x-www-form-urlencoded",
@@ -186,20 +197,29 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		body: requestBody.toString(),
 	});
 
-	const data = await response.json();
-	
+	const data = (await response.json()) as { url: string };
+	console.log(data);
+
 	if (!response.ok) {
 		return c.json(
 			{
-				name: "Upstream Error",
-				message: String(data),
-				code: response.status,
+				success: false,
+				error: "Upstream API error",
+				details: null,
 			},
 			502,
 		);
 	}
-	
-	return c.json(LaunchGameResponseSchema.parse(data), 200);
+
+	return c.json(
+		{
+			success: true,
+			data: {
+				url: data.url,
+			},
+		},
+		200,
+	);
 });
 
 slotegratorRoute.post("/", async (c) => {

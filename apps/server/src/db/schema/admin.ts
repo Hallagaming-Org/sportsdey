@@ -9,6 +9,8 @@ export const admin = sqliteTable("admin", {
 	email: text("email").notNull().unique(),
 	passwordHash: text("password_hash").notNull(),
 	name: text("name").notNull(),
+	mobileNumber: text("mobile_number"),
+	image: text("image"),
 	role: text("role", { enum: adminRoles }).notNull().default("admin"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)

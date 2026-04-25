@@ -38,7 +38,7 @@ async function main() {
 	console.log(`Password hash generated: ${passwordHash.substring(0, 20)}...`);
 	console.log(`Admin ID: ${id}`);
 
-	const sql = `INSERT INTO admin (id, email, password_hash, name, role, created_at, updated_at) VALUES ('${esc(id)}', '${esc(email)}', '${esc(passwordHash)}', '${esc(name)}', '${esc(role)}', ${now}, ${now});`;
+	const sql = `INSERT INTO admin (id, email, password_hash, name, mobile_number, image, role, created_at, updated_at) VALUES ('${esc(id)}', '${esc(email)}', '${esc(passwordHash)}', '${esc(name)}', NULL, NULL, '${esc(role)}', ${now}, ${now});`;
 
 	// D1 database names from wrangler.jsonc
 	const dbName = env === "production" ? "sportsdey_db" : "staging-db";
