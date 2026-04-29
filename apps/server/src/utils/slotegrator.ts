@@ -22,15 +22,13 @@ export async function verifySlotitegrationSignature(
 	const now = Math.floor(Date.now() / 1000);
 	const requestTime = parseInt(timestamp, 10);
 	if (Number.isNaN(requestTime) || Math.abs(now - requestTime) > 30) {
+		console.log({ valid: false, error: "Request timestamp expired" });
 		return { valid: false, error: "Request timestamp expired" };
 	}
 
 	let bodyParams: Record<string, string>;
-	try {
-		bodyParams = JSON.parse(rawBody);
-	} catch {
-		return { valid: false, error: "Invalid JSON body" };
-	}
+	const urlSearchParams = new URLSearchParams(rawBody);
+	bodyParams = Object.fromEntries(urlSearchParams.entries()) as Record<string, string>;
 
 	const allParams: Record<string, string> = {
 		...bodyParams,

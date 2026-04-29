@@ -154,7 +154,7 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	};
 	if (device) requestBody.device = device;
 
-	const timestamp = Math.floor((Date.now() + 3600000) / 1000).toString();
+	const timestamp = Math.floor(Date.now() / 1000).toString();
 	const nonce = crypto.randomUUID();
 
 	console.log("requestBody", requestBody);
@@ -194,8 +194,10 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 			"X-Nonce": nonce,
 			"X-Sign": computedSign,
 		},
-		body: requestBody.toString(),
+		body: new URLSearchParams(requestBody),
 	});
+	console.log("slotegrator body", response.body);
+	console.log("slotegrator headers", response.headers);
 
 	const data = (await response.json()) as { url: string };
 	console.log(data);
@@ -258,17 +260,11 @@ slotegratorRoute.post("/", async (c) => {
 		);
 	}
 
-	let body: Record<string, unknown>;
-	try {
-		body = JSON.parse(rawBody);
-	} catch {
-		return c.json({ error: "Invalid JSON body", code: "PARSE_ERROR" }, 400);
-	}
-
-	const action = body.action as string;
+	const urlSearchParams = new URLSearchParams(rawBody);
+	const action = urlSearchParams.get("action") || "";
 
 	if (action === "balance") {
-		const playerId = body.player_id as string;
+		const playerId = urlSearchParams.get("player_id") || "";
 
 		if (!playerId) {
 			return c.json(
@@ -291,13 +287,13 @@ slotegratorRoute.post("/", async (c) => {
 	}
 
 	if (action === "bet") {
-		const playerId = body.player_id as string;
-		const amount = body.amount as number;
-		const currency = (body.currency as string) || "NGN";
-		const gameUuid = body.game_uuid as string;
-		const transactionId = body.transaction_id as string;
-		const sessionId = body.session_id as string;
-		const type = (body.type as string) || "bet";
+		const playerId = urlSearchParams.get("player_id") || "";
+		const amount = parseFloat(urlSearchParams.get("amount") || "0");
+		const currency = urlSearchParams.get("currency") || "NGN";
+		const gameUuid = urlSearchParams.get("game_uuid") || "";
+		const transactionId = urlSearchParams.get("transaction_id") || "";
+		const sessionId = urlSearchParams.get("session_id") || "";
+		const type = urlSearchParams.get("type") || "bet";
 
 		if (!playerId || !amount || !transactionId || !sessionId) {
 			return c.json(

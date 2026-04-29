@@ -34,8 +34,11 @@ export const adminSession = sqliteTable(
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" }),
 		ipAddress: text("ip_address"),
 		userAgent: text("user_agent"),
+		deviceName: text("device_name"),
+		browser: text("browser"),
 		adminId: text("admin_id")
 			.notNull()
 			.references(() => admin.id, { onDelete: "cascade" }),

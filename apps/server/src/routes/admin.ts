@@ -8,10 +8,13 @@ import {
 	createAdminSession,
 	deleteAdmin,
 	deleteAdminSession,
+	deleteAdminSessionById,
 	getAdminByEmail,
 	getAdminById,
+	getAdminSessions,
 	getSessionToken,
 	hashPassword,
+	parseUserAgent,
 	setSessionCookie,
 	updateAdminById,
 	validateAdminSession,
@@ -517,6 +520,87 @@ const changePasswordRoute = createRoute({
 	},
 });
 
+const DeviceSchema = z.object({
+	id: z.string().openapi({ description: "Session/Device ID" }),
+	deviceName: z.string().openapi({ description: "Device name (browser and OS)" }),
+	ipAddress: z.string().nullable().openapi({ description: "IP address" }),
+	browser: z.string().openapi({ description: "Browser name" }),
+	lastActiveAt: z.string().openapi({ description: "Last active timestamp" }),
+	createdAt: z.string().openapi({ description: "Session created timestamp" }),
+	isCurrentDevice: z.boolean().openapi({ description: "Is this the current device" }),
+});
+
+const DevicesResponseSchema = z.object({
+	devices: z.array(DeviceSchema).openapi({ description: "List of devices" }),
+});
+
+const getDevicesRoute = createRoute({
+	method: "get",
+	path: "/auth/devices",
+	tags: ["Admin - Authentication"],
+	summary: "Get all devices",
+	description: "Retrieve all devices/sessions logged in by the current admin",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Devices retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(DevicesResponseSchema),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+const deleteDeviceRoute = createRoute({
+	method: "delete",
+	path: "/auth/devices/{sessionId}",
+	tags: ["Admin - Authentication"],
+	summary: "Log out a device",
+	description: "Log out a specific device/session",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			sessionId: z.string().openapi({ description: "Session ID to log out" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Device logged out successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(z.object({ message: z.string() })),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Session not found",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
 function formatDateTime(date: Date) {
 	const months = [
 		"Jan",
@@ -635,6 +719,60 @@ adminRoute.openapi(changePasswordRoute, async (c) => {
 	return c.json({
 		success: true,
 		data: { message: "Password changed successfully" },
+	});
+});
+
+adminRoute.openapi(getDevicesRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const sessions = await getAdminSessions(c.env, session.adminId);
+
+	const devices = sessions.map((s) => {
+		return {
+			id: s.id,
+			deviceName: s.deviceName || "Unknown Device",
+			ipAddress: s.ipAddress,
+			browser: s.browser || "Unknown",
+			lastActiveAt: s.lastActiveAt?.toISOString() || "",
+			createdAt: s.createdAt?.toISOString() || "",
+			isCurrentDevice: s.token === token,
+		};
+	});
+
+	return c.json({
+		success: true,
+		data: { devices },
+	});
+});
+
+adminRoute.openapi(deleteDeviceRoute, async (c) => {
+	const { sessionId } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const deleted = await deleteAdminSessionById(c.env, sessionId, session.adminId);
+	if (!deleted) {
+		return c.json({ success: false, error: "Session not found" }, 404);
+	}
+
+	return c.json({
+		success: true,
+		data: { message: "Device logged out successfully" },
 	});
 });
 
