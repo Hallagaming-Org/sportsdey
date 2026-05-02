@@ -53,7 +53,7 @@ app.use("*", async (c, next) => {
 		if (allowedOrigins.has(origin)) {
 			return c.text(null, 204, {
 				"Access-Control-Allow-Origin": origin,
-				"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+				"Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
 				"Access-Control-Allow-Headers": "Authorization, Content-Type",
 				"Access-Control-Allow-Credentials": "true",
 			});
@@ -84,7 +84,7 @@ app.use(
 			console.log(allowedOrigins.has(origin) ? origin : "");
 			return allowedOrigins.has(origin) ? origin : "";
 		},
-		allowMethods: ["GET", "POST", "OPTIONS"],
+		allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
 		allowHeaders: ["Authorization", "Content-Type"],
 		credentials: true,
 	}),

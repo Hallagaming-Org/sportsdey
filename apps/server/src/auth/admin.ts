@@ -227,6 +227,8 @@ export async function updateAdminById(
 		name?: string;
 		email?: string;
 		mobileNumber?: string | null;
+		image?: string | null;
+		passwordHash?: string;
 	},
 ): Promise<{
 	id: string;
@@ -248,6 +250,12 @@ export async function updateAdminById(
 	}
 	if (data.mobileNumber !== undefined) {
 		updates.mobileNumber = data.mobileNumber;
+	}
+	if (data.image !== undefined) {
+		updates.image = data.image;
+	}
+	if (data.passwordHash !== undefined) {
+		updates.passwordHash = data.passwordHash;
 	}
 
 	console.log("updateAdminById:", { id, updates });
