@@ -406,16 +406,23 @@ kycRoute.openapi(submitKycRoute, async (c) => {
 	}
 
 	try {
-		await db.insert(schema.kyc).values({
-			id: kycId,
-			userId: user.id,
-			fullName,
-			identificationType,
-			frontDocumentId: frontFileId,
-			backDocumentId: backFileId,
-			status: "pending_review",
-			submittedAt,
-		});
+		const [kycRecord] = await db
+			.insert(schema.kyc)
+			.values({
+				id: kycId,
+				userId: user.id,
+				fullName,
+				identificationType,
+				frontDocumentId: frontFileId,
+				backDocumentId: backFileId,
+				status: "pending_review",
+				submittedAt,
+			})
+			.returning();
+
+		if (!kycRecord?.id) {
+			throw new Error("Failed to create KYC record");
+		}
 
 		await db
 			.update(schema.user)

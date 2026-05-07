@@ -211,13 +211,21 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 		.where(eq(schema.wallet.userId, playerId));
 
 	const transactionId = crypto.randomUUID();
-	await db.insert(schema.pocketsTransactions).values({
-		id: transactionId,
-		userId: playerId,
-		type: "DEBIT",
-		amount: amount / 100,
-		currency,
-	});
+
+	const [debitTxn] = await db
+		.insert(schema.pocketsTransactions)
+		.values({
+			id: transactionId,
+			userId: playerId,
+			type: "DEBIT",
+			amount: amount / 100,
+			currency,
+		})
+		.returning();
+
+	if (!debitTxn?.id) {
+		return c.json({ success: false, error: "Failed to record debit transaction" }, 500);
+	}
 
 	return c.json(
 		{
@@ -320,13 +328,21 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 		.where(eq(schema.wallet.userId, playerId));
 
 	const transactionId = crypto.randomUUID();
-	await db.insert(schema.pocketsTransactions).values({
-		id: transactionId,
-		userId: playerId,
-		type: "CREDIT",
-		amount: amount / 100,
-		currency,
-	});
+
+	const [creditTxn] = await db
+		.insert(schema.pocketsTransactions)
+		.values({
+			id: transactionId,
+			userId: playerId,
+			type: "CREDIT",
+			amount: amount / 100,
+			currency,
+		})
+		.returning();
+
+	if (!creditTxn?.id) {
+		return c.json({ success: false, error: "Failed to record credit transaction" }, 500);
+	}
 
 	return c.json(
 		{
@@ -429,13 +445,21 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 		.where(eq(schema.wallet.userId, playerId));
 
 	const transactionId = crypto.randomUUID();
-	await db.insert(schema.pocketsTransactions).values({
-		id: transactionId,
-		userId: playerId,
-		type: "REFUND",
-		amount: amount / 100,
-		currency,
-	});
+
+	const [refundTxn] = await db
+		.insert(schema.pocketsTransactions)
+		.values({
+			id: transactionId,
+			userId: playerId,
+			type: "REFUND",
+			amount: amount / 100,
+			currency,
+		})
+		.returning();
+
+	if (!refundTxn?.id) {
+		return c.json({ success: false, error: "Failed to record refund transaction" }, 500);
+	}
 
 	return c.json(
 		{

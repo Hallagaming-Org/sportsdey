@@ -398,7 +398,21 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 		status: "pending",
 	};
 
-	await db.insert(schema.utilityTransaction).values(txValues);
+	const [utilityTx] = await db
+		.insert(schema.utilityTransaction)
+		.values(txValues)
+		.returning();
+
+	if (!utilityTx?.id) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Failed to record transaction",
+				details: null,
+			},
+			500,
+		);
+	}
 
 	const result = await vendBill(env, {
 		productCode,

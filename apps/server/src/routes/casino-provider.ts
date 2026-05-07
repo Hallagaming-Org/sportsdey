@@ -336,12 +336,19 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 
 	const balance = wallet?.balance ?? 0;
 
-	await db.insert(schema.gameSessions).values({
-		sessionToken: session_token,
-		userId: user.id,
-		game: launchToken.game,
-		status: "active",
-	});
+	const [gameSession] = await db
+		.insert(schema.gameSessions)
+		.values({
+			sessionToken: session_token,
+			userId: user.id,
+			game: launchToken.game,
+			status: "active",
+		})
+		.returning();
+
+	if (!gameSession?.sessionToken) {
+		return c.json({ success: false, error: "Failed to create game session" }, 500);
+	}
 
 	await db
 		.update(schema.gameLaunchTokens)
@@ -476,15 +483,22 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		.set({ balance: newBalanceKobo })
 		.where(eq(schema.wallet.userId, user_id));
 
-	await db.insert(schema.gameTransactions).values({
-		id: operatorTxId,
-		userId: user_id,
-		providerTxId: provider_tx_id,
-		type: "BET",
-		amount,
-		sessionToken: session_token,
-		game,
-	});
+	const [betTxn] = await db
+		.insert(schema.gameTransactions)
+		.values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: provider_tx_id,
+			type: "BET",
+			amount,
+			sessionToken: session_token,
+			game,
+		})
+		.returning();
+
+	if (!betTxn?.id) {
+		return c.json({ success: false, error: "Failed to record bet transaction" }, 500);
+	}
 
 	return c.json(
 		{
@@ -598,15 +612,22 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		.set({ balance: newBalanceKobo / 10 })
 		.where(eq(schema.wallet.userId, user_id));
 
-	await db.insert(schema.gameTransactions).values({
-		id: operatorTxId,
-		userId: user_id,
-		providerTxId: provider_tx_id,
-		type: "WIN",
-		amount,
-		sessionToken: session_token,
-		game,
-	});
+	const [winTxn] = await db
+		.insert(schema.gameTransactions)
+		.values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: provider_tx_id,
+			type: "WIN",
+			amount,
+			sessionToken: session_token,
+			game,
+		})
+		.returning();
+
+	if (!winTxn?.id) {
+		return c.json({ success: false, error: "Failed to record win transaction" }, 500);
+	}
 
 	return c.json(
 		{
@@ -721,15 +742,22 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		.set({ balance: newBalanceKobo / 10 })
 		.where(eq(schema.wallet.userId, user_id));
 
-	await db.insert(schema.gameTransactions).values({
-		id: operatorTxId,
-		userId: user_id,
-		providerTxId: `rollback_${rollback_provider_tx_id}`,
-		type: "ROLLBACK",
-		amount,
-		sessionToken: session_token,
-		game,
-	});
+	const [rollbackTxn] = await db
+		.insert(schema.gameTransactions)
+		.values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: `rollback_${rollback_provider_tx_id}`,
+			type: "ROLLBACK",
+			amount,
+			sessionToken: session_token,
+			game,
+		})
+		.returning();
+
+	if (!rollbackTxn?.id) {
+		return c.json({ success: false, error: "Failed to record rollback transaction" }, 500);
+	}
 
 	return c.json(
 		{

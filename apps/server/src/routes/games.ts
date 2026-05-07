@@ -234,6 +234,10 @@ gamesRoute.openapi(
 			.values(gamesToInsert)
 			.returning();
 
+		if (!inserted || inserted.length === 0) {
+			return c.json({ success: false as const, error: "Failed to create game" }, 500);
+		}
+
 		return c.json({ success: true as const, data: inserted }, 201);
 	},
 );

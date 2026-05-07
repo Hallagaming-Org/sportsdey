@@ -94,12 +94,19 @@ casinoRoute.openapi(playGameRoute, async (c) => {
 
 	const token = `launch_${Date.now()}_${Math.random().toString(36).slice(2, 15)}`;
 
-	await db.insert(schema.gameLaunchTokens).values({
-		token,
-		userId: user.id,
-		game: gameCode,
-		used: false,
-	});
+	const [launchToken] = await db
+		.insert(schema.gameLaunchTokens)
+		.values({
+			token,
+			userId: user.id,
+			game: gameCode,
+			used: false,
+		})
+		.returning();
+
+	if (!launchToken?.token) {
+		return c.json({ success: false, error: "Failed to create launch token" }, 500);
+	}
 
 	const baseUrl =
 		c.env.LUCKYWORLDGAMES_LAUNCH_URL ||

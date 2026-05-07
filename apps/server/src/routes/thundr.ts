@@ -111,12 +111,19 @@ thundrRoute.openapi(playGameRoute, async (c) => {
 
 	const sessionId = crypto.randomUUID();
 
-	await db.insert(schema.thundrSessions).values({
-		sessionId,
-		userId: user.id,
-		gameId,
-		status: "active",
-	});
+	const [session] = await db
+		.insert(schema.thundrSessions)
+		.values({
+			sessionId,
+			userId: user.id,
+			gameId,
+			status: "active",
+		})
+		.returning();
+
+	if (!session?.sessionId) {
+		return c.json({ success: false, error: "Failed to create session" }, 500);
+	}
 
 	const baseUrl = c.env.THNDR_BASE_URL || "https://game-sandbox.thndr-cdn.com";
 	const operatorId = c.env.THNDR_OPERATOR_ID;
@@ -355,18 +362,25 @@ thundrRoute.post("/transactions", async (c) => {
 		}
 	}
 
-	await db.insert(schema.thundrTransactions).values({
-		id: operatorTxId,
-		transactionId: tx.transactionId,
-		userId: session.userId,
-		type: tx.type,
-		amount: txAmountKobo / 100,
-		roundId: tx.roundId,
-		gameId: tx.gameId,
-		sessionId: tx.sessionId,
-		originalTransactionId:
-			tx.type === "ROLLBACK" ? tx.originalTransactionId : null,
-	});
+	const [thundrTxn] = await db
+		.insert(schema.thundrTransactions)
+		.values({
+			id: operatorTxId,
+			transactionId: tx.transactionId,
+			userId: session.userId,
+			type: tx.type,
+			amount: txAmountKobo / 100,
+			roundId: tx.roundId,
+			gameId: tx.gameId,
+			sessionId: tx.sessionId,
+			originalTransactionId:
+				tx.type === "ROLLBACK" ? tx.originalTransactionId : null,
+		})
+		.returning();
+
+	if (!thundrTxn?.id) {
+		return c.json({ success: false, error: "Failed to record transaction" }, 500);
+	}
 
 	return c.json(
 		ThundrTransactionResponseSchema.parse({
