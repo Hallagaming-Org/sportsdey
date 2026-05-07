@@ -119,7 +119,7 @@ lagosRushRoute.openapi(launcherRoute, async (c) => {
 			{
 				success: true,
 				data: {
-					gameUrl: data.data?.gameUrl || "",
+					url: data.data?.gameUrl || "",
 				},
 			},
 			200,

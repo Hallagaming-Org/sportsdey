@@ -143,8 +143,16 @@ function GamesPage() {
 			let body: Record<string, unknown>;
 
 			if (isKnownGame) {
-				url = `${import.meta.env.VITE_SERVER_URL}thndr/play/${game.code}`;
-				body = {};
+				if (["XCAPEHB", "EAGLEHB", "LUCKYRISEHB"].includes(game.code)) {
+					url = `${import.meta.env.VITE_SERVER_URL}casino/play/${game.code}`;
+					body = {};
+				} else if (game.code === "LAGOSRUSH") {
+					url = `${import.meta.env.VITE_SERVER_URL}lagos-rush/launcher`;
+					body = { game: game.code };
+				} else {
+					url = `${import.meta.env.VITE_SERVER_URL}thndr/play/${game.code}`;
+					body = {};
+				}
 			} else {
 				url = `${import.meta.env.VITE_SERVER_URL}slotegrator/launch`;
 				body = { game_uuid: game.code };

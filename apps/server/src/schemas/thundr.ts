@@ -11,7 +11,7 @@ export const ThundrPlayRequestSchema = z.object({
 export const ThundrPlayResponseSchema = z.object({
 	success: z.literal(true).openapi({ description: "Success status" }),
 	data: z.object({
-		launchUrl: z
+		url: z
 			.string()
 			.openapi({ description: "URL to launch the Thundr game" }),
 	}).openapi({ description: "Response data" }),
