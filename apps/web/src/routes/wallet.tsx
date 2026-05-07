@@ -162,86 +162,88 @@ function WalletPage() {
 					</div>
 				) : (
 					<>
-						<div className="grid grid-cols-2 grid-rows-[auto_1fr] gap-4">
-							<div className="col-start-1 row-start-1 h-fit self-start rounded-2xl bg-white p-[20px] shadow-sm dark:bg-[#202120]">
-								<div className="flex items-center justify-between">
-									<p className="font-semibold text-[30px] text-primary dark:text-white">
-										Wallet &amp; Credits
-									</p>
-									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-										<WalletIcon width={18} height={18} className="block" />
+						<div className="lg:grid grid-cols-2 max-lg:space-y-8 gap-4 mb-6">
+							<div className="col-start-1 row-span-2 space-y-4">
+								<div className="h-fit self-start rounded-2xl bg-white p-[20px] shadow-sm dark:bg-[#202120]">
+									<div className="flex items-center justify-between">
+										<p className="font-semibold text-[30px] text-primary dark:text-white">
+											Wallet &amp; Credits
+										</p>
+										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
+											<WalletIcon width={18} height={18} className="block" />
+										</div>
 									</div>
 								</div>
-							</div>
-							<div className="col-start-1 row-start-2 h-full min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-								{isWalletSectionLoading ? (
-									<div className="flex min-h-32 items-center justify-center">
-										<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
-									</div>
-								) : (
-									<>
-										<p className="text-[14px] text-primary dark:text-white">
-											Wallet Balance
-										</p>
-										<div className="mt-3 flex items-start gap-2">
-											<p className="font-semibold text-primary leading-none dark:text-white">
-												{showBalance ? (
-													<span className="leading-none">
-														<span className="relative -top-2 align-super text-[24px]">
-															₦
-														</span>
-														<span className="text-[50px]">{walletBalance}</span>
-													</span>
-												) : (
-													<span className="text-[50px]">••••••</span>
-												)}
+								<div className="min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
+									{isWalletSectionLoading ? (
+										<div className="flex min-h-32 items-center justify-center">
+											<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
+										</div>
+									) : (
+										<>
+											<p className="text-[14px] text-primary dark:text-white">
+												Wallet Balance
 											</p>
-											<button
-												type="button"
-												onClick={() => setShowBalance((prev) => !prev)}
-												className="cursor-pointer text-primary dark:text-white"
-												aria-label={
-													showBalance
-														? "Hide wallet balance"
-														: "Show wallet balance"
-												}
-											>
-												{showBalance ? (
-													<EyeOff className="h-4 w-4" />
-												) : (
-													<Eye className="h-4 w-4" />
-												)}
-											</button>
-										</div>
-										<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-											<button
-												type="button"
-												onClick={() => {
-													setDepositError("");
-													setIsDepositModalOpen(true);
-												}}
-												className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-											>
-												Deposit
-											</button>
-											<button
-												type="button"
-												className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-											>
-												Tranfer fund
-											</button>
-											<button
-												type="button"
-												onClick={() => {
-													setIsWithdrawModalOpen(true);
-												}}
-												className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-											>
-												Withdraw
-											</button>
-										</div>
-									</>
-								)}
+											<div className="mt-3 flex items-start gap-2">
+												<p className="font-semibold text-primary leading-none dark:text-white">
+													{showBalance ? (
+														<span className="leading-none">
+															<span className="relative -top-2 align-super text-[24px]">
+																₦
+															</span>
+															<span className="text-[50px]">{walletBalance}</span>
+														</span>
+													) : (
+														<span className="text-[50px]">••••••</span>
+													)}
+												</p>
+												<button
+													type="button"
+													onClick={() => setShowBalance((prev) => !prev)}
+													className="cursor-pointer text-primary dark:text-white"
+													aria-label={
+														showBalance
+															? "Hide wallet balance"
+															: "Show wallet balance"
+													}
+												>
+													{showBalance ? (
+														<EyeOff className="h-4 w-4" />
+													) : (
+														<Eye className="h-4 w-4" />
+													)}
+												</button>
+											</div>
+											<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+												<button
+													type="button"
+													onClick={() => {
+														setDepositError("");
+														setIsDepositModalOpen(true);
+													}}
+													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+												>
+													Deposit
+												</button>
+												<button
+													type="button"
+													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+												>
+													Tranfer fund
+												</button>
+												<button
+													type="button"
+													onClick={() => {
+														setIsWithdrawModalOpen(true);
+													}}
+													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+												>
+													Withdraw
+												</button>
+											</div>
+										</>
+									)}
+								</div>
 							</div>
 							<div className="col-start-2 row-span-2 min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 								<p className="border-[#E0E0E0] border-b pb-3 font-semibold text-base text-primary dark:text-white">

@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
 import type { CloudflareBindings } from "../types";
@@ -20,47 +20,45 @@ const FileResponseSchema = z.object({
 	mimeType: z.string().openapi({ description: "MIME type" }),
 	size: z.number().openapi({ description: "File size in bytes" }),
 	createdAt: z.string().openapi({ description: "Creation timestamp" }),
-});
+}).openapi("FileResponse");
 
 const FileUploadBodySchema = z.object({
-	file: z
-		.string()
-		.openapi({
-			type: "string",
-			format: "binary",
-			description: "Binary file contents to upload",
-		}),
-	purpose: z
-		.enum(PURPOSE_VALUES)
-		.openapi({ description: "Purpose of the file (must match allowed purposes)" }),
+	file: z.string().openapi({
+		type: "string",
+		format: "binary",
+		description: "Binary file contents to upload",
+	}),
+	purpose: z.enum(PURPOSE_VALUES).openapi({
+		description: "Purpose of the file (must match allowed purposes)",
+	}),
 	fileName: z
 		.string()
 		.openapi({ description: "User-friendly name to store alongside the file" }),
-});
+}).openapi("FileUploadBody");
 
 const FileIdParamSchema = z.object({
 	id: z.string().openapi({ description: "File ID" }),
-});
+}).openapi("FileIdParam");
 
 const ErrorSchema = z.object({
-	success: z.literal(false),
-	error: z.string(),
-});
+	success: z.literal(false).openapi({ description: "Success status" }),
+	error: z.string().openapi({ description: "Error message" }),
+}).openapi("Error");
 
 const FileDetailResponseSchema = z.object({
-	success: z.literal(true),
-	data: FileResponseSchema,
-});
+	success: z.literal(true).openapi({ description: "Success status" }),
+	data: FileResponseSchema.openapi({ description: "File data" }),
+}).openapi("FileDetailResponse");
 
 const FilesListResponseSchema = z.object({
-	success: z.literal(true),
-	data: z.array(FileResponseSchema),
-});
+	success: z.literal(true).openapi({ description: "Success status" }),
+	data: z.array(FileResponseSchema).openapi({ description: "Files" }),
+}).openapi("FilesListResponse");
 
 const DeleteResponseSchema = z.object({
-	success: z.literal(true),
-	data: z.object({ message: z.string() }),
-});
+	success: z.literal(true).openapi({ description: "Success status" }),
+	data: z.object({ message: z.string().openapi({ description: "Message" }) }).openapi({ description: "Response data" }),
+}).openapi("DeleteResponse");
 
 const uploadRoute = createRoute({
 	method: "post",

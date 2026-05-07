@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, desc, eq, like, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import {
 	clearSessionCookie,
 	createAdmin,
@@ -14,17 +14,31 @@ import {
 	getAdminSessions,
 	getSessionToken,
 	hashPassword,
+	listAdmins,
 	parseUserAgent,
 	setSessionCookie,
 	updateAdminById,
+	updateAdminPermissions,
 	validateAdminSession,
 	verifyPassword,
 } from "@/auth/admin";
+import { adminPermissions } from "@/permissions";
+import { requirePermission } from "@/middleware/admin-permissions";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import type { CloudflareBindings } from "../types";
 
 const adminRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+function safeParsePermissions(permissions: string | null): string[] {
+	if (!permissions) return [];
+	try {
+		const parsed = JSON.parse(permissions);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
 
 const SignInSchema = z.object({
 	email: z.string().email().openapi({
@@ -49,7 +63,8 @@ const AdminResponseSchema = z.object({
 		.string()
 		.nullable()
 		.openapi({ description: "Admin profile image URL" }),
-	role: z.enum(["super_admin", "admin"]).openapi({ description: "Admin role" }),
+	role: z.enum(["super_admin", "admin", "csr-admin"]).openapi({ description: "Admin role" }),
+	permissions: z.array(z.string()).openapi({ description: "Admin permissions" }),
 	createdAt: z.string().openapi({ description: "Account creation timestamp" }),
 });
 
@@ -88,7 +103,8 @@ const CreateAdminSchema = z.object({
 		.string()
 		.min(1)
 		.openapi({ description: "Admin name", example: "John Doe" }),
-	role: z.enum(["super_admin", "admin"]).openapi({ description: "Admin role" }),
+	role: z.enum(["super_admin", "admin", "csr-admin"]).openapi({ description: "Admin role" }),
+	permissions: z.array(z.enum(adminPermissions)).openapi({ description: "Admin permissions" }),
 });
 
 const GetWalletTransactionsQuerySchema = z.object({
@@ -185,7 +201,7 @@ const signOutRoute = createRoute({
 			description: "Sign out successful",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(z.object({ message: z.string().openapi({ description: "Message" }) }).openapi("MessageResponse")),
 				},
 			},
 		},
@@ -282,9 +298,11 @@ const updateProfilePictureRoute = createRoute({
 			content: {
 				"multipart/form-data": {
 					schema: z.object({
-						file: z
-							.instanceof(File)
-							.openapi({ description: "Profile image file (max 5MB)" }),
+						file: z.string().openapi({
+							type: "string",
+							format: "binary",
+							description: "Profile image file (max 5MB)",
+						}),
 					}),
 				},
 			},
@@ -389,14 +407,14 @@ const deleteAdminRoute = createRoute({
 	request: {
 		params: z.object({
 			id: z.string().openapi({ description: "Admin ID to delete" }),
-		}),
+		}).openapi("DeleteAdminParams"),
 	},
 	responses: {
 		200: {
 			description: "Admin deleted successfully",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(z.object({ message: z.string().openapi({ description: "Message" }) }).openapi("MessageResponse")),
 				},
 			},
 		},
@@ -497,7 +515,7 @@ const changePasswordRoute = createRoute({
 			description: "Password changed successfully",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(z.object({ message: z.string().openapi({ description: "Message" }) }).openapi("MessageResponse")),
 				},
 			},
 		},
@@ -578,7 +596,7 @@ const deleteDeviceRoute = createRoute({
 			description: "Device logged out successfully",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(z.object({ message: z.string().openapi({ description: "Message" }) }).openapi("MessageResponse")),
 				},
 			},
 		},
@@ -658,7 +676,7 @@ adminRoute.openapi(signInRoute, async (c) => {
 		c.req.header("user-agent") || undefined,
 	);
 
-	c.header("Set-Cookie", setSessionCookie(token, c.env.NODE_ENV), {
+c.header("Set-Cookie", setSessionCookie(token, c.env.NODE_ENV), {
 		append: true,
 	});
 
@@ -672,6 +690,7 @@ adminRoute.openapi(signInRoute, async (c) => {
 				mobileNumber: adminUser.mobileNumber,
 				image: adminUser.image,
 				role: adminUser.role,
+				permissions: safeParsePermissions(adminUser.permissions),
 				createdAt: adminUser.createdAt?.toISOString() || "",
 			},
 		},
@@ -801,6 +820,7 @@ adminRoute.openapi(getMeRoute, async (c) => {
 			mobileNumber: adminUser.mobileNumber,
 			image: adminUser.image,
 			role: adminUser.role,
+			permissions: safeParsePermissions(adminUser.permissions),
 			createdAt: adminUser.createdAt?.toISOString() || "",
 		},
 	});
@@ -969,10 +989,70 @@ adminRoute.openapi(updateProfilePictureRoute, async (c) => {
 				image: updatedAdmin.image,
 			},
 		});
-	} catch (error) {
+} catch (error) {
 		console.error("Error in PATCH /me/profile-picture:", error);
 		return c.json({ success: false, error: "Internal server error" }, 500);
 	}
+});
+
+const listAdminsRoute = createRoute({
+	method: "get",
+	path: "/admins",
+	tags: ["Admin - Management"],
+	summary: "List all admins",
+	description: "Retrieve all admins. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Admins retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.array(AdminResponseSchema),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
+adminRoute.openapi(listAdminsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const admins = await listAdmins(c.env);
+
+	return c.json({
+		success: true,
+		data: admins.map((admin) => ({
+			id: admin.id,
+			email: admin.email,
+			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
+			role: admin.role,
+			permissions: safeParsePermissions(admin.permissions),
+			createdAt: admin.createdAt?.toISOString() || "",
+		})),
+	});
 });
 
 adminRoute.openapi(createAdminRoute, async (c) => {
@@ -995,7 +1075,7 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 		return c.json({ success: false, error: "Invalid request body" }, 400);
 	}
 
-	const { email, password, name, role } = result.data;
+	const { email, password, name, role, permissions } = result.data;
 
 	const existing = await getAdminByEmail(c.env, email);
 	if (existing) {
@@ -1004,14 +1084,21 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 
 	const adminResult = await createAdmin(c.env, { email, password, name, role });
 
+	if (permissions && permissions.length > 0) {
+		await updateAdminPermissions(c.env, adminResult.id, permissions);
+	}
+
+	const admin = await getAdminById(c.env, adminResult.id);
+
 	return c.json({
 		success: true,
 		data: {
-			id: adminResult.id,
-			email,
-			name,
-			role,
-			createdAt: new Date().toISOString(),
+			id: admin?.id,
+			email: admin?.email,
+			name: admin?.name,
+			role: admin?.role,
+			permissions: safeParsePermissions(admin?.permissions),
+			createdAt: admin?.createdAt?.toISOString() || new Date().toISOString(),
 		},
 	});
 });
@@ -1055,6 +1142,13 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
 		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	if (session.role !== "super_admin" && !requirePermission(session, "transactions")) {
+		return c.json(
+			{ success: false, error: "Forbidden - transactions permission required" },
+			403,
+		);
 	}
 
 	const query = GetWalletTransactionsQuerySchema.safeParse({
@@ -1136,7 +1230,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		};
 	});
 
-	return c.json({
+return c.json({
 		success: true,
 		data: {
 			transactions: formattedTransactions,
@@ -1146,6 +1240,170 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 				total,
 				totalPages,
 			},
+		},
+	});
+});
+
+const GetAdminByIdParamsSchema = z.object({
+	id: z.string().openapi({ description: "Admin ID" }),
+});
+
+const UpdateAdminPermissionsSchema = z.object({
+	permissions: z.array(z.enum(adminPermissions)).openapi({
+		description: "List of permissions to assign",
+	}),
+});
+
+const getAdminByIdRoute = createRoute({
+	method: "get",
+	path: "/admins/{id}",
+	tags: ["Admin - Management"],
+	summary: "Get admin by ID",
+	description: "Retrieve an admin's profile including permissions. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: GetAdminByIdParamsSchema,
+	},
+	responses: {
+		200: {
+			description: "Admin retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(AdminResponseSchema),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
+const updateAdminPermissionsRoute = createRoute({
+	method: "patch",
+	path: "/admins/{id}/permissions",
+	tags: ["Admin - Management"],
+	summary: "Update admin permissions",
+	description: "Update an admin's permissions. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: GetAdminByIdParamsSchema,
+		body: {
+			content: {
+				"application/json": { schema: UpdateAdminPermissionsSchema },
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Permissions updated successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							id: z.string(),
+							permissions: z.array(z.string()),
+						}),
+					),
+				},
+			},
+		},
+		400: {
+			description: "Invalid request",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
+adminRoute.openapi(getAdminByIdRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			id: admin.id,
+			email: admin.email,
+			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
+			role: admin.role,
+			permissions: safeParsePermissions(admin.permissions),
+			createdAt: admin.createdAt?.toISOString() || "",
+		},
+	});
+});
+
+adminRoute.openapi(updateAdminPermissionsRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const body = await c.req.json();
+	const result = UpdateAdminPermissionsSchema.safeParse(body);
+	if (!result.success) {
+		return c.json({ success: false, error: "Invalid request body" }, 400);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	await updateAdminPermissions(c.env, id, result.data.permissions);
+
+	return c.json({
+		success: true,
+		data: {
+			id,
+			permissions: result.data.permissions,
 		},
 	});
 });

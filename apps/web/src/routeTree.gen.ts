@@ -13,6 +13,7 @@ import { Route as WalletTransactionStatusRouteImport } from './routes/wallet-tra
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as TennisRouteImport } from './routes/tennis'
 import { Route as NewsRouteImport } from './routes/news'
+import { Route as KycRouteImport } from './routes/kyc'
 import { Route as GamesRouteImport } from './routes/games'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as BettingRouteImport } from './routes/betting'
@@ -21,9 +22,11 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TennisIndexRouteImport } from './routes/tennis.index'
 import { Route as NewsIndexRouteImport } from './routes/news.index'
+import { Route as KycIndexRouteImport } from './routes/kyc.index'
 import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
 import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
 import { Route as NewsSlugRouteImport } from './routes/news.$slug'
+import { Route as KycVerifyRouteImport } from './routes/kyc.verify'
 import { Route as IndexGameIdRouteImport } from './routes/index.$gameId'
 import { Route as GameGameIdRouteImport } from './routes/game.$gameId'
 import { Route as BasketballIdRouteImport } from './routes/basketball/$Id'
@@ -54,6 +57,11 @@ const TennisRoute = TennisRouteImport.update({
 const NewsRoute = NewsRouteImport.update({
   id: '/news',
   path: '/news',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KycRoute = KycRouteImport.update({
+  id: '/kyc',
+  path: '/kyc',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GamesRoute = GamesRouteImport.update({
@@ -96,6 +104,11 @@ const NewsIndexRoute = NewsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => NewsRoute,
 } as any)
+const KycIndexRoute = KycIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => KycRoute,
+} as any)
 const BasketballIndexRoute = BasketballIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -110,6 +123,11 @@ const NewsSlugRoute = NewsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => NewsRoute,
+} as any)
+const KycVerifyRoute = KycVerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => KycRoute,
 } as any)
 const IndexGameIdRoute = IndexGameIdRouteImport.update({
   id: '/index/$gameId',
@@ -177,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/betting': typeof BettingRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
   '/wallet': typeof WalletRoute
@@ -188,9 +207,11 @@ export interface FileRoutesByFullPath {
   '/basketball/$Id': typeof BasketballIdRoute
   '/game/$gameId': typeof GameGameIdRoute
   '/index/$gameId': typeof IndexGameIdRoute
+  '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
   '/tennis/$Id': typeof TennisIdRoute
   '/basketball/': typeof BasketballIndexRoute
+  '/kyc/': typeof KycIndexRoute
   '/news/': typeof NewsIndexRoute
   '/tennis/': typeof TennisIndexRoute
   '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
@@ -213,9 +234,11 @@ export interface FileRoutesByTo {
   '/basketball/$Id': typeof BasketballIdRoute
   '/game/$gameId': typeof GameGameIdRoute
   '/index/$gameId': typeof IndexGameIdRoute
+  '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
   '/tennis/$Id': typeof TennisIdRoute
   '/basketball': typeof BasketballIndexRoute
+  '/kyc': typeof KycIndexRoute
   '/news': typeof NewsIndexRoute
   '/tennis': typeof TennisIndexRoute
   '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
@@ -231,6 +254,7 @@ export interface FileRoutesById {
   '/betting': typeof BettingRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
   '/wallet': typeof WalletRoute
@@ -242,9 +266,11 @@ export interface FileRoutesById {
   '/basketball/$Id': typeof BasketballIdRoute
   '/game/$gameId': typeof GameGameIdRoute
   '/index/$gameId': typeof IndexGameIdRoute
+  '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
   '/tennis/$Id': typeof TennisIdRoute
   '/basketball/': typeof BasketballIndexRoute
+  '/kyc/': typeof KycIndexRoute
   '/news/': typeof NewsIndexRoute
   '/tennis/': typeof TennisIndexRoute
   '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
@@ -261,6 +287,7 @@ export interface FileRouteTypes {
     | '/betting'
     | '/favorites'
     | '/games'
+    | '/kyc'
     | '/news'
     | '/tennis'
     | '/wallet'
@@ -272,9 +299,11 @@ export interface FileRouteTypes {
     | '/basketball/$Id'
     | '/game/$gameId'
     | '/index/$gameId'
+    | '/kyc/verify'
     | '/news/$slug'
     | '/tennis/$Id'
     | '/basketball/'
+    | '/kyc/'
     | '/news/'
     | '/tennis/'
     | '/basketball/tournament/$tournamentId'
@@ -297,9 +326,11 @@ export interface FileRouteTypes {
     | '/basketball/$Id'
     | '/game/$gameId'
     | '/index/$gameId'
+    | '/kyc/verify'
     | '/news/$slug'
     | '/tennis/$Id'
     | '/basketball'
+    | '/kyc'
     | '/news'
     | '/tennis'
     | '/basketball/tournament/$tournamentId'
@@ -314,6 +345,7 @@ export interface FileRouteTypes {
     | '/betting'
     | '/favorites'
     | '/games'
+    | '/kyc'
     | '/news'
     | '/tennis'
     | '/wallet'
@@ -325,9 +357,11 @@ export interface FileRouteTypes {
     | '/basketball/$Id'
     | '/game/$gameId'
     | '/index/$gameId'
+    | '/kyc/verify'
     | '/news/$slug'
     | '/tennis/$Id'
     | '/basketball/'
+    | '/kyc/'
     | '/news/'
     | '/tennis/'
     | '/basketball/tournament/$tournamentId'
@@ -343,6 +377,7 @@ export interface RootRouteChildren {
   BettingRoute: typeof BettingRoute
   FavoritesRoute: typeof FavoritesRoute
   GamesRoute: typeof GamesRoute
+  KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
   TennisRoute: typeof TennisRouteWithChildren
   WalletRoute: typeof WalletRoute
@@ -384,6 +419,13 @@ declare module '@tanstack/react-router' {
       path: '/news'
       fullPath: '/news'
       preLoaderRoute: typeof NewsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kyc': {
+      id: '/kyc'
+      path: '/kyc'
+      fullPath: '/kyc'
+      preLoaderRoute: typeof KycRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/games': {
@@ -442,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NewsIndexRouteImport
       parentRoute: typeof NewsRoute
     }
+    '/kyc/': {
+      id: '/kyc/'
+      path: '/'
+      fullPath: '/kyc/'
+      preLoaderRoute: typeof KycIndexRouteImport
+      parentRoute: typeof KycRoute
+    }
     '/basketball/': {
       id: '/basketball/'
       path: '/'
@@ -462,6 +511,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/news/$slug'
       preLoaderRoute: typeof NewsSlugRouteImport
       parentRoute: typeof NewsRoute
+    }
+    '/kyc/verify': {
+      id: '/kyc/verify'
+      path: '/verify'
+      fullPath: '/kyc/verify'
+      preLoaderRoute: typeof KycVerifyRouteImport
+      parentRoute: typeof KycRoute
     }
     '/index/$gameId': {
       id: '/index/$gameId'
@@ -559,6 +615,18 @@ const BasketballRouteWithChildren = BasketballRoute._addFileChildren(
   BasketballRouteChildren,
 )
 
+interface KycRouteChildren {
+  KycVerifyRoute: typeof KycVerifyRoute
+  KycIndexRoute: typeof KycIndexRoute
+}
+
+const KycRouteChildren: KycRouteChildren = {
+  KycVerifyRoute: KycVerifyRoute,
+  KycIndexRoute: KycIndexRoute,
+}
+
+const KycRouteWithChildren = KycRoute._addFileChildren(KycRouteChildren)
+
 interface NewsSlugRouteChildren {
   NewsSlugOgRoute: typeof NewsSlugOgRoute
 }
@@ -605,6 +673,7 @@ const rootRouteChildren: RootRouteChildren = {
   BettingRoute: BettingRoute,
   FavoritesRoute: FavoritesRoute,
   GamesRoute: GamesRoute,
+  KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
   TennisRoute: TennisRouteWithChildren,
   WalletRoute: WalletRoute,

@@ -24,11 +24,12 @@ export const MonnifyBillerSchema = z.object({
 export const MonnifyProductSchema = z.object({
 	code: z.string().openapi({ description: "Product code" }),
 	name: z.string().openapi({ description: "Product name" }),
-	category: z.object({ code: z.string(), name: z.string() }).openapi({
-		description: "Category",
-	}),
+	category: z.object({ 
+		code: z.string().openapi({ description: "Category code" }), 
+		name: z.string().openapi({ description: "Category name" }) 
+	}).openapi({ description: "Category" }),
 	billers: z
-		.array(z.object({ code: z.string(), name: z.string() }))
+		.array(z.object({ code: z.string().openapi({ description: "Biller code" }), name: z.string().openapi({ description: "Biller name" }) }))
 		.openapi({ description: "Billers" }),
 	minAmount: z.number().nullable().openapi({ description: "Minimum amount" }),
 	maxAmount: z.number().nullable().openapi({ description: "Maximum amount" }),
@@ -36,23 +37,23 @@ export const MonnifyProductSchema = z.object({
 	priceType: z.enum(["OPEN", "FIXED"]).openapi({ description: "Price type" }),
 	metadata: z
 		.object({
-			volume: z.number(),
-			duration: z.number(),
-			productType: z.object({ code: z.string(), name: z.string() }),
-			durationUnit: z.string().nullable(),
-			productCategory: z.string().nullable(),
+			volume: z.number().openapi({ description: "Volume" }),
+			duration: z.number().openapi({ description: "Duration" }),
+			productType: z.object({ code: z.string().openapi({ description: "Product type code" }), name: z.string().openapi({ description: "Product type name" }) }).openapi({ description: "Product type" }),
+			durationUnit: z.string().nullable().openapi({ description: "Duration unit" }),
+			productCategory: z.string().nullable().openapi({ description: "Product category" }),
 		})
 		.openapi({ description: "Metadata" }),
-});
+}).openapi("MonnifyProduct");
 
 export const MonnifyProductsResponseSchema = z.object({
-	content: z.array(MonnifyProductSchema),
-	totalElements: z.number(),
-	size: z.number(),
-	number: z.number(),
-	empty: z.boolean(),
-	nextPage: z.number().nullable(),
-});
+	content: z.array(MonnifyProductSchema).openapi({ description: "Products" }),
+	totalElements: z.number().openapi({ description: "Total elements" }),
+	size: z.number().openapi({ description: "Size" }),
+	number: z.number().openapi({ description: "Page number" }),
+	empty: z.boolean().openapi({ description: "Is empty" }),
+	nextPage: z.number().nullable().openapi({ description: "Next page" }),
+}).openapi("MonnifyProductsResponse");
 
 export const MonnifyValidationSchema = z.object({
 	customerName: z.string().openapi({ description: "Customer name" }),
@@ -71,8 +72,8 @@ export const MonnifyValidationSchema = z.object({
 			description: "Whether validation reference is required",
 		}),
 		message: z.string().openapi({ description: "Message" }),
-	}),
-});
+	}).openapi({ description: "Vend instruction" }),
+}).openapi("MonnifyValidation");
 
 export const MonnifyVendResponseSchema = z.object({
 	transactionReference: z.string().openapi({
@@ -93,9 +94,8 @@ export const MonnifyVendResponseSchema = z.object({
 	totalAmount: z.number().openapi({ description: "Total amount" }),
 	commission: z.number().openapi({ description: "Commission" }),
 	additionalData: z.record(z.string(), z.unknown()).openapi({
-		description: "Additional data",
-	}),
-});
+		description: "Additional data" }),
+}).openapi("MonnifyVendResponse");
 
 export const MonnifyRequerySchema = z.object({
 	transactionReference: z.string().openapi({
@@ -115,7 +115,7 @@ export const MonnifyRequerySchema = z.object({
 	vendAmount: z.number().openapi({ description: "Vend amount" }),
 	totalAmount: z.number().openapi({ description: "Total amount" }),
 	commission: z.number().openapi({ description: "Commission" }),
-});
+}).openapi("MonnifyRequery");
 
 export type MonnifyCategory = z.infer<typeof MonnifyCategorySchema>;
 export type MonnifyBiller = z.infer<typeof MonnifyBillerSchema>;

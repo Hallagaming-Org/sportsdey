@@ -29,6 +29,27 @@
       "when": 1777226478025,
       "tag": "0003_third_hairball",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777511842253,
+      "tag": "0004_brief_freak",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1777736027706,
+      "tag": "0005_lowly_franklin_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1777993038553,
+      "tag": "0006_motionless_captain_cross",
+      "breakpoints": true
     }
   ]
 }

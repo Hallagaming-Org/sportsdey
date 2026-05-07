@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import * as schema from "@/db/schema";
 import {
 	MonnifyBillerSchema,
@@ -43,9 +43,9 @@ const categoriesRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(true),
-						data: z.array(MonnifyCategorySchema),
-					}),
+						success: z.literal(true).openapi({ description: "Success status" }),
+						data: z.array(MonnifyCategorySchema).openapi({ description: "Categories" }),
+					}).openapi("CategoriesResponse200"),
 				},
 			},
 		},
@@ -54,10 +54,10 @@ const categoriesRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("CategoriesResponse500"),
 				},
 			},
 		},
@@ -114,9 +114,9 @@ const billersRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(true),
-						data: z.array(MonnifyBillerSchema),
-					}),
+						success: z.literal(true).openapi({ description: "Success status" }),
+						data: z.array(MonnifyBillerSchema).openapi({ description: "Billers" }),
+					}).openapi("BillersResponse200"),
 				},
 			},
 		},
@@ -125,10 +125,10 @@ const billersRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("BillersResponse500"),
 				},
 			},
 		},
@@ -186,9 +186,9 @@ const productsRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(true),
-						data: MonnifyProductsResponseSchema,
-					}),
+						success: z.literal(true).openapi({ description: "Success status" }),
+						data: MonnifyProductsResponseSchema.openapi({ description: "Products" }),
+					}).openapi("ProductsResponse200"),
 				},
 			},
 		},
@@ -197,10 +197,10 @@ const productsRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("ProductsResponse500"),
 				},
 			},
 		},
@@ -264,9 +264,9 @@ const vendRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(true),
-						data: MonnifyVendResponseSchema,
-					}),
+						success: z.literal(true).openapi({ description: "Success status" }),
+						data: MonnifyVendResponseSchema.openapi({ description: "Vend response" }),
+					}).openapi("VendResponse200"),
 				},
 			},
 		},
@@ -275,10 +275,10 @@ const vendRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("VendResponse400"),
 				},
 			},
 		},
@@ -287,10 +287,10 @@ const vendRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("VendResponse401"),
 				},
 			},
 		},
@@ -299,10 +299,10 @@ const vendRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("VendResponse500"),
 				},
 			},
 		},
@@ -468,9 +468,9 @@ const requeryRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(true),
-						data: MonnifyRequerySchema,
-					}),
+						success: z.literal(true).openapi({ description: "Success status" }),
+						data: MonnifyRequerySchema.openapi({ description: "Transaction data" }),
+					}).openapi("RequeryResponse200"),
 				},
 			},
 		},
@@ -479,10 +479,10 @@ const requeryRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("RequeryResponse400"),
 				},
 			},
 		},
@@ -491,10 +491,10 @@ const requeryRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("RequeryResponse401"),
 				},
 			},
 		},
@@ -503,10 +503,10 @@ const requeryRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("RequeryResponse404"),
 				},
 			},
 		},
@@ -515,8 +515,8 @@ const requeryRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
 						details: z.null(),
 					}),
 				},
@@ -628,27 +628,27 @@ const historyRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(true),
+						success: z.literal(true).openapi({ description: "Success status" }),
 						data: z.array(
 							z.object({
-								id: z.string(),
-								userId: z.string(),
-								amount: z.number(),
-								serviceCategory: z.string(),
-								billerCode: z.string(),
-								billerName: z.string(),
-								customerId: z.string(),
-								customerName: z.string().nullable(),
-								productCode: z.string(),
-								productName: z.string(),
-								monnifyTransactionReference: z.string().nullable(),
-								vendReference: z.string(),
-								validationReference: z.string().nullable(),
-								status: z.string(),
-								createdAt: z.string(),
-							}),
-						),
-					}),
+								id: z.string().openapi({ description: "History ID" }),
+								userId: z.string().openapi({ description: "User ID" }),
+								amount: z.number().openapi({ description: "Amount" }),
+								serviceCategory: z.string().openapi({ description: "Service category" }),
+								billerCode: z.string().openapi({ description: "Biller code" }),
+								billerName: z.string().openapi({ description: "Biller name" }),
+								customerId: z.string().openapi({ description: "Customer ID" }),
+								customerName: z.string().nullable().openapi({ description: "Customer name" }),
+								productCode: z.string().openapi({ description: "Product code" }),
+								productName: z.string().openapi({ description: "Product name" }),
+								monnifyTransactionReference: z.string().nullable().openapi({ description: "Monnify reference" }),
+								vendReference: z.string().openapi({ description: "Vend reference" }),
+								validationReference: z.string().nullable().openapi({ description: "Validation reference" }),
+								status: z.string().openapi({ description: "Status" }),
+								createdAt: z.string().openapi({ description: "Created at" }),
+							}).openapi("HistoryItem"),
+						).openapi({ description: "History array" }),
+					}).openapi("HistoryResponse200"),
 				},
 			},
 		},
@@ -657,10 +657,10 @@ const historyRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						success: z.literal(false),
-						error: z.string(),
-						details: z.null(),
-					}),
+						success: z.literal(false).openapi({ description: "Success status" }),
+						error: z.string().openapi({ description: "Error message" }),
+						details: z.null().openapi({ description: "Error details" }),
+					}).openapi("HistoryResponse401"),
 				},
 			},
 		},

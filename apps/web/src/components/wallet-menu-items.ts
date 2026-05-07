@@ -1,7 +1,6 @@
 import type { ComponentType, SVGProps } from "react";
 import BellIcon from "@/logos/bell.svg?react";
 import BettingIcon from "@/logos/betting.svg?react";
-import HistoryIcon from "@/logos/history.svg?react";
 import LikeIcon from "@/logos/like.svg?react";
 import LogoutIcon from "@/logos/log-out.svg?react";
 import ProfileIcon from "@/logos/profile.svg?react";

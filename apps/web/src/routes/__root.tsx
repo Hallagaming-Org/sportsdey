@@ -26,7 +26,13 @@ import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
 
-export type RouterAppContext = {};
+import { RouterProviderComponents } from "@tanstack/react-router";
+
+export type RouterAppContext = {
+	historyState?: {
+		gameUrl?: string;
+	};
+};
 
 export const queryClient = new QueryClient({
 	defaultOptions: {

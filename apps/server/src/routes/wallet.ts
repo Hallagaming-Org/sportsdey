@@ -1,7 +1,6 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
 import * as schema from "@/db/schema";
 import {
 	CallbackQuerySchema,
@@ -438,10 +437,20 @@ const deleteWithdrawalAccountRoute = createRoute({
 			description: "Withdrawal account deleted successfully",
 			content: {
 				"application/json": {
-					schema: z.object({
-						success: z.literal(true),
-						data: z.object({ deleted: z.literal(true) }),
-					}),
+					schema: z
+						.object({
+							success: z
+								.literal(true)
+								.openapi({ description: "Success status" }),
+							data: z
+								.object({
+									deleted: z
+										.literal(true)
+										.openapi({ description: "Deleted status" }),
+								})
+								.openapi({ description: "Response data" }),
+						})
+						.openapi("DeleteWithdrawalAccountResponse"),
 				},
 			},
 		},
@@ -561,6 +570,16 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			400,
 		);
 	}
+	if (!result.success) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Invalid request",
+				details: null,
+			},
+			400,
+		);
+	}
 
 	const { amount } = result.data;
 	const db = drizzle(c.env.DB, { schema });
@@ -575,11 +594,18 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		.limit(1);
 
 	if (!existingWallet) {
-		await db.insert(schema.wallet).values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			balance: 0,
-		});
+		const [newWallet] = await db
+			.insert(schema.wallet)
+			.values({
+				id: generateUUIDv7(),
+				userId: user.id,
+				balance: 0,
+			})
+			.returning();
+
+		if (!newWallet || !newWallet.id) {
+			return c.json({ success: false, error: "Failed to create wallet" }, 500);
+		}
 	} else {
 		currentBalance = existingWallet.balance;
 	}
@@ -598,17 +624,25 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			c.env.PROXY_URL,
 			c.env.PROXY_SECRET,
 		);
+		console.log("paystackResult", paystackResult);
 
-		await db.insert(schema.walletTransaction).values({
-			id: transactionId,
-			userId: user.id,
-			amount: amount * 100,
-			type: "credit",
-			reference: paystackResult.reference,
-			status: "pending",
-			paymentMethod: "card",
-			balance: currentBalance,
-		});
+		const [creditTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: transactionId,
+				userId: user.id,
+				amount: amount * 100,
+				type: "credit",
+				reference: paystackResult.reference,
+				status: "pending",
+				paymentMethod: "card",
+				balance: currentBalance,
+			})
+			.returning();
+
+		if (!creditTxn || !creditTxn.id) {
+			return c.json({ success: false, error: "Failed to record deposit transaction" }, 500);
+		}
 
 		return c.json(
 			{
@@ -621,6 +655,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			200,
 		);
 	} catch (error) {
+		console.log("fund error", error);
 		return c.json(
 			{
 				success: false as const,
@@ -749,7 +784,11 @@ walletRoute.openapi(getBanksRoute, async (c) => {
 	}
 
 	try {
-		const banks = await getNigerianBanks(c.env.PAYSTACK_SECRET_KEY, c.env.PROXY_URL, c.env.PROXY_SECRET);
+		const banks = await getNigerianBanks(
+			c.env.PAYSTACK_SECRET_KEY,
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
+		);
 		const normalizedBanks = banks
 			.map((bank) => ({ name: bank.name, code: bank.code }))
 			.sort((a, b) => a.name.localeCompare(b.name));
@@ -793,7 +832,12 @@ walletRoute.openapi(callbackRoute, async (c) => {
 		}
 
 		try {
-			const tx = await verifyTransaction(c.env.PAYSTACK_SECRET_KEY, reference, c.env.PROXY_URL, c.env.PROXY_SECRET);
+			const tx = await verifyTransaction(
+				c.env.PAYSTACK_SECRET_KEY,
+				reference,
+				c.env.PROXY_URL,
+				c.env.PROXY_SECRET,
+			);
 			const txStatus = tx.status.toLowerCase();
 			status =
 				txStatus === "success"
@@ -1444,16 +1488,23 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			c.env.PROXY_SECRET,
 		);
 
-		await db.insert(schema.walletTransaction).values({
-			id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: user.id,
-			amount: amount * 100,
-			type: "debit",
-			reference,
-			status: transfer.status === "success" ? "success" : "pending",
-			paymentMethod: "paystack",
-			balance: wallet.balance - amount * 100,
-		});
+		const [withdrawalTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: user.id,
+				amount: amount * 100,
+				type: "debit",
+				reference,
+				status: transfer.status === "success" ? "success" : "pending",
+				paymentMethod: "paystack",
+				balance: wallet.balance - amount * 100,
+			})
+			.returning();
+
+		if (!withdrawalTxn || !withdrawalTxn.id) {
+			return c.json({ success: false, error: "Failed to record withdrawal transaction" }, 500);
+		}
 
 		await db
 			.update(schema.wallet)
@@ -1593,27 +1644,41 @@ walletRoute.openapi(transferRoute, async (c) => {
 			})
 			.where(eq(schema.wallet.id, recipientWallet.id));
 
-		await db.insert(schema.walletTransaction).values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			amount: -amount * 100,
-			type: "debit",
-			reference: `${reference}_sender`,
-			status: "completed",
-			paymentMethod: "wallet_transfer",
-			balance: senderWallet.balance - amount * 100,
-		});
+		const [senderTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: generateUUIDv7(),
+				userId: user.id,
+				amount: -amount * 100,
+				type: "debit",
+				reference: `${reference}_sender`,
+				status: "completed",
+				paymentMethod: "wallet_transfer",
+				balance: senderWallet.balance - amount * 100,
+			})
+			.returning();
 
-		await db.insert(schema.walletTransaction).values({
-			id: generateUUIDv7(),
-			userId: recipientWallet.userId,
-			amount: amount * 100,
-			type: "credit",
-			reference: `${reference}_recipient`,
-			status: "completed",
-			paymentMethod: "wallet_transfer",
-			balance: recipientWallet.balance + amount * 100,
-		});
+		if (!senderTxn || !senderTxn.id) {
+			return c.json({ success: false, error: "Failed to record sender transaction" }, 500);
+		}
+
+		const [recipientTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: generateUUIDv7(),
+				userId: recipientWallet.userId,
+				amount: amount * 100,
+				type: "credit",
+				reference: `${reference}_recipient`,
+				status: "completed",
+				paymentMethod: "wallet_transfer",
+				balance: recipientWallet.balance + amount * 100,
+			})
+			.returning();
+
+		if (!recipientTxn || !recipientTxn.id) {
+			return c.json({ success: false, error: "Failed to record recipient transaction" }, 500);
+		}
 
 		return c.json(
 			{
@@ -1797,25 +1862,39 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			})
 			.where(eq(schema.gameWallet.id, gameWallet.id));
 
-		await db.insert(schema.walletTransaction).values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			amount: -amount * 100,
-			type: "debit",
-			reference: `${reference}_normal`,
-			status: "completed",
-			paymentMethod: "wallet_transfer",
-			balance: normalWallet.balance - amount * 100,
-		});
+		const [normalTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: generateUUIDv7(),
+				userId: user.id,
+				amount: -amount * 100,
+				type: "debit",
+				reference: `${reference}_normal`,
+				status: "completed",
+				paymentMethod: "wallet_transfer",
+				balance: normalWallet.balance - amount * 100,
+			})
+			.returning();
 
-		await db.insert(schema.gameWalletTransaction).values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			amount: amount * 100,
-			type: "credit",
-			reference: `${reference}_game`,
-			status: "completed",
-		});
+		if (!normalTxn || !normalTxn.id) {
+			return c.json({ success: false, error: "Failed to record normal wallet transaction" }, 500);
+		}
+
+		const [gameTxn] = await db
+			.insert(schema.gameWalletTransaction)
+			.values({
+				id: generateUUIDv7(),
+				userId: user.id,
+				amount: amount * 100,
+				type: "credit",
+				reference: `${reference}_game`,
+				status: "completed",
+			})
+			.returning();
+
+		if (!gameTxn || !gameTxn.id) {
+			return c.json({ success: false, error: "Failed to record game wallet transaction" }, 500);
+		}
 
 		const [updatedNormalWallet] = await db
 			.select()

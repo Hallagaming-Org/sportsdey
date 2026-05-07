@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
-export const basketballScheduleParam = z.object({});
+export const basketballScheduleParam = z.object({}).openapi("BasketballScheduleParam");
 
 export const basketballScheduleQuery = z.object({
 	date: z
@@ -25,11 +25,14 @@ export const basketballScheduleQuery = z.object({
 				"Language you want the result to be in (e.g., 'en', 'es', 'fr'). Default is 'en'",
 			example: "en",
 		}),
-});
+}).openapi("BasketballScheduleQuery");
 
 export const gameIdParam = z.object({
-	gameId: z.string().min(1, "Game ID is required"),
-});
+	gameId: z.string().min(1, "Game ID is required").openapi({
+		param: { name: "gameId", in: "path" },
+		description: "Game ID",
+	}),
+}).openapi("GameIdParam");
 
 export const basketballStandingsParam = z.object({
 	tournamentId: z.string().openapi({
@@ -37,9 +40,9 @@ export const basketballStandingsParam = z.object({
 		description: "ID of the tournament",
 		example: "132",
 	}),
-});
+}).openapi("BasketballStandingsParam");
 
-export const basketballStandingsQuery = z.object({});
+export const basketballStandingsQuery = z.object({}).openapi("BasketballStandingsQuery");
 
 export const basketballVideosQuery = z.object({
 	query: z.string().openapi({

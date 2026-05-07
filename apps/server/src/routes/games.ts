@@ -1,52 +1,72 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { z } from "zod";
 import crypto from "node:crypto";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import * as schema from "@/db/schema";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
-import { successResponseSchema, ErrorResponseSchema } from "@/schemas";
+import * as schema from "@/db/schema";
+import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import type { CloudflareBindings } from "../types";
 
 const gamesRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-const GameParamsSchema = z.object({
-	id: z.string().openapi({ description: "Game ID" }),
-});
+const GameParamsSchema = z
+	.object({
+		id: z.string().openapi({ description: "Game ID" }),
+	})
+	.openapi("GameParams");
 
-const CreateGameSchema = z.object({
-	name: z.string().min(1).openapi({ description: "Game name" }),
-	code: z.string().min(1).openapi({ description: "Short code for provider" }),
-	imageUrl: z.string().nullable().optional().openapi({ description: "Image URL (optional)" }),
-	enabled: z.boolean().optional().default(true).openapi({ description: "Whether game is enabled" }),
-});
+const CreateGameSchema = z
+	.object({
+		name: z.string().min(1).openapi({ description: "Game name" }),
+		code: z.string().min(1).openapi({ description: "Short code for provider" }),
+		imageUrl: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "Image URL (optional)" }),
+		enabled: z
+			.boolean()
+			.optional()
+			.default(true)
+			.openapi({ description: "Whether game is enabled" }),
+	})
+	.openapi("CreateGame");
 
 const CreateGamesSchema = z
 	.array(CreateGameSchema)
 	.min(1)
-	.max(100);
+	.max(100)
+	.openapi({ description: "Array of games to create" });
 
-const UpdateGameSchema = CreateGameSchema.partial();
+const UpdateGameSchema = CreateGameSchema.partial().openapi("UpdateGame");
 
-const EnableDisableResponseSchema = z.object({
-	success: z.literal(true),
-	data: z.object({
-		id: z.string(),
-		enabled: z.boolean(),
-	}),
-});
+const EnableDisableResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: z
+			.object({
+				id: z.string().openapi({ description: "Game ID" }),
+				enabled: z.boolean().openapi({ description: "Enabled status" }),
+			})
+			.openapi({ description: "Response data" }),
+	})
+	.openapi("EnableDisableResponse");
 
-const GameResponseSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	code: z.string(),
-	imageUrl: z.string().nullable(),
-	enabled: z.boolean(),
-	createdAt: z.number(),
-	updatedAt: z.number(),
-});
+const GameResponseSchema = z
+	.object({
+		id: z.string().openapi({ description: "Game ID" }),
+		name: z.string().openapi({ description: "Game name" }),
+		code: z.string().openapi({ description: "Game code" }),
+		imageUrl: z.string().nullable().openapi({ description: "Image URL" }),
+		enabled: z.boolean().openapi({ description: "Enabled status" }),
+		createdAt: z.number().openapi({ description: "Created at timestamp" }),
+		updatedAt: z.number().openapi({ description: "Updated at timestamp" }),
+	})
+	.openapi("GameResponse");
 
-const GameListResponseSchema = GameResponseSchema.array();
+const GameListResponseSchema = z
+	.array(GameResponseSchema)
+	.openapi("GameListResponse");
 
 gamesRoute.openapi(
 	createRoute({
@@ -77,7 +97,7 @@ gamesRoute.openapi(
 gamesRoute.openapi(
 	createRoute({
 		method: "get",
-		path: "/:id",
+		path: "/{id}",
 		summary: "Get a single game",
 		description: "Returns a game by ID",
 		request: {
@@ -106,7 +126,11 @@ gamesRoute.openapi(
 	async (c) => {
 		const { id } = c.req.valid("param");
 		const db = drizzle(c.env.DB, { schema });
-		const game = await db.select().from(schema.game).where(eq(schema.game.id, id)).get();
+		const game = await db
+			.select()
+			.from(schema.game)
+			.where(eq(schema.game.id, id))
+			.get();
 
 		if (!game) {
 			return c.json(
@@ -183,7 +207,11 @@ gamesRoute.openapi(
 		const result = CreateGamesSchema.safeParse(body);
 		if (!result.success) {
 			return c.json(
-				{ success: false as const, error: "Invalid request body", details: null },
+				{
+					success: false as const,
+					error: "Invalid request body",
+					details: null,
+				},
 				400,
 			);
 		}
@@ -201,7 +229,10 @@ gamesRoute.openapi(
 			updatedAt: now,
 		}));
 
-		const inserted = await db.insert(schema.game).values(gamesToInsert).returning();
+		const inserted = await db
+			.insert(schema.game)
+			.values(gamesToInsert)
+			.returning();
 
 		return c.json({ success: true as const, data: inserted }, 201);
 	},
@@ -210,7 +241,7 @@ gamesRoute.openapi(
 gamesRoute.openapi(
 	createRoute({
 		method: "patch",
-		path: "/:id",
+		path: "/{id}",
 		summary: "Update a game",
 		description: "Update a game by ID. Requires admin authentication.",
 		request: {
@@ -281,13 +312,21 @@ gamesRoute.openapi(
 		const result = UpdateGameSchema.safeParse(body);
 		if (!result.success) {
 			return c.json(
-				{ success: false as const, error: "Invalid request body", details: null },
+				{
+					success: false as const,
+					error: "Invalid request body",
+					details: null,
+				},
 				400,
 			);
 		}
 
 		const db = drizzle(c.env.DB, { schema });
-		const existing = await db.select().from(schema.game).where(eq(schema.game.id, id)).get();
+		const existing = await db
+			.select()
+			.from(schema.game)
+			.where(eq(schema.game.id, id))
+			.get();
 
 		if (!existing) {
 			return c.json(
@@ -309,7 +348,7 @@ gamesRoute.openapi(
 gamesRoute.openapi(
 	createRoute({
 		method: "patch",
-		path: "/:id/enable",
+		path: "/{id}/enable",
 		summary: "Enable a game",
 		description: "Enable a game by ID. Requires admin authentication.",
 		request: {
@@ -363,7 +402,10 @@ gamesRoute.openapi(
 		const { id } = c.req.valid("param");
 
 		const db = drizzle(c.env.DB, { schema });
-		const existing = await db.select().from(schema.game).where(eq(schema.game.id, id)).get();
+		const existing = await db
+			.select()
+			.from(schema.game)
+			.where(eq(schema.game.id, id));
 
 		if (!existing) {
 			return c.json(
@@ -378,14 +420,20 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.returning();
 
-		return c.json({ success: true as const, data: { id: updated.id, enabled: updated.enabled } }, 200);
+		return c.json(
+			{
+				success: true as const,
+				data: { id: updated.id, enabled: updated.enabled },
+			},
+			200,
+		);
 	},
 );
 
 gamesRoute.openapi(
 	createRoute({
 		method: "patch",
-		path: "/:id/disable",
+		path: "/{id}/disable",
 		summary: "Disable a game",
 		description: "Disable a game by ID. Requires admin authentication.",
 		request: {
@@ -437,9 +485,15 @@ gamesRoute.openapi(
 		}
 
 		const { id } = c.req.valid("param");
+		console.log("id", id);
 
 		const db = drizzle(c.env.DB, { schema });
-		const existing = await db.select().from(schema.game).where(eq(schema.game.id, id)).get();
+		const existing = await db
+			.select()
+			.from(schema.game)
+			.where(eq(schema.game.id, id));
+
+		console.log("existing", existing);
 
 		if (!existing) {
 			return c.json(
@@ -454,7 +508,13 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.returning();
 
-		return c.json({ success: true as const, data: { id: updated.id, enabled: updated.enabled } }, 200);
+		return c.json(
+			{
+				success: true as const,
+				data: { id: updated.id, enabled: updated.enabled },
+			},
+			200,
+		);
 	},
 );
 

@@ -51,14 +51,14 @@ app.use("*", async (c, next) => {
 		console.log(allowedOrigins.has(origin) ? origin : "");
 
 		if (allowedOrigins.has(origin)) {
-			return c.text(null, 204, {
+			return c.text("", 204, {
 				"Access-Control-Allow-Origin": origin,
 				"Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
 				"Access-Control-Allow-Headers": "Authorization, Content-Type",
 				"Access-Control-Allow-Credentials": "true",
 			});
 		}
-		return c.text(null, 204);
+		return c.text("", 204);
 	}
 	await next();
 });
@@ -68,7 +68,7 @@ app.use(
 	"/*",
 	cors({
 		origin: (origin, c) => {
-			const corsOrigin = c.env.CORS_ORIGIN || "https://sportsdey.com";
+			const corsOrigin = c?.env?.CORS_ORIGIN || "https://sportsdey.com";
 			console.log("CORS_ORIGIN", corsOrigin);
 			if (!origin) return "";
 			const allowedOrigins = new Set([

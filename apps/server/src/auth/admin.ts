@@ -3,6 +3,7 @@ import { and, eq, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { type AdminRole, admin, adminSession } from "@/db/schema/admin";
+import type { AdminPermission } from "@/permissions";
 import type { CloudflareBindings } from "../../worker-configuration";
 
 export function parseUserAgent(
@@ -125,13 +126,14 @@ export async function createAdminSession(
 export async function validateAdminSession(
 	bindings: CloudflareBindings,
 	token: string,
-): Promise<{ adminId: string; role: AdminRole } | null> {
+): Promise<{ adminId: string; role: AdminRole; permissions: string | null } | null> {
 	const database = getDb(bindings);
 	const result = await database
 		.select({
 			adminId: adminSession.adminId,
 			expiresAt: adminSession.expiresAt,
 			role: admin.role,
+			permissions: admin.permissions,
 			updatedAt: adminSession.updatedAt,
 			token: adminSession.token,
 		})
@@ -157,7 +159,7 @@ export async function validateAdminSession(
 			.where(eq(adminSession.token, result.token));
 	}
 
-	return { adminId: result.adminId, role: result.role as AdminRole };
+	return { adminId: result.adminId, role: result.role as AdminRole, permissions: result.permissions };
 }
 
 export async function deleteAdminSession(
@@ -233,6 +235,7 @@ export async function getAdminByEmail(
 	mobileNumber: string | null;
 	image: string | null;
 	role: AdminRole;
+	permissions: string | null;
 	createdAt: Date;
 } | null> {
 	const database = getDb(bindings);
@@ -245,6 +248,7 @@ export async function getAdminByEmail(
 			mobileNumber: admin.mobileNumber,
 			image: admin.image,
 			role: admin.role,
+			permissions: admin.permissions,
 			createdAt: admin.createdAt,
 		})
 		.from(admin)
@@ -264,6 +268,7 @@ export async function getAdminById(
 	mobileNumber: string | null;
 	image: string | null;
 	role: AdminRole;
+	permissions: string | null;
 	createdAt: Date;
 } | null> {
 	const database = getDb(bindings);
@@ -275,6 +280,7 @@ export async function getAdminById(
 			mobileNumber: admin.mobileNumber,
 			image: admin.image,
 			role: admin.role,
+			permissions: admin.permissions,
 			createdAt: admin.createdAt,
 		})
 		.from(admin)
@@ -393,6 +399,7 @@ export async function listAdmins(bindings: CloudflareBindings): Promise<
 		email: string;
 		name: string;
 		role: AdminRole;
+		permissions: string | null;
 		createdAt: Date;
 	}>
 > {
@@ -403,12 +410,51 @@ export async function listAdmins(bindings: CloudflareBindings): Promise<
 			email: admin.email,
 			name: admin.name,
 			role: admin.role,
+			permissions: admin.permissions,
 			createdAt: admin.createdAt,
 		})
 		.from(admin)
 		.orderBy(admin.createdAt);
 
 	return result;
+}
+
+export function parsePermissions(permissionsStr: string | null): AdminPermission[] {
+	if (!permissionsStr) {
+		return [];
+	}
+	try {
+		const parsed = JSON.parse(permissionsStr);
+		if (Array.isArray(parsed)) {
+			return parsed.filter((p): p is AdminPermission => typeof p === "string");
+		}
+		return [];
+	} catch {
+		return [];
+	}
+}
+
+export function hasPermission(
+	permissions: string | null,
+	permission: AdminPermission,
+): boolean {
+	const parsed = parsePermissions(permissions);
+	return parsed.includes(permission);
+}
+
+export async function updateAdminPermissions(
+	bindings: CloudflareBindings,
+	adminId: string,
+	permissions: AdminPermission[],
+): Promise<boolean> {
+	const database = getDb(bindings);
+	await database
+		.update(admin)
+		.set({ permissions: JSON.stringify(permissions) })
+		.where(eq(admin.id, adminId))
+		.run();
+
+	return true;
 }
 
 export const getSessionToken = (headers: Headers): string | undefined => {

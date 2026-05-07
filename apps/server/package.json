@@ -16,7 +16,8 @@
 		"db:studio": "drizzle-kit studio",
 		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
 		"admin:create": "node --import tsx src/cli/create-admin.ts",
-		"games:seed": "node --import tsx src/cli/seed-games.ts"
+		"games:seed": "node --import tsx src/cli/seed-games.ts",
+		"games:sync": "node --import tsx src/cli/sync-games.ts"
 	},
 	"dependencies": {
 		"@better-auth/expo": "^1.4.19",
