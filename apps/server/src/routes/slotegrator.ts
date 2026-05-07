@@ -156,7 +156,7 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		.returning();
 
 	if (!session || !session.sessionId) {
-		return c.json({ error: "Failed to create session" }, 500);
+		return c.json({ success: false, error: "Failed to create session", details: null }, 500);
 	}
 
 	const requestBody: Record<string, string> = {
@@ -420,16 +420,23 @@ slotegratorRoute.post("/", async (c) => {
 
 		const txId = crypto.randomUUID();
 
-		await db.insert(schema.slotitegrationTransactions).values({
-			id: txId,
-			transactionId,
-			userId: playerId,
-			type: type,
-			amount: amountInKobo,
-			currency,
-			gameId: gameUuid,
-			sessionId,
-		});
+		const [betTxn] = await db
+			.insert(schema.slotitegrationTransactions)
+			.values({
+				id: txId,
+				transactionId,
+				userId: playerId,
+				type: type,
+				amount: amountInKobo,
+				currency,
+				gameId: gameUuid,
+				sessionId,
+			})
+			.returning();
+
+		if (!betTxn?.id) {
+			return c.json({ error_description: "Failed to record bet transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const balance = newBalance / 100;
 
@@ -494,16 +501,23 @@ slotegratorRoute.post("/", async (c) => {
 
 		const txId = crypto.randomUUID();
 
-		await db.insert(schema.slotitegrationTransactions).values({
-			id: txId,
-			transactionId,
-			userId: playerId,
-			type: type,
-			amount: amountInKobo,
-			currency,
-			gameId: gameUuid,
-			sessionId,
-		});
+		const [winTxn] = await db
+			.insert(schema.slotitegrationTransactions)
+			.values({
+				id: txId,
+				transactionId,
+				userId: playerId,
+				type: type,
+				amount: amountInKobo,
+				currency,
+				gameId: gameUuid,
+				sessionId,
+			})
+			.returning();
+
+		if (!winTxn?.id) {
+			return c.json({ error_description: "Failed to record win transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const balance = newBalance / 100;
 
@@ -595,17 +609,23 @@ slotegratorRoute.post("/", async (c) => {
 			const txId = crypto.randomUUID();
 			const amountInKobo = Math.round(amount * 100);
 
-			await db.insert(schema.slotitegrationTransactions).values({
-				id: txId,
-				transactionId,
-				userId: playerId,
-				type: type,
-				amount: amountInKobo,
-				currency,
-				gameId: gameUuid,
-				sessionId,
-				// originalTransactionId: betTransactionId,
-			});
+			const [refundTxn] = await db
+				.insert(schema.slotitegrationTransactions)
+				.values({
+					id: txId,
+					transactionId,
+					userId: playerId,
+					type: type,
+					amount: amountInKobo,
+					currency,
+					gameId: gameUuid,
+					sessionId,
+				})
+				.returning();
+
+			if (!refundTxn?.id) {
+				return c.json({ error_description: "Failed to record refund transaction", error_code: "INTERNAL_ERROR" }, 200);
+			}
 			const [wallet] = await db
 				.select()
 				.from(schema.wallet)
@@ -632,24 +652,29 @@ slotegratorRoute.post("/", async (c) => {
 
 		const txId = crypto.randomUUID();
 
-		await db.insert(schema.slotitegrationTransactions).values({
-			id: txId,
-			transactionId,
-			userId: playerId,
-			type: type,
-			amount: amountInKobo,
-			currency,
-			gameId: gameUuid,
-			sessionId,
-			originalTransactionId: betTransactionId,
-		});
+		const [settlementTxn] = await db
+			.insert(schema.slotitegrationTransactions)
+			.values({
+				id: txId,
+				transactionId,
+				userId: playerId,
+				type: type,
+				amount: amountInKobo,
+				currency,
+				gameId: gameUuid,
+				sessionId,
+				originalTransactionId: betTransactionId,
+			})
+			.returning();
 
-		const balance = newBalance / 100;
+		if (!settlementTxn?.id) {
+			return c.json({ error_description: "Failed to record settlement transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 
-	if (action === "rollback") {
+if (action === "rollback") {
 		console.log("params", params);
 		const playerId = params.get("player_id") || "";
 		const currency = params.get("currency") || "NGN";
@@ -776,16 +801,23 @@ slotegratorRoute.post("/", async (c) => {
 
 		const txId = crypto.randomUUID();
 
-		await db.insert(schema.slotitegrationTransactions).values({
-			id: txId,
-			transactionId,
-			userId: playerId,
-			type: "rollback",
-			amount: 0,
-			currency,
-			gameId: gameUuid,
-			sessionId,
-		});
+		const [rollbackTxn] = await db
+			.insert(schema.slotitegrationTransactions)
+			.values({
+				id: txId,
+				transactionId,
+				userId: playerId,
+				type: "rollback",
+				amount: 0,
+				currency,
+				gameId: gameUuid,
+				sessionId,
+			})
+			.returning();
+
+		if (!rollbackTxn?.id) {
+			return c.json({ error_description: "Failed to record rollback transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const [updatedWallet] = await db
 			.select()

@@ -603,7 +603,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			})
 			.returning();
 
-		if (!newWallet || !newWallet.id) {
+		if (!newWallet?.id) {
 			return c.json({ success: false, error: "Failed to create wallet" }, 500);
 		}
 	} else {
@@ -640,8 +640,11 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			})
 			.returning();
 
-		if (!creditTxn || !creditTxn.id) {
-			return c.json({ success: false, error: "Failed to record deposit transaction" }, 500);
+		if (!creditTxn?.id) {
+			return c.json(
+				{ success: false, error: "Failed to record deposit transaction" },
+				500,
+			);
 		}
 
 		return c.json(
@@ -1502,8 +1505,11 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			})
 			.returning();
 
-		if (!withdrawalTxn || !withdrawalTxn.id) {
-			return c.json({ success: false, error: "Failed to record withdrawal transaction" }, 500);
+		if (!withdrawalTxn?.id) {
+			return c.json(
+				{ success: false, error: "Failed to record withdrawal transaction" },
+				500,
+			);
 		}
 
 		await db
@@ -1542,6 +1548,13 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 walletRoute.openapi(transferRoute, async (c) => {
 	const user = c.get("user");
 	const result = TransferSchema.safeParse(await c.req.json());
+
+	if (!user) {
+		return c.json(
+			{ success: false as const, error: "Unauthorized", details: null },
+			401,
+		);
+	}
 
 	if (!result.success) {
 		return c.json(
@@ -1658,8 +1671,11 @@ walletRoute.openapi(transferRoute, async (c) => {
 			})
 			.returning();
 
-		if (!senderTxn || !senderTxn.id) {
-			return c.json({ success: false, error: "Failed to record sender transaction" }, 500);
+		if (!senderTxn?.id) {
+			return c.json(
+				{ success: false, error: "Failed to record sender transaction" },
+				500,
+			);
 		}
 
 		const [recipientTxn] = await db
@@ -1676,8 +1692,11 @@ walletRoute.openapi(transferRoute, async (c) => {
 			})
 			.returning();
 
-		if (!recipientTxn || !recipientTxn.id) {
-			return c.json({ success: false, error: "Failed to record recipient transaction" }, 500);
+		if (!recipientTxn?.id) {
+			return c.json(
+				{ success: false, error: "Failed to record recipient transaction" },
+				500,
+			);
 		}
 
 		return c.json(
@@ -1769,6 +1788,9 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 
 walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 	const user = c.get("user");
+	if (!user) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
 	const result = TransferToGameWalletSchema.safeParse(await c.req.json());
 
 	if (!result.success) {
@@ -1876,8 +1898,11 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			})
 			.returning();
 
-		if (!normalTxn || !normalTxn.id) {
-			return c.json({ success: false, error: "Failed to record normal wallet transaction" }, 500);
+		if (!normalTxn?.id) {
+			return c.json(
+				{ success: false, error: "Failed to record normal wallet transaction" },
+				500,
+			);
 		}
 
 		const [gameTxn] = await db
@@ -1892,8 +1917,11 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			})
 			.returning();
 
-		if (!gameTxn || !gameTxn.id) {
-			return c.json({ success: false, error: "Failed to record game wallet transaction" }, 500);
+		if (!gameTxn?.id) {
+			return c.json(
+				{ success: false, error: "Failed to record game wallet transaction" },
+				500,
+			);
 		}
 
 		const [updatedNormalWallet] = await db
