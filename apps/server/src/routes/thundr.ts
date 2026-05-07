@@ -146,12 +146,11 @@ thundrRoute.openapi(playGameRoute, async (c) => {
 
 	const launchUrl = url.toString();
 
-	return c.json(
+return c.json(
 		{
 			success: true,
 			data: {
-				launchUrl,
-				// sessionId,
+				url: launchUrl,
 			},
 		},
 		200,

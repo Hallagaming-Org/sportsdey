@@ -117,7 +117,7 @@ casinoRoute.openapi(playGameRoute, async (c) => {
 		{
 			success: true,
 			data: {
-				launchUrl,
+				url: launchUrl,
 				token,
 			},
 		},

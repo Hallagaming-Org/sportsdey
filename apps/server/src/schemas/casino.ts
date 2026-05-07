@@ -7,7 +7,7 @@ export const GamePlayRequestSchema = z.object({
 export const GamePlayResponseSchema = z.object({
 	success: z.literal(true).openapi({ description: "Success status" }),
 	data: z.object({
-		launchUrl: z.string().openapi({ description: "URL to launch the game" }),
+		url: z.string().openapi({ description: "URL to launch the game" }),
 		token: z.string().openapi({ description: "Token for game" }),
 	}).openapi({ description: "Response data" }),
 }).openapi("GamePlayResponse");

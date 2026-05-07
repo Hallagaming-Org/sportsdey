@@ -368,7 +368,7 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 			data: {
 				user_id: user.id,
 				username: user.name ?? user.email.split("@")[0],
-				balance: balance * 100,
+				balance: balance * 10,
 				currency: currency ?? "NGN",
 			},
 		},

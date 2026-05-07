@@ -170,14 +170,6 @@ export async function deleteAdminSession(
 	await database.delete(adminSession).where(eq(adminSession.token, token));
 }
 
-export async function deleteAllAdminSessions(
-	bindings: CloudflareBindings,
-	adminId: string,
-): Promise<void> {
-	const database = getDb(bindings);
-	await database.delete(adminSession).where(eq(adminSession.adminId, adminId));
-}
-
 export async function getAdminSessions(
 	bindings: CloudflareBindings,
 	adminId: string,
@@ -222,6 +214,19 @@ export async function deleteAdminSessionById(
 		.run();
 
 	return result.changes > 0;
+}
+
+export async function deleteAllAdminSessions(
+	bindings: CloudflareBindings,
+	adminId: string,
+): Promise<number> {
+	const database = getDb(bindings);
+	const result = await database
+		.delete(adminSession)
+		.where(eq(adminSession.adminId, adminId))
+		.run();
+
+	return result.changes;
 }
 
 export async function getAdminByEmail(
@@ -398,6 +403,8 @@ export async function listAdmins(bindings: CloudflareBindings): Promise<
 		id: string;
 		email: string;
 		name: string;
+		mobileNumber: string | null;
+		image: string | null;
 		role: AdminRole;
 		permissions: string | null;
 		createdAt: Date;
@@ -409,6 +416,8 @@ export async function listAdmins(bindings: CloudflareBindings): Promise<
 			id: admin.id,
 			email: admin.email,
 			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
 			role: admin.role,
 			permissions: admin.permissions,
 			createdAt: admin.createdAt,

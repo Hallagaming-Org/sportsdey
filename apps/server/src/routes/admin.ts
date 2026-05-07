@@ -8,13 +8,13 @@ import {
 	deleteAdmin,
 	deleteAdminSession,
 	deleteAdminSessionById,
+	deleteAllAdminSessions,
 	getAdminByEmail,
 	getAdminById,
 	getAdminSessions,
 	getSessionToken,
 	hashPassword,
 	listAdmins,
-	parseUserAgent,
 	setSessionCookie,
 	updateAdminById,
 	updateAdminPermissions,
@@ -27,7 +27,24 @@ import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import type { CloudflareBindings } from "../types";
 
-const adminRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+type AdminRouteContext = { Bindings: CloudflareBindings };
+
+const adminRoute = new OpenAPIHono<AdminRouteContext>();
+
+const ErrorSchema = z.object({
+	success: z.literal(false),
+	error: z.string(),
+});
+
+const ErrorSchemaWithDetails = z.object({
+	success: z.literal(false),
+	error: z.string(),
+	details: z.array(z.object({
+		field: z.string(),
+		message: z.string(),
+		code: z.string(),
+	})).nullable().optional(),
+});
 
 function safeParsePermissions(permissions: string | null): string[] {
 	if (!permissions) return [];
@@ -691,19 +708,19 @@ adminRoute.openapi(signInRoute, async (c) => {
 	const body = await c.req.json();
 	const result = SignInSchema.safeParse(body);
 	if (!result.success) {
-		return c.json({ success: false, error: "Invalid request body" }, 400);
+		return c.json({ success: false, error: "Invalid request body", details: null }, 400);
 	}
 
 	const { email, password } = result.data;
 	const adminUser = await getAdminByEmail(c.env, email);
 
 	if (!adminUser) {
-		return c.json({ success: false, error: "Invalid credentials" }, 401);
+		return c.json({ success: false, error: "Invalid credentials", details: null }, 401);
 	}
 
 	const valid = await verifyPassword(adminUser.passwordHash, password);
 	if (!valid) {
-		return c.json({ success: false, error: "Invalid credentials" }, 401);
+		return c.json({ success: false, error: "Invalid credentials", details: null }, 401);
 	}
 
 	const token = await createAdminSession(
@@ -1054,11 +1071,11 @@ const listAdminsRoute = createRoute({
 		},
 		401: {
 			description: "Unauthorized",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 		403: {
 			description: "Forbidden - super_admin only",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 	},
 });
@@ -1136,7 +1153,7 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 			email: admin?.email,
 			name: admin?.name,
 			role: admin?.role,
-			permissions: safeParsePermissions(admin?.permissions),
+			permissions: safeParsePermissions(admin?.permissions ?? null),
 			createdAt: admin?.createdAt?.toISOString() || new Date().toISOString(),
 		},
 	});
@@ -1166,6 +1183,73 @@ adminRoute.openapi(deleteAdminRoute, async (c) => {
 	return c.json({
 		success: true,
 		data: { message: "Admin deleted successfully" },
+	});
+});
+
+const forceLogoutAdminRoute = createRoute({
+	method: "delete",
+	path: "/admins/{id}/sessions",
+	tags: ["Admin - Management"],
+	summary: "Force logout an admin",
+	description:
+		"Delete all active sessions for an admin. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({ id: z.string().openapi({ description: "Admin ID" }) }),
+	},
+	responses: {
+		200: {
+			description: "Sessions deleted successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							sessionsRevoked: z.number(),
+						}),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+adminRoute.openapi(forceLogoutAdminRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	const deleted = await deleteAllAdminSessions(c.env, id);
+
+	return c.json({
+		success: true,
+		data: { sessionsRevoked: deleted },
 	});
 });
 
@@ -1364,15 +1448,15 @@ const getAdminByIdRoute = createRoute({
 		},
 		401: {
 			description: "Unauthorized",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 		403: {
 			description: "Forbidden - super_admin only",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 		404: {
 			description: "Admin not found",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 	},
 });
@@ -1409,19 +1493,19 @@ const updateAdminPermissionsRoute = createRoute({
 		},
 		400: {
 			description: "Invalid request",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 		401: {
 			description: "Unauthorized",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 		403: {
 			description: "Forbidden - super_admin only",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 		404: {
 			description: "Admin not found",
-			content: { "application/json": { schema: ErrorResponseSchema } },
+			content: { "application/json": { schema: ErrorSchema } },
 		},
 	},
 });

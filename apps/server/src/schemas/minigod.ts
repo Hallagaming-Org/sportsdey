@@ -3,7 +3,7 @@ import { z } from "@hono/zod-openapi";
 export const MinigodLauncherResponseSchema = z.object({
 	success: z.literal(true).openapi({ description: "Success status" }),
 	data: z.object({
-		gameUrl: z
+		url: z
 			.string()
 			.openapi({ description: "URL to launch the Minigod game" }),
 	}).openapi({ description: "Response data" }),
