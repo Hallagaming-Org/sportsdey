@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
+import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
 import type { CloudflareBindings } from "../types";
@@ -26,7 +27,7 @@ const CmsContentQuerySchema = z.object({
 		.optional()
 		.default(1)
 		.openapi({ description: "Page number" }),
-});
+}).openapi("CmsContentQuery");
 
 const CreateCmsContentSchema = z.object({
 	title: z.string().min(1).openapi({ description: "Content title" }),
@@ -166,6 +167,13 @@ cmsRoute.openapi(
 						error: "Forbidden - admin only",
 						details: null,
 					},
+					403,
+				);
+			}
+
+			if (session.role !== "super_admin" && !requirePermission(session, "post_upload_content")) {
+				return c.json(
+					{ success: false as const, error: "Forbidden - post_upload_content permission required" },
 					403,
 				);
 			}
@@ -437,6 +445,13 @@ cmsRoute.openapi(
 				);
 			}
 
+			if (session.role !== "super_admin" && !requirePermission(session, "post_upload_content")) {
+				return c.json(
+					{ success: false as const, error: "Forbidden - post_upload_content permission required" },
+					403,
+				);
+			}
+
 			const { search, type, sortBy, page } = c.req.valid("query");
 			const client = getSanityClient(c.env);
 
@@ -623,6 +638,13 @@ cmsRoute.openapi(
 						error: "Forbidden - admin only",
 						details: null,
 					},
+					403,
+				);
+			}
+
+			if (session.role !== "super_admin" && !requirePermission(session, "post_upload_content")) {
+				return c.json(
+					{ success: false as const, error: "Forbidden - post_upload_content permission required" },
 					403,
 				);
 			}

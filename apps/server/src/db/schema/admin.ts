@@ -1,7 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
-export const adminRoles = ["super_admin", "admin"] as const;
+export const adminRoles = ["super_admin", "admin", "csr-admin"] as const;
 export type AdminRole = (typeof adminRoles)[number];
 
 export const admin = sqliteTable("admin", {
@@ -12,6 +12,7 @@ export const admin = sqliteTable("admin", {
 	mobileNumber: text("mobile_number"),
 	image: text("image"),
 	role: text("role", { enum: adminRoles }).notNull().default("admin"),
+	permissions: text("permissions"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -34,8 +35,11 @@ export const adminSession = sqliteTable(
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
+		lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" }),
 		ipAddress: text("ip_address"),
 		userAgent: text("user_agent"),
+		deviceName: text("device_name"),
+		browser: text("browser"),
 		adminId: text("admin_id")
 			.notNull()
 			.references(() => admin.id, { onDelete: "cascade" }),

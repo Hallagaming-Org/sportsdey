@@ -205,19 +205,47 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 
 	const newBalanceKobo = oldBalanceKobo - amount;
 
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId));
+		.where(eq(schema.wallet.userId, playerId))
+		.returning();
+
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
 
 	const transactionId = crypto.randomUUID();
-	await db.insert(schema.pocketsTransactions).values({
-		id: transactionId,
+
+	const [walletTxn] = await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 		userId: playerId,
-		type: "DEBIT",
-		amount: amount / 100,
-		currency,
-	});
+		amount: amount,
+		type: "debit",
+		reference: null,
+		status: "success",
+		paymentMethod: "lagos rush",
+		balance: newBalanceKobo,
+	}).returning();
+
+	if (!walletTxn?.id) {
+		return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+	}
+
+	const [debitTxn] = await db
+		.insert(schema.pocketsTransactions)
+		.values({
+			id: transactionId,
+			userId: playerId,
+			type: "DEBIT",
+			amount: amount / 100,
+			currency,
+		})
+		.returning();
+
+	if (!debitTxn?.id) {
+		return c.json({ success: false, error: "Failed to record debit transaction" }, 500);
+	}
 
 	return c.json(
 		{
@@ -314,19 +342,47 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 
 	const newBalanceKobo = oldBalanceKobo + amount;
 
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId));
+		.where(eq(schema.wallet.userId, playerId))
+		.returning();
+
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
 
 	const transactionId = crypto.randomUUID();
-	await db.insert(schema.pocketsTransactions).values({
-		id: transactionId,
+
+	const [walletTxn] = await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 		userId: playerId,
-		type: "CREDIT",
-		amount: amount / 100,
-		currency,
-	});
+		amount: amount,
+		type: "credit",
+		reference: null,
+		status: "success",
+		paymentMethod: "lagos rush",
+		balance: newBalanceKobo,
+	}).returning();
+
+	if (!walletTxn?.id) {
+		return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+	}
+
+	const [creditTxn] = await db
+		.insert(schema.pocketsTransactions)
+		.values({
+			id: transactionId,
+			userId: playerId,
+			type: "CREDIT",
+			amount: amount / 100,
+			currency,
+		})
+		.returning();
+
+	if (!creditTxn?.id) {
+		return c.json({ success: false, error: "Failed to record credit transaction" }, 500);
+	}
 
 	return c.json(
 		{
@@ -423,19 +479,47 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 
 	const newBalanceKobo = oldBalanceKobo + amount;
 
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId));
+		.where(eq(schema.wallet.userId, playerId))
+		.returning();
+
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
 
 	const transactionId = crypto.randomUUID();
-	await db.insert(schema.pocketsTransactions).values({
-		id: transactionId,
+
+	const [walletTxn] = await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 		userId: playerId,
-		type: "REFUND",
-		amount: amount / 100,
-		currency,
-	});
+		amount: amount,
+		type: "refund",
+		reference: null,
+		status: "success",
+		paymentMethod: "lagos rush",
+		balance: newBalanceKobo,
+	}).returning();
+
+	if (!walletTxn?.id) {
+		return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+	}
+
+	const [refundTxn] = await db
+		.insert(schema.pocketsTransactions)
+		.values({
+			id: transactionId,
+			userId: playerId,
+			type: "REFUND",
+			amount: amount / 100,
+			currency,
+		})
+		.returning();
+
+	if (!refundTxn?.id) {
+		return c.json({ success: false, error: "Failed to record refund transaction" }, 500);
+	}
 
 	return c.json(
 		{

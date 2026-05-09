@@ -111,12 +111,19 @@ thundrRoute.openapi(playGameRoute, async (c) => {
 
 	const sessionId = crypto.randomUUID();
 
-	await db.insert(schema.thundrSessions).values({
-		sessionId,
-		userId: user.id,
-		gameId,
-		status: "active",
-	});
+	const [session] = await db
+		.insert(schema.thundrSessions)
+		.values({
+			sessionId,
+			userId: user.id,
+			gameId,
+			status: "active",
+		})
+		.returning();
+
+	if (!session?.sessionId) {
+		return c.json({ success: false, error: "Failed to create session" }, 500);
+	}
 
 	const baseUrl = c.env.THNDR_BASE_URL || "https://game-sandbox.thndr-cdn.com";
 	const operatorId = c.env.THNDR_OPERATOR_ID;
@@ -139,12 +146,11 @@ thundrRoute.openapi(playGameRoute, async (c) => {
 
 	const launchUrl = url.toString();
 
-	return c.json(
+return c.json(
 		{
 			success: true,
 			data: {
-				launchUrl,
-				// sessionId,
+				url: launchUrl,
 			},
 		},
 		200,
@@ -325,17 +331,57 @@ thundrRoute.post("/transactions", async (c) => {
 		}
 		txAmountKobo = tx.amount;
 		newBalanceKobo = currentBalanceKobo - txAmountKobo;
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalanceKobo })
-			.where(eq(schema.wallet.userId, session.userId));
+			.where(eq(schema.wallet.userId, session.userId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: session.userId,
+			amount: txAmountKobo,
+			type: "debit",
+			reference: null,
+			status: "success",
+			paymentMethod: "thndr games",
+			balance: newBalanceKobo,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+		}
 	} else if (tx.type === "WIN" || tx.type === "DRAW") {
 		txAmountKobo = tx.amount;
 		newBalanceKobo = currentBalanceKobo + txAmountKobo;
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalanceKobo })
-			.where(eq(schema.wallet.userId, session.userId));
+			.where(eq(schema.wallet.userId, session.userId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: session.userId,
+			amount: txAmountKobo,
+			type: "credit",
+			reference: null,
+			status: "success",
+			paymentMethod: "thndr games",
+			balance: newBalanceKobo,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+		}
 	} else if (tx.type === "ROLLBACK") {
 		const [originalTx] = await db
 			.select()
@@ -348,25 +394,52 @@ thundrRoute.post("/transactions", async (c) => {
 		if (originalTx && originalTx.type === "BET") {
 			txAmountKobo = Math.round(originalTx.amount * 100);
 			newBalanceKobo = currentBalanceKobo + txAmountKobo;
-			await db
+			const [updatedWallet] = await db
 				.update(schema.wallet)
 				.set({ balance: newBalanceKobo })
-				.where(eq(schema.wallet.userId, session.userId));
+				.where(eq(schema.wallet.userId, session.userId))
+				.returning();
+
+			if (!updatedWallet?.id) {
+				return c.json({ success: false, error: "Failed to update wallet" }, 500);
+			}
+
+			const [walletTxn] = await db.insert(schema.walletTransaction).values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: session.userId,
+				amount: txAmountKobo,
+				type: "refund",
+				reference: null,
+				status: "success",
+				paymentMethod: "thndr games",
+				balance: newBalanceKobo,
+			}).returning();
+
+			if (!walletTxn?.id) {
+				return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+			}
 		}
 	}
 
-	await db.insert(schema.thundrTransactions).values({
-		id: operatorTxId,
-		transactionId: tx.transactionId,
-		userId: session.userId,
-		type: tx.type,
-		amount: txAmountKobo / 100,
-		roundId: tx.roundId,
-		gameId: tx.gameId,
-		sessionId: tx.sessionId,
-		originalTransactionId:
-			tx.type === "ROLLBACK" ? tx.originalTransactionId : null,
-	});
+	const [thundrTxn] = await db
+		.insert(schema.thundrTransactions)
+		.values({
+			id: operatorTxId,
+			transactionId: tx.transactionId,
+			userId: session.userId,
+			type: tx.type,
+			amount: txAmountKobo / 100,
+			roundId: tx.roundId,
+			gameId: tx.gameId,
+			sessionId: tx.sessionId,
+			originalTransactionId:
+				tx.type === "ROLLBACK" ? tx.originalTransactionId : null,
+		})
+		.returning();
+
+	if (!thundrTxn?.id) {
+		return c.json({ success: false, error: "Failed to record transaction" }, 500);
+	}
 
 	return c.json(
 		ThundrTransactionResponseSchema.parse({

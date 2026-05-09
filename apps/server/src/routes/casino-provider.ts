@@ -336,12 +336,22 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 
 	const balance = wallet?.balance ?? 0;
 
-	await db.insert(schema.gameSessions).values({
-		sessionToken: session_token,
-		userId: user.id,
-		game: launchToken.game,
-		status: "active",
-	});
+	const [gameSession] = await db
+		.insert(schema.gameSessions)
+		.values({
+			sessionToken: session_token,
+			userId: user.id,
+			game: launchToken.game,
+			status: "active",
+		})
+		.returning();
+
+	if (!gameSession?.sessionToken) {
+		return c.json(
+			{ success: false, error: "Failed to create game session" },
+			500,
+		);
+	}
 
 	await db
 		.update(schema.gameLaunchTokens)
@@ -361,7 +371,7 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 			data: {
 				user_id: user.id,
 				username: user.name ?? user.email.split("@")[0],
-				balance: balance * 100,
+				balance: balance * 1000,
 				currency: currency ?? "NGN",
 			},
 		},
@@ -470,21 +480,57 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo - amount / 10;
-	await db
+	const newBalanceKobo = balanceKobo - amount / 1000;
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, user_id));
+		.where(eq(schema.wallet.userId, user_id))
+		.returning();
 
-	await db.insert(schema.gameTransactions).values({
-		id: operatorTxId,
-		userId: user_id,
-		providerTxId: provider_tx_id,
-		type: "BET",
-		amount,
-		sessionToken: session_token,
-		game,
-	});
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
+
+	const [walletTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: user_id,
+			amount: amount / 1000,
+			type: "debit",
+			reference: null,
+			status: "success",
+			paymentMethod: "lucky games",
+			balance: newBalanceKobo,
+		})
+		.returning();
+
+	if (!walletTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record wallet transaction" },
+			500,
+		);
+	}
+
+	const [betTxn] = await db
+		.insert(schema.gameTransactions)
+		.values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: provider_tx_id,
+			type: "BET",
+			amount,
+			sessionToken: session_token,
+			game,
+		})
+		.returning();
+
+	if (!betTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record bet transaction" },
+			500,
+		);
+	}
 
 	return c.json(
 		{
@@ -593,20 +639,56 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	const newBalanceKobo = balanceKobo + amount;
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
-		.set({ balance: newBalanceKobo / 10 })
-		.where(eq(schema.wallet.userId, user_id));
+		.set({ balance: newBalanceKobo / 1000 })
+		.where(eq(schema.wallet.userId, user_id))
+		.returning();
 
-	await db.insert(schema.gameTransactions).values({
-		id: operatorTxId,
-		userId: user_id,
-		providerTxId: provider_tx_id,
-		type: "WIN",
-		amount,
-		sessionToken: session_token,
-		game,
-	});
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
+
+	const [walletTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: user_id,
+			amount: amount,
+			type: "credit",
+			reference: null,
+			status: "success",
+			paymentMethod: "lucky games",
+			balance: newBalanceKobo,
+		})
+		.returning();
+
+	if (!walletTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record wallet transaction" },
+			500,
+		);
+	}
+
+	const [winTxn] = await db
+		.insert(schema.gameTransactions)
+		.values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: provider_tx_id,
+			type: "WIN",
+			amount,
+			sessionToken: session_token,
+			game,
+		})
+		.returning();
+
+	if (!winTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record win transaction" },
+			500,
+		);
+	}
 
 	return c.json(
 		{
@@ -716,20 +798,56 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	const newBalanceKobo = balanceKobo + adjustment;
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
-		.set({ balance: newBalanceKobo / 10 })
-		.where(eq(schema.wallet.userId, user_id));
+		.set({ balance: newBalanceKobo / 1000 })
+		.where(eq(schema.wallet.userId, user_id))
+		.returning();
 
-	await db.insert(schema.gameTransactions).values({
-		id: operatorTxId,
-		userId: user_id,
-		providerTxId: `rollback_${rollback_provider_tx_id}`,
-		type: "ROLLBACK",
-		amount,
-		sessionToken: session_token,
-		game,
-	});
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
+
+	const [walletTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: user_id,
+			amount: adjustment,
+			type: "refund",
+			reference: null,
+			status: "success",
+			paymentMethod: "lucky games",
+			balance: newBalanceKobo,
+		})
+		.returning();
+
+	if (!walletTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record wallet transaction" },
+			500,
+		);
+	}
+
+	const [rollbackTxn] = await db
+		.insert(schema.gameTransactions)
+		.values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: `rollback_${rollback_provider_tx_id}`,
+			type: "ROLLBACK",
+			amount,
+			sessionToken: session_token,
+			game,
+		})
+		.returning();
+
+	if (!rollbackTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record rollback transaction" },
+			500,
+		);
+	}
 
 	return c.json(
 		{

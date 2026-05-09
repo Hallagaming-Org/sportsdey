@@ -23,10 +23,6 @@ export async function initializeTransaction(
 	proxyUrl?: string,
 	proxySecret?: string,
 ): Promise<InitializeTransactionResponse> {
-	const baseUrl = proxyUrl || "https://api.paystack.co";
-	const endpoint = proxyUrl
-		? "/paystack/transaction/initialize"
-		: "/transaction/initialize";
 	const headers: Record<string, string> = proxyUrl
 		? {
 				"X-Proxy-Auth": proxySecret || "",
@@ -37,7 +33,8 @@ export async function initializeTransaction(
 				Authorization: `Bearer ${secretKey}`,
 				"Content-Type": "application/json",
 			};
-	const response = await fetch(`${baseUrl}${endpoint}`, {
+	console.log("headers", headers);
+	const response = await fetch(`${proxyUrl}/paystack/transaction/initialize`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
@@ -48,8 +45,10 @@ export async function initializeTransaction(
 			callback_url: callbackUrl,
 		}),
 	});
+	const responseText = await response.text();
+	console.log("proxy server response", responseText);
 
-	const data = (await response.json()) as {
+	const data = JSON.parse(responseText) as {
 		status: boolean;
 		message: string;
 		data: { reference: string; authorization_url: string };
@@ -127,7 +126,9 @@ export async function createTransferRecipient(
 	proxySecret?: string,
 ): Promise<TransferRecipient> {
 	const baseUrl = proxyUrl || "https://api.paystack.co";
-	const endpoint = proxyUrl ? "/paystack/transferrecipient" : "/transferrecipient";
+	const endpoint = proxyUrl
+		? "/paystack/transferrecipient"
+		: "/transferrecipient";
 	const headers: Record<string, string> = proxyUrl
 		? {
 				"X-Proxy-Auth": proxySecret || "",

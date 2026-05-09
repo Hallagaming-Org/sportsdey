@@ -1,10 +1,11 @@
-import { OpenAPIHono, OpenAPIHono } from "@hono/zod-openapi";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import basketballRoute from "./basketball";
 import casinoRoute from "./casino";
 import casinoProviderRoute from "./casino-provider";
 import filesRoute from "./files";
 import footballRoute from "./football";
 import gamesRoute from "./games";
+import kycRoute from "./kyc";
 import lagosRushRoute from "./lagos-rush";
 import monnifyRoute from "./monnify";
 import newsRoute from "./news";
@@ -34,5 +35,6 @@ routes.route("/account", casinoProviderRoute);
 routes.route("/bills", monnifyRoute);
 routes.route("/files", filesRoute);
 routes.route("/games", gamesRoute);
+routes.route("/kyc", kycRoute);
 
 export default routes;

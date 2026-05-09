@@ -110,6 +110,8 @@ export const userRelations = relations(user, ({ many }) => ({
 	userFiles: many(userFile),
 	slotitegrationSessions: many(slotitegrationSessions),
 	slotitegrationTransactions: many(slotitegrationTransactions),
+	kycRecords: many(kyc),
+	notifications: many(userNotification),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -151,7 +153,7 @@ export const walletTransaction = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		amount: integer("amount").notNull(),
 		type: text("type").notNull(),
-		reference: text("reference").notNull().unique(),
+reference: text("reference").unique(),
 		status: text("status").notNull(),
 		paymentMethod: text("payment_method")
 			.notNull()
@@ -545,10 +547,70 @@ export const userFileRelations = relations(userFile, ({ one }) => ({
 	}),
 }));
 
+export const kyc = sqliteTable("kyc", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	fullName: text("full_name").notNull(),
+	identificationType: text("identification_type").notNull(),
+	frontDocumentId: text("front_document_id").references(() => userFile.id),
+	backDocumentId: text("back_document_id").references(() => userFile.id),
+	status: text("status")
+		.notNull()
+		.default("pending_review"),
+	rejectionReason: text("rejection_reason"),
+	submittedAt: integer("submitted_at", { mode: "timestamp_ms" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const userNotification = sqliteTable("user_notification", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	message: text("message").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+});
+
+export const kycRelations = relations(kyc, ({ one }) => ({
+	user: one(user, {
+		fields: [kyc.userId],
+		references: [user.id],
+	}),
+	frontDocument: one(userFile, {
+		fields: [kyc.frontDocumentId],
+		references: [userFile.id],
+	}),
+	backDocument: one(userFile, {
+		fields: [kyc.backDocumentId],
+		references: [userFile.id],
+	}),
+}));
+
+export const userNotificationRelations = relations(
+	userNotification,
+	({ one }) => ({
+		user: one(user, {
+			fields: [userNotification.userId],
+			references: [user.id],
+		}),
+	}),
+);
+
 export const game = sqliteTable("game", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
-	code: text("code").notNull().unique(),
+	code: text("code").notNull(),
 	imageUrl: text("image_url"),
 	enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })

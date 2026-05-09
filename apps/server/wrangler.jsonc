@@ -14,7 +14,7 @@
 		}
 	},
 	"vars": {
-		"NODE_ENV": "development",
+		"NODE_ENV": "development"
 		// "CORS_ORIGIN": "http://localhost:3001",:
 		// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
 	},
@@ -47,7 +47,7 @@
 				"staging-api.sportsdey.com"
 			],
 			"vars": {
-				"NODE_ENV": "staging",
+				"NODE_ENV": "staging"
 				// "CORS_ORIGIN": "https://staging.sportsdey.com",
 				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
 			}
@@ -69,7 +69,7 @@
 			"kv_namespaces": [
 				{
 					"binding": "sportsdey_ns",
-					"id": "7720322efb504b96a392d8acfe37ad4b",
+					"id": "7720322efb504b96a392d8acfe37ad4b"
 					// "remote": false
 				}
 			],
@@ -80,32 +80,32 @@
 				}
 			],
 			"vars": {
-				"NODE_ENV": "production",
+				"NODE_ENV": "production"
 				// "CORS_ORIGIN": "https://sportsdey.com",
 				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
 				// Add public environment variables here
 				// Example: "CORS_ORIGIN": "https://your-domain.com"
-			},
-		},
-	},
-	"kv_namespaces": [
-		{
-			"binding": "staging-kv",
-			"id": "7720322efb504b96a392d8acfe37ad4b"
+			}
 		}
-	],
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "staging-db",
-			"database_id": "4be3127a-eadf-47db-918c-ae2fa1c4776e",
-			"migrations_dir": "./src/db/migrations"
-		}
-	],
-	"r2_buckets": [
-		{
-			"binding": "STAGING_BUCKET",
-			"bucket_name": "sportsdey-staging"
-		}
-	]
+	}
+	// "kv_namespaces": [
+	// 	{
+	// 		"binding": "staging-kv",
+	// 		"id": "7720322efb504b96a392d8acfe37ad4b"
+	// 	}
+	// ],
+	// "d1_databases": [
+	// 	{
+	// 		"binding": "DB",
+	// 		"database_name": "staging-db",
+	// 		"database_id": "4be3127a-eadf-47db-918c-ae2fa1c4776e",
+	// 		"migrations_dir": "./src/db/migrations"
+	// 	}
+	// ],
+	// "r2_buckets": [
+	// 	{
+	// 		"binding": "STAGING_BUCKET",
+	// 		"bucket_name": "sportsdey-staging"
+	// 	}
+	// ]
 }

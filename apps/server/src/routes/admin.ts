@@ -1,27 +1,65 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq, like, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
 import {
 	clearSessionCookie,
 	createAdmin,
 	createAdminSession,
 	deleteAdmin,
 	deleteAdminSession,
+	deleteAdminSessionById,
+	deleteAllAdminSessions,
 	getAdminByEmail,
 	getAdminById,
+	getAdminSessions,
 	getSessionToken,
 	hashPassword,
+	listAdmins,
 	setSessionCookie,
 	updateAdminById,
+	updateAdminPermissions,
 	validateAdminSession,
 	verifyPassword,
 } from "@/auth/admin";
 import * as schema from "@/db/schema";
+import { requirePermission } from "@/middleware/admin-permissions";
+import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import type { CloudflareBindings } from "../types";
 
-const adminRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+type AdminRouteContext = { Bindings: CloudflareBindings };
+
+const adminRoute = new OpenAPIHono<AdminRouteContext>();
+
+const ErrorSchema = z.object({
+	success: z.literal(false),
+	error: z.string(),
+});
+
+const ErrorSchemaWithDetails = z.object({
+	success: z.literal(false),
+	error: z.string(),
+	details: z
+		.array(
+			z.object({
+				field: z.string(),
+				message: z.string(),
+				code: z.string(),
+			}),
+		)
+		.nullable()
+		.optional(),
+});
+
+function safeParsePermissions(permissions: string | null): string[] {
+	if (!permissions) return [];
+	try {
+		const parsed = JSON.parse(permissions);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
 
 const SignInSchema = z.object({
 	email: z.string().email().openapi({
@@ -46,7 +84,12 @@ const AdminResponseSchema = z.object({
 		.string()
 		.nullable()
 		.openapi({ description: "Admin profile image URL" }),
-	role: z.enum(["super_admin", "admin"]).openapi({ description: "Admin role" }),
+	role: z
+		.enum(["super_admin", "admin", "csr-admin"])
+		.openapi({ description: "Admin role" }),
+	permissions: z
+		.array(z.string())
+		.openapi({ description: "Admin permissions" }),
 	createdAt: z.string().openapi({ description: "Account creation timestamp" }),
 });
 
@@ -85,7 +128,12 @@ const CreateAdminSchema = z.object({
 		.string()
 		.min(1)
 		.openapi({ description: "Admin name", example: "John Doe" }),
-	role: z.enum(["super_admin", "admin"]).openapi({ description: "Admin role" }),
+	role: z
+		.enum(["super_admin", "admin", "csr-admin"])
+		.openapi({ description: "Admin role" }),
+	permissions: z
+		.array(z.enum(adminPermissions))
+		.openapi({ description: "Admin permissions" }),
 });
 
 const GetWalletTransactionsQuerySchema = z.object({
@@ -182,7 +230,13 @@ const signOutRoute = createRoute({
 			description: "Sign out successful",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(
+						z
+							.object({
+								message: z.string().openapi({ description: "Message" }),
+							})
+							.openapi("MessageResponse"),
+					),
 				},
 			},
 		},
@@ -279,9 +333,11 @@ const updateProfilePictureRoute = createRoute({
 			content: {
 				"multipart/form-data": {
 					schema: z.object({
-						file: z
-							.instanceof(File)
-							.openapi({ description: "Profile image file (max 5MB)" }),
+						file: z.string().openapi({
+							type: "string",
+							format: "binary",
+							description: "Profile image file (max 5MB)",
+						}),
 					}),
 				},
 			},
@@ -384,16 +440,24 @@ const deleteAdminRoute = createRoute({
 		"Delete an admin user by ID. Super admin access required. Cannot delete yourself.",
 	security: [{ BearerAuth: [] }],
 	request: {
-		params: z.object({
-			id: z.string().openapi({ description: "Admin ID to delete" }),
-		}),
+		params: z
+			.object({
+				id: z.string().openapi({ description: "Admin ID to delete" }),
+			})
+			.openapi("DeleteAdminParams"),
 	},
 	responses: {
 		200: {
 			description: "Admin deleted successfully",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(
+						z
+							.object({
+								message: z.string().openapi({ description: "Message" }),
+							})
+							.openapi("MessageResponse"),
+					),
 				},
 			},
 		},
@@ -494,7 +558,13 @@ const changePasswordRoute = createRoute({
 			description: "Password changed successfully",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(z.object({ message: z.string() })),
+					schema: successResponseSchema(
+						z
+							.object({
+								message: z.string().openapi({ description: "Message" }),
+							})
+							.openapi("MessageResponse"),
+					),
 				},
 			},
 		},
@@ -508,6 +578,97 @@ const changePasswordRoute = createRoute({
 		},
 		401: {
 			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+const DeviceSchema = z.object({
+	id: z.string().openapi({ description: "Session/Device ID" }),
+	deviceName: z
+		.string()
+		.openapi({ description: "Device name (browser and OS)" }),
+	ipAddress: z.string().nullable().openapi({ description: "IP address" }),
+	browser: z.string().openapi({ description: "Browser name" }),
+	lastActiveAt: z.string().openapi({ description: "Last active timestamp" }),
+	createdAt: z.string().openapi({ description: "Session created timestamp" }),
+	isCurrentDevice: z
+		.boolean()
+		.openapi({ description: "Is this the current device" }),
+});
+
+const DevicesResponseSchema = z.object({
+	devices: z.array(DeviceSchema).openapi({ description: "List of devices" }),
+});
+
+const getDevicesRoute = createRoute({
+	method: "get",
+	path: "/auth/devices",
+	tags: ["Admin - Authentication"],
+	summary: "Get all devices",
+	description: "Retrieve all devices/sessions logged in by the current admin",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Devices retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(DevicesResponseSchema),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+const deleteDeviceRoute = createRoute({
+	method: "delete",
+	path: "/auth/devices/{sessionId}",
+	tags: ["Admin - Authentication"],
+	summary: "Log out a device",
+	description: "Log out a specific device/session",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			sessionId: z.string().openapi({ description: "Session ID to log out" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Device logged out successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z
+							.object({
+								message: z.string().openapi({ description: "Message" }),
+							})
+							.openapi("MessageResponse"),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Session not found",
 			content: {
 				"application/json": {
 					schema: ErrorResponseSchema,
@@ -552,19 +713,28 @@ adminRoute.openapi(signInRoute, async (c) => {
 	const body = await c.req.json();
 	const result = SignInSchema.safeParse(body);
 	if (!result.success) {
-		return c.json({ success: false, error: "Invalid request body" }, 400);
+		return c.json(
+			{ success: false, error: "Invalid request body", details: null },
+			400,
+		);
 	}
 
 	const { email, password } = result.data;
 	const adminUser = await getAdminByEmail(c.env, email);
 
 	if (!adminUser) {
-		return c.json({ success: false, error: "Invalid credentials" }, 401);
+		return c.json(
+			{ success: false, error: "Invalid credentials", details: null },
+			401,
+		);
 	}
 
 	const valid = await verifyPassword(adminUser.passwordHash, password);
 	if (!valid) {
-		return c.json({ success: false, error: "Invalid credentials" }, 401);
+		return c.json(
+			{ success: false, error: "Invalid credentials", details: null },
+			401,
+		);
 	}
 
 	const token = await createAdminSession(
@@ -588,6 +758,7 @@ adminRoute.openapi(signInRoute, async (c) => {
 				mobileNumber: adminUser.mobileNumber,
 				image: adminUser.image,
 				role: adminUser.role,
+				permissions: safeParsePermissions(adminUser.permissions),
 				createdAt: adminUser.createdAt?.toISOString() || "",
 			},
 		},
@@ -638,6 +809,64 @@ adminRoute.openapi(changePasswordRoute, async (c) => {
 	});
 });
 
+adminRoute.openapi(getDevicesRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const sessions = await getAdminSessions(c.env, session.adminId);
+
+	const devices = sessions.map((s) => {
+		return {
+			id: s.id,
+			deviceName: s.deviceName || "Unknown Device",
+			ipAddress: s.ipAddress,
+			browser: s.browser || "Unknown",
+			lastActiveAt: s.lastActiveAt?.toISOString() || "",
+			createdAt: s.createdAt?.toISOString() || "",
+			isCurrentDevice: s.token === token,
+		};
+	});
+
+	return c.json({
+		success: true,
+		data: { devices },
+	});
+});
+
+adminRoute.openapi(deleteDeviceRoute, async (c) => {
+	const { sessionId } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const deleted = await deleteAdminSessionById(
+		c.env,
+		sessionId,
+		session.adminId,
+	);
+	if (!deleted) {
+		return c.json({ success: false, error: "Session not found" }, 404);
+	}
+
+	return c.json({
+		success: true,
+		data: { message: "Device logged out successfully" },
+	});
+});
+
 adminRoute.openapi(getMeRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
@@ -663,6 +892,7 @@ adminRoute.openapi(getMeRoute, async (c) => {
 			mobileNumber: adminUser.mobileNumber,
 			image: adminUser.image,
 			role: adminUser.role,
+			permissions: safeParsePermissions(adminUser.permissions),
 			createdAt: adminUser.createdAt?.toISOString() || "",
 		},
 	});
@@ -837,6 +1067,64 @@ adminRoute.openapi(updateProfilePictureRoute, async (c) => {
 	}
 });
 
+const listAdminsRoute = createRoute({
+	method: "get",
+	path: "/admins",
+	tags: ["Admin - Management"],
+	summary: "List all admins",
+	description: "Retrieve all admins. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Admins retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(z.array(AdminResponseSchema)),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+adminRoute.openapi(listAdminsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const admins = await listAdmins(c.env);
+
+	return c.json({
+		success: true,
+		data: admins.map((admin) => ({
+			id: admin.id,
+			email: admin.email,
+			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
+			role: admin.role,
+			permissions: safeParsePermissions(admin.permissions),
+			createdAt: admin.createdAt?.toISOString() || "",
+		})),
+	});
+});
+
 adminRoute.openapi(createAdminRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
@@ -857,7 +1145,7 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 		return c.json({ success: false, error: "Invalid request body" }, 400);
 	}
 
-	const { email, password, name, role } = result.data;
+	const { email, password, name, role, permissions } = result.data;
 
 	const existing = await getAdminByEmail(c.env, email);
 	if (existing) {
@@ -866,14 +1154,21 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 
 	const adminResult = await createAdmin(c.env, { email, password, name, role });
 
+	if (permissions && permissions.length > 0) {
+		await updateAdminPermissions(c.env, adminResult.id, permissions);
+	}
+
+	const admin = await getAdminById(c.env, adminResult.id);
+
 	return c.json({
 		success: true,
 		data: {
-			id: adminResult.id,
-			email,
-			name,
-			role,
-			createdAt: new Date().toISOString(),
+			id: admin?.id,
+			email: admin?.email,
+			name: admin?.name,
+			role: admin?.role,
+			permissions: safeParsePermissions(admin?.permissions ?? null),
+			createdAt: admin?.createdAt?.toISOString() || new Date().toISOString(),
 		},
 	});
 });
@@ -905,6 +1200,73 @@ adminRoute.openapi(deleteAdminRoute, async (c) => {
 	});
 });
 
+const forceLogoutAdminRoute = createRoute({
+	method: "delete",
+	path: "/admins/{id}/sessions",
+	tags: ["Admin - Management"],
+	summary: "Force logout an admin",
+	description:
+		"Delete all active sessions for an admin. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({ id: z.string().openapi({ description: "Admin ID" }) }),
+	},
+	responses: {
+		200: {
+			description: "Sessions deleted successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							sessionsRevoked: z.number(),
+						}),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+adminRoute.openapi(forceLogoutAdminRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	const deleted = await deleteAllAdminSessions(c.env, id);
+
+	return c.json({
+		success: true,
+		data: { sessionsRevoked: deleted },
+	});
+});
+
 adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
@@ -917,6 +1279,16 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
 		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "transactions")
+	) {
+		return c.json(
+			{ success: false, error: "Forbidden - transactions permission required" },
+			403,
+		);
 	}
 
 	const query = GetWalletTransactionsQuerySchema.safeParse({
@@ -1008,6 +1380,251 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 				total,
 				totalPages,
 			},
+		},
+	});
+});
+
+const GetAdminByIdParamsSchema = z.object({
+	id: z.string().openapi({ description: "Admin ID" }),
+});
+
+const UpdateAdminPermissionsSchema = z.object({
+	permissions: z.array(z.enum(adminPermissions)).openapi({
+		description: "List of permissions to assign",
+	}),
+});
+
+const getAdminPermissionsRoute = createRoute({
+	method: "get",
+	path: "/admins/{id}/permissions",
+	tags: ["Admin - Management"],
+	summary: "Get admin permissions",
+	description:
+		"Retrieve an admin's permissions with available permission labels. Super admin access required. Admins can only view their own permissions.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: GetAdminByIdParamsSchema,
+	},
+	responses: {
+		200: {
+			description: "Permissions retrieved",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							id: z.string(),
+							permissions: z.array(z.string()),
+							availablePermissions: z.array(
+								z.object({
+									key: z.string(),
+									label: z.string(),
+								}),
+							),
+						}),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
+const getAdminByIdRoute = createRoute({
+	method: "get",
+	path: "/admins/{id}",
+	tags: ["Admin - Management"],
+	summary: "Get admin by ID",
+	description:
+		"Retrieve an admin's profile including permissions. Super admin access required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: GetAdminByIdParamsSchema,
+	},
+	responses: {
+		200: {
+			description: "Admin retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(AdminResponseSchema),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+const updateAdminPermissionsRoute = createRoute({
+	method: "patch",
+	path: "/admins/{id}/permissions",
+	tags: ["Admin - Management"],
+	summary: "Update admin permissions",
+	description:
+		"Update an admin's permissions. Super admin access required. Only super admins can update permissions.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: GetAdminByIdParamsSchema,
+		body: {
+			content: {
+				"application/json": { schema: UpdateAdminPermissionsSchema },
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Permissions updated successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							id: z.string(),
+							permissions: z.array(z.string()),
+						}),
+					),
+				},
+			},
+		},
+		400: {
+			description: "Invalid request",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		403: {
+			description: "Forbidden - super_admin only",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		404: {
+			description: "Admin not found",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+adminRoute.openapi(getAdminByIdRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			id: admin.id,
+			email: admin.email,
+			name: admin.name,
+			mobileNumber: admin.mobileNumber,
+			image: admin.image,
+			role: admin.role,
+			permissions: safeParsePermissions(admin.permissions),
+			createdAt: admin.createdAt?.toISOString() || "",
+		},
+	});
+});
+
+adminRoute.openapi(getAdminPermissionsRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	if (session.role !== "super_admin" && session.adminId !== id) {
+		return c.json({ success: false, error: "Forbidden" }, 403);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			id: admin.id,
+			permissions: safeParsePermissions(admin.permissions),
+			// availablePermissions: Object.entries(permissionLabels).map(
+			// 	([key, label]) => ({ key, label }),
+			// ),
+		},
+	});
+});
+
+adminRoute.openapi(updateAdminPermissionsRoute, async (c) => {
+	const { id } = c.req.valid("param");
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || session.role !== "super_admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super_admin only" },
+			403,
+		);
+	}
+
+	const body = await c.req.json();
+	const result = UpdateAdminPermissionsSchema.safeParse(body);
+	if (!result.success) {
+		return c.json({ success: false, error: "Invalid request body" }, 400);
+	}
+
+	const admin = await getAdminById(c.env, id);
+	if (!admin) {
+		return c.json({ success: false, error: "Admin not found" }, 404);
+	}
+
+	await updateAdminPermissions(c.env, id, result.data.permissions);
+
+	return c.json({
+		success: true,
+		data: {
+			id,
+			permissions: result.data.permissions,
 		},
 	});
 });

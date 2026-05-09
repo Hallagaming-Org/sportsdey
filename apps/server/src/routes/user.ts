@@ -2,12 +2,13 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gte, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
+import { z } from "@hono/zod-openapi";
 import {
 	generateSessionToken,
 	getSessionToken,
 	validateAdminSession,
 } from "@/auth/admin";
+import { requirePermission } from "@/middleware/admin-permissions";
 import * as schema from "@/db/schema";
 import type { CloudflareBindings } from "../types";
 
@@ -26,7 +27,7 @@ const UpdateUserSchema = z.object({
 		description: "User's mobile number",
 		example: "+2348012345678",
 	}),
-});
+}).openapi("UpdateUser");
 
 const UserResponseSchema = z.object({
 	id: z.string().openapi({ description: "User ID" }),
@@ -47,18 +48,18 @@ const UserResponseSchema = z.object({
 	suspended: z.boolean().openapi({ description: "Suspension status" }),
 	createdAt: z.string().openapi({ description: "Creation timestamp" }),
 	updatedAt: z.string().openapi({ description: "Last update timestamp" }),
-});
+}).openapi("UserResponse");
 
 const UpdateUserErrorSchema = z.object({
-	success: z.literal(false),
-	error: z.string(),
-	details: z.null(),
-});
+	success: z.literal(false).openapi({ description: "Success status" }),
+	error: z.string().openapi({ description: "Error message" }),
+	details: z.null().openapi({ description: "Error details" }),
+}).openapi("UpdateUserError");
 
 const UpdateUserResponseSchema = z.object({
-	success: z.literal(true),
-	data: UserResponseSchema,
-});
+	success: z.literal(true).openapi({ description: "Success status" }),
+	data: UserResponseSchema.openapi({ description: "User data" }),
+}).openapi("UpdateUserResponse");
 
 const GetAllUsersQuerySchema = z.object({
 	page: z
@@ -87,7 +88,7 @@ const GetAllUsersQuerySchema = z.object({
 		.enum(["all", "recent", "pending"])
 		.optional()
 		.openapi({ description: "Filter by tab", example: "all" }),
-});
+}).openapi("GetAllUsersQuery");
 
 const UserListItemSchema = z.object({
 	id: z.string().openapi({ description: "User ID" }),
@@ -97,18 +98,18 @@ const UserListItemSchema = z.object({
 	status: z.string().openapi({ description: "Verification status" }),
 	suspended: z.boolean().openapi({ description: "Suspension status" }),
 	registeredDate: z.string().openapi({ description: "Registration date" }),
-});
+}).openapi("UserListItem");
 
 const GetAllUsersResponseSchema = z.object({
-	success: z.literal(true),
+	success: z.literal(true).openapi({ description: "Success status" }),
 	data: z.object({
-		users: z.array(UserListItemSchema),
+		users: z.array(UserListItemSchema).openapi({ description: "Users" }),
 		total: z.number().openapi({ description: "Total number of users" }),
 		page: z.number().openapi({ description: "Current page" }),
 		limit: z.number().openapi({ description: "Items per page" }),
 		totalPages: z.number().openapi({ description: "Total number of pages" }),
-	}),
-});
+	}).openapi({ description: "Response data" }),
+}).openapi("GetAllUsersResponse");
 
 const getUserRoute = createRoute({
 	method: "get",
@@ -377,6 +378,20 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		);
 	}
 
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{ success: false as const, error: "Forbidden - super admin or admin only" },
+			403,
+		);
+	}
+
+	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
+		return c.json(
+			{ success: false as const, error: "Forbidden - view_player_details permission required" },
+			403,
+		);
+	}
+
 	const db = drizzle(c.env.DB, { schema });
 
 	const page = Math.max(1, Number.parseInt(c.req.query("page") || "1", 10));
@@ -488,19 +503,19 @@ const CreateUserSchema = z.object({
 		description: "User's mobile number",
 		example: "+2348012345678",
 	}),
-});
+}).openapi("CreateUser");
 
 const CreateUserResponseSchema = z.object({
-	success: z.literal(true),
+	success: z.literal(true).openapi({ description: "Success status" }),
 	data: z.object({
-		id: z.string(),
-		name: z.string(),
-		email: z.string(),
-		emailVerified: z.boolean(),
-		verificationStatus: z.string(),
-		createdAt: z.number(),
-	}),
-});
+		id: z.string().openapi({ description: "User ID" }),
+		name: z.string().openapi({ description: "User name" }),
+		email: z.string().openapi({ description: "User email" }),
+		emailVerified: z.boolean().openapi({ description: "Email verified" }),
+		verificationStatus: z.string().openapi({ description: "Verification status" }),
+		createdAt: z.number().openapi({ description: "Created at" }),
+	}).openapi({ description: "Response data" }),
+}).openapi("CreateUserResponse");
 
 userRoute.openapi(
 	createRoute({
@@ -724,6 +739,13 @@ userRoute.openapi(
 		if (session.role !== "super_admin" && session.role !== "admin") {
 			return c.json(
 				{ success: false as const, error: "Forbidden - super admin or admin only" },
+				403,
+			);
+		}
+
+		if (session.role !== "super_admin" && !requirePermission(session, "deactivate_account")) {
+			return c.json(
+				{ success: false as const, error: "Forbidden - deactivate_account permission required" },
 				403,
 			);
 		}

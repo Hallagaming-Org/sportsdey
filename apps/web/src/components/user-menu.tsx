@@ -1,8 +1,32 @@
 import { useNavigate } from "@tanstack/react-router";
+import {
+	Bell,
+	Clock3,
+	LogOut,
+	Settings,
+	Star,
+	UserRound,
+	Wallet,
+} from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
 import { signOut, useSession } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
-import { walletLogoutItem, walletMenuItems } from "./wallet-menu-items";
+
+type UserMenuItem = {
+	label: string;
+	icon: ComponentType<SVGProps<SVGSVGElement>>;
+	path?: string;
+};
+
+const userMenuItems: UserMenuItem[] = [
+	{ label: "My profile", icon: UserRound, path: "/account" },
+	{ label: "Notifications", icon: Bell },
+	{ label: "Wallet", icon: Wallet, path: "/wallet" },
+	{ label: "Bet history", icon: Clock3 },
+	{ label: "Engage", icon: Star },
+	{ label: "Settings", icon: Settings },
+];
 
 export function UserMenu() {
 	const { data: session, isPending: isLoading } = useSession();
@@ -37,7 +61,6 @@ export function UserMenu() {
 
 	if (session?.user) {
 		const user = session.user;
-		const WalletLogoutIcon = walletLogoutItem.icon;
 		const displayName = user.name || "User";
 		const initials = displayName
 			.split(" ")
@@ -89,20 +112,20 @@ export function UserMenu() {
 							onClick={() => setIsOpen(false)}
 							aria-label="Close user menu"
 						/>
-						<div className="absolute top-full right-0 z-50 mt-2 w-64 rounded-2xl p-3 shadow-lg bg-[#202120]">
+						<div className="absolute top-full right-0 z-50 mt-2 w-64 rounded-2xl bg-[#020D02] p-3 shadow-lg">
 							<nav aria-label="User menu options">
-								<ul className="space-y-2">
-									{walletMenuItems.map(({ label, icon: Icon, path }) => (
+								<ul className="space-y-3">
+									{userMenuItems.map(({ label, icon: Icon, path }) => (
 										<li key={label}>
 											<button
 												type="button"
 												onClick={() => handleMenuNavigation(path)}
-												className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[#F2EEFB]"
+												className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left text-[#F2EEFB] transition-colors hover:bg-white/5"
 											>
-												<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full ">
-													<Icon width={18} height={18} className="block" />
+												<span className="flex h-7 w-7 shrink-0 items-center justify-center text-[#C9D2D0]">
+													<Icon width={20} height={20} className="block" />
 												</span>
-												<span className="font-medium text-sm">{label}</span>
+												<span className="font-medium text-base">{label}</span>
 											</button>
 										</li>
 									))}
@@ -110,17 +133,13 @@ export function UserMenu() {
 										<button
 											type="button"
 											onClick={handleSignOut}
-											className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+											className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-white/5"
 										>
-											<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-												<WalletLogoutIcon
-													width={18}
-													height={18}
-													className="block"
-												/>
+											<span className="flex h-7 w-7 shrink-0 items-center justify-center text-[#FF216E]">
+												<LogOut width={20} height={20} className="block" />
 											</span>
-											<span className="font-medium text-sm text-[#FF216E]">
-												{walletLogoutItem.label}
+											<span className="font-medium text-base text-[#FF216E]">
+												Log out
 											</span>
 										</button>
 									</li>

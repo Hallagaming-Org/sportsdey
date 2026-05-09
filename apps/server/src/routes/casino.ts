@@ -1,7 +1,6 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "zod";
 import * as schema from "@/db/schema";
 import {
 	GamePlayErrorSchema,
@@ -95,12 +94,19 @@ casinoRoute.openapi(playGameRoute, async (c) => {
 
 	const token = `launch_${Date.now()}_${Math.random().toString(36).slice(2, 15)}`;
 
-	await db.insert(schema.gameLaunchTokens).values({
-		token,
-		userId: user.id,
-		game: gameCode,
-		used: false,
-	});
+	const [launchToken] = await db
+		.insert(schema.gameLaunchTokens)
+		.values({
+			token,
+			userId: user.id,
+			game: gameCode,
+			used: false,
+		})
+		.returning();
+
+	if (!launchToken?.token) {
+		return c.json({ success: false, error: "Failed to create launch token" }, 500);
+	}
 
 	const baseUrl =
 		c.env.LUCKYWORLDGAMES_LAUNCH_URL ||
@@ -111,7 +117,7 @@ casinoRoute.openapi(playGameRoute, async (c) => {
 		{
 			success: true,
 			data: {
-				launchUrl,
+				url: launchUrl,
 				token,
 			},
 		},

@@ -1,21 +1,22 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import type { ComponentType } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { SPORTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import gamesIcon from "@/logos/games.svg";
-import jackpotIcon from "@/logos/jackpot.svg";
-import newsIcon from "@/logos/news.svg";
-import quickbetsIcon from "@/logos/quick-bets.svg";
-import scoreIcon from "@/logos/score.svg";
-import smartbetsIcon from "@/logos/smartbet.svg";
-import superbetsIcon from "@/logos/superbet.svg";
-import walletIcon from "@/logos/wallet.svg";
+import gamesIcon from "@/logos/games.svg?react";
+import jackpotIcon from "@/logos/jackpot.svg?react";
+import newsIcon from "@/logos/news.svg?react";
+import quickbetsIcon from "@/logos/quick-bets.svg?react";
+import scoreIcon from "@/logos/score.svg?react";
+import smartbetsIcon from "@/logos/smartbet.svg?react";
+import superbetsIcon from "@/logos/superbet.svg?react";
+import walletIcon from "@/logos/wallet.svg?react";
 import { useActiveTab } from "./active-tab-context";
 
 type NavItem = {
 	id: string;
 	label: string;
-	icon: string;
+	icon: ComponentType<{ className?: string }>;
 	onClick?: () => void;
 	isActive: boolean;
 };
@@ -77,15 +78,19 @@ const Sidebar = () => {
 			icon: scoreIcon,
 			onClick: goToScores,
 			isActive:
-				tab === "scores" ||
-				["/", "/basketball", "/tennis"].includes(location.pathname),
+				(tab === "scores" ||
+					["/basketball", "/tennis"].includes(location.pathname) ||
+					location.pathname === "/") &&
+				!location.pathname.startsWith("/game/"),
 		},
 		{
 			id: "news",
 			label: "News",
 			icon: newsIcon,
 			onClick: goToNews,
-			isActive: tab === "news" || location.pathname.startsWith("/news"),
+			isActive:
+				(tab === "news" || location.pathname.startsWith("/news")) &&
+				!location.pathname.startsWith("/game/"),
 		},
 		...(isStaging || import.meta.env.DEV
 			? [
@@ -143,40 +148,41 @@ const Sidebar = () => {
 		},
 	];
 
-	const renderNavButton = (item: NavItem) => (
-		<button
-			key={item.id}
-			onClick={item.onClick}
-			className={cn(
-				"flex w-full cursor-pointer flex-col items-center gap-1 rounded-full px-3 py-1 transition hover:-translate-y-[1px]",
-				item.isActive
-					? "bg-accent text-white shadow-[0_8px_20px_rgba(25,186,8,0.18)]"
-					: "bg-transparent",
-			)}
-		>
-			<img
-				src={item.icon}
-				alt={item.label}
+	const renderNavButton = (item: NavItem) => {
+		const Icon = item.icon;
+		return (
+			<button
+				key={item.id}
+				onClick={item.onClick}
 				className={cn(
-					"h-6 w-6 transition",
-					item.isActive ? "opacity-100 brightness-0 invert" : "opacity-70",
-					item.id === "wallet" && "bg-gray-400",
-					item.id === "scores" &&
-						(item.isActive
-							? "brightness-0 invert"
-							: "brightness-95% contrast-95% hue-rotate-[85deg] invert-[32%] saturate-[1200%] sepia-[78%]"),
-				)}
-			/>
-			<span
-				className={cn(
-					"font-semibold text-[#9EA1A7] text-[13px]",
-					item.isActive && "text-white",
+					"flex w-full cursor-pointer flex-col items-center gap-1 rounded-full px-3 py-1 transition hover:-translate-y-[1px]",
+					item.isActive
+						? "bg-accent text-white shadow-[0_8px_20px_rgba(25,186,8,0.18)]"
+						: "bg-transparent",
 				)}
 			>
-				{item.label}
-			</span>
-		</button>
-	);
+				<Icon
+					className={cn(
+						"h-6 w-6 transition",
+						item.isActive ? "opacity-100 brightness-0 invert" : "opacity-70",
+
+						item.id === "scores" &&
+							(item.isActive
+								? "brightness-0 invert"
+								: "brightness-95% contrast-95%  saturate-[1200%]"),
+					)}
+				/>
+				<span
+					className={cn(
+						"font-semibold text-[#9EA1A7] text-[13px]",
+						item.isActive && "text-white",
+					)}
+				>
+					{item.label}
+				</span>
+			</button>
+		);
+	};
 
 	return (
 		<div className="mx-auto w-[110px] rounded-[26px] border border-[#F1F2F4] bg-white py-5 shadow-[0_6px_22px_rgba(0,0,0,0.12)] dark:border-[#2F3033] dark:bg-[#1C1D1F]">
