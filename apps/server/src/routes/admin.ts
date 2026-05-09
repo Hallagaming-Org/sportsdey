@@ -39,11 +39,16 @@ const ErrorSchema = z.object({
 const ErrorSchemaWithDetails = z.object({
 	success: z.literal(false),
 	error: z.string(),
-	details: z.array(z.object({
-		field: z.string(),
-		message: z.string(),
-		code: z.string(),
-	})).nullable().optional(),
+	details: z
+		.array(
+			z.object({
+				field: z.string(),
+				message: z.string(),
+				code: z.string(),
+			}),
+		)
+		.nullable()
+		.optional(),
 });
 
 function safeParsePermissions(permissions: string | null): string[] {
@@ -708,19 +713,28 @@ adminRoute.openapi(signInRoute, async (c) => {
 	const body = await c.req.json();
 	const result = SignInSchema.safeParse(body);
 	if (!result.success) {
-		return c.json({ success: false, error: "Invalid request body", details: null }, 400);
+		return c.json(
+			{ success: false, error: "Invalid request body", details: null },
+			400,
+		);
 	}
 
 	const { email, password } = result.data;
 	const adminUser = await getAdminByEmail(c.env, email);
 
 	if (!adminUser) {
-		return c.json({ success: false, error: "Invalid credentials", details: null }, 401);
+		return c.json(
+			{ success: false, error: "Invalid credentials", details: null },
+			401,
+		);
 	}
 
 	const valid = await verifyPassword(adminUser.passwordHash, password);
 	if (!valid) {
-		return c.json({ success: false, error: "Invalid credentials", details: null }, 401);
+		return c.json(
+			{ success: false, error: "Invalid credentials", details: null },
+			401,
+		);
 	}
 
 	const token = await createAdminSession(

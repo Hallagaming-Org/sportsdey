@@ -331,17 +331,57 @@ thundrRoute.post("/transactions", async (c) => {
 		}
 		txAmountKobo = tx.amount;
 		newBalanceKobo = currentBalanceKobo - txAmountKobo;
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalanceKobo })
-			.where(eq(schema.wallet.userId, session.userId));
+			.where(eq(schema.wallet.userId, session.userId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: session.userId,
+			amount: txAmountKobo,
+			type: "debit",
+			reference: null,
+			status: "success",
+			paymentMethod: "thndr games",
+			balance: newBalanceKobo,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+		}
 	} else if (tx.type === "WIN" || tx.type === "DRAW") {
 		txAmountKobo = tx.amount;
 		newBalanceKobo = currentBalanceKobo + txAmountKobo;
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalanceKobo })
-			.where(eq(schema.wallet.userId, session.userId));
+			.where(eq(schema.wallet.userId, session.userId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: session.userId,
+			amount: txAmountKobo,
+			type: "credit",
+			reference: null,
+			status: "success",
+			paymentMethod: "thndr games",
+			balance: newBalanceKobo,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+		}
 	} else if (tx.type === "ROLLBACK") {
 		const [originalTx] = await db
 			.select()
@@ -354,10 +394,30 @@ thundrRoute.post("/transactions", async (c) => {
 		if (originalTx && originalTx.type === "BET") {
 			txAmountKobo = Math.round(originalTx.amount * 100);
 			newBalanceKobo = currentBalanceKobo + txAmountKobo;
-			await db
+			const [updatedWallet] = await db
 				.update(schema.wallet)
 				.set({ balance: newBalanceKobo })
-				.where(eq(schema.wallet.userId, session.userId));
+				.where(eq(schema.wallet.userId, session.userId))
+				.returning();
+
+			if (!updatedWallet?.id) {
+				return c.json({ success: false, error: "Failed to update wallet" }, 500);
+			}
+
+			const [walletTxn] = await db.insert(schema.walletTransaction).values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: session.userId,
+				amount: txAmountKobo,
+				type: "refund",
+				reference: null,
+				status: "success",
+				paymentMethod: "thndr games",
+				balance: newBalanceKobo,
+			}).returning();
+
+			if (!walletTxn?.id) {
+				return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+			}
 		}
 	}
 

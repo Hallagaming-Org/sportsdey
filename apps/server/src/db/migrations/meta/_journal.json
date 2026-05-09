@@ -50,6 +50,13 @@
       "when": 1777993038553,
       "tag": "0006_motionless_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1778206485518,
+      "tag": "0007_broad_mac_gargan",
+      "breakpoints": true
     }
   ]
 }

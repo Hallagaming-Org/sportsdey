@@ -46,6 +46,9 @@ export const FundWalletResponseSchema = z.object({
 		reference: z.string().openapi({
 			description: "Transaction reference",
 		}),
+		balance: z.number().openapi({
+			description: "Expected wallet balance after successful payment",
+		}),
 	}).openapi({ description: "Response data" }),
 }).openapi("FundWalletResponse");
 
@@ -141,6 +144,9 @@ export const WithdrawResponseSchema = z.object({
 		}),
 		status: z.string().openapi({
 			description: "Withdrawal status",
+		}),
+		balance: z.number().openapi({
+			description: "New wallet balance after withdrawal",
 		}),
 	}).openapi({ description: "Response data" }),
 }).openapi("WithdrawResponse");

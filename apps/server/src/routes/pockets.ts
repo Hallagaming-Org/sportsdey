@@ -205,12 +205,32 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 
 	const newBalanceKobo = oldBalanceKobo - amount;
 
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId));
+		.where(eq(schema.wallet.userId, playerId))
+		.returning();
+
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
 
 	const transactionId = crypto.randomUUID();
+
+	const [walletTxn] = await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+		userId: playerId,
+		amount: amount,
+		type: "debit",
+		reference: null,
+		status: "success",
+		paymentMethod: "lagos rush",
+		balance: newBalanceKobo,
+	}).returning();
+
+	if (!walletTxn?.id) {
+		return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+	}
 
 	const [debitTxn] = await db
 		.insert(schema.pocketsTransactions)
@@ -322,12 +342,32 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 
 	const newBalanceKobo = oldBalanceKobo + amount;
 
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId));
+		.where(eq(schema.wallet.userId, playerId))
+		.returning();
+
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
 
 	const transactionId = crypto.randomUUID();
+
+	const [walletTxn] = await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+		userId: playerId,
+		amount: amount,
+		type: "credit",
+		reference: null,
+		status: "success",
+		paymentMethod: "lagos rush",
+		balance: newBalanceKobo,
+	}).returning();
+
+	if (!walletTxn?.id) {
+		return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+	}
 
 	const [creditTxn] = await db
 		.insert(schema.pocketsTransactions)
@@ -439,12 +479,32 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 
 	const newBalanceKobo = oldBalanceKobo + amount;
 
-	await db
+	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId));
+		.where(eq(schema.wallet.userId, playerId))
+		.returning();
+
+	if (!updatedWallet?.id) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
 
 	const transactionId = crypto.randomUUID();
+
+	const [walletTxn] = await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+		userId: playerId,
+		amount: amount,
+		type: "refund",
+		reference: null,
+		status: "success",
+		paymentMethod: "lagos rush",
+		balance: newBalanceKobo,
+	}).returning();
+
+	if (!walletTxn?.id) {
+		return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+	}
 
 	const [refundTxn] = await db
 		.insert(schema.pocketsTransactions)

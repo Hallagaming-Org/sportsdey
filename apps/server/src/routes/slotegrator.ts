@@ -413,10 +413,30 @@ slotegratorRoute.post("/", async (c) => {
 
 		const newBalance = wallet.balance - amountInKobo;
 
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId));
+			.where(eq(schema.wallet.userId, playerId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ error_description: "Failed to update wallet", error_code: "INTERNAL_ERROR" }, 200);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: playerId,
+			amount: amountInKobo,
+			type: "debit",
+			reference: null,
+			status: "success",
+			paymentMethod: "slotegrator games",
+			balance: newBalance,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ error_description: "Failed to record wallet transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const txId = crypto.randomUUID();
 
@@ -494,10 +514,30 @@ slotegratorRoute.post("/", async (c) => {
 		const currentBalance = wallet?.balance ?? 0;
 		const newBalance = currentBalance + amountInKobo;
 
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId));
+			.where(eq(schema.wallet.userId, playerId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ error_description: "Failed to update wallet", error_code: "INTERNAL_ERROR" }, 200);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: playerId,
+			amount: amountInKobo,
+			type: "credit",
+			reference: null,
+			status: "success",
+			paymentMethod: "slotegrator games",
+			balance: newBalance,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ error_description: "Failed to record wallet transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const txId = crypto.randomUUID();
 
@@ -645,10 +685,30 @@ slotegratorRoute.post("/", async (c) => {
 		const currentBalance = wallet?.balance ?? 0;
 		const newBalance = currentBalance + amountInKobo;
 
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId));
+			.where(eq(schema.wallet.userId, playerId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ error_description: "Failed to update wallet", error_code: "INTERNAL_ERROR" }, 200);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: playerId,
+			amount: amountInKobo,
+			type: "refund",
+			reference: null,
+			status: "success",
+			paymentMethod: "slotegrator games",
+			balance: newBalance,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ error_description: "Failed to record wallet transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const txId = crypto.randomUUID();
 
@@ -794,10 +854,30 @@ if (action === "rollback") {
 			}
 		}
 
-		await db
+		const [updatedWallet] = await db
 			.update(schema.wallet)
 			.set({ balance: currentBalance })
-			.where(eq(schema.wallet.userId, playerId));
+			.where(eq(schema.wallet.userId, playerId))
+			.returning();
+
+		if (!updatedWallet?.id) {
+			return c.json({ error_description: "Failed to update wallet", error_code: "INTERNAL_ERROR" }, 200);
+		}
+
+		const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: playerId,
+			amount: Math.abs(currentBalance - (wallet?.balance ?? 0)),
+			type: "refund",
+			reference: null,
+			status: "success",
+			paymentMethod: "slotegrator games",
+			balance: currentBalance,
+		}).returning();
+
+		if (!walletTxn?.id) {
+			return c.json({ error_description: "Failed to record wallet transaction", error_code: "INTERNAL_ERROR" }, 200);
+		}
 
 		const txId = crypto.randomUUID();
 
@@ -819,13 +899,13 @@ if (action === "rollback") {
 			return c.json({ error_description: "Failed to record rollback transaction", error_code: "INTERNAL_ERROR" }, 200);
 		}
 
-		const [updatedWallet] = await db
+		const [finalWallet] = await db
 			.select()
 			.from(schema.wallet)
 			.where(eq(schema.wallet.userId, playerId))
 			.limit(1);
 
-		const balance = (updatedWallet?.balance ?? 0) / 100;
+		const balance = (finalWallet?.balance ?? 0) / 100;
 
 		return c.json(
 			{ balance, transaction_id: txId, rollback_transactions: rolledBackTxIds },

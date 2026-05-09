@@ -153,7 +153,7 @@ export const walletTransaction = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		amount: integer("amount").notNull(),
 		type: text("type").notNull(),
-		reference: text("reference").notNull().unique(),
+reference: text("reference").unique(),
 		status: text("status").notNull(),
 		paymentMethod: text("payment_method")
 			.notNull()

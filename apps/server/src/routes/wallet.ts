@@ -653,6 +653,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				data: {
 					authorizationUrl: paystackResult.authorizationUrl,
 					reference: paystackResult.reference,
+					balance: currentBalance + amount * 100,
 				},
 			},
 			200,
@@ -1526,6 +1527,7 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 					reference: transfer.reference,
 					amount: amount,
 					status: transfer.status,
+					balance: wallet.balance - amount * 100,
 				},
 			},
 			200,
