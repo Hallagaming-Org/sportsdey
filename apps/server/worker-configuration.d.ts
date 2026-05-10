@@ -46,6 +46,8 @@ declare namespace Cloudflare {
 		SLOTITEGRATION_MERCHANT_ID: string;
 		SLOTITEGRATION_MERCHANT_KEY: string;
 		SLOTEGRATOR_API_URL: string;
+		BETTING_API_HOST: string;
+		DATABET_CERT: Fetcher;
 	}
 }
 export interface CloudflareBindings extends Cloudflare.Env {}

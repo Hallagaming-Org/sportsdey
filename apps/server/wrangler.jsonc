@@ -3,6 +3,12 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-06-15",
 	"compatibility_flags": ["nodejs_compat"],
+	"mtls_certificates": [
+		{
+			"binding": "DATABET_CERT",
+			"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
+		}
+	],
 	"observability": {
 		"logs": {
 			"enabled": true,
@@ -16,6 +22,15 @@
 		// "CORS_ORIGIN": "http://localhost:3001",:
 		// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "staging-db",
+			"database_id": "dc69f144-8a25-4033-8cf1-3a7d218f5933",
+			"remote": false,
+			"migrations_dir": "./src/db/migrations"
+		}
+	],
 	"env": {
 		"staging": {
 			"name": "sportsdey-staging",
@@ -39,6 +54,12 @@
 				{
 					"binding": "STAGING_BUCKET",
 					"bucket_name": "sportsdey-staging"
+				}
+			],
+			"mtls_certificates": [
+				{
+					"binding": "DATABET_CERT",
+					"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
 				}
 			],
 			"routes": ["staging-api.sportsdey.com"],
@@ -71,6 +92,12 @@
 				{
 					"binding": "PRODUCTION_BUCKET",
 					"bucket_name": "sportsdey-prod"
+				}
+			],
+			"mtls_certificates": [
+				{
+					"binding": "DATABET_CERT",
+					"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
 				}
 			],
 			"vars": {

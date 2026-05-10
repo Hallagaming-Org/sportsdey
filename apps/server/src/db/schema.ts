@@ -135,6 +135,28 @@ export const wallet = sqliteTable("wallet", {
 		.references(() => user.id, { onDelete: "cascade" })
 		.unique(),
 	balance: integer("balance").notNull().default(0),
+	frozenBalance: integer("frozen_balance").notNull().default(0),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookBet = sqliteTable("sportsbook_bet", {
+	id: text("id").primaryKey(),
+	requestId: text("request_id").unique(),
+	userId: text("user_id").notNull(),
+	stake: integer("stake").notNull(),
+	totalOdds: text("total_odds_value"),
+	betType: integer("bet_type"),
+	status: text("status").notNull(),
+	settleAmount: integer("settle_amount"),
+	settleType: integer("settle_type"),
+	betData: text("bet_data"),
+	cashOutOrderIds: text("cash_out_order_ids"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -155,10 +177,9 @@ export const walletTransaction = sqliteTable(
 		type: text("type").notNull(),
 reference: text("reference").unique(),
 		status: text("status").notNull(),
-		paymentMethod: text("payment_method")
+paymentMethod: text("payment_method")
 			.notNull()
 			.default("card"),
-		balance: integer("balance").notNull().default(0),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
@@ -174,8 +195,14 @@ export const walletRelations = relations(wallet, ({ one, many }) => ({
 		fields: [wallet.userId],
 		references: [user.id],
 	}),
-	// Link via userId because wallet_transaction stores user_id (no wallet_id column)
 	transactions: many(walletTransaction, { relationName: "walletTransactions" }),
+}));
+
+export const sportsbookBetRelations = relations(sportsbookBet, ({ one }) => ({
+	user: one(user, {
+		fields: [sportsbookBet.userId],
+		references: [user.id],
+	}),
 }));
 
 export const walletTransactionRelations = relations(

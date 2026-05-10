@@ -58,3 +58,7 @@ lerna-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+70.crt
+70.key
