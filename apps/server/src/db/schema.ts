@@ -152,6 +152,7 @@ export const sportsbookBet = sqliteTable("sportsbook_bet", {
 	stake: integer("stake").notNull(),
 	totalOdds: text("total_odds_value"),
 	betType: integer("bet_type"),
+	betFreebetId: text("bet_freebet_id"),
 	status: text("status").notNull(),
 	settleAmount: integer("settle_amount"),
 	settleType: integer("settle_type"),

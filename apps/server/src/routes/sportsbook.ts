@@ -334,11 +334,11 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const existingBet = await db.query.sportsbookBet.findFirst({
+	const existingRequest = await db.query.sportsbookBet.findFirst({
 		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
 	});
 
-	if (existingBet) {
+	if (existingRequest) {
 		return c.body(null, 204);
 	}
 
@@ -388,31 +388,37 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
+	const isFreebet = !!result.data.bet_freebet_id;
 	const stakeKobo = Math.round(parseFloat(result.data.bet_stake) * 100);
-	const availableBalance = wallet.balance - wallet.frozenBalance;
 
-	if (availableBalance < stakeKobo) {
-		return c.json(
-			{
-				error: {
-					code: "not_enough_balance",
-					data: {
-						actual_balance: (availableBalance / 100).toString(),
+	if (!isFreebet) {
+		const availableBalance = wallet.balance - wallet.frozenBalance;
+
+		if (availableBalance < stakeKobo) {
+			return c.json(
+				{
+					error: {
+						code: "not_enough_balance",
+						data: {
+							actual_balance: (availableBalance / 100).toString(),
+						},
 					},
 				},
-			},
-			400,
-		);
+				400,
+			);
+		}
 	}
 
 	try {
+		const now = new Date();
 		await db.transaction(async (tx) => {
-			await tx
-				.update(schema.wallet)
-				.set({ frozenBalance: wallet.frozenBalance + stakeKobo })
-				.where(eq(schema.wallet.userId, session.userId));
+			if (!isFreebet) {
+				await tx
+					.update(schema.wallet)
+					.set({ frozenBalance: wallet.frozenBalance + stakeKobo })
+					.where(eq(schema.wallet.userId, session.userId));
+			}
 
-			const now = new Date();
 			await tx.insert(schema.sportsbookBet).values({
 				id: result.data.bet_id,
 				requestId: result.data.request_id,
@@ -420,6 +426,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				stake: stakeKobo,
 				totalOdds: result.data.total_odds_value ?? null,
 				betType: result.data.bet_type ?? null,
+				betFreebetId: result.data.bet_freebet_id ?? null,
 				status: "place",
 				betData: JSON.stringify(result.data),
 				createdAt: now,
@@ -535,14 +542,12 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const existingBet = await db.query.sportsbookBet.findFirst({
+	const existingRequest = await db.query.sportsbookBet.findFirst({
 		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
 	});
 
-	if (existingBet) {
-		if (existingBet.status === "accept") {
-			return c.body(null, 204);
-		}
+	if (existingRequest) {
+		return c.body(null, 204);
 	}
 
 	const session = await db.query.session.findFirst({
@@ -616,16 +621,18 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				throw new Error("Wallet not found");
 			}
 
-			const newBalance = wallet.balance - bet.stake;
-			const newFrozenBalance = wallet.frozenBalance - bet.stake;
+			if (!bet.betFreebetId) {
+				const newBalance = wallet.balance - bet.stake;
+				const newFrozenBalance = wallet.frozenBalance - bet.stake;
 
-			await tx
-				.update(schema.wallet)
-				.set({
-					balance: newBalance,
-					frozenBalance: newFrozenBalance,
-				})
-				.where(eq(schema.wallet.userId, bet.userId));
+				await tx
+					.update(schema.wallet)
+					.set({
+						balance: newBalance,
+						frozenBalance: newFrozenBalance,
+					})
+					.where(eq(schema.wallet.userId, bet.userId));
+			}
 
 			await tx
 				.update(schema.sportsbookBet)
@@ -635,6 +642,21 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.sportsbookBet.id, result.data.bet_id));
+
+			const now = new Date();
+			await tx.insert(schema.sportsbookBet).values({
+				id: result.data.bet_id,
+				requestId: result.data.request_id,
+				userId: session.userId,
+				stake: bet.stake,
+				totalOdds: result.data.total_odds_value ?? null,
+				betType: result.data.bet_type ?? null,
+				betFreebetId: bet.betFreebetId ?? null,
+				status: "accept",
+				betData: JSON.stringify(result.data),
+				createdAt: now,
+				updatedAt: now,
+			});
 		});
 	} catch (error) {
 		console.error("Bet accept transaction error:", error);
@@ -734,33 +756,33 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		);
 	}
 
-	const result = BetDeclineRequestSchema.safeParse(await c.req.json());
-	if (!result.success) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "invalid_request_body",
-						issues: result.error.issues,
-					},
-				},
-			},
-			400,
-		);
-	}
+const result = BetDeclineRequestSchema.safeParse(await c.req.json());
+  if (!result.success) {
+    return c.json(
+      {
+        error: {
+          code: "custom_error",
+          data: {
+            code: "invalid_request_body",
+            issues: result.error.issues,
+          },
+        },
+      },
+      400,
+    );
+  }
 
-	const db = drizzle(c.env.DB, { schema });
+  const db = drizzle(c.env.DB, { schema });
 
-	const existingBet = await db.query.sportsbookBet.findFirst({
-		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-	});
+  const existingRequest = await db.query.sportsbookBet.findFirst({
+    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+  });
 
-	if (existingBet && existingBet.status === "decline") {
-		return c.body(null, 204);
-	}
+  if (existingRequest) {
+    return c.body(null, 204);
+  }
 
-	const session = await db.query.session.findFirst({
+  const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -812,7 +834,7 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 				where: eq(schema.wallet.userId, bet.userId),
 			});
 
-			if (wallet) {
+			if (wallet && !bet.betFreebetId) {
 				if (bet.status === "place") {
 					await tx
 						.update(schema.wallet)
@@ -838,6 +860,21 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.sportsbookBet.id, result.data.bet_id));
+
+			const now = new Date();
+			await tx.insert(schema.sportsbookBet).values({
+				id: result.data.bet_id,
+				requestId: result.data.request_id,
+				userId: session.userId,
+				stake: bet.stake,
+				totalOdds: bet.totalOdds,
+				betType: bet.betType,
+				betFreebetId: bet.betFreebetId ?? null,
+				status: "decline",
+				betData: JSON.stringify(result.data),
+				createdAt: now,
+				updatedAt: now,
+			});
 		});
 	} catch (error) {
 		console.error("Bet decline transaction error:", error);
@@ -930,33 +967,33 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-	const result = BetSettleRequestSchema.safeParse(await c.req.json());
-	if (!result.success) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "invalid_request_body",
-						issues: result.error.issues,
-					},
-				},
-			},
-			400,
-		);
-	}
+const result = BetSettleRequestSchema.safeParse(await c.req.json());
+  if (!result.success) {
+    return c.json(
+      {
+        error: {
+          code: "custom_error",
+          data: {
+            code: "invalid_request_body",
+            issues: result.error.issues,
+          },
+        },
+      },
+      400,
+    );
+  }
 
-	const db = drizzle(c.env.DB, { schema });
+  const db = drizzle(c.env.DB, { schema });
 
-	const existingBet = await db.query.sportsbookBet.findFirst({
-		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-	});
+  const existingRequest = await db.query.sportsbookBet.findFirst({
+    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+  });
 
-	if (existingBet && existingBet.status === "settle") {
-		return c.body(null, 204);
-	}
+  if (existingRequest) {
+    return c.body(null, 204);
+  }
 
-	const session = await db.query.session.findFirst({
+  const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1026,7 +1063,10 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				where: eq(schema.wallet.userId, bet.userId),
 			});
 
-			if (wallet) {
+			const isFreebetWin = bet.betFreebetId && settleType === 1;
+			const shouldCredit = !bet.betFreebetId || isFreebetWin;
+
+			if (wallet && shouldCredit) {
 				await tx
 					.update(schema.wallet)
 					.set({
@@ -1047,6 +1087,23 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.sportsbookBet.id, result.data.bet_id));
+
+			const now = new Date();
+			await tx.insert(schema.sportsbookBet).values({
+				id: result.data.bet_id,
+				requestId: result.data.request_id,
+				userId: session.userId,
+				stake: bet.stake,
+				totalOdds: result.data.total_odds_value ?? bet.totalOdds,
+				betType: bet.betType,
+				betFreebetId: bet.betFreebetId ?? null,
+				status: settleType === 2 ? "rolled_back" : "settle",
+				settleAmount: settleAmount,
+				settleType: settleType,
+				betData: JSON.stringify(result.data),
+				createdAt: now,
+				updatedAt: now,
+			});
 		});
 	} catch (error) {
 		console.error("Bet settle transaction error:", error);
@@ -1139,25 +1196,33 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		);
 	}
 
-	const result = BetUnsettleRequestSchema.safeParse(await c.req.json());
-	if (!result.success) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "invalid_request_body",
-						issues: result.error.issues,
-					},
-				},
-			},
-			400,
-		);
-	}
+const result = BetUnsettleRequestSchema.safeParse(await c.req.json());
+  if (!result.success) {
+    return c.json(
+      {
+        error: {
+          code: "custom_error",
+          data: {
+            code: "invalid_request_body",
+            issues: result.error.issues,
+          },
+        },
+      },
+      400,
+    );
+  }
 
-	const db = drizzle(c.env.DB, { schema });
+  const db = drizzle(c.env.DB, { schema });
 
-	const session = await db.query.session.findFirst({
+  const existingRequest = await db.query.sportsbookBet.findFirst({
+    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+  });
+
+  if (existingRequest) {
+    return c.body(null, 204);
+  }
+
+  const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1246,6 +1311,21 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.sportsbookBet.id, result.data.bet_id));
+
+			const now = new Date();
+			await tx.insert(schema.sportsbookBet).values({
+				id: result.data.bet_id,
+				requestId: result.data.request_id,
+				userId: session.userId,
+				stake: bet.stake,
+				totalOdds: bet.totalOdds,
+				betType: bet.betType,
+				betFreebetId: bet.betFreebetId ?? null,
+				status: "accept",
+				betData: JSON.stringify(result.data),
+				createdAt: now,
+				updatedAt: now,
+			});
 		});
 	} catch (error) {
 		console.error("Bet unsettle transaction error:", error);
@@ -1338,33 +1418,33 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
-	const result = CashOutAcceptedRequestSchema.safeParse(await c.req.json());
-	if (!result.success) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "invalid_request_body",
-						issues: result.error.issues,
-					},
-				},
-			},
-			400,
-		);
-	}
+const result = CashOutAcceptedRequestSchema.safeParse(await c.req.json());
+  if (!result.success) {
+    return c.json(
+      {
+        error: {
+          code: "custom_error",
+          data: {
+            code: "invalid_request_body",
+            issues: result.error.issues,
+          },
+        },
+      },
+      400,
+    );
+  }
 
-	const db = drizzle(c.env.DB, { schema });
+  const db = drizzle(c.env.DB, { schema });
 
-	const existingBet = await db.query.sportsbookBet.findFirst({
-		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-	});
+  const existingRequest = await db.query.sportsbookBet.findFirst({
+    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+  });
 
-	if (existingBet && existingBet.status === "cash_out_accepted") {
-		return c.body(null, 204);
-	}
+  if (existingRequest) {
+    return c.body(null, 204);
+  }
 
-	const session = await db.query.session.findFirst({
+  const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1440,6 +1520,22 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.sportsbookBet.id, result.data.bet_id));
+
+			const now = new Date();
+			await tx.insert(schema.sportsbookBet).values({
+				id: result.data.bet_id,
+				requestId: result.data.request_id,
+				userId: session.userId,
+				stake: bet.stake,
+				totalOdds: bet.totalOdds,
+				betType: bet.betType,
+				betFreebetId: bet.betFreebetId ?? null,
+				status: "cash_out_accepted",
+				cashOutOrderIds: JSON.stringify([result.data.cash_out_order_id]),
+				betData: JSON.stringify(result.data),
+				createdAt: now,
+				updatedAt: now,
+			});
 		});
 	} catch (error) {
 		console.error("Cash out accepted transaction error:", error);
@@ -1532,33 +1628,33 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		);
 	}
 
-	const result = CashOutDeclinedRequestSchema.safeParse(await c.req.json());
-	if (!result.success) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "invalid_request_body",
-						issues: result.error.issues,
-					},
-				},
-			},
-			400,
-		);
-	}
+const result = CashOutDeclinedRequestSchema.safeParse(await c.req.json());
+  if (!result.success) {
+    return c.json(
+      {
+        error: {
+          code: "custom_error",
+          data: {
+            code: "invalid_request_body",
+            issues: result.error.issues,
+          },
+        },
+      },
+      400,
+    );
+  }
 
-	const db = drizzle(c.env.DB, { schema });
+  const db = drizzle(c.env.DB, { schema });
 
-	const existingBet = await db.query.sportsbookBet.findFirst({
-		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-	});
+  const existingRequest = await db.query.sportsbookBet.findFirst({
+    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+  });
 
-	if (existingBet && existingBet.status === "cash_out_declined") {
-		return c.body(null, 204);
-	}
+  if (existingRequest) {
+    return c.body(null, 204);
+  }
 
-	const session = await db.query.session.findFirst({
+  const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1634,6 +1730,22 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 					updatedAt: new Date(),
 				})
 				.where(eq(schema.sportsbookBet.id, result.data.bet_id));
+
+			const now = new Date();
+			await tx.insert(schema.sportsbookBet).values({
+				id: result.data.bet_id,
+				requestId: result.data.request_id,
+				userId: session.userId,
+				stake: bet.stake,
+				totalOdds: bet.totalOdds,
+				betType: bet.betType,
+				betFreebetId: bet.betFreebetId ?? null,
+				status: "cash_out_declined",
+				cashOutOrderIds: JSON.stringify(result.data.cash_out_order_ids),
+				betData: JSON.stringify(result.data),
+				createdAt: now,
+				updatedAt: now,
+			});
 		});
 	} catch (error) {
 		console.error("Cash out declined transaction error:", error);
