@@ -6,6 +6,7 @@ export * from "./casino-provider";
 export * from "./football";
 export * from "./monnify";
 export * from "./notifications";
+export * from "./sportsbook";
 export * from "./tennis";
 export * from "./wallet";
 

@@ -25,6 +25,8 @@ import type { CloudflareBindings } from "../types";
 
 const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
+export default sportsbookRoute;
+
 const createTokenRoute = createRoute({
 	method: "post",
 	path: "/token/create",
@@ -1835,14 +1837,25 @@ const freebetCreateRoute = createRoute({
 });
 
 sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
 		return c.json(
 			{
 				success: false as const,
 				error: "Unauthorized",
 			},
 			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
 		);
 	}
 
@@ -2005,14 +2018,25 @@ const freebetBulkCreateRoute = createRoute({
 });
 
 sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
 		return c.json(
 			{
 				success: false as const,
 				error: "Unauthorized",
 			},
 			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
 		);
 	}
 
@@ -2162,8 +2186,8 @@ const freebetListRoute = createRoute({
 });
 
 sportsbookRoute.openapi(freebetListRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
 		return c.json(
 			{
 				success: false as const,
@@ -2173,13 +2197,286 @@ sportsbookRoute.openapi(freebetListRoute, async (c) => {
 		);
 	}
 
-	return c.json(
-		{
-			success: true as const,
-			data: [],
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	const playerId = result?.player_id;
+
+	if (!playerId) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Missing required field: player_id",
+			},
+			400,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/getList?player_id=${playerId}`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet list error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to list freebets: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			freebets: Array<{
+				id: string;
+				version: string;
+				player_id: string;
+				idempotence_id: string;
+				conditions: unknown[];
+				amount: { amount: string; currency_code: string };
+				expires_at: string;
+				foreign_params?: string;
+				used_on_bet_id?: string;
+				used_at?: string;
+				status: number;
+			}>;
+		};
+
+		return c.json(
+			{
+				success: true as const,
+				data: data.freebets.map((fb) => ({
+					id: fb.id,
+					version: fb.version,
+					dataBetFreebetId: fb.id,
+					playerId: fb.player_id,
+					idempotenceId: fb.idempotence_id,
+					conditions: fb.conditions ? JSON.stringify(fb.conditions) : null,
+					amount: parseFloat(fb.amount.amount),
+					currency: fb.amount.currency_code,
+					expiresAt: fb.expires_at,
+					foreignParams: fb.foreign_params ?? null,
+					usedOnBetId: fb.used_on_bet_id ?? null,
+					usedAt: fb.used_at ?? null,
+					status: fb.status,
+					createdAt: fb.used_at ?? fb.expires_at,
+				})),
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet list error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to list freebets",
+			},
+			500,
+		);
+	}
+});
+
+const freebetUnusedListRoute = createRoute({
+	method: "get",
+	path: "/freebet/unused",
+	tags: ["Sportsbook"],
+	summary: "List user's unused freebets",
+	description:
+		"List all unused (new) freebets for a user. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Freebets retrieved successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.array(
+							z.object({
+								id: z.string(),
+								version: z.string(),
+								dataBetFreebetId: z.string(),
+								playerId: z.string(),
+								idempotenceId: z.string(),
+								conditions: z.string().nullable(),
+								amount: z.number(),
+								currency: z.string(),
+								expiresAt: z.string(),
+								foreignParams: z.string().nullable(),
+								status: z.number(),
+								createdAt: z.string(),
+							}),
+						),
+					}),
+				},
+			},
 		},
-		200,
-	);
+		401: {
+			description: "Unauthorized",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetUnusedListRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	const playerId = result?.player_id;
+
+	if (!playerId) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Missing required field: player_id",
+			},
+			400,
+		);
+
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/getListUnused?player_id=${playerId}`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet unused list error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to list unused freebets: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			freebets: Array<{
+				id: string;
+				version: string;
+				player_id: string;
+				idempotence_id: string;
+				conditions: unknown[];
+				amount: { amount: string; currency_code: string };
+				expires_at: string;
+				foreign_params?: string;
+				used_on_bet_id?: string;
+				used_at?: string;
+				status: number;
+			}>;
+		};
+
+		return c.json(
+			{
+				success: true as const,
+				data: data.freebets.map((fb) => ({
+					id: fb.id,
+					version: fb.version,
+					dataBetFreebetId: fb.id,
+					playerId: fb.player_id,
+					idempotenceId: fb.idempotence_id,
+					conditions: fb.conditions
+						? JSON.stringify(fb.conditions)
+						: null,
+					amount: parseFloat(fb.amount.amount),
+					currency: fb.amount.currency_code,
+					expiresAt: fb.expires_at,
+					foreignParams: fb.foreign_params ?? null,
+					status: fb.status,
+					createdAt: fb.expires_at,
+				})),
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet unused list error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error
+						? error.message
+						: "Failed to list unused freebets",
+			},
+			500,
+		);
+	}
 });
 
 const freebetGetRoute = createRoute({
@@ -2203,13 +2500,18 @@ const freebetGetRoute = createRoute({
 						success: z.literal(true),
 						data: z.object({
 							id: z.string(),
+							version: z.string(),
 							dataBetFreebetId: z.string(),
+							playerId: z.string(),
+							idempotenceId: z.string(),
+							conditions: z.string().nullable(),
 							amount: z.number(),
 							currency: z.string(),
-							expiredAt: z.string().nullable(),
-							conditions: z.any().nullable(),
-							status: z.string(),
-							used: z.boolean(),
+							expiresAt: z.string(),
+							foreignParams: z.string().nullable(),
+							usedOnBetId: z.string().nullable(),
+							usedAt: z.string().nullable(),
+							status: z.number(),
 							createdAt: z.string(),
 						}),
 					}),
@@ -2226,8 +2528,8 @@ const freebetGetRoute = createRoute({
 });
 
 sportsbookRoute.openapi(freebetGetRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
 		return c.json(
 			{
 				success: false as const,
@@ -2237,15 +2539,115 @@ sportsbookRoute.openapi(freebetGetRoute, async (c) => {
 		);
 	}
 
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
 	const { id } = c.req.param();
 
-	return c.json(
-		{
-			success: false as const,
-			error: "Freebet not found",
-		},
-		404,
-	);
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/${id}`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet get error:",
+				response.status,
+				errorText,
+			);
+			if (response.status === 404) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Freebet not found",
+					},
+					404,
+				);
+			}
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to get freebet: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			id: string;
+			version: string;
+			player_id: string;
+			idempotence_id: string;
+			conditions: unknown[];
+			amount: { amount: string; currency_code: string };
+			expires_at: string;
+			foreign_params?: string;
+			used_on_bet_id?: string;
+			used_at?: string;
+			status: number;
+		};
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					id: data.id,
+					version: data.version,
+					dataBetFreebetId: data.id,
+					playerId: data.player_id,
+					idempotenceId: data.idempotence_id,
+					conditions: data.conditions
+						? JSON.stringify(data.conditions)
+						: null,
+					amount: parseFloat(data.amount.amount),
+					currency: data.amount.currency_code,
+					expiresAt: data.expires_at,
+					foreignParams: data.foreign_params ?? null,
+					usedOnBetId: data.used_on_bet_id ?? null,
+					usedAt: data.used_at ?? null,
+					status: data.status,
+					createdAt: data.used_at ?? data.expires_at,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet get error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to get freebet",
+			},
+			500,
+		);
+	}
 });
 
 const freebetUpdateRoute = createRoute({
@@ -2294,14 +2696,25 @@ const freebetUpdateRoute = createRoute({
 });
 
 sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
 		return c.json(
 			{
 				success: false as const,
 				error: "Unauthorized",
 			},
 			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
 		);
 	}
 
@@ -2385,6 +2798,202 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 				success: false as const,
 				error:
 					error instanceof Error ? error.message : "Failed to update freebet",
+			},
+			500,
+		);
+	}
+});
+
+const freebetCancelRoute = createRoute({
+	method: "post",
+	path: "/freebet/cancel",
+	tags: ["Sportsbook"],
+	summary: "Cancel a freebet",
+	description:
+		"Cancel a freebet, making it unavailable for use. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						freebet_id: z.string(),
+					}),
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Freebet canceled successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({
+							id: z.string(),
+							version: z.string(),
+							dataBetFreebetId: z.string(),
+							playerId: z.string(),
+							idempotenceId: z.string(),
+							conditions: z.string().nullable(),
+							amount: z.number(),
+							currency: z.string(),
+							expiresAt: z.string(),
+							foreignParams: z.string().nullable(),
+							usedOnBetId: z.string().nullable(),
+							usedAt: z.string().nullable(),
+							status: z.number(),
+							createdAt: z.string(),
+						}),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Error canceling freebet",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		404: {
+			description: "Freebet not found",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetCancelRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	if (!result || !result.freebet_id) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Missing required field: freebet_id",
+			},
+			400,
+		);
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/cancel`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ freebet_id: result.freebet_id }),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet cancel error:",
+				response.status,
+				errorText,
+			);
+			if (response.status === 404) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Freebet not found",
+					},
+					404,
+				);
+			}
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to cancel freebet: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			freebet: {
+				id: string;
+				version: string;
+				player_id: string;
+				idempotence_id: string;
+				conditions: unknown[];
+				amount: { amount: string; currency_code: string };
+				expires_at: string;
+				foreign_params?: string;
+				used_on_bet_id?: string;
+				used_at?: string;
+				status: number;
+			};
+		};
+
+		const fb = data.freebet;
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					id: fb.id,
+					version: fb.version,
+					dataBetFreebetId: fb.id,
+					playerId: fb.player_id,
+					idempotenceId: fb.idempotence_id,
+					conditions: fb.conditions
+						? JSON.stringify(fb.conditions)
+						: null,
+					amount: parseFloat(fb.amount.amount),
+					currency: fb.amount.currency_code,
+					expiresAt: fb.expires_at,
+					foreignParams: fb.foreign_params ?? null,
+					usedOnBetId: fb.used_on_bet_id ?? null,
+					usedAt: fb.used_at ?? null,
+					status: fb.status,
+					createdAt: fb.used_at ?? fb.expires_at,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet cancel error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error
+						? error.message
+						: "Failed to cancel freebet",
 			},
 			500,
 		);
@@ -3141,5 +3750,3 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 		);
 	}
 });
-
-export default sportsbookRoute;
