@@ -1,8 +1,17 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
+	BetBoostCreateResponseSchema,
+	BetBoostCreateSchema,
+	BetBoostGetResponseSchema,
+	BetBoostGetSchema,
+	BetBoostListQuerySchema,
+	BetBoostListResponseSchema,
+	BetBoostUpdateResponseSchema,
+	BetBoostUpdateSchema,
 	BetErrorResponseSchema,
 	BetPlaceRequestSchema,
 	BetSettleRequestSchema,
@@ -427,50 +436,28 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				totalOdds: result.data.total_odds_value ?? null,
 				betType: result.data.bet_type ?? null,
 				betFreebetId: result.data.bet_freebet_id ?? null,
+				betBoostId: result.data.bet_boost_id ?? null,
 				status: "place",
 				betData: JSON.stringify(result.data),
 				createdAt: now,
 				updatedAt: now,
 			});
-
-			if (isFreebet && result.data.bet_freebet_id) {
-				const freebet = await tx.query.sportsbookFreebet.findFirst({
-					where: eq(
-						schema.sportsbookFreebet.dataBetFreebetId,
-						result.data.bet_freebet_id,
-					),
-				});
-
-				if (freebet) {
-					await tx
-						.update(schema.sportsbookFreebet)
-						.set({
-							status: "used",
-							used: true,
-							updatedAt: new Date(),
-						})
-						.where(eq(schema.sportsbookFreebet.id, freebet.id));
-				}
-			}
 		});
 	} catch (error) {
-		console.error("Bet place transaction error:", error);
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: error instanceof Error ? error.message : "Unknown error",
-					},
-				},
-			},
-			400,
-		);
-	}
-
-	return c.body(null, 204);
-});
+  console.error("Bet place transaction error:", error);
+  return c.json(
+    {
+      error: {
+        code: "custom_error",
+        data: {
+          code: "transaction_failed",
+          message: error instanceof Error ? error.message : "Unknown error",
+        },
+      },
+    },
+    400,
+  );
+}
 
 const betAcceptRoute = createRoute({
 	method: "post",
@@ -672,6 +659,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				totalOdds: result.data.total_odds_value ?? null,
 				betType: result.data.bet_type ?? null,
 				betFreebetId: bet.betFreebetId ?? null,
+				betBoostId: bet.betBoostId ?? null,
 				status: "accept",
 				betData: JSON.stringify(result.data),
 				createdAt: now,
@@ -890,6 +878,7 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 				totalOdds: bet.totalOdds,
 				betType: bet.betType,
 				betFreebetId: bet.betFreebetId ?? null,
+				betBoostId: bet.betBoostId ?? null,
 				status: "decline",
 				betData: JSON.stringify(result.data),
 				createdAt: now,
@@ -1117,6 +1106,7 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				totalOdds: result.data.total_odds_value ?? bet.totalOdds,
 				betType: bet.betType,
 				betFreebetId: bet.betFreebetId ?? null,
+				betBoostId: bet.betBoostId ?? null,
 				status: settleType === 2 ? "rolled_back" : "settle",
 				settleAmount: settleAmount,
 				settleType: settleType,
@@ -1341,6 +1331,7 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 				totalOdds: bet.totalOdds,
 				betType: bet.betType,
 				betFreebetId: bet.betFreebetId ?? null,
+				betBoostId: bet.betBoostId ?? null,
 				status: "accept",
 				betData: JSON.stringify(result.data),
 				createdAt: now,
@@ -1552,6 +1543,7 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				totalOdds: bet.totalOdds,
 				betType: bet.betType,
 				betFreebetId: bet.betFreebetId ?? null,
+				betBoostId: bet.betBoostId ?? null,
 				status: "cash_out_accepted",
 				cashOutOrderIds: JSON.stringify([result.data.cash_out_order_id]),
 				betData: JSON.stringify(result.data),
@@ -1765,6 +1757,7 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 				totalOdds: bet.totalOdds,
 				betType: bet.betType,
 				betFreebetId: bet.betFreebetId ?? null,
+				betBoostId: bet.betBoostId ?? null,
 				status: "cash_out_declined",
 				cashOutOrderIds: JSON.stringify(result.data.cash_out_order_ids),
 				betData: JSON.stringify(result.data),
@@ -1927,24 +1920,7 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 
 		const data = (await response.json()) as { freebet_id?: string };
 
-		const db = drizzle(c.env.DB, { schema });
-		const now = new Date();
-		const expiredAt = new Date(result.expired_at);
 		const createdFreebetId = data.freebet_id;
-
-		await db.insert(schema.sportsbookFreebet).values({
-			id: id,
-			dataBetFreebetId: createdFreebetId,
-			userId: result.player_id,
-			amount: amountKobo,
-			currency: result.currency,
-			expiredAt: expiredAt,
-			conditions: result.conditions ? JSON.stringify(result.conditions) : null,
-			status: "active",
-			used: false,
-			createdAt: now,
-			updatedAt: now,
-		});
 
 		return c.json(
 			{
@@ -2114,41 +2090,6 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 			freebet_ids: string[];
 		};
 
-		const db = drizzle(c.env.DB, { schema });
-		const now = new Date();
-
-		const insertedFreebets = result.freebets.map(
-			(
-				fb: {
-					player_id: string;
-					amount: number;
-					currency: string;
-					expired_at: string;
-					conditions?: unknown[];
-				},
-				index: number,
-			) => {
-				const dataBetId = data.freebet_ids[index];
-				const amountKobo = Math.round(fb.amount * 100);
-
-				return {
-					id: freebetsData[index].idempotency_id,
-					dataBetFreebetId: dataBetId,
-					userId: fb.player_id,
-					amount: amountKobo,
-					currency: fb.currency,
-					expiredAt: new Date(fb.expired_at),
-					conditions: fb.conditions ? JSON.stringify(fb.conditions) : null,
-					status: "active",
-					used: false,
-					createdAt: now,
-					updatedAt: now,
-				};
-			},
-		);
-
-		await db.insert(schema.sportsbookFreebet).values(insertedFreebets);
-
 		return c.json(
 			{
 				success: true as const,
@@ -2232,25 +2173,10 @@ sportsbookRoute.openapi(freebetListRoute, async (c) => {
 		);
 	}
 
-	const db = drizzle(c.env.DB, { schema });
-
-	const freebets = await db.query.sportsbookFreebet.findMany({
-		where: eq(schema.sportsbookFreebet.userId, user.id),
-	});
-
 	return c.json(
 		{
 			success: true as const,
-			data: freebets.map((fb) => ({
-				id: fb.id,
-				dataBetFreebetId: fb.dataBetFreebetId,
-				amount: fb.amount / 100,
-				currency: fb.currency,
-				expiredAt: fb.expiredAt?.toISOString() ?? null,
-				status: fb.status,
-				used: fb.used,
-				createdAt: fb.createdAt.toISOString(),
-			})),
+			data: [],
 		},
 		200,
 	);
@@ -2313,38 +2239,12 @@ sportsbookRoute.openapi(freebetGetRoute, async (c) => {
 
 	const { id } = c.req.param();
 
-	const db = drizzle(c.env.DB, { schema });
-
-	const freebet = await db.query.sportsbookFreebet.findFirst({
-		where: eq(schema.sportsbookFreebet.id, id),
-	});
-
-	if (!freebet) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Freebet not found",
-			},
-			404,
-		);
-	}
-
 	return c.json(
 		{
-			success: true as const,
-			data: {
-				id: freebet.id,
-				dataBetFreebetId: freebet.dataBetFreebetId,
-				amount: freebet.amount / 100,
-				currency: freebet.currency,
-				expiredAt: freebet.expiredAt?.toISOString() ?? null,
-				conditions: freebet.conditions ? JSON.parse(freebet.conditions) : null,
-				status: freebet.status,
-				used: freebet.used,
-				createdAt: freebet.createdAt.toISOString(),
-			},
+			success: false as const,
+			error: "Freebet not found",
 		},
-		200,
+		404,
 	);
 });
 
@@ -2469,25 +2369,6 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 			);
 		}
 
-		const db = drizzle(c.env.DB, { schema });
-
-		const updateData: Record<string, unknown> = {
-			updatedAt: new Date(),
-		};
-
-		if (result.expired_at) {
-			updateData.expiredAt = new Date(result.expired_at);
-		}
-
-		if (result.conditions) {
-			updateData.conditions = JSON.stringify(result.conditions);
-		}
-
-		await db
-			.update(schema.sportsbookFreebet)
-			.set(updateData)
-			.where(eq(schema.sportsbookFreebet.dataBetFreebetId, result.freebet_id));
-
 		return c.json(
 			{
 				success: true as const,
@@ -2504,6 +2385,757 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 				success: false as const,
 				error:
 					error instanceof Error ? error.message : "Failed to update freebet",
+			},
+			500,
+		);
+	}
+});
+
+const betBoostCreateRoute = createRoute({
+	method: "post",
+	path: "/bet-boost",
+	tags: ["Sportsbook"],
+	summary: "Create a bet boost",
+	description:
+		"Create a bet boost for a user via Data.Bet API and store locally. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: BetBoostCreateSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Bet boost created successfully",
+			content: {
+				"application/json": {
+					schema: BetBoostCreateResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Error creating bet boost",
+		},
+		500: {
+			description: "Internal server error",
+		},
+	},
+});
+
+sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	if (
+		!result ||
+		!result.player_id ||
+		!result.currency_code ||
+		!result.initial_quantity ||
+		!result.applicable_conditions ||
+		!result.required_conditions ||
+		!result.expires_at
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error:
+					"Missing required fields: player_id, currency_code, initial_quantity, applicable_conditions, required_conditions, expires_at",
+			},
+			400,
+		);
+	}
+
+	const apiRequestBody: Record<string, unknown> = {
+		idempotence_id: result.idempotence_id || crypto.randomUUID(),
+		player_id: result.player_id,
+		currency_code: result.currency_code,
+		initial_quantity: result.initial_quantity,
+		applicable_conditions: result.applicable_conditions,
+		required_conditions: result.required_conditions,
+		expires_at: result.expires_at,
+	};
+
+	if (result.calculation_strategy) {
+		apiRequestBody.calculation_strategy = result.calculation_strategy;
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/bet-boosts`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(apiRequestBody),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost create error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to create bet boost: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as Array<{
+			id: string;
+			currency_code: string;
+			calculation_strategy: unknown;
+		}>;
+
+		const createdBoost = data[0];
+		if (!createdBoost) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No boost created",
+				},
+				400,
+			);
+		}
+
+		const idempotenceId = apiRequestBody.idempotence_id as string;
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					id: idempotenceId,
+					dataBetBoostId: createdBoost.id,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Bet boost create error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to create bet boost",
+			},
+			500,
+		);
+	}
+});
+
+const betBoostListRoute = createRoute({
+	method: "get",
+	path: "/bet-boost",
+	tags: ["Sportsbook"],
+	summary: "List user's bet boosts",
+	description:
+		"List bet boosts for a specific user. Requires admin or super_admin authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: BetBoostListQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Bet boosts retrieved successfully",
+			content: {
+				"application/json": {
+					schema: BetBoostListResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Error listing bet boosts",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - admin or super_admin only",
+		},
+	},
+});
+
+sportsbookRoute.openapi(betBoostListRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/bet-boosts`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost list error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to list bet boosts: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as Array<{
+			id: string;
+			version: string;
+			currency_code: string;
+			player_id: string;
+			initial_quantity: number;
+			remaining_quantity: number;
+			expires_at: string;
+			created_at: string;
+			updated_at: string;
+			calculation_strategy?: object;
+			applicable_conditions?: object[];
+			required_conditions?: object[];
+		}>;
+
+		return c.json(
+			{
+				success: true as const,
+				data: data.map((bb) => ({
+					id: bb.id,
+					version: bb.version,
+					currencyCode: bb.currency_code,
+					playerId: bb.player_id,
+					initialQuantity: bb.initial_quantity,
+					remainingQuantity: bb.remaining_quantity,
+					expiresAt: bb.expires_at,
+					createdAt: bb.created_at,
+					updatedAt: bb.updated_at,
+					calculationStrategy: bb.calculation_strategy
+						? JSON.stringify(bb.calculation_strategy)
+						: null,
+					applicableConditions: bb.applicable_conditions
+						? JSON.stringify(bb.applicable_conditions)
+						: null,
+					requiredConditions: bb.required_conditions
+						? JSON.stringify(bb.required_conditions)
+						: null,
+				})),
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Bet boost list error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to list bet boosts",
+			},
+			500,
+		);
+	}
+});
+
+const betBoostGetRoute = createRoute({
+	method: "get",
+	path: "/bet-boost/{id}",
+	tags: ["Sportsbook"],
+	summary: "Get a specific bet boost",
+	description:
+		"Get a specific bet boost by ID. Requires admin or super_admin authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: BetBoostGetSchema,
+	},
+	responses: {
+		200: {
+			description: "Bet boost retrieved successfully",
+			content: {
+				"application/json": {
+					schema: BetBoostGetResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Error retrieving bet boost",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - admin or super_admin only",
+		},
+		404: {
+			description: "Bet boost not found",
+		},
+	},
+});
+
+sportsbookRoute.openapi(betBoostGetRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const { id } = c.req.valid("param");
+
+	const bettingHost = c.env.BETTING_API_HOST;
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/bet-boosts/${id}`,
+			{
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost get error:",
+				response.status,
+				errorText,
+			);
+			if (response.status === 404) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Bet boost not found",
+					},
+					404,
+				);
+			}
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to get bet boost: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			id: string;
+			version: string;
+			currency_code: string;
+			player_id: string;
+			initial_quantity: number;
+			remaining_quantity: number;
+			expires_at: string;
+			created_at: string;
+			updated_at: string;
+			calculation_strategy?: object;
+			applicable_conditions?: object[];
+			required_conditions?: object[];
+		};
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					id: data.id,
+					version: data.version,
+					currencyCode: data.currency_code,
+					playerId: data.player_id,
+					initialQuantity: data.initial_quantity,
+					remainingQuantity: data.remaining_quantity,
+					expiresAt: data.expires_at,
+					createdAt: data.created_at,
+					updatedAt: data.updated_at,
+					calculationStrategy: data.calculation_strategy
+						? JSON.stringify(data.calculation_strategy)
+						: null,
+					applicableConditions: data.applicable_conditions
+						? JSON.stringify(data.applicable_conditions)
+						: null,
+					requiredConditions: data.required_conditions
+						? JSON.stringify(data.required_conditions)
+						: null,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Bet boost get error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to get bet boost",
+			},
+			500,
+		);
+	}
+});
+
+const betBoostUpdateRoute = createRoute({
+	method: "put",
+	path: "/bet-boost",
+	tags: ["Sportsbook"],
+	summary: "Update a bet boost",
+	description:
+		"Update a bet boost via Data.Bet API. Requires admin or super_admin authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: BetBoostUpdateSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Bet boost updated successfully",
+			content: {
+				"application/json": {
+					schema: BetBoostUpdateResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Error updating bet boost",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - admin or super_admin only",
+		},
+	},
+});
+
+sportsbookRoute.openapi(betBoostUpdateRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	if (!result || !result.player_id || !result.boost_id) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Missing required fields: player_id, boost_id",
+			},
+			400,
+		);
+	}
+
+	const apiRequestBody: Record<string, unknown> = {
+		player_id: result.player_id,
+	};
+
+	if (result.calculation_strategy) {
+		apiRequestBody.calculation_strategy = result.calculation_strategy;
+	}
+
+	if (result.applicable_conditions) {
+		apiRequestBody.applicable_conditions = result.applicable_conditions;
+	}
+
+	if (result.required_conditions) {
+		apiRequestBody.required_conditions = result.required_conditions;
+	}
+
+	if (result.expires_at) {
+		apiRequestBody.expires_at = result.expires_at;
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/bet-boosts/${result.boost_id}`,
+			{
+				method: "PUT",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(apiRequestBody),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost update error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to update bet boost: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as { id: string };
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					boost_id: data.id,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Bet boost update error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to update bet boost",
+			},
+			500,
+		);
+	}
+});
+
+const betBoostDeleteRoute = createRoute({
+	method: "delete",
+	path: "/bet-boost/{id}",
+	tags: ["Sportsbook"],
+	summary: "Delete a bet boost",
+	description:
+		"Delete a bet boost by ID. Requires admin or super_admin authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: BetBoostGetSchema,
+	},
+	responses: {
+		204: {
+			description: "Bet boost deleted successfully",
+		},
+		400: {
+			description: "Error deleting bet boost",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - admin or super_admin only",
+		},
+		404: {
+			description: "Bet boost not found",
+		},
+	},
+});
+
+sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const { id } = c.req.valid("param");
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/bet-boosts/${id}`,
+			{
+				method: "DELETE",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost delete error:",
+				response.status,
+				errorText,
+			);
+			if (response.status === 404) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Bet boost not found",
+					},
+					404,
+				);
+			}
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to delete bet boost: ${response.status}`,
+				},
+				400,
+			);
+		}
+
+		return c.body(null, 204);
+	} catch (error) {
+		console.error("Bet boost delete error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to delete bet boost",
 			},
 			500,
 		);

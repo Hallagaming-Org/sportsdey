@@ -153,30 +153,12 @@ export const sportsbookBet = sqliteTable("sportsbook_bet", {
 	totalOdds: text("total_odds_value"),
 	betType: integer("bet_type"),
 	betFreebetId: text("bet_freebet_id"),
+	betBoostId: text("bet_boost_id"),
 	status: text("status").notNull(),
 	settleAmount: integer("settle_amount"),
 	settleType: integer("settle_type"),
 	betData: text("bet_data"),
 	cashOutOrderIds: text("cash_out_order_ids"),
-	createdAt: integer("created_at", { mode: "timestamp_ms" })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.notNull(),
-	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
-
-export const sportsbookFreebet = sqliteTable("sportsbook_freebet", {
-	id: text("id").primaryKey(),
-	dataBetFreebetId: text("data_bet_freebet_id").unique(),
-	userId: text("user_id").notNull(),
-	amount: integer("amount").notNull(),
-	currency: text("currency").notNull(),
-	expiredAt: integer("expired_at", { mode: "timestamp_ms" }),
-	conditions: text("conditions"),
-	status: text("status").notNull().default("active"),
-	used: integer("used", { mode: "boolean" }).notNull().default(false),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -221,13 +203,6 @@ export const walletRelations = relations(wallet, ({ one, many }) => ({
 export const sportsbookBetRelations = relations(sportsbookBet, ({ one }) => ({
 	user: one(user, {
 		fields: [sportsbookBet.userId],
-		references: [user.id],
-	}),
-}));
-
-export const sportsbookFreebetRelations = relations(sportsbookFreebet, ({ one }) => ({
-	user: one(user, {
-		fields: [sportsbookFreebet.userId],
 		references: [user.id],
 	}),
 }));
