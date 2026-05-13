@@ -3,12 +3,12 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
+	BetErrorResponseSchema,
 	BetPlaceRequestSchema,
 	BetSettleRequestSchema,
 	BetUnsettleRequestSchema,
 	CashOutAcceptedRequestSchema,
 	CashOutDeclinedRequestSchema,
-	BetErrorResponseSchema,
 	CreateSportsbookTokenResponseSchema,
 	SportsbookTokenErrorSchema,
 } from "@/schemas/sportsbook";
@@ -432,6 +432,26 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				createdAt: now,
 				updatedAt: now,
 			});
+
+			if (isFreebet && result.data.bet_freebet_id) {
+				const freebet = await tx.query.sportsbookFreebet.findFirst({
+					where: eq(
+						schema.sportsbookFreebet.dataBetFreebetId,
+						result.data.bet_freebet_id,
+					),
+				});
+
+				if (freebet) {
+					await tx
+						.update(schema.sportsbookFreebet)
+						.set({
+							status: "used",
+							used: true,
+							updatedAt: new Date(),
+						})
+						.where(eq(schema.sportsbookFreebet.id, freebet.id));
+				}
+			}
 		});
 	} catch (error) {
 		console.error("Bet place transaction error:", error);
@@ -756,33 +776,33 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		);
 	}
 
-const result = BetDeclineRequestSchema.safeParse(await c.req.json());
-  if (!result.success) {
-    return c.json(
-      {
-        error: {
-          code: "custom_error",
-          data: {
-            code: "invalid_request_body",
-            issues: result.error.issues,
-          },
-        },
-      },
-      400,
-    );
-  }
+	const result = BetDeclineRequestSchema.safeParse(await c.req.json());
+	if (!result.success) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						issues: result.error.issues,
+					},
+				},
+			},
+			400,
+		);
+	}
 
-  const db = drizzle(c.env.DB, { schema });
+	const db = drizzle(c.env.DB, { schema });
 
-  const existingRequest = await db.query.sportsbookBet.findFirst({
-    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-  });
+	const existingRequest = await db.query.sportsbookBet.findFirst({
+		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+	});
 
-  if (existingRequest) {
-    return c.body(null, 204);
-  }
+	if (existingRequest) {
+		return c.body(null, 204);
+	}
 
-  const session = await db.query.session.findFirst({
+	const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -967,33 +987,33 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-const result = BetSettleRequestSchema.safeParse(await c.req.json());
-  if (!result.success) {
-    return c.json(
-      {
-        error: {
-          code: "custom_error",
-          data: {
-            code: "invalid_request_body",
-            issues: result.error.issues,
-          },
-        },
-      },
-      400,
-    );
-  }
+	const result = BetSettleRequestSchema.safeParse(await c.req.json());
+	if (!result.success) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						issues: result.error.issues,
+					},
+				},
+			},
+			400,
+		);
+	}
 
-  const db = drizzle(c.env.DB, { schema });
+	const db = drizzle(c.env.DB, { schema });
 
-  const existingRequest = await db.query.sportsbookBet.findFirst({
-    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-  });
+	const existingRequest = await db.query.sportsbookBet.findFirst({
+		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+	});
 
-  if (existingRequest) {
-    return c.body(null, 204);
-  }
+	if (existingRequest) {
+		return c.body(null, 204);
+	}
 
-  const session = await db.query.session.findFirst({
+	const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1196,33 +1216,33 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		);
 	}
 
-const result = BetUnsettleRequestSchema.safeParse(await c.req.json());
-  if (!result.success) {
-    return c.json(
-      {
-        error: {
-          code: "custom_error",
-          data: {
-            code: "invalid_request_body",
-            issues: result.error.issues,
-          },
-        },
-      },
-      400,
-    );
-  }
+	const result = BetUnsettleRequestSchema.safeParse(await c.req.json());
+	if (!result.success) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						issues: result.error.issues,
+					},
+				},
+			},
+			400,
+		);
+	}
 
-  const db = drizzle(c.env.DB, { schema });
+	const db = drizzle(c.env.DB, { schema });
 
-  const existingRequest = await db.query.sportsbookBet.findFirst({
-    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-  });
+	const existingRequest = await db.query.sportsbookBet.findFirst({
+		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+	});
 
-  if (existingRequest) {
-    return c.body(null, 204);
-  }
+	if (existingRequest) {
+		return c.body(null, 204);
+	}
 
-  const session = await db.query.session.findFirst({
+	const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1418,33 +1438,33 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
-const result = CashOutAcceptedRequestSchema.safeParse(await c.req.json());
-  if (!result.success) {
-    return c.json(
-      {
-        error: {
-          code: "custom_error",
-          data: {
-            code: "invalid_request_body",
-            issues: result.error.issues,
-          },
-        },
-      },
-      400,
-    );
-  }
+	const result = CashOutAcceptedRequestSchema.safeParse(await c.req.json());
+	if (!result.success) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						issues: result.error.issues,
+					},
+				},
+			},
+			400,
+		);
+	}
 
-  const db = drizzle(c.env.DB, { schema });
+	const db = drizzle(c.env.DB, { schema });
 
-  const existingRequest = await db.query.sportsbookBet.findFirst({
-    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-  });
+	const existingRequest = await db.query.sportsbookBet.findFirst({
+		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+	});
 
-  if (existingRequest) {
-    return c.body(null, 204);
-  }
+	if (existingRequest) {
+		return c.body(null, 204);
+	}
 
-  const session = await db.query.session.findFirst({
+	const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1490,7 +1510,9 @@ const result = CashOutAcceptedRequestSchema.safeParse(await c.req.json());
 		);
 	}
 
-	const refundAmountKobo = Math.round(parseFloat(result.data.refund_amount) * 100);
+	const refundAmountKobo = Math.round(
+		parseFloat(result.data.refund_amount) * 100,
+	);
 
 	try {
 		await db.transaction(async (tx) => {
@@ -1628,33 +1650,33 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		);
 	}
 
-const result = CashOutDeclinedRequestSchema.safeParse(await c.req.json());
-  if (!result.success) {
-    return c.json(
-      {
-        error: {
-          code: "custom_error",
-          data: {
-            code: "invalid_request_body",
-            issues: result.error.issues,
-          },
-        },
-      },
-      400,
-    );
-  }
+	const result = CashOutDeclinedRequestSchema.safeParse(await c.req.json());
+	if (!result.success) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						issues: result.error.issues,
+					},
+				},
+			},
+			400,
+		);
+	}
 
-  const db = drizzle(c.env.DB, { schema });
+	const db = drizzle(c.env.DB, { schema });
 
-  const existingRequest = await db.query.sportsbookBet.findFirst({
-    where: eq(schema.sportsbookBet.requestId, result.data.request_id),
-  });
+	const existingRequest = await db.query.sportsbookBet.findFirst({
+		where: eq(schema.sportsbookBet.requestId, result.data.request_id),
+	});
 
-  if (existingRequest) {
-    return c.body(null, 204);
-  }
+	if (existingRequest) {
+		return c.body(null, 204);
+	}
 
-  const session = await db.query.session.findFirst({
+	const session = await db.query.session.findFirst({
 		where: eq(schema.session.id, session_id as string),
 	});
 
@@ -1720,7 +1742,10 @@ const result = CashOutDeclinedRequestSchema.safeParse(await c.req.json());
 			const existingOrderIds = bet.cashOutOrderIds
 				? JSON.parse(bet.cashOutOrderIds)
 				: [];
-			const newOrderIds = [...existingOrderIds, ...result.data.cash_out_order_ids];
+			const newOrderIds = [
+				...existingOrderIds,
+				...result.data.cash_out_order_ids,
+			];
 
 			await tx
 				.update(schema.sportsbookBet)
@@ -1764,6 +1789,725 @@ const result = CashOutDeclinedRequestSchema.safeParse(await c.req.json());
 	}
 
 	return c.body(null, 204);
+});
+
+const freebetCreateRoute = createRoute({
+	method: "post",
+	path: "/freebet/create",
+	tags: ["Sportsbook"],
+	summary: "Create a freebet",
+	description:
+		"Create a freebet for a user via Data.Bet API and store locally. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						player_id: z.string(),
+						amount: z.number(),
+						currency: z.string(),
+						expired_at: z.string(),
+						conditions: z.array(z.any()).optional(),
+					}),
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Freebet created successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({
+							id: z.string(),
+							dataBetFreebetId: z.string(),
+							amount: z.number(),
+							currency: z.string(),
+							expiredAt: z.string(),
+						}),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Error creating freebet",
+		},
+		500: {
+			description: "Internal server error",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	if (
+		!result ||
+		!result.player_id ||
+		!result.amount ||
+		!result.currency ||
+		!result.expired_at
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error:
+					"Missing required fields: player_id, amount, currency, expired_at",
+			},
+			400,
+		);
+	}
+
+	const id = crypto.randomUUID();
+	const amountKobo = Math.round(result.amount * 100);
+
+	const apiRequestBody = {
+		player_id: result.player_id,
+		idempotency_id: id,
+		amount: {
+			amount: result.amount.toString(),
+			currency_code: result.currency,
+		},
+		expires_at: result.expired_at,
+		conditions: result.conditions || [],
+	};
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/create`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(apiRequestBody),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet create error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to create freebet: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as { freebet_id?: string };
+
+		const db = drizzle(c.env.DB, { schema });
+		const now = new Date();
+		const expiredAt = new Date(result.expired_at);
+		const createdFreebetId = data.freebet_id;
+
+		await db.insert(schema.sportsbookFreebet).values({
+			id: id,
+			dataBetFreebetId: createdFreebetId,
+			userId: result.player_id,
+			amount: amountKobo,
+			currency: result.currency,
+			expiredAt: expiredAt,
+			conditions: result.conditions ? JSON.stringify(result.conditions) : null,
+			status: "active",
+			used: false,
+			createdAt: now,
+			updatedAt: now,
+		});
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					id: id,
+					dataBetFreebetId: createdFreebetId,
+					amount: result.amount,
+					currency: result.currency,
+					expiredAt: result.expired_at,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet create error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to create freebet",
+			},
+			500,
+		);
+	}
+});
+
+const freebetBulkCreateRoute = createRoute({
+	method: "post",
+	path: "/freebet/create/bulk",
+	tags: ["Sportsbook"],
+	summary: "Create multiple freebets",
+	description:
+		"Create multiple freebets for users via Data.Bet API and store locally. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						freebets: z.array(
+							z.object({
+								player_id: z.string(),
+								amount: z.number(),
+								currency: z.string(),
+								expired_at: z.string(),
+								conditions: z.array(z.any()).optional(),
+							}),
+						),
+					}),
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Freebets created successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.array(
+							z.object({
+								id: z.string(),
+								dataBetFreebetId: z.string(),
+								amount: z.number(),
+								currency: z.string(),
+								expiredAt: z.string(),
+							}),
+						),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Error creating freebets",
+		},
+		500: {
+			description: "Internal server error",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	if (!result || !result.freebets || !Array.isArray(result.freebets)) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Missing required field: freebets array",
+			},
+			400,
+		);
+	}
+
+	const freebetsData = result.freebets.map(
+		(fb: {
+			player_id: string;
+			amount: number;
+			currency: string;
+			expired_at: string;
+			conditions?: unknown[];
+		}) => ({
+			idempotency_id: crypto.randomUUID(),
+			player_id: fb.player_id,
+			amount: {
+				amount: fb.amount.toString(),
+				currency_code: fb.currency,
+			},
+			expires_at: fb.expired_at,
+			conditions: fb.conditions || [],
+		}),
+	);
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/create/bulk`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ freebets: freebetsData }),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet bulk create error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to create freebets: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			freebet_ids: string[];
+		};
+
+		const db = drizzle(c.env.DB, { schema });
+		const now = new Date();
+
+		const insertedFreebets = result.freebets.map(
+			(
+				fb: {
+					player_id: string;
+					amount: number;
+					currency: string;
+					expired_at: string;
+					conditions?: unknown[];
+				},
+				index: number,
+			) => {
+				const dataBetId = data.freebet_ids[index];
+				const amountKobo = Math.round(fb.amount * 100);
+
+				return {
+					id: freebetsData[index].idempotency_id,
+					dataBetFreebetId: dataBetId,
+					userId: fb.player_id,
+					amount: amountKobo,
+					currency: fb.currency,
+					expiredAt: new Date(fb.expired_at),
+					conditions: fb.conditions ? JSON.stringify(fb.conditions) : null,
+					status: "active",
+					used: false,
+					createdAt: now,
+					updatedAt: now,
+				};
+			},
+		);
+
+		await db.insert(schema.sportsbookFreebet).values(insertedFreebets);
+
+		return c.json(
+			{
+				success: true as const,
+				data: result.freebets.map(
+					(
+						fb: {
+							amount: number;
+							currency: string;
+							expired_at: string;
+						},
+						index: number,
+					) => ({
+						id: freebetsData[index].id,
+						dataBetFreebetId: data.freebet_ids[index],
+						amount: fb.amount,
+						currency: fb.currency,
+						expiredAt: fb.expired_at,
+					}),
+				),
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet bulk create error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to create freebets",
+			},
+			500,
+		);
+	}
+});
+
+const freebetListRoute = createRoute({
+	method: "get",
+	path: "/freebet/list",
+	tags: ["Sportsbook"],
+	summary: "List user's freebets",
+	description: "List all freebets for a user. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Freebets retrieved successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.array(
+							z.object({
+								id: z.string(),
+								dataBetFreebetId: z.string(),
+								amount: z.number(),
+								currency: z.string(),
+								expiredAt: z.string().nullable(),
+								status: z.string(),
+								used: z.boolean(),
+								createdAt: z.string(),
+							}),
+						),
+					}),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetListRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const freebets = await db.query.sportsbookFreebet.findMany({
+		where: eq(schema.sportsbookFreebet.userId, user.id),
+	});
+
+	return c.json(
+		{
+			success: true as const,
+			data: freebets.map((fb) => ({
+				id: fb.id,
+				dataBetFreebetId: fb.dataBetFreebetId,
+				amount: fb.amount / 100,
+				currency: fb.currency,
+				expiredAt: fb.expiredAt?.toISOString() ?? null,
+				status: fb.status,
+				used: fb.used,
+				createdAt: fb.createdAt.toISOString(),
+			})),
+		},
+		200,
+	);
+});
+
+const freebetGetRoute = createRoute({
+	method: "get",
+	path: "/freebet/{id}",
+	tags: ["Sportsbook"],
+	summary: "Get a freebet",
+	description: "Get a specific freebet by ID. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			id: z.string(),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Freebet retrieved successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({
+							id: z.string(),
+							dataBetFreebetId: z.string(),
+							amount: z.number(),
+							currency: z.string(),
+							expiredAt: z.string().nullable(),
+							conditions: z.any().nullable(),
+							status: z.string(),
+							used: z.boolean(),
+							createdAt: z.string(),
+						}),
+					}),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		404: {
+			description: "Freebet not found",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetGetRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const { id } = c.req.param();
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const freebet = await db.query.sportsbookFreebet.findFirst({
+		where: eq(schema.sportsbookFreebet.id, id),
+	});
+
+	if (!freebet) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Freebet not found",
+			},
+			404,
+		);
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				id: freebet.id,
+				dataBetFreebetId: freebet.dataBetFreebetId,
+				amount: freebet.amount / 100,
+				currency: freebet.currency,
+				expiredAt: freebet.expiredAt?.toISOString() ?? null,
+				conditions: freebet.conditions ? JSON.parse(freebet.conditions) : null,
+				status: freebet.status,
+				used: freebet.used,
+				createdAt: freebet.createdAt.toISOString(),
+			},
+		},
+		200,
+	);
+});
+
+const freebetUpdateRoute = createRoute({
+	method: "post",
+	path: "/freebet/update",
+	tags: ["Sportsbook"],
+	summary: "Update a freebet",
+	description:
+		"Update a freebet's conditions or expiry via Data.Bet API. Requires authentication.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						player_id: z.string(),
+						freebet_id: z.string(),
+						expired_at: z.string().optional(),
+						conditions: z.array(z.any()).optional(),
+					}),
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Freebet updated successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({
+							dataBetFreebetId: z.string(),
+						}),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Error updating freebet",
+		},
+		500: {
+			description: "Internal server error",
+		},
+	},
+});
+
+sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const bettingHost = c.env.BETTING_API_HOST;
+	if (!bettingHost) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API host not configured",
+			},
+			500,
+		);
+	}
+
+	const result = await c.req.json().catch(() => null);
+	if (!result || !result.player_id || !result.freebet_id) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Missing required fields: player_id, freebet_id",
+			},
+			400,
+		);
+	}
+
+	const apiRequestBody: Record<string, unknown> = {
+		player_id: result.player_id,
+		freebet_id: result.freebet_id,
+	};
+
+	if (result.expired_at) {
+		apiRequestBody.expired_at = result.expired_at;
+	}
+
+	if (result.conditions) {
+		apiRequestBody.conditions = result.conditions;
+	}
+
+	try {
+		const response = await c.env.DATABET_CERT.fetch(
+			`https://${bettingHost}/freebet/update`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(apiRequestBody),
+			},
+		);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet freebet update error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to update freebet: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const db = drizzle(c.env.DB, { schema });
+
+		const updateData: Record<string, unknown> = {
+			updatedAt: new Date(),
+		};
+
+		if (result.expired_at) {
+			updateData.expiredAt = new Date(result.expired_at);
+		}
+
+		if (result.conditions) {
+			updateData.conditions = JSON.stringify(result.conditions);
+		}
+
+		await db
+			.update(schema.sportsbookFreebet)
+			.set(updateData)
+			.where(eq(schema.sportsbookFreebet.dataBetFreebetId, result.freebet_id));
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					dataBetFreebetId: result.freebet_id,
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Freebet update error:", error);
+		return c.json(
+			{
+				success: false as const,
+				error:
+					error instanceof Error ? error.message : "Failed to update freebet",
+			},
+			500,
+		);
+	}
 });
 
 export default sportsbookRoute;
