@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { z } from "@hono/zod-openapi";
 import {
@@ -448,16 +448,6 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		);
 		baseQuery = baseQuery.where(pendingCondition) as typeof baseQuery;
 		countQuery = countQuery.where(pendingCondition) as typeof countQuery;
-	}
-
-	if (search) {
-		const searchCondition = or(
-			like(schema.user.name, `%${search}%`),
-			like(schema.user.email, `%${search}%`),
-			eq(schema.user.id, search),
-		);
-		baseQuery = baseQuery.where(searchCondition) as typeof baseQuery;
-		countQuery = countQuery.where(searchCondition) as typeof countQuery;
 	}
 
 	const orderByClause =
