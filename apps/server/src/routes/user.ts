@@ -77,12 +77,12 @@ const GetAllUsersQuerySchema = z.object({
 		.enum(["asc", "desc"])
 		.optional()
 		.openapi({ description: "Sort order", example: "asc" }),
-	search: z
-		.string()
+	status: z
+		.enum(["all", "verified", "not_verified", "pending_verification", "rejected"])
 		.optional()
 		.openapi({
-			description: "Search by name, email, or user ID",
-			example: "john",
+			description: "Filter by verification status",
+			example: "all",
 		}),
 	tab: z
 		.enum(["all", "recent", "pending"])
@@ -401,8 +401,14 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	);
 	const sort = c.req.query("sort") === "desc" ? "desc" : "asc";
 	const offset = (page - 1) * limit;
-	const search = c.req.query("search")?.trim();
 	const tab = c.req.query("tab") as "all" | "recent" | "pending" | undefined;
+	const status = c.req.query("status") as
+		| "all"
+		| "verified"
+		| "not_verified"
+		| "pending_verification"
+		| "rejected"
+		| undefined;
 
 	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -423,6 +429,12 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		.select({ count: sql<number>`count(*)` })
 		.from(schema.user)
 		.leftJoin(schema.wallet, eq(schema.wallet.userId, schema.user.id));
+
+	if (status && status !== "all") {
+		const statusCondition = and(eq(schema.user.verificationStatus, status));
+		baseQuery = baseQuery.where(statusCondition) as typeof baseQuery;
+		countQuery = countQuery.where(statusCondition) as typeof countQuery;
+	}
 
 	if (tab === "recent") {
 		const recentCondition = and(gte(schema.user.createdAt, sevenDaysAgo));
