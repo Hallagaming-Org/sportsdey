@@ -168,6 +168,19 @@ export const sportsbookBet = sqliteTable("sportsbook_bet", {
 		.notNull(),
 });
 
+export const sportsbookBetEvent = sqliteTable("sportsbook_bet_event", {
+	id: text("id").primaryKey(),
+	betId: text("bet_id")
+		.notNull()
+		.references(() => sportsbookBet.id, { onDelete: "cascade" }),
+	requestId: text("request_id").unique(),
+	eventType: text("event_type").notNull(),
+	eventData: text("event_data"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+});
+
 export const walletTransaction = sqliteTable(
 	"wallet_transaction",
 	{
@@ -652,4 +665,4 @@ export const game = sqliteTable("game", {
 });
 
 export * from "./schema/admin";
-import { admin } from "./schema/admin";
+

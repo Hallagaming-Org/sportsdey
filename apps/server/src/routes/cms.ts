@@ -1,33 +1,45 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { z } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
+import { parseQueryDateRange } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const cmsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-const CmsContentQuerySchema = z.object({
-	search: z
-		.string()
-		.optional()
-		.openapi({ description: "Search by title or author name" }),
-	type: z
-		.enum(["all", "news", "videos", "ads"])
-		.optional()
-		.default("all")
-		.openapi({ description: "Filter by content type" }),
-	sortBy: z
-		.enum(["title"])
-		.optional()
-		.openapi({ description: "Sort by field" }),
-	page: z.coerce
-		.number()
-		.optional()
-		.default(1)
-		.openapi({ description: "Page number" }),
-}).openapi("CmsContentQuery");
+const CmsContentQuerySchema = z
+	.object({
+		search: z
+			.string()
+			.optional()
+			.openapi({ description: "Search by title or author name" }),
+		type: z
+			.enum(["all", "news", "videos", "ads"])
+			.optional()
+			.default("all")
+			.openapi({ description: "Filter by content type" }),
+		sortBy: z
+			.enum(["title"])
+			.optional()
+			.openapi({ description: "Sort by field" }),
+		page: z.coerce
+			.number()
+			.optional()
+			.default(1)
+			.openapi({ description: "Page number" }),
+		fromDate: z.string().optional().openapi({
+			description:
+				"Filter content published on or after this date (ISO format: YYYY-MM-DD)",
+			example: "2025-01-01",
+		}),
+		toDate: z.string().optional().openapi({
+			description:
+				"Filter content published on or before this date (ISO format: YYYY-MM-DD)",
+			example: "2025-01-31",
+		}),
+	})
+	.openapi("CmsContentQuery");
 
 const CreateCmsContentSchema = z.object({
 	title: z.string().min(1).openapi({ description: "Content title" }),
@@ -59,6 +71,22 @@ const CmsContentResponseSchema = z.object({
 const CmsAuthorOptionSchema = z.object({
 	_id: z.string(),
 	name: z.string(),
+});
+
+const CmsContentDetailResponseSchema = z.object({
+	_id: z.string(),
+	title: z.string(),
+	slug: z.string().nullable(),
+	message: z.string(),
+	image: z.string().nullable(),
+	author: z.object({
+		_id: z.string().nullable(),
+		name: z.string(),
+		image: z.string().nullable(),
+	}),
+	type: z.enum(["news", "videos", "ads"]),
+	publishedAt: z.string(),
+	status: z.enum(["pending", "verified"]),
 });
 
 function slugify(text: string): string {
@@ -107,6 +135,17 @@ type SanityContent = {
 type SanityAuthor = {
 	_id: string;
 	name: string;
+};
+
+type SanityContentDetail = {
+	_id: string;
+	title: string;
+	slug?: { current?: string };
+	body?: Array<{ children?: Array<{ text?: string }> }>;
+	category?: string;
+	publishedAt: string;
+	image?: unknown;
+	author?: { _id?: string; name?: string; image?: unknown };
 };
 
 cmsRoute.openapi(
@@ -171,9 +210,15 @@ cmsRoute.openapi(
 				);
 			}
 
-			if (session.role !== "super_admin" && !requirePermission(session, "post_upload_content")) {
+			if (
+				session.role !== "super_admin" &&
+				!requirePermission(session, "post_upload_content")
+			) {
 				return c.json(
-					{ success: false as const, error: "Forbidden - post_upload_content permission required" },
+					{
+						success: false as const,
+						error: "Forbidden - post_upload_content permission required",
+					},
 					403,
 				);
 			}
@@ -253,7 +298,8 @@ cmsRoute.openapi(
 	}),
 	async (c) => {
 		try {
-			const { search, type, sortBy, page } = c.req.valid("query");
+			const { search, type, sortBy, page, fromDate, toDate } =
+				c.req.valid("query");
 			const client = getSanityClient(c.env);
 
 			const pageSize = 10;
@@ -261,10 +307,7 @@ cmsRoute.openapi(
 			const end = start + pageSize;
 
 			let filterConditions = '_type == "news" && !(_id in path("drafts.**"))';
-			const params: Record<string, unknown> = {
-				start,
-				end,
-			};
+			const params: Record<string, unknown> = {};
 
 			if (search && search.trim()) {
 				filterConditions +=
@@ -281,9 +324,14 @@ cmsRoute.openapi(
 				}
 			}
 
+			const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
+				fromDate,
+				toDate,
+			}) as { fromDate?: number; toDate?: number };
+
 			const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
-			const query = `*[_type == "news" && !(_id in path("drafts.**"))] | order(${sortOrder}) [$start...$end] {
+			const finalQuery = `*[${filterConditions}] | order(${sortOrder}) {
 				_id,
 				title,
 				publishedAt,
@@ -292,35 +340,22 @@ cmsRoute.openapi(
 				"author": author->{_id, name, image}
 			}`;
 
-			const filteredQuery = `*[_type == "news" && !(_id in path("drafts.**")) ${search ? "&& (title match $search || author->name match $search)" : ""} ${type && type !== "all" ? (type === "news" ? '&& (category != "videos" && category != "ads")' : "&& category == $type") : ""}] | order(${sortOrder}) [$start...$end] {
-				_id,
-				title,
-				publishedAt,
-				category,
-				"image": image.asset->url,
-				"author": author->{_id, name, image}
-			}`;
-
-			let finalQuery = query;
-			if (search || (type && type !== "all")) {
-				finalQuery = filteredQuery;
-			} else {
-				finalQuery = `*[_type == "news" && !(_id in path("drafts.**"))] | order(${sortOrder}) [$start...$end] {
-					_id,
-					title,
-					publishedAt,
-					category,
-					"image": image.asset->url,
-					"author": author->{_id, name, image}
-				}`;
-			}
-
-			const content = await client.fetch<Array<SanityContent>>(
+			const allContent = await client.fetch<Array<SanityContent>>(
 				finalQuery,
 				params,
 			);
 
-			const transformedContent = content.map((item: SanityContent) => {
+			const filteredContent = allContent.filter((item) => {
+				const publishedAt = new Date(item.publishedAt);
+				if (Number.isNaN(publishedAt.getTime())) return false;
+				const publishedMs = publishedAt.getTime();
+				if (fromBoundary && publishedMs < fromBoundary) return false;
+				if (toBoundary && publishedMs > toBoundary) return false;
+				return true;
+			});
+			const paginatedContent = filteredContent.slice(start, end);
+
+			const transformedContent = paginatedContent.map((item: SanityContent) => {
 				const category = item.category;
 				const type =
 					category === "videos" || category === "ads" ? category : "news";
@@ -340,19 +375,7 @@ cmsRoute.openapi(
 				};
 			});
 
-			const totalParams: Record<string, unknown> = {};
-			let totalFilter = '_type == "news" && !(_id in path("drafts.**"))';
-			if (search && search.trim()) {
-				totalFilter +=
-					" && (title match $search || author->name match $search)";
-				totalParams.search = `*${search.trim()}*`;
-			}
-			if (type && type !== "all") {
-				totalFilter += " && category == $type";
-				totalParams.type = type;
-			}
-			const totalQuery = `count(*[${totalFilter}])`;
-			const total = await client.fetch<number>(totalQuery, totalParams);
+			const total = filteredContent.length;
 			const totalPages = Math.ceil(total / pageSize);
 
 			return c.json(
@@ -445,14 +468,25 @@ cmsRoute.openapi(
 				);
 			}
 
-			if (session.role !== "super_admin" && !requirePermission(session, "post_upload_content")) {
+			if (
+				session.role !== "super_admin" &&
+				!requirePermission(session, "post_upload_content")
+			) {
 				return c.json(
-					{ success: false as const, error: "Forbidden - post_upload_content permission required" },
+					{
+						success: false as const,
+						error: "Forbidden - post_upload_content permission required",
+					},
 					403,
 				);
 			}
 
-			const { search, type, sortBy, page } = c.req.valid("query");
+			const { search, type, sortBy, page, fromDate, toDate } =
+				c.req.valid("query");
+			const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
+				fromDate,
+				toDate,
+			}) as { fromDate?: number; toDate?: number };
 			const client = getSanityClient(c.env);
 
 			const pageSize = 10;
@@ -461,10 +495,7 @@ cmsRoute.openapi(
 			const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
 			let filterConditions = '_type == "news"';
-			const params: Record<string, unknown> = {
-				start,
-				end,
-			};
+			const params: Record<string, unknown> = {};
 
 			if (search && search.trim()) {
 				filterConditions +=
@@ -481,7 +512,7 @@ cmsRoute.openapi(
 				}
 			}
 
-			const query = `*[${filterConditions}] | order(${sortOrder}) [$start...$end] {
+			const query = `*[${filterConditions}] | order(${sortOrder}) {
 				_id,
 				title,
 				publishedAt,
@@ -490,9 +521,22 @@ cmsRoute.openapi(
 				"author": author->{_id, name, image}
 			}`;
 
-			const content = await client.fetch<Array<SanityContent>>(query, params);
+			const allContent = await client.fetch<Array<SanityContent>>(
+				query,
+				params,
+			);
 
-			const transformedContent = content.map((item: SanityContent) => {
+			const filteredContent = allContent.filter((item) => {
+				const publishedAt = new Date(item.publishedAt);
+				if (Number.isNaN(publishedAt.getTime())) return false;
+				const publishedMs = publishedAt.getTime();
+				if (fromBoundary && publishedMs < fromBoundary) return false;
+				if (toBoundary && publishedMs > toBoundary) return false;
+				return true;
+			});
+			const paginatedContent = filteredContent.slice(start, end);
+
+			const transformedContent = paginatedContent.map((item: SanityContent) => {
 				const category = item.category;
 				const type =
 					category === "videos" || category === "ads" ? category : "news";
@@ -514,23 +558,7 @@ cmsRoute.openapi(
 				};
 			});
 
-			let totalFilter = '_type == "news"';
-			const totalParams: Record<string, unknown> = {};
-			if (search && search.trim()) {
-				totalFilter +=
-					" && (title match $search || author->name match $search)";
-				totalParams.search = `*${search.trim()}*`;
-			}
-			if (type && type !== "all") {
-				if (type === "news") {
-					totalFilter += ' && (category != "videos" && category != "ads")';
-				} else {
-					totalFilter += " && category == $type";
-					totalParams.type = type;
-				}
-			}
-			const totalQuery = `count(*[${totalFilter}])`;
-			const total = await client.fetch<number>(totalQuery, totalParams);
+			const total = filteredContent.length;
 			const totalPages = Math.ceil(total / pageSize);
 
 			return c.json(
@@ -548,6 +576,129 @@ cmsRoute.openapi(
 			);
 		} catch (error) {
 			console.error("Error fetching all CMS content:", error);
+			return c.json(
+				{
+					success: false as const,
+					error: "Internal server error",
+					details: [
+						{
+							field: "server",
+							message: "An unexpected error occurred while fetching content",
+							code: "internal_error",
+						},
+					],
+				},
+				500,
+			);
+		}
+	},
+);
+
+cmsRoute.openapi(
+	createRoute({
+		method: "get",
+		path: "/content/{id}",
+		summary: "Get CMS content by ID",
+		description: "Fetch CMS content details by Sanity content ID.",
+		request: {
+			params: z.object({
+				id: z.string().openapi({ description: "Sanity content ID" }),
+			}),
+		},
+		responses: {
+			200: {
+				content: {
+					"application/json": {
+						schema: successResponseSchema(CmsContentDetailResponseSchema),
+					},
+				},
+				description: "Successfully retrieved content",
+			},
+			404: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Content not found",
+			},
+		},
+		tags: ["CMS"],
+	}),
+	async (c) => {
+		try {
+			const { id } = c.req.valid("param");
+			const client = getSanityClient(c.env);
+
+			const content = await client.fetch<SanityContentDetail | null>(
+				`*[_type == "news" && _id == $id][0]{
+					_id,
+					title,
+					slug,
+					body,
+					category,
+					publishedAt,
+					image,
+					"author": author->{_id, name, image}
+				}`,
+				{ id },
+			);
+
+			if (!content) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Content not found",
+						details: [
+							{
+								field: "id",
+								message: "No CMS content found for the provided ID",
+								code: "not_found",
+							},
+						],
+					},
+					404,
+				);
+			}
+
+			const message =
+				content.body
+					?.flatMap((block) => block.children ?? [])
+					.map((child) => child.text?.trim() ?? "")
+					.filter(Boolean)
+					.join("\n") ?? "";
+
+			const category = content.category;
+			const type =
+				category === "videos" || category === "ads" ? category : "news";
+
+			return c.json(
+				{
+					success: true as const,
+					data: {
+						_id: content._id,
+						title: content.title,
+						slug: content.slug?.current ?? null,
+						message,
+						image: content.image ? urlFor(c.env, content.image).url() : null,
+						author: {
+							_id: content.author?._id ?? null,
+							name: content.author?.name ?? "",
+							image: content.author?.image
+								? urlFor(c.env, content.author.image).width(200).url()
+								: null,
+						},
+						type,
+						publishedAt: content.publishedAt,
+						status: isDraft(content._id)
+							? ("pending" as const)
+							: ("verified" as const),
+					},
+				},
+				200,
+			);
+		} catch (error) {
+			console.error("Error fetching CMS content by ID:", error);
 			return c.json(
 				{
 					success: false as const,
@@ -642,9 +793,15 @@ cmsRoute.openapi(
 				);
 			}
 
-			if (session.role !== "super_admin" && !requirePermission(session, "post_upload_content")) {
+			if (
+				session.role !== "super_admin" &&
+				!requirePermission(session, "post_upload_content")
+			) {
 				return c.json(
-					{ success: false as const, error: "Forbidden - post_upload_content permission required" },
+					{
+						success: false as const,
+						error: "Forbidden - post_upload_content permission required",
+					},
 					403,
 				);
 			}
@@ -779,6 +936,165 @@ cmsRoute.openapi(
 						{
 							field: "server",
 							message: "An unexpected error occurred while creating content",
+							code: "internal_error",
+						},
+					],
+				},
+				500,
+			);
+		}
+	},
+);
+
+cmsRoute.openapi(
+	createRoute({
+		method: "delete",
+		path: "/content/{id}",
+		summary: "Delete CMS content",
+		description: "Delete CMS content by ID. Requires admin authentication.",
+		request: {
+			params: z.object({
+				id: z.string().openapi({ description: "Content ID to delete" }),
+			}),
+		},
+		responses: {
+			200: {
+				content: {
+					"application/json": {
+						schema: successResponseSchema(z.object({ deletedId: z.string() })),
+					},
+				},
+				description: "Successfully deleted content",
+			},
+			400: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Bad request - invalid ID",
+			},
+			401: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Unauthorized",
+			},
+			403: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Forbidden - admin only",
+			},
+			404: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Content not found",
+			},
+		},
+		tags: ["CMS"],
+	}),
+	async (c) => {
+		try {
+			const token = getSessionToken(c.req.raw.headers);
+			const session = await validateAdminSession(c.env, token || "");
+
+			if (
+				!session ||
+				(session.role !== "admin" && session.role !== "super_admin")
+			) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Forbidden - admin only",
+						details: null,
+					},
+					403,
+				);
+			}
+
+			if (
+				session.role !== "super_admin" &&
+				!requirePermission(session, "post_upload_content")
+			) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Forbidden - post_upload_content permission required",
+					},
+					403,
+				);
+			}
+
+			const { id } = c.req.valid("param");
+
+			if (!id || !id.trim()) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Bad request",
+						details: [
+							{
+								field: "id",
+								message: "Content ID is required",
+								code: "invalid_param",
+							},
+						],
+					},
+					400,
+				);
+			}
+
+			const client = getSanityServerClient(c.env);
+
+			const existingDoc = await client.fetch<{ _id: string }>(
+				`*[_type == "news" && _id == $id][0]{_id}`,
+				{ id },
+			);
+
+			if (!existingDoc) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Content not found",
+						details: [
+							{
+								field: "id",
+								message: "No content found with the provided ID",
+								code: "not_found",
+							},
+						],
+					},
+					404,
+				);
+			}
+
+			await client.delete(id);
+
+			return c.json(
+				{
+					success: true as const,
+					data: { deletedId: id },
+				},
+				200,
+			);
+		} catch (error) {
+			console.error("Error deleting CMS content:", error);
+			return c.json(
+				{
+					success: false as const,
+					error: "Internal server error",
+					details: [
+						{
+							field: "server",
+							message: "An unexpected error occurred while deleting content",
 							code: "internal_error",
 						},
 					],

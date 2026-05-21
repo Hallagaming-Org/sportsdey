@@ -131,6 +131,7 @@ export function BillPaymentModal({
 						selectedProduct.amount ??
 						Number(amount))
 					: Number(amount);
+					console.log("product_code", selectedProduct.productCode)
 
 			const data = await apiRequest<VendResponse>("bills/vend", {
 				method: "POST",

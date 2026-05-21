@@ -71,4 +71,18 @@ export const parseDateString = (dateStr?: string): string => {
 	).toISOString();
 };
 
+export function parseDateOrUndefined(value?: string): Date | undefined {
+	return value ? new Date(value) : undefined;
+}
+
+export function parseQueryDateRange(params: {
+	fromDate?: string;
+	toDate?: string;
+}): { fromDate?: Date; toDate?: Date } {
+	return {
+		fromDate: parseDateOrUndefined(params.fromDate),
+		toDate: parseDateOrUndefined(params.toDate),
+	};
+}
+
 export { verifySlotitegrationSignature } from "./slotegrator";

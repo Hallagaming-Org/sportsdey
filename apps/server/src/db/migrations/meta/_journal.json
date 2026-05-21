@@ -78,6 +78,20 @@
       "when": 1778688532352,
       "tag": "0010_pretty_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1779274271497,
+      "tag": "0011_bizarre_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1779274449494,
+      "tag": "0012_vengeful_vampiro",
+      "breakpoints": true
     }
   ]
 }

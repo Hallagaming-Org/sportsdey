@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
 	clearSessionCookie,
@@ -25,6 +25,7 @@ import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
+import { parseQueryDateRange } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -145,6 +146,10 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.enum(["deposits", "withdrawals", "payments"])
 		.optional()
 		.openapi({ description: "Filter by transaction type" }),
+	status: z
+		.enum(["won", "pending", "failed", "refund"])
+		.optional()
+		.openapi({ description: "Filter by transaction status" }),
 	page: z.coerce
 		.number()
 		.int()
@@ -158,6 +163,14 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.max(100)
 		.default(20)
 		.openapi({ description: "Items per page" }),
+	fromDate: z
+		.string()
+		.optional()
+		.openapi({ description: "Filter start date (YYYY-MM-DD)" }),
+	toDate: z
+		.string()
+		.optional()
+		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
 });
 
 const TransactionResponseSchema = z.object({
@@ -1294,16 +1307,25 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const query = GetWalletTransactionsQuerySchema.safeParse({
 		search: c.req.query("search"),
 		type: c.req.query("type"),
+		status: c.req.query("status"),
 		page: c.req.query("page"),
 		limit: c.req.query("limit"),
+		fromDate: c.req.query("fromDate"),
+		toDate: c.req.query("toDate"),
 	});
 
 	if (!query.success) {
 		return c.json({ success: false, error: "Invalid query parameters" }, 400);
 	}
 
-	const { search, type, page, limit } = query.data;
+	const { search, type, status, page, limit, fromDate, toDate } = query.data;
 	const offset = (page - 1) * limit;
+
+	const { fromDate: fromDateBoundary, toDate: toDateBoundary } =
+		parseQueryDateRange({
+			fromDate,
+			toDate,
+		});
 
 	const db = drizzle(c.env.DB, { schema });
 
@@ -1328,6 +1350,30 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 				eq(schema.walletTransaction.paymentMethod, "wallet_transfer"),
 			),
 		);
+	}
+
+	if (status === "won") {
+		conditions.push(
+			inArray(schema.walletTransaction.status, ["success", "completed"]),
+		);
+	} else if (status === "pending") {
+		conditions.push(
+			inArray(schema.walletTransaction.status, ["pending", "processing"]),
+		);
+	} else if (status === "failed") {
+		conditions.push(eq(schema.walletTransaction.status, "failed"));
+	} else if (status === "refund") {
+		conditions.push(
+			inArray(schema.walletTransaction.status, ["refund", "refunded"]),
+		);
+	}
+
+	if (fromDateBoundary) {
+		conditions.push(gte(schema.walletTransaction.createdAt, fromDateBoundary));
+	}
+
+	if (toDateBoundary) {
+		conditions.push(lte(schema.walletTransaction.createdAt, toDateBoundary));
 	}
 
 	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
