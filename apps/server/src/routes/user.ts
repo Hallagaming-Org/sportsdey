@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { z } from "@hono/zod-openapi";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import * as schema from "@/db/schema";
+import { parseQueryDateRange } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -88,6 +89,20 @@ const GetAllUsersQuerySchema = z.object({
 		.enum(["all", "recent", "pending"])
 		.optional()
 		.openapi({ description: "Filter by tab", example: "all" }),
+	fromDate: z
+		.string()
+		.optional()
+		.openapi({
+			description: "Filter users registered on or after this date (ISO format: YYYY-MM-DD)",
+			example: "2025-01-01",
+		}),
+	toDate: z
+		.string()
+		.optional()
+		.openapi({
+			description: "Filter users registered on or before this date (ISO format: YYYY-MM-DD)",
+			example: "2025-01-31",
+		}),
 }).openapi("GetAllUsersQuery");
 
 const UserListItemSchema = z.object({
@@ -409,8 +424,12 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		| "pending_verification"
 		| "rejected"
 		| undefined;
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: c.req.query("fromDate"),
+		toDate: c.req.query("toDate"),
+	}) as { fromDate?: number; toDate?: number };
 
-	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+	const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
 	let baseQuery = db
 		.select({
@@ -448,6 +467,18 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		);
 		baseQuery = baseQuery.where(pendingCondition) as typeof baseQuery;
 		countQuery = countQuery.where(pendingCondition) as typeof countQuery;
+	}
+
+	if (fromDate) {
+		const fromDateCondition = and(gte(schema.user.createdAt, fromDate));
+		baseQuery = baseQuery.where(fromDateCondition) as typeof baseQuery;
+		countQuery = countQuery.where(fromDateCondition) as typeof countQuery;
+	}
+
+	if (toDate) {
+		const toDateCondition = and(lte(schema.user.createdAt, toDate));
+		baseQuery = baseQuery.where(toDateCondition) as typeof baseQuery;
+		countQuery = countQuery.where(toDateCondition) as typeof countQuery;
 	}
 
 	const orderByClause =
@@ -638,11 +669,199 @@ userRoute.openapi(
 	},
 );
 
+const UserProfileResponseSchema = z.object({
+	id: z.string().openapi({ description: "User ID" }),
+	name: z.string().openapi({ description: "User's name" }),
+	email: z.string().openapi({ description: "User's email" }),
+	image: z.string().nullable().openapi({ description: "User's profile image URL" }),
+	mobileNumber: z.string().nullable().openapi({ description: "User's mobile number" }),
+	country: z.string().nullable().openapi({ description: "User's country" }),
+	verificationStatus: z.string().openapi({ description: "Verification status" }),
+	suspended: z.boolean().openapi({ description: "Suspension status" }),
+	createdAt: z.string().openapi({ description: "Registration date" }),
+	wallet: z.object({
+		balance: z.number().openapi({ description: "Wallet balance" }),
+	}).openapi({ description: "User's wallet" }),
+	lastTopUp: z.string().nullable().openapi({ description: "Last top-up date" }),
+}).openapi("UserProfile");
+
+const GetUserProfileResponseSchema = z.object({
+	success: z.literal(true).openapi({ description: "Success status" }),
+	data: UserProfileResponseSchema.openapi({ description: "User profile data" }),
+}).openapi("GetUserProfileResponse");
+
 const ToggleSuspendedSchema = z.object({
 	userId: z.string().min(1).openapi({
 		description: "User ID to toggle suspension",
 		example: "user_123",
 	}),
+});
+
+const getUserProfileRoute = createRoute({
+	method: "get",
+	path: "/{userId}/profile",
+	tags: ["User"],
+	summary: "Get user profile (admin only)",
+	description: "Retrieve detailed user profile for admin panel",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "User profile retrieved successfully",
+			content: {
+				"application/json": {
+					schema: GetUserProfileResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		404: {
+			description: "User not found",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+	},
+});
+
+userRoute.openapi(getUserProfileRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{ success: false as const, error: "Unauthorized" },
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{ success: false as const, error: "Forbidden - super admin or admin only" },
+			403,
+		);
+	}
+
+	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
+		return c.json(
+			{ success: false as const, error: "Forbidden - view_player_details permission required" },
+			403,
+		);
+	}
+
+	const userId = c.req.param("userId");
+	if (!userId) {
+		return c.json(
+			{ success: false as const, error: "User ID is required" },
+			400,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select({
+			id: schema.user.id,
+			name: schema.user.name,
+			email: schema.user.email,
+			image: schema.user.image,
+			mobileNumber: schema.user.mobileNumber,
+			country: schema.user.country,
+			verificationStatus: schema.user.verificationStatus,
+			suspended: schema.user.suspended,
+			createdAt: schema.user.createdAt,
+		})
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!existingUser) {
+		return c.json(
+			{ success: false as const, error: "User not found" },
+			404,
+		);
+	}
+
+	const [wallet] = await db
+		.select({
+			balance: schema.wallet.balance,
+		})
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, userId))
+		.limit(1);
+
+	const [lastTopUpTransaction] = await db
+		.select({
+			createdAt: schema.walletTransaction.createdAt,
+		})
+		.from(schema.walletTransaction)
+		.where(
+			and(
+				eq(schema.walletTransaction.userId, userId),
+				eq(schema.walletTransaction.type, "credit"),
+				eq(schema.walletTransaction.status, "success"),
+			)
+		)
+		.orderBy(desc(schema.walletTransaction.createdAt))
+		.limit(1);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				id: existingUser.id,
+				name: existingUser.name,
+				email: existingUser.email,
+				image: existingUser.image,
+				mobileNumber: existingUser.mobileNumber,
+				country: existingUser.country,
+				verificationStatus: existingUser.verificationStatus,
+				suspended: existingUser.suspended,
+				createdAt: existingUser.createdAt.toISOString(),
+				wallet: {
+					balance: wallet?.balance ?? 0,
+				},
+				lastTopUp: lastTopUpTransaction?.createdAt?.toISOString() ?? null,
+			},
+		},
+		200,
+	);
 });
 
 const ToggleSuspendedResponseSchema = z.object({
