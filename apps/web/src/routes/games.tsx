@@ -231,7 +231,7 @@ function GamesPage() {
 	if (isSessionLoading || isLoading) {
 		return (
 			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<Loader2 className="h-10 w-10 animate-spin text-white" />
+				<Loader2 className="h-10 w-10 animate-spin dark:text-white text-primary" />
 			</div>
 		);
 	}
