@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `sportsbook_bet_event_request_id_unique` ON `sportsbook_bet_event` (`request_id`);
