@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { ApiError, apiRequest } from "@/lib/api";
+import { formatAmount } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 
 type BankOption = {
@@ -92,7 +93,7 @@ export function WithdrawModal({
 
 		if (!Number.isFinite(amount) || amount < MIN_WITHDRAW_AMOUNT) {
 			setWithdrawError(
-				`Minimum withdrawal amount is ₦${MIN_WITHDRAW_AMOUNT.toLocaleString("en-NG")}.`,
+				`Minimum withdrawal amount is ₦${formatAmount(MIN_WITHDRAW_AMOUNT)}.`,
 			);
 			return;
 		}

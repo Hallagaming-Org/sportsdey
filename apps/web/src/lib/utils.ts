@@ -5,6 +5,30 @@ export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
+const defaultAmountFormat: Intl.NumberFormatOptions = {
+	minimumFractionDigits: 2,
+	maximumFractionDigits: 2,
+};
+
+export function formatAmount(
+	value: number | null | undefined,
+	options?: Intl.NumberFormatOptions,
+): string {
+	const amount = Number(value);
+	const safeAmount = Number.isFinite(amount) ? amount : 0;
+	return safeAmount.toLocaleString("en-NG", {
+		...defaultAmountFormat,
+		...options,
+	});
+}
+
+export function formatDateTime(value: string | null | undefined): string {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	return date.toLocaleString("en-NG");
+}
+
 export function formatTime(date: Date): string {
 	const hours = String(date.getHours()).padStart(2, "0");
 	const minutes = String(date.getMinutes()).padStart(2, "0");

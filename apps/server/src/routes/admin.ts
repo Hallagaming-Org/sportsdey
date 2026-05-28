@@ -1368,34 +1368,33 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		);
 	}
 
-	if (fromDateBoundary) {
-		conditions.push(gte(schema.walletTransaction.createdAt, fromDateBoundary));
-	}
-
-	if (toDateBoundary) {
-		conditions.push(lte(schema.walletTransaction.createdAt, toDateBoundary));
-	}
+	// Move date filtering out of DB layer; we'll apply from/to filtering
+	// in-memory after fetching matching transactions.
 
 	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-	const [transactions, totalResult] = await Promise.all([
-		db
-			.select()
-			.from(schema.walletTransaction)
-			.where(whereClause)
-			.orderBy(desc(schema.walletTransaction.createdAt))
-			.limit(limit)
-			.offset(offset),
-		db
-			.select({ count: sql<number>`count(*)` })
-			.from(schema.walletTransaction)
-			.where(whereClause),
-	]);
+	// fetch all matching transactions (without date constraints) and apply
+	// date filtering + pagination in-memory
+	const transactions = await db
+		.select()
+		.from(schema.walletTransaction)
+		.where(whereClause)
+		.orderBy(desc(schema.walletTransaction.createdAt));
 
-	const total = totalResult[0]?.count ?? 0;
+	const filtered = transactions.filter((tx) => {
+		if (!fromDateBoundary && !toDateBoundary) return true;
+		const ts = new Date(tx.createdAt).getTime();
+		if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
+		if (toDateBoundary && ts > toDateBoundary.getTime()) return false;
+		return true;
+	});
+
+	const total = filtered.length;
 	const totalPages = Math.ceil(total / limit);
 
-	const formattedTransactions = transactions.map((tx) => {
+	const paginated = filtered.slice(offset, offset + limit);
+
+	const formattedTransactions = paginated.map((tx) => {
 		let txType: "deposit" | "withdrawal" | "payment";
 		if (tx.type === "credit") {
 			txType = "deposit";

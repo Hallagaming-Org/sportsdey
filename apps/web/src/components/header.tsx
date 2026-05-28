@@ -1,35 +1,44 @@
+import { useQuery } from "@tanstack/react-query";
 import {
 	Link,
 	useLocation,
 	useParams,
 	useRouter,
 } from "@tanstack/react-router";
-import {
-	CalendarDays,
-	ChevronDown,
-	ChevronRight,
-	Menu,
-	Undo2,
-	X,
-} from "lucide-react";
+import { ChevronDown, Menu, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentFilter } from "@/hooks/use-current-filter";
 import { useCurrentSport } from "@/hooks/use-current-sport";
-import useWeekDates from "@/hooks/use-weekdates";
-import { useFavorites } from "@/hooks/useFavorites";
+import { apiRequest } from "@/lib/api";
+import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, formatAmount } from "@/lib/utils";
 import BasketballIcon from "@/logos/basketball.svg?react";
+import BellIcon from "@/logos/bell.svg?react";
+import BoxingIcon from "@/logos/boxing.svg?react";
 import FootballIcon from "@/logos/football.svg?react";
 import TennisIcon from "@/logos/tennis.svg?react";
 import WorldIcon from "@/logos/world.svg?react";
-import CalendarBadge from "@/shared/CalendarBadge";
 import { useActiveTab } from "./active-tab-context";
-import { useDateContext } from "./date-context";
 import { socials } from "./socials";
 import { ThemeToggle } from "./theme-toggle";
-import { Button } from "./ui/button";
 import { UserMenu } from "./user-menu";
+
+const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
+	<svg
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth="2.5"
+		className={cn("h-5 w-5 text-yellow-500", props.className)}
+		{...props}
+	>
+		<title>UFC</title>
+		<path d="M3 5v6a3 3 0 0 0 6 0V5" />
+		<path d="M12 14V5h5M12 9h4" />
+		<path d="M21 7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v4a2 2 0 0 0 2 2 2 2 0 0 0 2-2" />
+	</svg>
+);
 
 type HeaderProps = {
 	hideSportsNav?: boolean;
@@ -44,6 +53,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	const isAuthRoute = location.pathname.startsWith("/auth");
 	const shouldHideSportsNav = hideSportsNav || isAuthRoute;
 	const currentSport = useCurrentSport();
+	const { data: session } = useSession();
 	const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
@@ -56,20 +66,40 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 			sport: SPORTS.BASKETBALL,
 		},
 		{ to: "/tennis", label: "Tennis", icon: TennisIcon, sport: SPORTS.TENNIS },
-		// { to: "/boxing", label: "Boxing", icon: BoxingIcon, sport: "boxing" },
-		// { to: "/ufc", label: "UFC", icon: BaseballIcon, sport: "ufc" },
+		{ to: "/boxing", label: "Boxing", icon: BoxingIcon, sport: "boxing" },
+		{ to: "/ufc", label: "UFC", icon: UfcIcon, sport: "ufc" },
 	] as const;
 
 	const [open, setOpen] = useState(false);
 	const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 	const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-	const { date, setDate } = useDateContext();
-	const weekDates = useWeekDates(date);
 	const { currentFilter, changeCurrentFilter } = useCurrentFilter();
 	const router = useRouter();
 
 	const params = useParams({ strict: false });
 	const hasPathParams = Object.keys(params).length > 0;
+	const isHomeRoute =
+		location.pathname === "/" ||
+		location.pathname === "/basketball" ||
+		location.pathname === "/basketball/" ||
+		location.pathname === "/tennis" ||
+		location.pathname === "/tennis/" ||
+		location.pathname === "/boxing" ||
+		location.pathname === "/boxing/" ||
+		location.pathname === "/ufc" ||
+		location.pathname === "/ufc/";
+	const { data: walletData } = useQuery({
+		queryKey: ["wallet"],
+		queryFn: () =>
+			apiRequest<{ id: string; balance?: number | null }>("wallet", {
+				credentials: "include",
+			}),
+		enabled: !!session?.user,
+	});
+	const mobileBalance = walletData?.balance
+		? `₦ ${formatAmount(walletData.balance)}`
+		: "₦ 0.00";
+	const mobileAvatarSrc = session?.user?.image || "/Profile.png";
 
 	useEffect(() => {
 		if (open) {
@@ -101,92 +131,180 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
-			<div className="h-[60px] w-full bg-primary px-4 py-1 text-foreground lg:flex lg:h-20 lg:flex-row lg:items-center lg:justify-between lg:px-[10%] lg:py-1">
-				<div className="flex min-w-0 items-center justify-between lg:hidden">
-					<button
-						type="button"
-						onClick={() => setOpen(!open)}
-						ref={menuButtonRef}
-						aria-expanded={open}
-						aria-controls="mobile-menu"
-						aria-label={open ? "Close main menu" : "Open main menu"}
-					>
-						<Menu width={36} height={36} color="#f4f4f4" />
-					</button>
-					<Link
-						to="/"
-						search={{
-							league: undefined,
-							sports: currentSport || SPORTS.FOOTBALL,
-						}}
-					>
-						<div className="flex min-w-0 justify-center self-center">
+			<div className="w-full bg-white text-foreground lg:bg-primary">
+				<div className="flex h-[72px] min-w-0 items-center justify-between gap-3 px-4 py-2 lg:hidden">
+					<div className="flex items-center gap-3">
+						<button
+							type="button"
+							onClick={() => setOpen(!open)}
+							ref={menuButtonRef}
+							aria-expanded={open}
+							aria-controls="mobile-menu"
+							aria-label={open ? "Close main menu" : "Open main menu"}
+							className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm"
+						>
+							<Menu className="h-5 w-5 text-gray-900" />
+						</button>
+						<Link
+							to="/"
+							search={{
+								league: undefined,
+								sports: currentSport || SPORTS.FOOTBALL,
+							}}
+							className="shrink-0"
+						>
 							<img
-								src="/sportsdey-logo.png"
-								className="h-10"
+								src="/sportsdey-logo.jpeg"
+								className="h-8 w-auto"
 								alt="sportsdey's logo"
 							/>
-						</div>
-					</Link>
-
-					<div className="flex items-center gap-3">
-						{!isAuthRoute && showPreviewUI && <UserMenu />}
-						<ThemeToggle />
-						{isAuthRoute && (
-							<button
-								type="button"
-								onClick={handleBackToSite}
-								className="flex items-center gap-1 text-secondary hover:text-white"
-							>
-								<Undo2 className="h-4 w-4" />
-								<span className="text-sm underline">Back to site</span>
-							</button>
-						)}
+						</Link>
 					</div>
-				</div>
-
-				<div className="hidden min-w-0 lg:flex lg:h-full lg:w-full lg:items-center lg:justify-between">
-					<Link
-						to="/"
-						search={{
-							league: undefined,
-							sports: currentSport || SPORTS.FOOTBALL,
-						}}
-					>
-						<img
-							src="/sportsdey-logo.png"
-							className="h-12"
-							alt="sportsdey's logo"
-						/>
-					</Link>
-
-					{!shouldHideSportsNav && (
-						<div className="overflow-x-auto">
-							<nav className="cust-scrollbar flex w-max gap-4 py-4 font-medium">
-								{links.map(({ to, label, icon: Icon, sport }) => (
-									<Link
-										key={to}
-										to={to as string}
-										onClick={() => setTab("scores")}
-										search={{ sports: sport }}
-										className={cn(
-											"flex shrink-0 gap-2 pb-2",
-											currentSport === sport
-												? "border-accent border-b-2 text-accent"
-												: "text-secondary dark:text-white",
-										)}
-									>
-										<Icon />
-										<p>{label}</p>
-									</Link>
-								))}
-							</nav>
-						</div>
-					)}
 
 					<div className="flex items-center gap-2">
-						{!isAuthRoute && showPreviewUI && <UserMenu />}
+						<div className="flex items-center overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm">
+							<Link
+								to="/wallet"
+								className="flex h-9 min-w-[112px] items-center gap-2 px-3"
+								aria-label="Wallet balance"
+							>
+								<span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#0B7A3B]" />
+								<span className="truncate font-medium text-[12px] text-gray-700">
+									{mobileBalance}
+								</span>
+							</Link>
+							<button
+								type="button"
+								onClick={() =>
+									router.navigate({
+										to: "/wallet",
+										state: { openDeposit: true },
+									})
+								}
+								aria-label="Add funds"
+								className="flex h-9 w-9 cursor-pointer items-center justify-center bg-[#1E78FF] text-white"
+							>
+								<Plus className="h-4 w-4" />
+							</button>
+						</div>
+
+						<button
+							type="button"
+							className="relative flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-transparent text-gray-500"
+							aria-label="Notifications"
+						>
+							<BellIcon className="h-5 w-5" />
+							<span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white" />
+						</button>
+
+						<Link
+							to={session?.user ? "/account" : "/auth/sign-in"}
+							className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white"
+							aria-label="Account"
+						>
+							<img
+								src={mobileAvatarSrc}
+								alt="Account"
+								className="h-full w-full object-cover"
+							/>
+						</Link>
+					</div>
+				</div>
+
+				<div className="hidden min-w-0 lg:flex lg:h-20 lg:w-full lg:items-center lg:justify-between lg:px-[10%] lg:py-1">
+					<div className="flex items-center gap-6">
+						<Link
+							to="/"
+							search={{
+								league: undefined,
+								sports: currentSport || SPORTS.FOOTBALL,
+							}}
+						>
+							<img
+								src="/sportsdey-logo.png"
+								className="h-8"
+								alt="sportsdey's logo"
+							/>
+						</Link>
+						<div className="flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 font-extrabold text-[10px] text-secondary transition-colors hover:bg-white/20 dark:bg-white/5 dark:text-white">
+							<WorldIcon className="h-3.5 w-3.5" />
+							<span>EN</span>
+							<ChevronDown className="h-2.5 w-2.5" />
+						</div>
+					</div>
+
+					{!shouldHideSportsNav && (
+						<nav
+							aria-label="Sports navigation"
+							className="hidden lg:flex lg:items-center lg:gap-3"
+						>
+							{links.map((l) => {
+								const isActive = (currentSport || SPORTS.FOOTBALL) === l.sport;
+								const Icon = l.icon as React.FC<any>;
+								return (
+									<Link
+										key={l.to}
+										to={l.to}
+										search={{ sports: l.sport }}
+										className={cn(
+											"flex items-center gap-2 rounded-full px-3 py-2 font-medium text-sm transition-colors",
+											isActive
+												? "border-accent border-b-2 pb-1 text-accent"
+												: "text-secondary hover:bg-white/5",
+										)}
+										onClick={() => {
+											setTab("scores");
+										}}
+									>
+										<Icon className="h-4 w-4" />
+										<span className="hidden sm:inline-block">{l.label}</span>
+									</Link>
+								);
+							})}
+						</nav>
+					)}
+
+					<div className="flex items-center gap-6">
 						<ThemeToggle />
+
+						{/* Search Magnifying Glass */}
+						<button
+							type="button"
+							className="cursor-pointer rounded-full p-1.5 text-secondary transition-colors hover:bg-white/10 dark:text-white"
+							aria-label="Search"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2.5"
+								className="h-4 w-4"
+							>
+								<title>Search</title>
+								<circle cx="11" cy="11" r="8" />
+								<path d="m21 21-4.3-4.3" />
+							</svg>
+						</button>
+
+						{/* Notification Bell */}
+						<button
+							type="button"
+							className="relative cursor-pointer rounded-full p-1.5 text-secondary transition-colors hover:bg-white/10 dark:text-white"
+							aria-label="Notifications"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2.5"
+								className="h-4 w-4"
+							>
+								<title>Notifications</title>
+								<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+							</svg>
+						</button>
+
+						{!isAuthRoute && showPreviewUI && <UserMenu />}
 						{isAuthRoute && (
 							<button
 								type="button"
@@ -198,18 +316,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							</button>
 						)}
 					</div>
-				</div>
-
-				<div className="min-w-0">
-					{/* <Button className="flex gap-2 rounded-full bg-[#FFFFFF33]">
-						<WorldIcon />
-						EN
-						<ChevronDown />
-					</Button>
-					<Button className="rounded-full bg-accent">
-						Bet code converter
-						<ChevronRight />
-					</Button> */}
 				</div>
 
 				{/* MOBILE SLIDE MENU */}
@@ -385,64 +491,21 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										Play bet
 									</li> */}
 									<li>
-										<a
-											href="https://sportsdey.com/betting"
-											target="_blank"
-											rel="noopener noreferrer"
+										<Link
+											to="/sportsbook"
 											className="flex cursor-pointer items-center gap-2"
+											onClick={() => {
+												setOpen(false);
+												setTab("betting");
+											}}
 										>
 											<img
 												src="/betting-logo.png"
 												className="h-5 w-5 object-contain"
 												alt="Betting"
 											/>
-											SmartBet
-										</a>
-									</li>
-									<li>
-										<a
-											href="https://sportsdey.com/betting"
-											target="_blank"
-											rel="noopener noreferrer"
-											className="flex cursor-pointer items-center gap-2"
-										>
-											<img
-												src="/betting-logo.png"
-												className="h-5 w-5 object-contain"
-												alt="Betting"
-											/>
-											Jackpot
-										</a>
-									</li>
-									<li>
-										<a
-											href="https://sportsdey.com/betting"
-											target="_blank"
-											rel="noopener noreferrer"
-											className="flex cursor-pointer items-center gap-2"
-										>
-											<img
-												src="/betting-logo.png"
-												className="h-5 w-5 object-contain"
-												alt="Betting"
-											/>
-											QuickBetx
-										</a>
-									</li>
-									<li>
-										<a
-											href="https://hallalotto.com/"
-											target="_blank"
-											rel="noopener noreferrer"
-											className="flex cursor-pointer items-center gap-2"
-										>
-											<img
-												src="/betting-logo.png"
-												className="h-5 w-5 object-contain"
-												alt="Betting"
-											/>
-											Play lottery
-										</a>
+											Sportsbook
+										</Link>
 									</li>
 
 									{/* <li
@@ -479,187 +542,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 				</div>
 			</div>
 
-			<div className="w-full bg-primary lg:hidden">
-				<div className="flex justify-center border border-[#414141] py-3">
-					<ul className="flex gap-6">
-						<li
-							onClick={() => {
-								setTab("scores");
-								const targetSport = currentSport || SPORTS.FOOTBALL;
-								const target =
-									targetSport === SPORTS.TENNIS
-										? "/tennis"
-										: targetSport === SPORTS.BASKETBALL
-											? "/basketball"
-											: "/";
-								router.navigate({
-									to: target,
-									search: { league: undefined, sports: targetSport } as any,
-								});
-							}}
-							className={cn(
-								"cursor-pointer font-semibold text-lg transition-colors",
-								tab === "scores"
-									? "text-accent"
-									: "text-secondary dark:text-white",
-							)}
-						>
-							Scores
-						</li>
-						{/* <li>
-							<Link
-								to="/betting"
-								className={cn(
-									"font-semibold text-lg transition-colors",
-									tab === "betting"
-										? "text-accent"
-										: "text-secondary dark:text-white",
-								)}
-								onClick={() => setTab("betting")}
-							>
-								Betting
-							</Link>
-						</li> */}
-						<li>
-							<Link
-								to="/news"
-								search={{ sports: currentSport, tab: "news" }}
-								className={cn(
-									"font-semibold text-lg transition-colors",
-									tab === "news"
-										? "text-accent"
-										: "text-secondary dark:text-white",
-								)}
-								onClick={() => setTab("news")}
-							>
-								News
-							</Link>
-						</li>
-						<li>
-							<Link
-								to="/news"
-								search={{ sports: currentSport, tab: "videos" }}
-								className={cn(
-									"font-semibold text-lg transition-colors",
-									tab === "videos"
-										? "text-accent"
-										: "text-secondary dark:text-white",
-								)}
-								onClick={() => setTab("videos")}
-							>
-								Videos
-							</Link>
-						</li>
-					</ul>
-				</div>
-
-				<div className="flex w-[98vw] justify-center overflow-x-auto md:w-full dark:border-[#5A5F63] dark:border-b">
-					{/* <nav className="flex w-max items-center justify-center gap-4 border border-[#414141] md:border-0 px-4 py-4"> */}
-					<nav className="flex w-max items-center justify-center gap-2 px-4 py-3">
-						{links.map(({ to, label, icon: Icon, sport }) => (
-							<Link
-								key={to}
-								to={to as string}
-								onClick={() => setTab("scores")}
-								className={cn(
-									"flex shrink-0 gap-1 whitespace-nowrap",
-									currentSport === sport
-										? "flex flex-shrink-0 gap-1 whitespace-nowrap rounded-full border-2 border-accent bg-[#202120] px-3 py-1 text-secondary dark:text-white"
-										: "flex flex-shrink-0 gap-1 whitespace-nowrap text-secondary dark:text-white",
-								)}
-							>
-								<Icon className="h-4 w-4" />
-								<p className="text-xs">{label}</p>
-							</Link>
-						))}
-					</nav>
-				</div>
-
-				{!location.pathname.startsWith("/news") &&
-				!location.pathname.startsWith("/betting") ? (
-					<div className="flex w-full items-center justify-between bg-[#202120] px-4 py-2 md:gap-0 md:px-6">
-						{(() => {
-							const today = new Date();
-							const day = today.getDay(); // 0 is Sunday
-							const diff = today.getDate() - day;
-
-							const minDate = new Date(today);
-							minDate.setDate(diff);
-							minDate.setHours(0, 0, 0, 0);
-
-							const maxDate = new Date(minDate);
-							maxDate.setDate(minDate.getDate() + 7);
-							maxDate.setHours(23, 59, 59, 999);
-
-							return weekDates.map((weekDate, index) => {
-								const isDisabled = weekDate < minDate || weekDate > maxDate;
-
-								return (
-									//@biome-ignore lint
-									<div
-										key={`date-${index}`}
-										onClick={() => {
-											if (isDisabled) return;
-											setDate(weekDate);
-											if (hasPathParams) {
-												const target =
-													currentSport === SPORTS.TENNIS
-														? "/tennis"
-														: currentSport === SPORTS.BASKETBALL
-															? "/basketball"
-															: "/";
-												router.navigate({
-													to: target,
-													search: {
-														league: undefined,
-														sports: currentSport,
-													} as any,
-												});
-											}
-										}}
-										className={cn(
-											"flex flex-col text-center",
-											isDisabled
-												? "pointer-events-none cursor-not-allowed opacity-30"
-												: "",
-											!isDisabled &&
-												weekDate.toDateString() === date.toDateString()
-												? "text-secondary dark:text-white"
-												: !isDisabled
-													? "text-[#6C7073] dark:text-gray-400"
-													: "text-[#6C7073] dark:text-gray-600",
-										)}
-									>
-										<p
-											className={cn(
-												"font-medium",
-												weekDate.toDateString() === date.toDateString()
-													? "text-base"
-													: "text-sm",
-											)}
-										>
-											{weekDate.toDateString() === new Date().toDateString()
-												? "Today"
-												: new Intl.DateTimeFormat("en-US", {
-														weekday: "short",
-													}).format(weekDate)}
-										</p>
-										<p className="">{weekDate.getDate()}</p>
-									</div>
-								);
-							});
-						})()}
-						{/* <button
-							type="button"
-							className="cursor-not-allowed rounded-lg border border-[#777] bg-primary p-2 opacity-50 transition-transform active:scale-95"
-							title="Calendar disabled for this release"
-						>
-							<CalendarDays className="text-secondary" width={24} height={24} />
-
-						</button> */}
-					</div>
-				) : null}
-			</div>
+			{/* mobile sub-navigation removed */}
 		</div>
 	);
 }

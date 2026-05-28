@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import BasketballPage from "@/components/BasketballPage";
+import SportLandingPage from "@/components/SportLandingPage";
 import { getBanners } from "@/lib/banners-server";
 
 export const Route = createFileRoute("/basketball/")({
@@ -12,5 +12,9 @@ export const Route = createFileRoute("/basketball/")({
 
 function RouteComponent() {
 	const banners = Route.useLoaderData() || [];
-	return <BasketballPage banners={banners} />;
+	return (
+		<div className="w-full">
+			<SportLandingPage sport="basketball" banners={banners} />
+		</div>
+	);
 }

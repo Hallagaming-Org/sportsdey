@@ -1,15 +1,4 @@
-const resolveApiBaseUrl = () => {
-	if (typeof window !== "undefined") {
-		const hostname = window.location.hostname;
-		if (hostname === "stagingweb.sportsdey.com") {
-			return "https://staging-api.sportsdey.com/";
-		}
-		if (hostname === "sportsdey.com" || hostname === "www.sportsdey.com") {
-			return "https://api.sportsdey.com/";
-		}
-	}
-	return import.meta.env.VITE_SERVER_URL || "";
-};
+const resolveApiBaseUrl = () => import.meta.env.VITE_SERVER_URL || "";
 
 const API_BASE_URL = resolveApiBaseUrl();
 // const API_BASE_URL = "/api/";

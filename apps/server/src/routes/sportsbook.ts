@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -439,7 +439,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				betType: result.data.bet_type ?? null,
 				betFreebetId: result.data.bet_freebet_id ?? null,
 				betBoostId: result.data.bet_boost_id ?? null,
-				status: "place",
+				status: "created",
 				betData: JSON.stringify(result.data),
 				createdAt: now,
 				updatedAt: now,
@@ -633,13 +633,13 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			);
 		}
 
-		if (bet.status !== "place") {
+		if (bet.status !== "created") {
 			return c.json(
 				{
 					error: {
 						code: "custom_error",
 						data: {
-							code: "bet_not_in_place_status",
+							code: "bet_not_in_created_status",
 							current_status: bet.status,
 						},
 					},
@@ -682,7 +682,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			const betUpdate = await db
 				.update(schema.sportsbookBet)
 				.set({
-					status: "accept",
+					status: "accepted",
 					betData: JSON.stringify(result.data),
 					updatedAt: new Date(),
 				})
@@ -892,7 +892,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			});
 
 			if (wallet && !bet.betFreebetId) {
-				if (bet.status === "place") {
+				if (bet.status === "created") {
 					const walletUpdate = await db
 						.update(schema.wallet)
 						.set({
@@ -907,7 +907,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 							400,
 						);
 					}
-				} else if (bet.status === "accept") {
+				} else if (bet.status === "accepted") {
 					const walletUpdate = await db
 						.update(schema.wallet)
 						.set({
@@ -925,10 +925,24 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				}
 			}
 
+			const supportedRestrictionCodes = new Set(["not_enough_balance"]);
+			const restrictions = result.data.restrictions ?? [];
+			const hasSupportedRestriction = restrictions.some((restriction) => {
+				const candidate = restriction as Record<string, unknown>;
+				const code =
+					typeof candidate?.code === "string"
+						? candidate.code
+						: typeof candidate?.type === "string"
+							? candidate.type
+							: null;
+				return code ? supportedRestrictionCodes.has(code) : false;
+			});
+			const nextStatus = hasSupportedRestriction ? "place_error" : "force_decline";
+
 			const betUpdate = await db
 				.update(schema.sportsbookBet)
 				.set({
-					status: "decline",
+					status: nextStatus,
 					betData: JSON.stringify(result.data),
 					updatedAt: new Date(),
 				})
@@ -950,7 +964,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 					id: (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
 					betId: result.data.bet_id,
 					requestId: result.data.request_id,
-					eventType: "decline",
+					eventType: nextStatus,
 					eventData: JSON.stringify(result.data),
 					createdAt: now,
 				})
@@ -1125,13 +1139,13 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			);
 		}
 
-		if (bet.status !== "accept") {
+		if (bet.status !== "accepted" && bet.status !== "unsettled") {
 			return c.json(
 				{
 					error: {
 						code: "custom_error",
 						data: {
-							code: "bet_not_accepted",
+							code: "bet_not_accepted_or_unsettled",
 							current_status: bet.status,
 						},
 					},
@@ -1169,7 +1183,12 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				}
 			}
 
-			const newStatus = settleType === 2 ? "rolled_back" : "settle";
+			const newStatus =
+				settleType === 2
+					? bet.status === "unsettled"
+						? "refunded_manually"
+						: "rolled_back"
+					: "settled";
 
 			const betUpdate = await db
 				.update(schema.sportsbookBet)
@@ -1196,7 +1215,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 					id: (globalThis as any).crypto?.randomUUID?.() ?? String(Date.now()),
 					betId: result.data.bet_id,
 					requestId: result.data.request_id,
-					eventType: settleType === 2 ? "rolled_back" : "settle",
+					eventType: newStatus,
 					eventData: JSON.stringify(result.data),
 					createdAt: now,
 				})
@@ -1371,7 +1390,11 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			);
 		}
 
-		if (bet.status !== "settle" && bet.status !== "rolled_back") {
+		if (
+			bet.status !== "settled" &&
+			bet.status !== "rolled_back" &&
+			bet.status !== "refunded_manually"
+		) {
 			return c.json(
 				{
 					error: {
@@ -1414,7 +1437,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			const betUpdate = await db
 				.update(schema.sportsbookBet)
 				.set({
-					status: "accept",
+					status: "unsettled",
 					settleAmount: null,
 					settleType: null,
 					updatedAt: new Date(),
@@ -1841,12 +1864,70 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			);
 		}
 
-		const refundAmountKobo = bet.settleAmount || 0;
-
 		try {
 			const wallet = await db.query.wallet.findFirst({
 				where: eq(schema.wallet.userId, bet.userId),
 			});
+
+			const acceptedCashoutEvents = result.data.cash_out_order_ids.length
+				? await db.query.sportsbookBetEvent.findMany({
+						where: and(
+							eq(schema.sportsbookBetEvent.betId, result.data.bet_id),
+							eq(schema.sportsbookBetEvent.eventType, "cash_out_accepted"),
+						),
+					})
+				: [];
+
+			const acceptedRefundByOrderId = new Map<string, number>();
+			for (const event of acceptedCashoutEvents) {
+				if (!event.eventData) continue;
+				try {
+					const parsed = JSON.parse(event.eventData) as {
+						cash_out_order_id?: string;
+						refund_amount?: string;
+					};
+					if (!parsed.cash_out_order_id || !parsed.refund_amount) continue;
+					const amountKobo = Math.round(
+						parseFloat(parsed.refund_amount) * 100,
+					);
+					if (!Number.isFinite(amountKobo) || amountKobo <= 0) continue;
+					acceptedRefundByOrderId.set(parsed.cash_out_order_id, amountKobo);
+				} catch {
+					// Ignore malformed historical event payloads.
+				}
+			}
+
+			const priorDeclinedEvents = await db.query.sportsbookBetEvent.findMany({
+				where: and(
+					eq(schema.sportsbookBetEvent.betId, result.data.bet_id),
+					eq(schema.sportsbookBetEvent.eventType, "cash_out_declined"),
+				),
+			});
+
+			const previouslyDeclinedOrderIds = new Set<string>();
+			for (const event of priorDeclinedEvents) {
+				if (!event.eventData) continue;
+				try {
+					const parsed = JSON.parse(event.eventData) as {
+						cash_out_order_ids?: string[];
+					};
+					for (const orderId of parsed.cash_out_order_ids ?? []) {
+						previouslyDeclinedOrderIds.add(orderId);
+					}
+				} catch {
+					// Ignore malformed historical event payloads.
+				}
+			}
+
+			const uniqueIncomingOrderIds = Array.from(
+				new Set(result.data.cash_out_order_ids),
+			);
+			const orderIdsToReverse = uniqueIncomingOrderIds.filter(
+				(orderId) => !previouslyDeclinedOrderIds.has(orderId),
+			);
+			const refundAmountKobo = orderIdsToReverse.reduce((sum, orderId) => {
+				return sum + (acceptedRefundByOrderId.get(orderId) ?? 0);
+			}, 0);
 
 			if (wallet && refundAmountKobo > 0) {
 				const walletUpdate = await db
@@ -1869,7 +1950,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				: [];
 			const newOrderIds = [
 				...existingOrderIds,
-				...result.data.cash_out_order_ids,
+				...orderIdsToReverse,
 			];
 
 			const betUpdate = await db

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
@@ -26,26 +27,36 @@ export const socials = [
 	},
 ];
 const Socials = () => {
+	const widgetRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		const SCRIPT_SRC = "https://www.livecoinwatch.com/static/lcw-widget.js";
+		if (!widgetRef.current) return;
+
+		// Add the widget container if it's not already present
+		if (!widgetRef.current.querySelector(".livecoinwatch-widget-5")) {
+			const w = document.createElement("div");
+			w.className = "livecoinwatch-widget-5";
+			w.setAttribute("lcw-base", "USD");
+			w.setAttribute("lcw-color-tx", "#999999");
+			w.setAttribute("lcw-marquee-1", "coins");
+			w.setAttribute("lcw-marquee-2", "none");
+			w.setAttribute("lcw-marquee-items", "10");
+			widgetRef.current.appendChild(w);
+		}
+
+		// Inject the script once
+		if (!document.querySelector(`script[src="${SCRIPT_SRC}"]`)) {
+			const s = document.createElement("script");
+			s.src = SCRIPT_SRC;
+			s.defer = true;
+			document.body.appendChild(s);
+		}
+	}, []);
+
 	return (
-		<div className="my-4 hidden justify-center px-8 md:px-0 lg:flex">
-			<div className="flex h-10 items-center gap-6 rounded-full bg-primary px-6 py-6 dark:bg-card">
-				<p className="text-secondary text-sm md:text-base dark:text-white">
-					For more update follow us on:
-				</p>
-				<div className="flex items-center gap-2">
-					{socials.map(({ icon: Icon, id, link }) => (
-						<a
-							key={id}
-							href={link}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex size-8 items-center justify-center rounded-full bg-white p-2 dark:bg-white"
-						>
-							<Icon />
-						</a>
-					))}
-				</div>
-			</div>
+		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex">
+			<div ref={widgetRef} className="mt-4 flex w-full  bg-white h-14" />
 		</div>
 	);
 };

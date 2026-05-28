@@ -707,7 +707,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 
 		const walletResponse = {
 			id: newWallet.id,
-			balance: newWallet.balance,
+			balance: newWallet.balance / 100,
 			createdAt: newWallet.createdAt,
 			updatedAt: newWallet.updatedAt,
 		};
@@ -770,8 +770,8 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 
 	const transactionsInNaira = transactions.map((tx) => ({
 		...tx,
-		amount: tx.amount / 100,
-		balance: tx.balance / 100,
+		amount: (tx.amount ?? 0) / 100,
+		balance: (tx.balance ?? 0) / 100,
 	}));
 
 	return c.json(

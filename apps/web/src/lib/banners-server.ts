@@ -30,8 +30,9 @@ export interface BannerData {
 	alt?: string;
 }
 
-export const getBanners = createServerFn({ method: "GET" }).handler(
-	async () => {
+export const getBanners = createServerFn({ method: "GET" })
+	.inputValidator(() => undefined)
+	.handler(async () => {
 		const query = `*[_type == "banner"] | order(_createdAt desc)[0...10] {
 			_id,
 			image,
@@ -63,5 +64,4 @@ export const getBanners = createServerFn({ method: "GET" }).handler(
 			// Return empty array on error to prevent error boundary trigger
 			return [];
 		}
-	},
-);
+	});

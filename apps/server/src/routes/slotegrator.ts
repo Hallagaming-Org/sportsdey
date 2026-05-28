@@ -497,7 +497,7 @@ slotegratorRoute.post("/", async (c) => {
 
 	if (action === "win") {
 		const playerId = params.get("player_id") || "";
-		const amount = parseFloat(params.get("amount") || "0");
+		const amount = Number.parseFloat(params.get("amount") || "0");
 		const currency = params.get("currency") || "NGN";
 		const gameUuid = params.get("game_uuid") || "";
 		const transactionId = params.get("transaction_id") || "";
@@ -619,7 +619,7 @@ slotegratorRoute.post("/", async (c) => {
 
 	if (action === "refund") {
 		const playerId = params.get("player_id") || "";
-		const amount = parseFloat(params.get("amount") || "0");
+		const amount = Number.parseFloat(params.get("amount") || "0");
 		const currency = params.get("currency") || "NGN";
 		const gameUuid = params.get("game_uuid") || "";
 		const transactionId = params.get("transaction_id") || "";
@@ -840,7 +840,7 @@ slotegratorRoute.post("/", async (c) => {
 		txKeys.forEach(([key]) => {
 			const match = key.match(/rollback_transactions\[(\d+)\]\[(\w+)\]/);
 			if (match) {
-				const index = parseInt(match[1], 10);
+				const index = Number.parseInt(match[1], 10);
 				const field = match[2];
 				if (!rollbackTransactions[index]) {
 					rollbackTransactions[index] = {} as never;
@@ -928,9 +928,9 @@ slotegratorRoute.post("/", async (c) => {
 			rolledBackTxIds.push(txId);
 
 			if (tx.type === "bet") {
-				currentBalance += Math.round(parseFloat(tx.amount) * 100);
+				currentBalance += Math.round(Number.parseFloat(tx.amount) * 100);
 			} else if (tx.type === "win" || tx.type === "refund") {
-				currentBalance -= Math.round(parseFloat(tx.amount) * 100);
+				currentBalance -= Math.round(Number.parseFloat(tx.amount) * 100);
 			}
 		}
 

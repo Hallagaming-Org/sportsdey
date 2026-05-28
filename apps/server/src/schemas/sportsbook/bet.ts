@@ -35,7 +35,7 @@ export const BetSettleRequestSchema = z.object({
 	base_odds_value: z.string().optional(),
 	bet_odds: z.array(z.any()).optional(),
 	settle_amount: z.string(),
-	settle_type: z.number(),
+	settle_type: z.union([z.literal(1), z.literal(2), z.literal(3)]),
 	restrictions: z.array(z.any()).optional(),
 });
 
