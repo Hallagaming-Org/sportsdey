@@ -23,6 +23,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 import Sidebar from "./sidebar";
 import MenuBar from "@/logos/MenuBar";
+import NigerianFlag from "@/logos/NigerianFlag";
 
 const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
 	<svg
@@ -118,8 +119,8 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
 			<div className="w-full bg-white text-foreground lg:bg-primary">
-				<div className="flex h-[72px] min-w-0 items-center justify-between gap-3 px-4 py-2 lg:hidden">
-					<div className="flex items-center gap-3">
+				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-4 py-2 lg:hidden">
+					<div className="flex items-center gap-1.5 shrink-0">
 						<button
 							type="button"
 							onClick={() => setOpen(!open)}
@@ -127,9 +128,8 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							aria-expanded={open}
 							aria-controls="mobile-menu"
 							aria-label={open ? "Close main menu" : "Open main menu"}
-							className="flex items-center justify-center"
+							className="flex items-center justify-center shrink-0"
 						>
-							{/* <Menu className="h-5 w-5 text-gray-900" /> */}
 							<MenuBar />
 						</button>
 						<Link
@@ -142,24 +142,30 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						>
 							<img
 								src="/sportsdey-logo.jpeg"
-								className="h-8 w-auto"
+								className="h-7 sm:h-8 w-auto"
 								alt="sportsdey's logo"
 							/>
 						</Link>
 					</div>
 
-					<div className="flex items-center gap-2">
-						<div className="flex items-center overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm">
+					<div className="flex items-center gap-1.5 shrink-0">
+						<div className="flex h-8 min-w-[110px] max-w-[150px] items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] px-1 shadow-sm shrink-0">
 							<Link
 								to="/wallet"
-								className="flex h-9 min-w-[112px] items-center gap-2 px-3"
+								className="flex flex-1 items-center gap-1.5 overflow-hidden px-1.5"
 								aria-label="Wallet balance"
 							>
-								<span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#0B7A3B]" />
-								<span className="truncate font-medium text-[12px] text-gray-700">
+								<NigerianFlag />
+								<span
+									className="truncate font-semibold tracking-tight text-[#4b5563] transition-all"
+									style={{
+										fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
+									}}
+								>
 									{mobileBalance}
 								</span>
 							</Link>
+
 							<button
 								type="button"
 								onClick={() =>
@@ -169,7 +175,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									})
 								}
 								aria-label="Add funds"
-								className="flex h-9 w-9 cursor-pointer items-center justify-center bg-[#1E78FF] text-white"
+								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-[#1E78FF] text-white transition-colors hover:bg-blue-600"
 							>
 								<Plus className="h-4 w-4" />
 							</button>
@@ -177,16 +183,16 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 						<button
 							type="button"
-							className="relative flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-transparent text-gray-500"
+							className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-gray-500"
 							aria-label="Notifications"
 						>
 							<BellIcon className="h-5 w-5" />
-							<span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white" />
+							<span className="absolute top-0 right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white" />
 						</button>
 
 						<Link
 							to={session?.user ? "/account" : "/auth/sign-in"}
-							className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white"
+							className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white"
 							aria-label="Account"
 						>
 							<img
