@@ -18,6 +18,7 @@ import { useActiveTab } from "./active-tab-context";
 import Soccer from "@/logos/Soccer";
 import PredictionMarket from "@/logos/PredictionMarket";
 import Video from "@/logos/Video";
+import Trading from "@/logos/Trading";
 
 type MenuItem = {
 	id: string;
@@ -165,7 +166,7 @@ const Sidebar = () => {
 		{
 			id: "trading",
 			label: "Trading",
-			icon: ArrowLeftRight,
+			icon: Trading,
 			isActive: false,
 			onClick: () => window.open("https://Binary.sportsdey.com", "_blank"),
 		},
