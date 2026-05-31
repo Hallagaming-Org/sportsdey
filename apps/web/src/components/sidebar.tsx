@@ -1,9 +1,7 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
-	ArrowLeftRight,
 	Gamepad2,
 	Gift,
-	HelpCircle,
 	Home,
 	Newspaper,
 	Trophy,
@@ -244,7 +242,7 @@ const Sidebar = () => {
 										? "bg-accent text-white shadow-md shadow-accent/15"
 										: "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
 									item.disabled &&
-										"cursor-not-allowed opacity-50 hover:bg-transparent hover:text-gray-500 dark:hover:bg-transparent dark:hover:text-gray-400",
+									"cursor-not-allowed opacity-50 hover:bg-transparent hover:text-gray-500 dark:hover:bg-transparent dark:hover:text-gray-400",
 								)}
 							>
 								<Icon className="h-4 w-4 shrink-0" />
