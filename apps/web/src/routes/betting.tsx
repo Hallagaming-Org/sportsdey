@@ -6,6 +6,11 @@ import { getBanners } from "@/lib/banners-server";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/betting")({
+	validateSearch: (search: Record<string, unknown>) => {
+		return {
+			type: search.type as string | undefined,
+		};
+	},
 	loader: () => getBanners(),
 	component: RouteComponent,
 });
