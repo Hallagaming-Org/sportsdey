@@ -363,16 +363,16 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
-							<div className="w-full rounded-2xl border border-[#F1F2F4] bg-white p-4 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]">
-								<h3 className="mb-3 font-semibold text-gray-500 text-sm dark:text-gray-400">Social Links</h3>
-								<div className="flex items-center gap-2">
+							<div className="w-full px-2 pt-2">
+								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social Links</h3>
+								<div className="flex items-center gap-3">
 									{socials.map(({ icon: Icon, id, link }) => (
 										<a
 											key={id}
 											href={link}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="flex size-10 items-center justify-center rounded-full bg-gray-50 p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:bg-black/20 dark:text-gray-300 dark:hover:bg-black/40 dark:hover:text-white"
+										// className="flex size-10 items-center justify-center rounded-full p-2 text-gray-900 transition-colors hover:bg-gray-300 dark:bg-[#1C1D1F] dark:text-[#8C8F8F] dark:hover:bg-[#2F3033] dark:hover:text-white"
 										>
 											<Icon />
 										</a>
