@@ -313,7 +313,7 @@ function RouteComponent() {
 						))}
 					<ImportantUpdate />
 				</div>
-				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:block">
+				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:block lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
 					<RightSidebar />
 				</div>
 			</div>
