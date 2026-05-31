@@ -12,7 +12,6 @@ import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
 import { cn, formatAmount } from "@/lib/utils";
 import BasketballIcon from "@/logos/basketball.svg?react";
-import BellIcon from "@/logos/bell.svg?react";
 import BoxingIcon from "@/logos/boxing.svg?react";
 import FootballIcon from "@/logos/football.svg?react";
 import TennisIcon from "@/logos/tennis.svg?react";
