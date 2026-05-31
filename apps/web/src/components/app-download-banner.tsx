@@ -5,8 +5,8 @@ export default function AppDownloadBanner() {
   flex flex-col md:flex-row items-center justify-between gap-6 md:gap-12 
   shadow-xl transition-all hover:shadow-2xl hover:scale-[1.005]">
 			<div className="text-center md:text-left space-y-2">
-				<h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-white tracking-tight">
-					Download the <span className="text-[#FFD700]">SportsDey App</span>
+				<h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-[#FFCF31] dark:text-[#F6E885] tracking-tight">
+					Download the SportsDey App
 				</h2>
 				<p className="text-sm md:text-base lg:text-lg font-medium text-white/80">
 					Better, Faster, Smarter.
