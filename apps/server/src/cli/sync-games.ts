@@ -45,7 +45,7 @@ for (const arg of args) {
 	if (arg === "production" || arg === "staging") {
 		env = arg;
 	} else if (/^\d+$/.test(arg)) {
-		limit = parseInt(arg, 10);
+		limit = Number.parseInt(arg, 10);
 	} else if (arg.startsWith("--db=")) {
 		dbName = arg.replace("--db=", "");
 	}
@@ -122,6 +122,7 @@ async function fetchGames(
 
 	const allParams: Record<string, string> = {
 		...queryParams,
+		"filter[is_mobile]": "0",
 		"X-Merchant-Id": merchantId,
 		"X-Timestamp": timestamp,
 		"X-Nonce": nonce,
@@ -136,7 +137,7 @@ async function fetchGames(
 
 	const xSign = await generateXSign(allQueryString, merchantKey);
 
-	const url = `${slotegratorApiUrl}/games/index?${queryString}`;
+	const url = `${slotegratorApiUrl}/games/index?filter[is_mobile]=0&${queryString}`;
 
 	const response = await fetch(url, {
 		method: "GET",
@@ -156,6 +157,8 @@ async function fetchGames(
 	}
 
 	const data = (await response.json()) as GamesApiResponse;
+
+	console.log("games", data);
 	return data;
 }
 

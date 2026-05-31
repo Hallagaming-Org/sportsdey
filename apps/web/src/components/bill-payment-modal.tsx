@@ -1,7 +1,8 @@
 import { Loader2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiRequest } from "@/lib/api";
+import { formatAmount } from "@/lib/utils";
 
 type Biller = {
 	code: string;
@@ -10,17 +11,21 @@ type Biller = {
 };
 
 type Product = {
-	productCode: string;
-	billerCode: string;
-	billerName: string;
+	code: string;
 	name: string;
-	productType: string;
-	amount: number | null;
-	unit: string | null;
-	isAmountFixed: number;
+	category: { code: string; name: string };
+	billers: { code: string; name: string }[];
 	minAmount: number | null;
 	maxAmount: number | null;
-	fixedAmount: number | null;
+	price: number;
+	priceType: "OPEN" | "FIXED";
+	metadata: {
+		volume: number;
+		duration: number;
+		productType: { code: string; name: string };
+		durationUnit: string;
+		productCategory: string;
+	};
 };
 
 type VendResponse = {
@@ -66,20 +71,10 @@ export function BillPaymentModal({
 	const [amount, setAmount] = useState("");
 	const [vendResult, setVendResult] = useState<VendResponse | null>(null);
 	const [isVending, setIsVending] = useState(false);
+	const isFixedAmountProduct = (product: Product) =>
+		product.priceType !== "OPEN";
 
-	useEffect(() => {
-		if (isOpen && categoryCode) {
-			fetchBillers();
-		}
-	}, [isOpen, categoryCode]);
-
-	useEffect(() => {
-		if (step === "select-product" && selectedBiller) {
-			fetchProducts();
-		}
-	}, [step, selectedBiller]);
-
-	const fetchBillers = async () => {
+	const fetchBillers = useCallback(async () => {
 		setIsLoading(true);
 		setError("");
 		try {
@@ -97,9 +92,9 @@ export function BillPaymentModal({
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [categoryCode]);
 
-	const fetchProducts = async () => {
+	const fetchProducts = useCallback(async () => {
 		if (!selectedBiller) return;
 		setIsLoading(true);
 		setError("");
@@ -110,6 +105,7 @@ export function BillPaymentModal({
 					credentials: "include",
 				},
 			);
+			console.log("products", response.content);
 			setProducts(response.content);
 		} catch (err) {
 			setError(
@@ -118,25 +114,42 @@ export function BillPaymentModal({
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [selectedBiller]);
+
+	useEffect(() => {
+		if (isOpen && categoryCode) {
+			fetchBillers();
+		}
+	}, [isOpen, categoryCode, fetchBillers]);
+
+	useEffect(() => {
+		if (step === "select-product" && selectedBiller) {
+			fetchProducts();
+		}
+	}, [step, selectedBiller, fetchProducts]);
 
 	const handleVend = async () => {
+		console.log(selectedProduct);
 		if (!selectedProduct || !customerId) return;
 		setIsVending(true);
 		setError("");
 		try {
-			const vendAmount =
-				selectedProduct.isAmountFixed === 1
-					? (selectedProduct.fixedAmount ??
-						selectedProduct.amount ??
-						Number(amount))
-					: Number(amount);
+			const normalizedProductCode = selectedProduct.code?.trim();
+			if (!normalizedProductCode) {
+				throw new Error(
+					"Invalid product selection. Please reselect a product.",
+				);
+			}
+
+			const vendAmount = isFixedAmountProduct(selectedProduct)
+				? (selectedProduct.price ?? Number(amount))
+				: Number(amount);
 
 			const data = await apiRequest<VendResponse>("bills/vend", {
 				method: "POST",
 				credentials: "include",
 				body: JSON.stringify({
-					productCode: selectedProduct.productCode,
+					productCode: normalizedProductCode,
 					customerId,
 					amount: vendAmount,
 				}),
@@ -231,15 +244,13 @@ export function BillPaymentModal({
 						) : (
 							<ul className="space-y-2">
 								{products.map((product) => (
-									<li key={product.productCode}>
+									<li key={product.code}>
 										<button
 											type="button"
 											onClick={() => {
 												setSelectedProduct(product);
-												if (product.isAmountFixed === 1) {
-													setAmount(
-														String(product.fixedAmount ?? product.amount ?? 0),
-													);
+												if (isFixedAmountProduct(product)) {
+													setAmount(String(product.price ?? 0));
 												}
 												setStep("payment");
 											}}
@@ -249,8 +260,8 @@ export function BillPaymentModal({
 												{product.name}
 											</p>
 											<p className="text-[#6E6E6E] text-xs">
-												{product.isAmountFixed === 1
-													? `₦${product.fixedAmount ?? product.amount}`
+												{isFixedAmountProduct(product)
+													? `₦${product.price}`
 													: product.minAmount && product.maxAmount
 														? `₦${product.minAmount} - ₦${product.maxAmount}`
 														: "Custom amount"}
@@ -267,18 +278,20 @@ export function BillPaymentModal({
 					<div className="mt-4 space-y-4">
 						<div className="rounded-lg bg-[#F0F0F0] p-3 dark:bg-[#2A2A2A]">
 							<p className="text-primary text-sm dark:text-white">
-								{selectedProduct.billerName} - {selectedProduct.name}
+								{selectedBiller?.name ?? "Biller"} - {selectedProduct.name}
 							</p>
-							{selectedProduct.isAmountFixed === 1 && (
+							{isFixedAmountProduct(selectedProduct) && (
 								<p className="font-semibold text-lg text-primary dark:text-white">
-									₦{selectedProduct.fixedAmount ?? selectedProduct.amount}
+									₦{selectedProduct.price}
 								</p>
 							)}
 						</div>
 
 						<div>
 							<label className="mb-2 block text-primary text-sm dark:text-white">
-								{categoryCode === "AIRTIME" || categoryCode === "DATA"
+								{["AIRTIME", "DATA", "DATA_BUNDLE", "INTERNET"].includes(
+									categoryCode,
+								)
 									? "Phone Number"
 									: categoryCode === "ELECTRICITY"
 										? "Meter Number"
@@ -288,7 +301,9 @@ export function BillPaymentModal({
 								value={customerId}
 								onChange={(e) => setCustomerId(e.target.value)}
 								placeholder={
-									categoryCode === "AIRTIME" || categoryCode === "DATA"
+									["AIRTIME", "DATA", "DATA_BUNDLE", "INTERNET"].includes(
+										categoryCode,
+									)
 										? "08031234567"
 										: categoryCode === "ELECTRICITY"
 											? "Meter number"
@@ -297,7 +312,7 @@ export function BillPaymentModal({
 							/>
 						</div>
 
-						{selectedProduct.isAmountFixed !== 1 && (
+						{!isFixedAmountProduct(selectedProduct) && (
 							<div>
 								<label className="mb-2 block text-primary text-sm dark:text-white">
 									Amount (₦)
@@ -357,7 +372,7 @@ export function BillPaymentModal({
 										<b>Product:</b> {vendResult.productName}
 									</p>
 									<p className="text-primary text-sm dark:text-white">
-										<b>Amount:</b> ₦{vendResult.amountPaid.toLocaleString()}
+										<b>Amount:</b> ₦{formatAmount(vendResult.amountPaid)}
 									</p>
 									<p className="text-primary text-sm dark:text-white">
 										<b>Customer ID:</b> {vendResult.customerId}

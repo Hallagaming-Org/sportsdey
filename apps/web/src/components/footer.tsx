@@ -1,113 +1,103 @@
 import { useRouter } from "@tanstack/react-router";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { cn } from "@/lib/utils";
-import Bet from "@/logos/bet.svg?react";
-import Favourite from "@/logos/favourite.svg?react";
-import News from "@/logos/news.svg?react";
-import Score from "@/logos/score.svg?react";
+import Games from "@/logos/game.svg?react";
+import Home from "@/logos/home-Filled.svg?react";
+import News from "@/logos/news-footer.svg?react";
+import Sports from "@/logos/sport.svg?react";
+import WalletIcon from "@/logos/wallet.svg?react";
 
 import { type Tabs, useActiveTab } from "./active-tab-context";
 
 const bottomBarItems: {
 	id: number;
 	item: Tabs;
+	label: string;
 	icon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }>;
 }[] = [
-		{
-			id: 1,
-			item: "scores",
-			icon: Score,
-		},
-		{
-			id: 2,
-			item: "favourites",
-			icon: Favourite,
-		},
-		{
-			id: 3,
-			item: "betting",
-			icon: Bet,
-		},
-		{
-			id: 4,
-			item: "news",
-			icon: News,
-		},
-		// {
-		// 	id: 5,
-		// 	item: "lives",
-		// 	icon: Lives,
-		// },
-	];
+	{ id: 1, item: "scores", label: "Home", icon: Home },
+	{ id: 2, item: "betting", label: "Sports", icon: Sports },
+	{ id: 3, item: "games", label: "Casino", icon: Games },
+	{ id: 4, item: "news", label: "News", icon: News },
+	{ id: 5, item: "favourites", label: "Wallet", icon: WalletIcon },
+];
 const Footer = () => {
 	const currentSport = useCurrentSport();
 	const { tab, setTab } = useActiveTab();
 	const router = useRouter();
 	return (
-		<div className="flex w-full justify-between rounded-t-3xl bg-primary px-8 py-4 lg:hidden">
-			{bottomBarItems.map(({ id, icon: Icon, item }) => (
-				<div
-					key={id}
-					onClick={() => {
-						setTab(item);
-						if (item === "scores") {
-							const targetSport = currentSport || "football";
-							router.navigate({
-								to:
-									targetSport === "tennis"
-										? "/tennis"
-										: targetSport === "basketball"
-											? "/basketball"
-											: "/",
-								search: { league: undefined, sports: targetSport } as any,
-							});
-						}
+		<div className="px-0 pt-3 lg:hidden">
+			<div className="w-full">
+				<div className="rounded-t-lg border-gray-100 border-t bg-white p-2 shadow-lg">
+					<div className="flex items-center justify-between">
+						{bottomBarItems.map(({ id, icon: Icon, item, label }) => (
+							<button
+								key={id}
+								onClick={() => {
+									setTab(item);
+									if (item === "scores") {
+										const targetSport = currentSport || "football";
+										router.navigate({
+											to:
+												targetSport === "tennis"
+													? "/tennis"
+													: targetSport === "basketball"
+														? "/basketball"
+														: "/",
+											search: { league: undefined, sports: targetSport } as any,
+										});
+									}
 
-						if (item === "favourites") {
-							router.navigate({
-								to: "/favorites",
-								search: { sports: currentSport },
-							});
-						}
-						if (item === "news") {
-							router.navigate({
-								to: "/news",
-								search: { sports: currentSport },
-							});
-						}
+									if (item === "betting") {
+										router.navigate({
+											to: "/sportsbook",
+											search: { sports: currentSport } as any,
+										});
+									}
 
-						if (item === "betting") {
-							router.navigate({ to: "/betting", search: {} as any });
-						}
-						// if (item === "videos") {
-						// 	router.navigate({
-						// 		to: "/news",
-						// 		search: { sports: currentSport, tab: "videos" },
-						// 	});
-						// }
-						// if(item === "lives") {
-						// 		router.navigate({ to: "/lives" });
-						// }
-					}}
-					className={cn(
-						"flex flex-col items-center space-y-2",
-						tab === item ? "text-accent" : "text-secondary",
-					)}
-				>
-					<Icon
-						color={tab === item ? "#1baa04" : "#ececec"}
-						fill={tab === item ? "#1baa04" : "#ececec"}
-					/>
-					<p
-						className={cn(
-							"text-secondary",
-							tab === item ? "text-accent" : "text-secondary",
-						)}
-					>
-						{item.charAt(0).toUpperCase() + item.slice(1).toLowerCase()}
-					</p>
+									if (item === "games") {
+										router.navigate({ to: "/games" });
+									}
+
+									if (item === "favourites") {
+										router.navigate({
+											to: "/wallet",
+											search: { sports: currentSport } as any,
+										});
+									}
+
+									if (item === "news") {
+										router.navigate({
+											to: "/news",
+											search: { sports: currentSport } as any,
+										});
+									}
+								}}
+								className="flex flex-1 flex-col items-center space-y-1"
+							>
+								<div
+									className={cn(
+										"flex h-10 w-10 items-center justify-center rounded-full transition-all",
+										tab === item ? "text-[#006AFF]" : "text-[#8C8F8F]",
+									)}
+								>
+								<Icon
+									className={cn("h-5 w-5")}
+								/>
+								</div>
+								<span
+									className={cn(
+										"mt-1 text-[11px]",
+										tab === item ? "text-[#006AFF]" : "text-gray-400",
+									)}
+								>
+									{label}
+								</span>
+							</button>
+						))}
+					</div>
 				</div>
-			))}
+			</div>
 		</div>
 	);
 };

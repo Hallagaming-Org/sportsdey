@@ -1,115 +1,153 @@
 import crypto from "node:crypto";
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, like, or, sql } from "drizzle-orm";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "@hono/zod-openapi";
 import {
 	generateSessionToken,
 	getSessionToken,
 	validateAdminSession,
 } from "@/auth/admin";
-import { requirePermission } from "@/middleware/admin-permissions";
 import * as schema from "@/db/schema";
+import { requirePermission } from "@/middleware/admin-permissions";
+import { parseQueryDateRange } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-const UpdateUserSchema = z.object({
-	name: z.string().min(1).openapi({
-		description: "User's full name",
-		example: "John Doe",
-	}),
-	country: z.string().optional().openapi({
-		description: "User's country",
-		example: "Nigeria",
-	}),
-	mobileNumber: z.string().optional().openapi({
-		description: "User's mobile number",
-		example: "+2348012345678",
-	}),
-}).openapi("UpdateUser");
+const UpdateUserSchema = z
+	.object({
+		name: z.string().min(1).openapi({
+			description: "User's full name",
+			example: "John Doe",
+		}),
+		country: z.string().optional().openapi({
+			description: "User's country",
+			example: "Nigeria",
+		}),
+		mobileNumber: z
+			.string()
+			.regex(
+				/^(0|\+?234)[789][01]\d{8}$/,
+				"Invalid Nigerian phone number format",
+			)
+			.optional()
+			.openapi({
+				description: "User's mobile number",
+				example: "08012345678",
+			}),
+	})
+	.openapi("UpdateUser");
 
-const UserResponseSchema = z.object({
-	id: z.string().openapi({ description: "User ID" }),
-	name: z.string().openapi({ description: "User's name" }),
-	email: z.string().openapi({ description: "User's email" }),
-	emailVerified: z
-		.boolean()
-		.openapi({ description: "Email verification status" }),
-	image: z
-		.string()
-		.nullable()
-		.openapi({ description: "User's profile image URL" }),
-	country: z.string().nullable().openapi({ description: "User's country" }),
-	mobileNumber: z
-		.string()
-		.nullable()
-		.openapi({ description: "User's mobile number" }),
-	suspended: z.boolean().openapi({ description: "Suspension status" }),
-	createdAt: z.string().openapi({ description: "Creation timestamp" }),
-	updatedAt: z.string().openapi({ description: "Last update timestamp" }),
-}).openapi("UserResponse");
+const UserResponseSchema = z
+	.object({
+		id: z.string().openapi({ description: "User ID" }),
+		name: z.string().openapi({ description: "User's name" }),
+		email: z.string().openapi({ description: "User's email" }),
+		emailVerified: z
+			.boolean()
+			.openapi({ description: "Email verification status" }),
+		image: z
+			.string()
+			.nullable()
+			.openapi({ description: "User's profile image URL" }),
+		country: z.string().nullable().openapi({ description: "User's country" }),
+		mobileNumber: z
+			.string()
+			.nullable()
+			.openapi({ description: "User's mobile number" }),
+		suspended: z.boolean().openapi({ description: "Suspension status" }),
+		createdAt: z.string().openapi({ description: "Creation timestamp" }),
+		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
+	})
+	.openapi("UserResponse");
 
-const UpdateUserErrorSchema = z.object({
-	success: z.literal(false).openapi({ description: "Success status" }),
-	error: z.string().openapi({ description: "Error message" }),
-	details: z.null().openapi({ description: "Error details" }),
-}).openapi("UpdateUserError");
+const UpdateUserErrorSchema = z
+	.object({
+		success: z.literal(false).openapi({ description: "Success status" }),
+		error: z.string().openapi({ description: "Error message" }),
+		details: z.null().openapi({ description: "Error details" }),
+	})
+	.openapi("UpdateUserError");
 
-const UpdateUserResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: UserResponseSchema.openapi({ description: "User data" }),
-}).openapi("UpdateUserResponse");
+const UpdateUserResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: UserResponseSchema.openapi({ description: "User data" }),
+	})
+	.openapi("UpdateUserResponse");
 
-const GetAllUsersQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number (default: 1)", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({
+const GetAllUsersQuerySchema = z
+	.object({
+		page: z
+			.string()
+			.optional()
+			.openapi({ description: "Page number (default: 1)", example: "1" }),
+		limit: z.string().optional().openapi({
 			description: "Items per page (default: 10, max: 100)",
 			example: "10",
 		}),
-	sort: z
-		.enum(["asc", "desc"])
-		.optional()
-		.openapi({ description: "Sort order", example: "asc" }),
-	search: z
-		.string()
-		.optional()
-		.openapi({
-			description: "Search by name, email, or user ID",
-			example: "john",
+		sort: z
+			.enum(["asc", "desc"])
+			.optional()
+			.openapi({ description: "Sort order", example: "asc" }),
+		status: z
+			.enum([
+				"all",
+				"verified",
+				"not_verified",
+				"pending_verification",
+				"rejected",
+			])
+			.optional()
+			.openapi({
+				description: "Filter by verification status",
+				example: "all",
+			}),
+		tab: z
+			.enum(["all", "recent", "pending"])
+			.optional()
+			.openapi({ description: "Filter by tab", example: "all" }),
+		fromDate: z.string().optional().openapi({
+			description:
+				"Filter users registered on or after this date (ISO format: YYYY-MM-DD)",
+			example: "2025-01-01",
 		}),
-	tab: z
-		.enum(["all", "recent", "pending"])
-		.optional()
-		.openapi({ description: "Filter by tab", example: "all" }),
-}).openapi("GetAllUsersQuery");
+		toDate: z.string().optional().openapi({
+			description:
+				"Filter users registered on or before this date (ISO format: YYYY-MM-DD)",
+			example: "2025-01-31",
+		}),
+	})
+	.openapi("GetAllUsersQuery");
 
-const UserListItemSchema = z.object({
-	id: z.string().openapi({ description: "User ID" }),
-	name: z.string().openapi({ description: "User's name" }),
-	email: z.string().openapi({ description: "User's email" }),
-	wallet: z.number().openapi({ description: "Wallet balance" }),
-	status: z.string().openapi({ description: "Verification status" }),
-	suspended: z.boolean().openapi({ description: "Suspension status" }),
-	registeredDate: z.string().openapi({ description: "Registration date" }),
-}).openapi("UserListItem");
+const UserListItemSchema = z
+	.object({
+		id: z.string().openapi({ description: "User ID" }),
+		name: z.string().openapi({ description: "User's name" }),
+		email: z.string().openapi({ description: "User's email" }),
+		wallet: z.number().openapi({ description: "Wallet balance" }),
+		status: z.string().openapi({ description: "Verification status" }),
+		suspended: z.boolean().openapi({ description: "Suspension status" }),
+		registeredDate: z.string().openapi({ description: "Registration date" }),
+	})
+	.openapi("UserListItem");
 
-const GetAllUsersResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: z.object({
-		users: z.array(UserListItemSchema).openapi({ description: "Users" }),
-		total: z.number().openapi({ description: "Total number of users" }),
-		page: z.number().openapi({ description: "Current page" }),
-		limit: z.number().openapi({ description: "Items per page" }),
-		totalPages: z.number().openapi({ description: "Total number of pages" }),
-	}).openapi({ description: "Response data" }),
-}).openapi("GetAllUsersResponse");
+const GetAllUsersResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: z
+			.object({
+				users: z.array(UserListItemSchema).openapi({ description: "Users" }),
+				total: z.number().openapi({ description: "Total number of users" }),
+				page: z.number().openapi({ description: "Current page" }),
+				limit: z.number().openapi({ description: "Items per page" }),
+				totalPages: z
+					.number()
+					.openapi({ description: "Total number of pages" }),
+			})
+			.openapi({ description: "Response data" }),
+	})
+	.openapi("GetAllUsersResponse");
 
 const getUserRoute = createRoute({
 	method: "get",
@@ -380,14 +418,23 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 
 	if (session.role !== "super_admin" && session.role !== "admin") {
 		return c.json(
-			{ success: false as const, error: "Forbidden - super admin or admin only" },
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
 			403,
 		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
 		return c.json(
-			{ success: false as const, error: "Forbidden - view_player_details permission required" },
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
 			403,
 		);
 	}
@@ -401,10 +448,20 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	);
 	const sort = c.req.query("sort") === "desc" ? "desc" : "asc";
 	const offset = (page - 1) * limit;
-	const search = c.req.query("search")?.trim();
 	const tab = c.req.query("tab") as "all" | "recent" | "pending" | undefined;
+	const status = c.req.query("status") as
+		| "all"
+		| "verified"
+		| "not_verified"
+		| "pending_verification"
+		| "rejected"
+		| undefined;
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: c.req.query("fromDate"),
+		toDate: c.req.query("toDate"),
+	});
 
-	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+	const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
 	let baseQuery = db
 		.select({
@@ -419,15 +476,16 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		.from(schema.user)
 		.leftJoin(schema.wallet, eq(schema.wallet.userId, schema.user.id));
 
-	let countQuery = db
-		.select({ count: sql<number>`count(*)` })
-		.from(schema.user)
-		.leftJoin(schema.wallet, eq(schema.wallet.userId, schema.user.id));
+
+
+	if (status && status !== "all") {
+		const statusCondition = and(eq(schema.user.verificationStatus, status));
+		baseQuery = baseQuery.where(statusCondition) as typeof baseQuery;
+	}
 
 	if (tab === "recent") {
 		const recentCondition = and(gte(schema.user.createdAt, sevenDaysAgo));
 		baseQuery = baseQuery.where(recentCondition) as typeof baseQuery;
-		countQuery = countQuery.where(recentCondition) as typeof countQuery;
 	}
 
 	if (tab === "pending") {
@@ -435,29 +493,18 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 			eq(schema.user.verificationStatus, "pending_verification"),
 		);
 		baseQuery = baseQuery.where(pendingCondition) as typeof baseQuery;
-		countQuery = countQuery.where(pendingCondition) as typeof countQuery;
 	}
 
-	if (search) {
-		const searchCondition = or(
-			like(schema.user.name, `%${search}%`),
-			like(schema.user.email, `%${search}%`),
-			eq(schema.user.id, search),
-		);
-		baseQuery = baseQuery.where(searchCondition) as typeof baseQuery;
-		countQuery = countQuery.where(searchCondition) as typeof countQuery;
-	}
+	// NOTE: Move date filtering out of DB layer. We'll apply from/to filtering
+	// in-memory after fetching results so admin endpoints control date
+	// filtering at the application layer.
 
 	const orderByClause =
 		sort === "desc" ? desc(schema.user.name) : asc(schema.user.name);
 
-	const rawUsers = await baseQuery
-		.orderBy(orderByClause)
-		.limit(limit)
-		.offset(offset);
-
-	const countResult = await countQuery;
-	const total = countResult[0]?.count || 0;
+	// fetch all matching rows (without date constraints) and apply date
+	// filtering, sorting and pagination in-memory
+	const rawUsers = await baseQuery.orderBy(orderByClause);
 
 	const users = rawUsers.map((u) => ({
 		id: u.id,
@@ -469,13 +516,27 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		registeredDate: u.registeredDate,
 	}));
 
+	// apply from/to date filters in memory
+	const filtered = users.filter((u) => {
+		if (!fromDate && !toDate) return true;
+		const ts = new Date(u.registeredDate).getTime();
+		if (fromDate && ts < fromDate.getTime()) return false;
+		if (toDate && ts > toDate.getTime()) return false;
+		return true;
+	});
+
+	const total = filtered.length;
 	const totalPages = Math.ceil(total / limit);
+
+	// paginate results in memory
+	const offsetIndex = offset;
+	const paginated = filtered.slice(offsetIndex, offsetIndex + limit);
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				users,
+				users: paginated,
 				total,
 				page,
 				limit,
@@ -486,36 +547,44 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	);
 });
 
-const CreateUserSchema = z.object({
-	name: z.string().min(1).openapi({
-		description: "User's full name",
-		example: "John Doe",
-	}),
-	email: z.string().email().openapi({
-		description: "User's email address",
-		example: "john@example.com",
-	}),
-	country: z.string().optional().openapi({
-		description: "User's country",
-		example: "Nigeria",
-	}),
-	mobileNumber: z.string().optional().openapi({
-		description: "User's mobile number",
-		example: "+2348012345678",
-	}),
-}).openapi("CreateUser");
+const CreateUserSchema = z
+	.object({
+		name: z.string().min(1).openapi({
+			description: "User's full name",
+			example: "John Doe",
+		}),
+		email: z.string().email().openapi({
+			description: "User's email address",
+			example: "john@example.com",
+		}),
+		country: z.string().optional().openapi({
+			description: "User's country",
+			example: "Nigeria",
+		}),
+		mobileNumber: z.string().optional().openapi({
+			description: "User's mobile number",
+			example: "+2348012345678",
+		}),
+	})
+	.openapi("CreateUser");
 
-const CreateUserResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: z.object({
-		id: z.string().openapi({ description: "User ID" }),
-		name: z.string().openapi({ description: "User name" }),
-		email: z.string().openapi({ description: "User email" }),
-		emailVerified: z.boolean().openapi({ description: "Email verified" }),
-		verificationStatus: z.string().openapi({ description: "Verification status" }),
-		createdAt: z.number().openapi({ description: "Created at" }),
-	}).openapi({ description: "Response data" }),
-}).openapi("CreateUserResponse");
+const CreateUserResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: z
+			.object({
+				id: z.string().openapi({ description: "User ID" }),
+				name: z.string().openapi({ description: "User name" }),
+				email: z.string().openapi({ description: "User email" }),
+				emailVerified: z.boolean().openapi({ description: "Email verified" }),
+				verificationStatus: z
+					.string()
+					.openapi({ description: "Verification status" }),
+				createdAt: z.number().openapi({ description: "Created at" }),
+			})
+			.openapi({ description: "Response data" }),
+	})
+	.openapi("CreateUserResponse");
 
 userRoute.openapi(
 	createRoute({
@@ -636,11 +705,221 @@ userRoute.openapi(
 	},
 );
 
+const UserProfileResponseSchema = z
+	.object({
+		id: z.string().openapi({ description: "User ID" }),
+		name: z.string().openapi({ description: "User's name" }),
+		email: z.string().openapi({ description: "User's email" }),
+		image: z
+			.string()
+			.nullable()
+			.openapi({ description: "User's profile image URL" }),
+		mobileNumber: z
+			.string()
+			.nullable()
+			.openapi({ description: "User's mobile number" }),
+		country: z.string().nullable().openapi({ description: "User's country" }),
+		verificationStatus: z
+			.string()
+			.openapi({ description: "Verification status" }),
+		suspended: z.boolean().openapi({ description: "Suspension status" }),
+		createdAt: z.string().openapi({ description: "Registration date" }),
+		wallet: z
+			.object({
+				balance: z.number().openapi({ description: "Wallet balance" }),
+			})
+			.openapi({ description: "User's wallet" }),
+		lastTopUp: z
+			.string()
+			.nullable()
+			.openapi({ description: "Last top-up date" }),
+	})
+	.openapi("UserProfile");
+
+const GetUserProfileResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: UserProfileResponseSchema.openapi({
+			description: "User profile data",
+		}),
+	})
+	.openapi("GetUserProfileResponse");
+
 const ToggleSuspendedSchema = z.object({
 	userId: z.string().min(1).openapi({
 		description: "User ID to toggle suspension",
 		example: "user_123",
 	}),
+});
+
+const getUserProfileRoute = createRoute({
+	method: "get",
+	path: "/{userId}/profile",
+	tags: ["User"],
+	summary: "Get user profile (admin only)",
+	description: "Retrieve detailed user profile for admin panel",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "User profile retrieved successfully",
+			content: {
+				"application/json": {
+					schema: GetUserProfileResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		404: {
+			description: "User not found",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+	},
+});
+
+userRoute.openapi(getUserProfileRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
+	}
+
+	const userId = c.req.param("userId");
+	if (!userId) {
+		return c.json(
+			{ success: false as const, error: "User ID is required" },
+			400,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select({
+			id: schema.user.id,
+			name: schema.user.name,
+			email: schema.user.email,
+			image: schema.user.image,
+			mobileNumber: schema.user.mobileNumber,
+			country: schema.user.country,
+			verificationStatus: schema.user.verificationStatus,
+			suspended: schema.user.suspended,
+			createdAt: schema.user.createdAt,
+		})
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!existingUser) {
+		return c.json({ success: false as const, error: "User not found" }, 404);
+	}
+
+	const [wallet] = await db
+		.select({
+			balance: schema.wallet.balance,
+		})
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, userId))
+		.limit(1);
+
+	const [lastTopUpTransaction] = await db
+		.select({
+			createdAt: schema.walletTransaction.createdAt,
+		})
+		.from(schema.walletTransaction)
+		.where(
+			and(
+				eq(schema.walletTransaction.userId, userId),
+				eq(schema.walletTransaction.type, "credit"),
+				eq(schema.walletTransaction.status, "success"),
+			),
+		)
+		.orderBy(desc(schema.walletTransaction.createdAt))
+		.limit(1);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				id: existingUser.id,
+				name: existingUser.name,
+				email: existingUser.email,
+				image: existingUser.image,
+				mobileNumber: existingUser.mobileNumber,
+				country: existingUser.country,
+				verificationStatus: existingUser.verificationStatus,
+				suspended: existingUser.suspended,
+				createdAt: existingUser.createdAt.toISOString(),
+				wallet: {
+					balance: wallet?.balance ?? 0,
+				},
+				lastTopUp: lastTopUpTransaction?.createdAt?.toISOString() ?? null,
+			},
+		},
+		200,
+	);
 });
 
 const ToggleSuspendedResponseSchema = z.object({
@@ -722,10 +1001,7 @@ userRoute.openapi(
 	async (c) => {
 		const token = getSessionToken(c.req.raw.headers);
 		if (!token) {
-			return c.json(
-				{ success: false as const, error: "Unauthorized" },
-				401,
-			);
+			return c.json({ success: false as const, error: "Unauthorized" }, 401);
 		}
 
 		const session = await validateAdminSession(c.env, token);
@@ -738,14 +1014,23 @@ userRoute.openapi(
 
 		if (session.role !== "super_admin" && session.role !== "admin") {
 			return c.json(
-				{ success: false as const, error: "Forbidden - super admin or admin only" },
+				{
+					success: false as const,
+					error: "Forbidden - super admin or admin only",
+				},
 				403,
 			);
 		}
 
-		if (session.role !== "super_admin" && !requirePermission(session, "deactivate_account")) {
+		if (
+			session.role !== "super_admin" &&
+			!requirePermission(session, "deactivate_account")
+		) {
 			return c.json(
-				{ success: false as const, error: "Forbidden - deactivate_account permission required" },
+				{
+					success: false as const,
+					error: "Forbidden - deactivate_account permission required",
+				},
 				403,
 			);
 		}
@@ -767,10 +1052,7 @@ userRoute.openapi(
 			.limit(1);
 
 		if (!existingUser) {
-			return c.json(
-				{ success: false as const, error: "User not found" },
-				404,
-			);
+			return c.json({ success: false as const, error: "User not found" }, 404);
 		}
 
 		const newSuspendedState = !existingUser.suspended;

@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { Phone } from "lucide-react";
 import { signIn } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/auth/sign-in")({
@@ -7,6 +8,7 @@ export const Route = createFileRoute("/auth/sign-in")({
 });
 
 export default function SignInPage() {
+	const navigate = useNavigate();
 	const callbackURL =
 		import.meta.env.VITE_PUBLIC_URL ||
 		(typeof window !== "undefined"
@@ -50,6 +52,17 @@ export default function SignInPage() {
 				)}
 
 				<div className="space-y-3">
+					<button
+						type="button"
+						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
+					>
+						<Phone className="h-5 w-5 text-gray-700" />
+						<span className="font-medium text-gray-700">
+							Sign in with phone number
+						</span>
+					</button>
+
 					<button
 						onClick={() => handleSocialSignIn("google")}
 						disabled={isLoading}

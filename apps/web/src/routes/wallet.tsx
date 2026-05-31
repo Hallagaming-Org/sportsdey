@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
 import { Eye, EyeOff, Loader2, X } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { Input } from "@/components/ui/input";
 import { WalletInfo } from "@/components/wallet-info";
@@ -10,6 +10,7 @@ import { WalletSidebar } from "@/components/wallet-sidebar";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { formatAmount } from "@/lib/utils";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/wallet")({
 
 type WalletResponse = {
 	id: string;
-	balance: number;
+	balance?: number | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -30,11 +31,11 @@ type WalletResponse = {
 type WalletTransaction = {
 	id: string;
 	userId: string;
-	amount: number;
+	amount?: number | null;
 	type: string;
 	reference: string;
 	status: string;
-	createdAt: string;
+	createdAt?: string | null;
 };
 
 type FundWalletResponse = {
@@ -57,6 +58,12 @@ function WalletPage() {
 		code: string;
 		name: string;
 	} | null>(null);
+	const location = useLocation();
+	useEffect(() => {
+		if ((location.state as { openDeposit?: boolean })?.openDeposit) {
+			setIsDepositModalOpen(true);
+		}
+	}, [location.state]);
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const {
 		data: walletData,
@@ -115,25 +122,16 @@ function WalletPage() {
 
 	const isInitialPageLoading = isSessionLoading;
 	const isWalletSectionLoading = isWalletLoading;
-	const walletBalance = (walletData?.balance ?? 0).toLocaleString("en-NG", {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2,
-	});
+	const walletBalance = formatAmount(walletData?.balance);
 	const validateDepositAmount = (amount: number) => {
 		if (!Number.isFinite(amount)) {
 			return "Enter a valid amount.";
 		}
 		if (amount < MIN_DEPOSIT_AMOUNT) {
-			return `Minimum deposit amount is ₦${MIN_DEPOSIT_AMOUNT.toLocaleString("en-NG")}.`;
+			return `Minimum deposit amount is ₦${formatAmount(MIN_DEPOSIT_AMOUNT)}.`;
 		}
 		if (amount > MAX_DEPOSIT_AMOUNT) {
-			return `Maximum deposit amount is ₦${MAX_DEPOSIT_AMOUNT.toLocaleString(
-				"en-NG",
-				{
-					minimumFractionDigits: 2,
-					maximumFractionDigits: 2,
-				},
-			)}.`;
+			return `Maximum deposit amount is ₦${formatAmount(MAX_DEPOSIT_AMOUNT)}.`;
 		}
 		return "";
 	};

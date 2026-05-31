@@ -11,10 +11,11 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Provider } from "react-redux";
 import z from "zod";
+import AppDownloadBanner from "@/components/app-download-banner";
+import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
-import RegulatoryFooter from "@/components/RegulatoryFooter";
 import Sidebar from "@/components/sidebar";
 import Socials from "@/components/socials";
 
@@ -26,7 +27,7 @@ import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
 
-import { RouterProviderComponents } from "@tanstack/react-router";
+// import { RouterProviderComponents } from "@tanstack/react-router";
 
 export type RouterAppContext = {
 	historyState?: {
@@ -77,23 +78,35 @@ function RootDocument() {
 	const matches = useMatches();
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
+	const isSportsbookRoute =
+		activeRouteId === "/sportsbook" ||
+		location.pathname.startsWith("/sportsbook");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
+		"/index/matches",
 		"/index/tournament/$tournamentId",
 		"/basketball",
 		"/basketball/",
 		"/basketball/$Id",
+		"/basketball/matches",
 		"/basketball/tournament/$tournamentId",
 		"/tennis",
 		"/tennis/",
 		"/tennis/$Id",
+		"/tennis/matches",
 		"/tennis/tournament/$tournamentId",
+		"/boxing",
+		"/boxing/",
+		"/ufc",
+		"/ufc/",
 		"/news",
 		"/news/",
 		"/news/$slug",
 		"/news/$slug/og",
 		"/betting",
+		"/sportsbook",
+		"/sportsbook/$",
 		"/games",
 		"/game/$gameId",
 	]);
@@ -115,6 +128,16 @@ function RootDocument() {
   'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
   })(window,document,'script','dataLayer','GTM-5JZSLR3K');
       `,
+							}}
+						/>
+						<script
+							id="_webengage_script_tag"
+							key="webengage-script"
+							dangerouslySetInnerHTML={{
+								__html: `
+var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r.__queue.push([t.join("."),
+arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z),a="webPersonalization feedback survey notification notificationInbox".split(z),c="options render clear abort".split(z),p="Prepare Render Open Close Submit Complete View Click".split(z),u="identify login logout setAttribute".split(z);if(!r||!r.__v){for(w[b]=r={__queue:[],__v:"6.0",user:{}},i=0;i < l.length;i++)o(r,[l[i]]);for(i=0;i < a.length;i++){for(r[a[i]]={},s=0;s < c.length;s++)o(r[a[i]],[a[i],c[s]]);for(s=0;s < p.length;s++)o(r[a[i]],[a[i],"on"+p[s]])}for(i=0;i < u.length;i++)o(r.user,["user",u[i]]);setTimeout(function(){var f=e.createElement("script"),d=e.getElementById("_webengage_script_tag");f.type="text/javascript",f.async=!0,f.src=("https:"==e.location.protocol?"https://widgets.ksa.webengage.com":"http://widgets.ksa.webengage.com")+"/js/webengage-min-v-6.0.js",d.parentNode.insertBefore(f,d)})}}(window,document,"webengage");webengage.init("ksa~aa13187c");
+`,
 							}}
 						/>
 
@@ -149,13 +172,16 @@ function RootDocument() {
 										<div className="flex h-svh flex-col overflow-hidden">
 											<header className="shrink-0">
 												<Header />
-												<Socials />
+												{!isSportsbookRoute && <Socials />}
 											</header>
 
 											<main className="no-scrollbar flex-1 overflow-y-auto">
 												<div
 													className={cn(
-														"mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
+														"grid py-4 md:gap-8",
+														isSportsbookRoute
+															? "mx-2 lg:mx-4"
+															: "mx-4 lg:mx-[104px]",
 														shouldShowSidebar
 															? "lg:grid-cols-[20%_80%]"
 															: "lg:grid-cols-1",
@@ -170,7 +196,12 @@ function RootDocument() {
 														<Outlet />
 													</section>
 												</div>
-												<RegulatoryFooter />
+												{!isSportsbookRoute && (
+													<div className="mx-4 lg:mx-[104px] mb-8">
+														<AppDownloadBanner />
+													</div>
+												)}
+												<DesktopFooter />
 											</main>
 
 											<footer className="shrink-0 lg:hidden">

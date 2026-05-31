@@ -1,11 +1,13 @@
+import { formatAmount, formatDateTime } from "@/lib/utils";
+
 type WalletTransaction = {
 	id: string;
 	userId: string;
-	amount: number;
+	amount?: number | null;
 	type: string;
 	reference: string;
 	status: string;
-	createdAt: string;
+	createdAt?: string | null;
 };
 
 type WalletRecentTransactionsProps = {
@@ -49,16 +51,12 @@ export function WalletRecentTransactions({
 											{transaction.type}
 										</p>
 										<p className="text-[#6E6E6E] text-xs">
-											{new Date(transaction.createdAt).toLocaleString("en-NG")}
+											{formatDateTime(transaction.createdAt)}
 										</p>
 									</div>
 									<div className="text-right">
 										<p className="font-semibold text-primary text-sm dark:text-white">
-											₦
-											{transaction.amount.toLocaleString("en-NG", {
-												minimumFractionDigits: 2,
-												maximumFractionDigits: 2,
-											})}
+											₦{formatAmount(transaction.amount)}
 										</p>
 										<p className="text-xs uppercase">{transaction.status}</p>
 									</div>

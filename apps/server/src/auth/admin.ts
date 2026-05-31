@@ -53,11 +53,11 @@ export function parseUserAgent(
 const getDb = (env: CloudflareBindings) => drizzle(env.DB, { schema });
 
 const scryptConfig = {
-	N: 16384,
-	r: 16,
+	N: 2048,
+	r: 8,
 	p: 1,
-	dkLen: 64,
-	maxmem: 128 * 16384 * 16 * 2,
+	dkLen: 32,
+	maxmem: 128 * 2048 * 8 * 2,
 };
 
 async function generateKey(

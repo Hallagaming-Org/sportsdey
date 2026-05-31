@@ -231,7 +231,7 @@ function GamesPage() {
 	if (isSessionLoading || isLoading) {
 		return (
 			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<Loader2 className="h-10 w-10 animate-spin text-white" />
+				<Loader2 className="h-10 w-10 animate-spin dark:text-white text-primary" />
 			</div>
 		);
 	}
@@ -260,7 +260,7 @@ function GamesPage() {
 						return (
 							<div
 								key={game.code}
-								className="relative flex h-[280px] w-[180px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-4"
+								className="relative flex h-[350px] w-[180px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-4 md:h-[280px]"
 								style={{ background: display.gradient }}
 								onClick={() => handleGameClick(game)}
 								onKeyDown={(e) => handleKeyDown(e, game)}

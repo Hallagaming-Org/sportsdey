@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
@@ -707,7 +707,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 
 		const walletResponse = {
 			id: newWallet.id,
-			balance: newWallet.balance,
+			balance: newWallet.balance / 100,
 			createdAt: newWallet.createdAt,
 			updatedAt: newWallet.updatedAt,
 		};
@@ -755,14 +755,23 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 	const transactions = await db
 		.select()
 		.from(schema.walletTransaction)
-		.where(eq(schema.walletTransaction.userId, user.id))
+		.where(
+			and(
+				eq(schema.walletTransaction.userId, user.id),
+				inArray(schema.walletTransaction.paymentMethod, [
+					"card",
+					"paystack",
+					"bank transfer",
+				]),
+			),
+		)
 		.orderBy(desc(schema.walletTransaction.createdAt))
 		.limit(50);
 
 	const transactionsInNaira = transactions.map((tx) => ({
 		...tx,
-		amount: tx.amount / 100,
-		balance: tx.balance / 100,
+		amount: (tx.amount ?? 0) / 100,
+		balance: (tx.balance ?? 0) / 100,
 	}));
 
 	return c.json(

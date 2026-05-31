@@ -1,0 +1,201 @@
+export const SPORTSBOOK_CONTAINER_ID = "betting__container";
+export const SPORTSBOOK_BETSLIP_ID = "betting-betslip";
+export const SPORTSBOOK_BOOTSTRAP_SCRIPT_ID = "databet-spa-bootstrap-script";
+export const SPORTSBOOK_HEADER_OFFSET = 64;
+
+export type OddFormat =
+	| "Decimal"
+	| "Fractional"
+	| "US"
+	| "HongKong"
+	| "Indo"
+	| "Malay";
+
+export type OddAcceptStrategy = "acceptAll" | "acceptHigher" | "alwaysAsk";
+
+export type SportsbookThemePalette = {
+	colorsPrimary1: string;
+	colorsPrimary2: string;
+	colorsSecondary1: string;
+	colorsSecondary2: string;
+	colorsSecondary3: string;
+	colorsAccent1: string;
+	colorsAccent2: string;
+	colorsAccent3: string;
+	textButton: string;
+	textPrimary: string;
+	textSecondary: string;
+	notificationBlocked: string;
+	notificationError: string;
+	notificationInfo: string;
+	notificationSuccess: string;
+	notificationWarning: string;
+};
+
+export type AppInitOptions = {
+	token: string;
+	rootElement: string;
+	url: {
+		basename: string;
+	};
+	theme: {
+		offsetTop: number;
+		palette: SportsbookThemePalette;
+	};
+	defaultSettings?: {
+		oddFormat?: OddFormat;
+		oddAcceptStrategy?: OddAcceptStrategy;
+	};
+};
+
+export type ToggleWidgetBetslipPayload = {
+	breakpoint: "mobile" | "tablet" | "desktop";
+	isOpen: boolean;
+	widgetType: "static" | "island";
+};
+
+export type BettingAPI = {
+	subscribe: (
+		event: "toggle-widget-betslip",
+		callback: (payload: ToggleWidgetBetslipPayload) => void,
+	) => void;
+};
+
+export type BettingLoader = {
+	load: (
+		options: AppInitOptions,
+		onLoad?: (bettingAPI: BettingAPI) => void,
+	) => void;
+};
+
+declare global {
+	interface Window {
+		bettingLoader?: BettingLoader;
+		bettingAPI?: BettingAPI;
+	}
+}
+
+export function getSportsbookBootstrapScript(): string {
+	return (
+		(import.meta.env.VITE_DATABET_SPA_BOOTSTRAP_SCRIPT as string | undefined) ||
+		""
+	);
+}
+
+export function getSportsbookBasename(): string {
+	return (
+		(import.meta.env.VITE_DATABET_SPA_BASENAME as string | undefined) || ""
+	);
+}
+
+export function getSportsbookLocale(): string {
+	return (
+		(import.meta.env.VITE_DATABET_DEFAULT_LOCALE as string | undefined) || "en"
+	);
+}
+
+export function isSportsbookConfigured(): boolean {
+	return Boolean(getSportsbookBootstrapScript() && getSportsbookBasename());
+}
+
+export function getSportsbookTheme(isDark: boolean, offsetTop: number) {
+	return {
+		offsetTop,
+		palette: isDark ? darkSportsbookPalette : lightSportsbookPalette,
+	};
+}
+
+const lightSportsbookPalette: SportsbookThemePalette = {
+	colorsPrimary1: "#000000",
+	colorsPrimary2: "#ffffff",
+	colorsSecondary1: "#f3f3f3",
+	colorsSecondary2: "#e3e3e3",
+	colorsSecondary3: "#9999a1",
+	colorsAccent1: "#ff6b00",
+	colorsAccent2: "#ffb700",
+	colorsAccent3: "#a900d9",
+	textButton: "#ffffff",
+	textPrimary: "#000000",
+	textSecondary: "#656565",
+	notificationBlocked: "#b5b5b5",
+	notificationError: "#ff3e33",
+	notificationInfo: "#0852ff",
+	notificationSuccess: "#05BC0B",
+	notificationWarning: "#ff9000",
+};
+
+const darkSportsbookPalette: SportsbookThemePalette = {
+	colorsPrimary1: "#000000",
+	colorsPrimary2: "#ffffff",
+	colorsSecondary1: "#1f1f1f",
+	colorsSecondary2: "#2c2c2c",
+	colorsSecondary3: "#9999a1",
+	colorsAccent1: "#ff6b00",
+	colorsAccent2: "#ffb700",
+	colorsAccent3: "#a900d9",
+	textButton: "#ffffff",
+	textPrimary: "#ffffff",
+	textSecondary: "#c2c2c2",
+	notificationBlocked: "#7a7a7a",
+	notificationError: "#ff3e33",
+	notificationInfo: "#0852ff",
+	notificationSuccess: "#05BC0B",
+	notificationWarning: "#ff9000",
+};
+
+export function buildAppInitOptions(
+	token: string,
+	isDark: boolean,
+): AppInitOptions {
+	return {
+		url: {
+			basename: "/sportsbook",
+		},
+		token,
+		rootElement: SPORTSBOOK_CONTAINER_ID,
+		theme: getSportsbookTheme(isDark, SPORTSBOOK_HEADER_OFFSET),
+		defaultSettings: {
+			oddFormat: "Decimal",
+			oddAcceptStrategy: "acceptAll",
+		},
+	};
+}
+
+export function dispatchBettingInit(bettingAPI: BettingAPI) {
+	window.bettingAPI = bettingAPI;
+	document.dispatchEvent(new Event("betting-init"));
+}
+
+export function loadSportsbookBootstrapScript(
+	scriptUrl: string,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const existingScript = document.getElementById(
+			SPORTSBOOK_BOOTSTRAP_SCRIPT_ID,
+		) as HTMLScriptElement | null;
+
+		if (existingScript) {
+			if (window.bettingLoader) {
+				resolve();
+				return;
+			}
+			existingScript.addEventListener("load", () => resolve(), { once: true });
+			existingScript.addEventListener(
+				"error",
+				() => reject(new Error("Failed to load sportsbook bootstrap script.")),
+				{ once: true },
+			);
+			return;
+		}
+
+		const script = document.createElement("script");
+		script.id = SPORTSBOOK_BOOTSTRAP_SCRIPT_ID;
+		script.type = "module";
+		script.async = true;
+		script.src = scriptUrl;
+		script.onload = () => resolve();
+		script.onerror = () =>
+			reject(new Error("Failed to load sportsbook bootstrap script."));
+		document.body.appendChild(script);
+	});
+}

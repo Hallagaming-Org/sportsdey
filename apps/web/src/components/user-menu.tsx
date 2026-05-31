@@ -75,7 +75,7 @@ export function UserMenu() {
 					type="button"
 					onClick={() => setIsOpen(!isOpen)}
 					className={cn(
-						"flex items-center gap-2.5 rounded-full p-2.5 transition-colors",
+						"flex items-center gap-2.5 rounded-full p-1.5 transition-colors",
 						"hover:bg-white/10",
 					)}
 					aria-label="User menu"
@@ -85,18 +85,21 @@ export function UserMenu() {
 						<img
 							src={user.image}
 							alt={displayName}
-							className="h-8 w-8 rounded-full bg-[#F7C9B6] object-cover"
+							className="h-7 w-7 rounded-full bg-[#F7C9B6] object-cover"
 						/>
 					) : (
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F7C9B6] font-medium text-[#5D2E1F] text-sm">
+						<div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F7C9B6] font-medium text-[#5D2E1F] text-xs">
 							{initials}
 						</div>
 					)}
+					<span className="text-secondary dark:text-white text-xs font-extrabold hidden md:inline">
+						Hi {displayName.split(" ")[0]}
+					</span>
 					<svg
 						viewBox="0 0 20 20"
 						aria-hidden="true"
 						className={cn(
-							"h-5 w-5 fill-current text-secondary transition-transform",
+							"h-4 w-4 fill-current text-secondary dark:text-white transition-transform",
 							isOpen ? "rotate-180" : "rotate-0",
 						)}
 					>

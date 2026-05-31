@@ -135,12 +135,49 @@ export const wallet = sqliteTable("wallet", {
 		.references(() => user.id, { onDelete: "cascade" })
 		.unique(),
 	balance: integer("balance").notNull().default(0),
+	frozenBalance: integer("frozen_balance").notNull().default(0),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
 	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookBet = sqliteTable("sportsbook_bet", {
+	id: text("id").primaryKey(),
+	requestId: text("request_id").unique(),
+	userId: text("user_id").notNull(),
+	stake: integer("stake").notNull(),
+	totalOdds: text("total_odds_value"),
+	betType: integer("bet_type"),
+	betFreebetId: text("bet_freebet_id"),
+	betBoostId: text("bet_boost_id"),
+	status: text("status").notNull(),
+	settleAmount: integer("settle_amount"),
+	settleType: integer("settle_type"),
+	betData: text("bet_data"),
+	cashOutOrderIds: text("cash_out_order_ids"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookBetEvent = sqliteTable("sportsbook_bet_event", {
+	id: text("id").primaryKey(),
+	betId: text("bet_id")
+		.notNull()
+		.references(() => sportsbookBet.id, { onDelete: "cascade" }),
+	requestId: text("request_id").unique(),
+	eventType: text("event_type").notNull(),
+	eventData: text("event_data"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
 });
 
@@ -155,10 +192,9 @@ export const walletTransaction = sqliteTable(
 		type: text("type").notNull(),
 reference: text("reference").unique(),
 		status: text("status").notNull(),
-		paymentMethod: text("payment_method")
+paymentMethod: text("payment_method")
 			.notNull()
 			.default("card"),
-		balance: integer("balance").notNull().default(0),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
@@ -174,8 +210,14 @@ export const walletRelations = relations(wallet, ({ one, many }) => ({
 		fields: [wallet.userId],
 		references: [user.id],
 	}),
-	// Link via userId because wallet_transaction stores user_id (no wallet_id column)
 	transactions: many(walletTransaction, { relationName: "walletTransactions" }),
+}));
+
+export const sportsbookBetRelations = relations(sportsbookBet, ({ one }) => ({
+	user: one(user, {
+		fields: [sportsbookBet.userId],
+		references: [user.id],
+	}),
 }));
 
 export const walletTransactionRelations = relations(
@@ -623,4 +665,4 @@ export const game = sqliteTable("game", {
 });
 
 export * from "./schema/admin";
-import { admin } from "./schema/admin";
+
