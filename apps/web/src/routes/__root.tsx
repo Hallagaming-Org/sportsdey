@@ -186,7 +186,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 													className={cn(
 														"grid py-4 md:gap-8 mx-4 lg:mx-[104px]",
 														shouldShowSidebar
-															? "lg:grid-cols-[20%_80%]"
+															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
 															: "lg:grid-cols-1",
 													)}
 												>
