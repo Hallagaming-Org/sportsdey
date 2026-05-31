@@ -119,7 +119,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
 			<div className="w-full bg-white text-foreground lg:bg-primary">
-				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-4 py-2 lg:hidden">
+				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-2 py-2 lg:hidden">
 					<div className="flex items-center gap-1.5 shrink-0">
 						<button
 							type="button"
@@ -149,10 +149,9 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
-						<div className="flex h-8 min-w-[110px] max-w-[150px] items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] px-1 shadow-sm shrink-0">
-							<Link
-								to="/wallet"
-								className="flex flex-1 items-center gap-1.5 overflow-hidden px-1.5"
+						<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] p-0.5">
+							<div
+								className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
 								aria-label="Wallet balance"
 							>
 								<NigerianFlag />
@@ -164,7 +163,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								>
 									{mobileBalance}
 								</span>
-							</Link>
+							</div>
 
 							<button
 								type="button"
