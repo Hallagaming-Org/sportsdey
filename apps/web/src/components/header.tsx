@@ -372,7 +372,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 											href={link}
 											target="_blank"
 											rel="noopener noreferrer"
-										// className="flex size-10 items-center justify-center rounded-full p-2 text-gray-900 transition-colors hover:bg-gray-300 dark:bg-[#1C1D1F] dark:text-[#8C8F8F] dark:hover:bg-[#2F3033] dark:hover:text-white"
+											className="flex size-10 items-center justify-center rounded-full p-2 text-gray-900 transition-colors hover:bg-gray-300 dark:bg-[#1C1D1F] dark:text-[#8C8F8F] dark:hover:bg-[#2F3033] dark:hover:text-white"
 										>
 											<Icon />
 										</a>
