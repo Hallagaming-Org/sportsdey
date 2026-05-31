@@ -333,14 +333,20 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						role="dialog"
 						aria-modal="true"
 						className={cn(
-							"fixed top-0 left-0 h-full w-[80%] transform bg-primary text-background shadow-xl transition-transform duration-300 sm:w-80",
+							"fixed top-0 left-0 h-full w-[80%] transform shadow-xl transition-transform duration-300 sm:w-80",
 							open ? "translate-x-0" : "-translate-x-full",
+							"bg-[#f2f2f2] text-gray-900 dark:bg-[#121212] dark:text-[#8C8F8F]" // #8C8F8F0D is roughly #f2f2f2
 						)}
 					>
 						<div className="flex min-w-0 justify-between p-4">
 							<img
 								src="/sportsdey-logo.png"
-								className="h-10"
+								className="h-10 hidden dark:block"
+								alt="sportsdey's logo"
+							/>
+							<img
+								src="/sportsdey-logo.jpeg"
+								className="h-10 block dark:hidden"
 								alt="sportsdey's logo"
 							/>
 							<button
@@ -350,12 +356,12 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								aria-label="Close main menu"
 								onClick={() => setOpen(false)}
 							>
-								<X width={28} height={28} color="#f4f4f4" />
+								<X width={28} height={28} className="text-gray-900 dark:text-gray-400" />
 							</button>
 						</div>
 
 						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
-							<Sidebar onItemClick={() => setOpen(false)} />
+							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full rounded-2xl border border-[#F1F2F4] bg-white p-4 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]">
 								<h3 className="mb-3 font-semibold text-gray-500 text-sm dark:text-gray-400">Social Links</h3>
