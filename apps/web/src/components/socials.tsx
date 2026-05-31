@@ -3,6 +3,7 @@ import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
 import X from "@/logos/x.svg?react";
+import DiscordIcon from "@/logos/DiscordIcon";
 
 export const socials = [
 	{
@@ -25,6 +26,11 @@ export const socials = [
 		icon: Telegram,
 		link: "https://t.me/sportsdey2",
 	},
+	{
+		id: 5,
+		icon: DiscordIcon,
+		link: "https://www.tiktok.com/@sportsdey247",
+	}
 ];
 const Socials = () => {
 	const widgetRef = useRef<HTMLDivElement | null>(null);
