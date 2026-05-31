@@ -178,7 +178,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 										<div className="flex h-svh flex-col overflow-hidden">
 											<header className="shrink-0">
 												<Header />
-												{!isSportsbookRoute && <Socials />}
+												<Socials />
 											</header>
 
 											<main className="no-scrollbar flex-1 overflow-y-auto">
