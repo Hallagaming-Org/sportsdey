@@ -26,13 +26,13 @@ export const useCurrentSport = (): Sport => {
 	}
 
 	if (pathname.startsWith("/boxing")) {
-		persist("boxing" as any);
-		return "boxing" as any;
+		persist(SPORTS.BOXING);
+		return SPORTS.BOXING;
 	}
 
 	if (pathname.startsWith("/ufc")) {
-		persist("ufc" as any);
-		return "ufc" as any;
+		persist(SPORTS.UFC);
+		return SPORTS.UFC;
 	}
 
 	if (pathname === "/" || pathname.startsWith("/football")) {
