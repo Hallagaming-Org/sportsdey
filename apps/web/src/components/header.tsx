@@ -22,6 +22,7 @@ import { socials } from "./socials";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 import Sidebar from "./sidebar";
+import MenuBar from "@/logos/MenuBar";
 
 const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
 	<svg
@@ -126,9 +127,10 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							aria-expanded={open}
 							aria-controls="mobile-menu"
 							aria-label={open ? "Close main menu" : "Open main menu"}
-							className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm"
+							className="flex items-center justify-center"
 						>
-							<Menu className="h-5 w-5 text-gray-900" />
+							{/* <Menu className="h-5 w-5 text-gray-900" /> */}
+							<MenuBar />
 						</button>
 						<Link
 							to="/"
@@ -346,7 +348,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
 							<Sidebar onItemClick={() => setOpen(false)} />
-							
+
 							<div className="w-full rounded-2xl border border-[#F1F2F4] bg-white p-4 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]">
 								<h3 className="mb-3 font-semibold text-gray-500 text-sm dark:text-gray-400">Social Links</h3>
 								<div className="flex items-center gap-2">
