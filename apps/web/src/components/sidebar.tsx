@@ -1,18 +1,12 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeftRight,
-	Coins,
-	Dumbbell,
 	Gamepad2,
 	Gift,
 	HelpCircle,
 	Home,
 	Newspaper,
-	PlayCircle,
-	Ticket,
-	TrendingUp,
 	Trophy,
-	Users,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
