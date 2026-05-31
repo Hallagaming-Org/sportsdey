@@ -21,6 +21,9 @@ import { SPORTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 import { useActiveTab } from "./active-tab-context";
+import Soccer from "@/logos/Soccer";
+import PredictionMarket from "@/logos/PredictionMarket";
+import Video from "@/logos/Video";
 
 type MenuItem = {
 	id: string;
@@ -46,9 +49,9 @@ const Sidebar = () => {
 				? "/tennis"
 				: currentSport === SPORTS.BASKETBALL
 					? "/basketball"
-					: currentSport === "boxing"
+					: currentSport === SPORTS.BOXING
 						? "/boxing"
-						: currentSport === "ufc"
+						: currentSport === SPORTS.UFC
 							? "/ufc"
 							: "/";
 		navigate({
@@ -127,7 +130,7 @@ const Sidebar = () => {
 		{
 			id: "sportsbook",
 			label: "Sportsbook",
-			icon: Dumbbell,
+			icon: Soccer,
 			isActive: location.pathname.startsWith("/sportsbook"),
 			onClick: goToSportsbook,
 		},
@@ -151,7 +154,7 @@ const Sidebar = () => {
 		{
 			id: "predictions",
 			label: "Predictions Market",
-			icon: TrendingUp,
+			icon: PredictionMarket,
 			isActive:
 				location.pathname.startsWith("/betting") &&
 				params.get("type") !== "jackpots",
@@ -160,7 +163,7 @@ const Sidebar = () => {
 		{
 			id: "videos",
 			label: "Videos",
-			icon: PlayCircle,
+			icon: Video,
 			isActive:
 				location.pathname.startsWith("/news") && params.get("tab") === "videos",
 			onClick: goToVideos,
@@ -238,7 +241,7 @@ const Sidebar = () => {
 								onClick={item.onClick}
 								type="button"
 								className={cn(
-									"flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-semibold text-sm transition-all",
+									"flex cursor-pointer w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-semibold text-sm transition-all",
 									item.isActive
 										? "bg-accent text-white shadow-accent/15 shadow-md"
 										: "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
