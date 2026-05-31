@@ -27,6 +27,7 @@ type MenuItem = {
 	icon: any;
 	isActive: boolean;
 	onClick: () => void;
+	disabled?: boolean;
 };
 
 const Sidebar = () => {
@@ -151,9 +152,7 @@ const Sidebar = () => {
 			id: "predictions",
 			label: "Predictions Market",
 			icon: PredictionMarket,
-			isActive:
-				location.pathname.startsWith("/betting") &&
-				params.get("type") !== "jackpots",
+			isActive: location.pathname.startsWith("/betting"),
 			onClick: goToPredictions,
 		},
 		{
@@ -176,6 +175,7 @@ const Sidebar = () => {
 			label: "Tournament",
 			icon: Trophy,
 			isActive: false,
+			disabled: true,
 			onClick: () => showComingSoon("Tournament"),
 		},
 		// {
@@ -202,6 +202,7 @@ const Sidebar = () => {
 			label: "Promotions",
 			icon: Gift,
 			isActive: false,
+			disabled: true,
 			onClick: () => showComingSoon("Promotions"),
 		},
 		// {
@@ -236,11 +237,14 @@ const Sidebar = () => {
 								key={item.id}
 								onClick={item.onClick}
 								type="button"
+								disabled={item.disabled}
 								className={cn(
-									"flex cursor-pointer w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-semibold text-sm transition-all",
+									"flex w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-left font-semibold text-sm transition-all",
 									item.isActive
-										? "bg-accent text-white shadow-accent/15 shadow-md"
+										? "bg-accent text-white shadow-md shadow-accent/15"
 										: "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
+									item.disabled &&
+										"cursor-not-allowed opacity-50 hover:bg-transparent hover:text-gray-500 dark:hover:bg-transparent dark:hover:text-gray-400",
 								)}
 							>
 								<Icon className="h-4 w-4 shrink-0" />
