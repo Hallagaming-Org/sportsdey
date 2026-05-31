@@ -28,7 +28,11 @@ type MenuItem = {
 	disabled?: boolean;
 };
 
-const Sidebar = () => {
+type SidebarProps = {
+	onItemClick?: () => void;
+};
+
+const Sidebar = ({ onItemClick }: SidebarProps = {}) => {
 	const { setTab } = useActiveTab();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -233,7 +237,10 @@ const Sidebar = () => {
 						return (
 							<button
 								key={item.id}
-								onClick={item.onClick}
+								onClick={() => {
+									item.onClick();
+									onItemClick?.();
+								}}
 								type="button"
 								disabled={item.disabled}
 								className={cn(
