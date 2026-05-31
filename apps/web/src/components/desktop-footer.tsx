@@ -4,8 +4,8 @@ import DiscordIcon from "@/logos/discord.svg?react";
 import FacebookIcon from "@/logos/facebook.svg?react";
 import InstagramIcon from "@/logos/instagram.svg?react";
 import TelegramIcon from "@/logos/telegram.svg?react";
-import WhatsappIcon from "@/logos/whatsapp.svg?react";
 import XIcon from "@/logos/x.svg?react";
+import Whatsapp from "@/logos/Whatsapp";
 
 export default function DesktopFooter() {
 	const currentSport = useCurrentSport();
@@ -172,7 +172,7 @@ export default function DesktopFooter() {
 							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
 							aria-label="whatsapp"
 						>
-							<WhatsappIcon className="h-4 w-4 fill-current" />
+							<Whatsapp />
 						</a>
 						<a
 							href="https://discord.gg/AKRc3K2v"
