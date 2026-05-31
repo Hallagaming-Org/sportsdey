@@ -66,7 +66,13 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	}),
 	validateSearch: z.object({
 		sports: z
-			.enum([SPORTS.FOOTBALL, SPORTS.TENNIS, SPORTS.BASKETBALL])
+			.enum([
+				SPORTS.FOOTBALL,
+				SPORTS.TENNIS,
+				SPORTS.BASKETBALL,
+				SPORTS.BOXING,
+				SPORTS.UFC,
+			])
 			.optional(),
 	}),
 
@@ -188,7 +194,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 													)}
 												>
 													{shouldShowSidebar && (
-														<aside className="no-scrollbar hidden pr-4 lg:block lg:self-start lg:pb-6">
+														<aside className="no-scrollbar hidden pr-4 lg:block lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pb-6">
 															<Sidebar />
 														</aside>
 													)}
