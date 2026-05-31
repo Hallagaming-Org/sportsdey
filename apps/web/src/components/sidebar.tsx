@@ -19,6 +19,7 @@ import Soccer from "@/logos/Soccer";
 import PredictionMarket from "@/logos/PredictionMarket";
 import Video from "@/logos/Video";
 import Trading from "@/logos/Trading";
+import LiveSupport from "@/logos/LiveSupport";
 
 type MenuItem = {
 	id: string;
@@ -213,7 +214,7 @@ const Sidebar = () => {
 		{
 			id: "support",
 			label: "Live support",
-			icon: HelpCircle,
+			icon: LiveSupport,
 			isActive: false,
 			onClick: () =>
 				window.open(
