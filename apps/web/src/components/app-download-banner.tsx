@@ -1,7 +1,9 @@
 import GooglePlayIcon from "@/logos/google-play.svg?react";
 export default function AppDownloadBanner() {
 	return (
-		<div className="w-full rounded-2xl md:rounded-3xl bg-gradient-to-r from-[#C21807] via-[#B21807] to-[#800000] p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-12 shadow-xl transition-all hover:shadow-2xl hover:scale-[1.005]">
+		<div className="app-download-banner w-full rounded-2xl md:rounded-3xl p-8 md:p-12 
+  flex flex-col md:flex-row items-center justify-between gap-6 md:gap-12 
+  shadow-xl transition-all hover:shadow-2xl hover:scale-[1.005]">
 			<div className="text-center md:text-left space-y-2">
 				<h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-white tracking-tight">
 					Download the <span className="text-[#FFD700]">SportsDey App</span>
@@ -17,7 +19,7 @@ export default function AppDownloadBanner() {
 					href="https://apps.apple.com"
 					target="_blank"
 					rel="noopener noreferrer"
-					className="flex items-center gap-3 bg-[#0d5cf9] hover:bg-[#0047d4] text-white px-5 py-3 rounded-xl border border-white/10 transition-colors shadow-md group"
+					className="flex items-center gap-3 bg-[#0d5cf9] dark:bg-black hover:bg-[#0047d4] text-white px-5 py-3 rounded-xl border border-white/10 transition-colors shadow-md group"
 				>
 					<svg
 						className="h-7 w-7 fill-white group-hover:scale-105 transition-transform"
@@ -40,7 +42,7 @@ export default function AppDownloadBanner() {
 					href="https://play.google.com"
 					target="_blank"
 					rel="noopener noreferrer"
-					className="flex items-center gap-3 bg-[#0d5cf9] hover:bg-[#0047d4] text-white px-5 py-3 rounded-xl border border-white/10 transition-colors shadow-md group"
+					className="flex items-center gap-3 bg-[#0d5cf9] dark:bg-black hover:bg-[#0047d4] text-white px-5 py-3 rounded-xl border border-white/10 transition-colors shadow-md group"
 				>
 					<GooglePlayIcon className="h-7 w-7 fill-white group-hover:scale-105 transition-transform" />
 
