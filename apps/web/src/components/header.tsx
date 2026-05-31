@@ -2,12 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import {
 	Link,
 	useLocation,
-	useParams,
 	useRouter,
 } from "@tanstack/react-router";
 import { ChevronDown, Menu, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useCurrentFilter } from "@/hooks/use-current-filter";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -23,6 +21,7 @@ import { useActiveTab } from "./active-tab-context";
 import { socials } from "./socials";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
+import Sidebar from "./sidebar";
 
 const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
 	<svg
@@ -73,21 +72,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	const [open, setOpen] = useState(false);
 	const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 	const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-	const { currentFilter, changeCurrentFilter } = useCurrentFilter();
 	const router = useRouter();
-
-	const params = useParams({ strict: false });
-	const hasPathParams = Object.keys(params).length > 0;
-	const isHomeRoute =
-		location.pathname === "/" ||
-		location.pathname === "/basketball" ||
-		location.pathname === "/basketball/" ||
-		location.pathname === "/tennis" ||
-		location.pathname === "/tennis/" ||
-		location.pathname === "/boxing" ||
-		location.pathname === "/boxing/" ||
-		location.pathname === "/ufc" ||
-		location.pathname === "/ufc/";
 	const { data: walletData } = useQuery({
 		queryKey: ["wallet"],
 		queryFn: () =>
@@ -126,7 +111,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 			window.history.back();
 			return;
 		}
-		router.navigate({ to: "/" });
+		router.navigate({ to: "/", search: { league: undefined } as any });
 	};
 
 	return (
@@ -178,7 +163,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								onClick={() =>
 									router.navigate({
 										to: "/wallet",
-										state: { openDeposit: true },
+										state: { openDeposit: true } as any,
 									})
 								}
 								aria-label="Add funds"
@@ -245,7 +230,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									<Link
 										key={l.to}
 										to={l.to}
-										search={{ sports: l.sport }}
+										search={{ sports: l.sport, league: undefined } as any}
 										className={cn(
 											"flex items-center gap-2 rounded-full px-3 py-2 font-medium text-sm transition-colors",
 											isActive
@@ -359,178 +344,19 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							</button>
 						</div>
 
-						<div className="min-w-0 space-y-8 text-base dark:text-white">
-							<div className="">
-								<div className="w-full bg-[#202120] px-4 py-4 text-base">
-									Features
-								</div>
-								<ul className="mt-4 space-y-4 px-4">
-									<li
-										className={cn(
-											"cursor-pointer",
-											currentFilter === "all" ? "text-accent" : "",
-										)}
-										onClick={() => {
-											setOpen(false);
-											changeCurrentFilter("all");
-											setTab("scores");
-											const target =
-												currentSport === SPORTS.TENNIS
-													? "/tennis"
-													: currentSport === SPORTS.BASKETBALL
-														? "/basketball"
-														: "/";
-											router.navigate({
-												to: target,
-												search: {
-													league: undefined,
-													sports: currentSport,
-												} as any,
-											});
-										}}
-									>
-										All
-									</li>
-									<li
-										className={cn(
-											"cursor-pointer",
-											currentFilter === "live" ? "text-accent" : "",
-										)}
-										onClick={() => {
-											setOpen(false);
-											changeCurrentFilter("live");
-											setTab("scores");
-											const target =
-												currentSport === SPORTS.TENNIS
-													? "/tennis"
-													: currentSport === SPORTS.BASKETBALL
-														? "/basketball"
-														: "/";
-											router.navigate({
-												to: target,
-												search: {
-													league: undefined,
-													sports: currentSport,
-												} as any,
-											});
-										}}
-									>
-										Live
-									</li>
-									<li
-										className={cn(
-											"cursor-pointer",
-											currentFilter === "finished" ? "text-accent" : "",
-										)}
-										onClick={() => {
-											setOpen(false);
-											changeCurrentFilter("finished");
-											setTab("scores");
-											const target =
-												currentSport === SPORTS.TENNIS
-													? "/tennis"
-													: currentSport === SPORTS.BASKETBALL
-														? "/basketball"
-														: "/";
-											router.navigate({
-												to: target,
-												search: {
-													league: undefined,
-													sports: currentSport,
-												} as any,
-											});
-										}}
-									>
-										Finished
-									</li>
-									<li
-										className={cn(
-											"cursor-pointer",
-											currentFilter === "upcoming" ? "text-accent" : "",
-										)}
-										onClick={() => {
-											setOpen(false);
-											changeCurrentFilter("upcoming");
-											setTab("scores");
-											const target =
-												currentSport === SPORTS.TENNIS
-													? "/tennis"
-													: currentSport === SPORTS.BASKETBALL
-														? "/basketball"
-														: "/";
-											router.navigate({
-												to: target,
-												search: {
-													league: undefined,
-													sports: currentSport,
-												} as any,
-											});
-										}}
-									>
-										Upcoming
-									</li>
-								</ul>
-							</div>
-
-							<div className="dark:text-white">
-								<div className="w-full bg-[#202120] px-4 py-4 text-base">
-									Betting
-								</div>
-								<ul className="mt-4 space-y-4 px-4">
-									{/* <li
-										className={cn(
-											"cursor-pointer",
-											tab === "betting" ? "text-accent" : "",
-										)}
-										onClick={() => {
-											setOpen(false);
-											setTab("betting");
-											router.navigate({ to: "/betting" });
-										}}
-									>
-										Play bet
-									</li> */}
-									<li>
-										<Link
-											to="/sportsbook"
-											className="flex cursor-pointer items-center gap-2"
-											onClick={() => {
-												setOpen(false);
-												setTab("betting");
-											}}
-										>
-											<img
-												src="/betting-logo.png"
-												className="h-5 w-5 object-contain"
-												alt="Betting"
-											/>
-											Sportsbook
-										</Link>
-									</li>
-
-									{/* <li
-									>
-										About us
-									</li>
-									<li
-									>
-										Finished
-									</li> */}
-								</ul>
-								<ul className="mt-4 space-y-4 px-4" />
-							</div>
-							<div className="">
-								<div className="w-full bg-[#202120] px-4 py-4 text-base">
-									Social Links
-								</div>
-								<div className="mt-4 flex items-center gap-2 px-4">
+						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
+							<Sidebar onItemClick={() => setOpen(false)} />
+							
+							<div className="w-full rounded-2xl border border-[#F1F2F4] bg-white p-4 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]">
+								<h3 className="mb-3 font-semibold text-gray-500 text-sm dark:text-gray-400">Social Links</h3>
+								<div className="flex items-center gap-2">
 									{socials.map(({ icon: Icon, id, link }) => (
 										<a
 											key={id}
 											href={link}
 											target="_blank"
 											rel="noopener noreferrer"
-											className="flex size-8 items-center justify-center rounded-full bg-white p-2"
+											className="flex size-10 items-center justify-center rounded-full bg-gray-50 p-2 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:bg-black/20 dark:text-gray-300 dark:hover:bg-black/40 dark:hover:text-white"
 										>
 											<Icon />
 										</a>
