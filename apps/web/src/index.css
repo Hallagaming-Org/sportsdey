@@ -165,7 +165,7 @@ body {
 	overflow: hidden;
 }
 
-.betting-tips-card{
+.betting-tips-card {
 	@apply dark:bg-card
 }
 
@@ -204,4 +204,12 @@ body {
 /* Smooth transitions for score changes */
 .score-transition {
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-download-banner {
+	background-image: linear-gradient(to right, #C21807, #B21807, #800000);
+}
+
+.dark .app-download-banner {
+	background-image: linear-gradient(to right, #04100B, #072D08, #072D08) !important;
 }
