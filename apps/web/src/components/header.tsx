@@ -24,6 +24,7 @@ import { UserMenu } from "./user-menu";
 import Sidebar from "./sidebar";
 import MenuBar from "@/logos/MenuBar";
 import NigerianFlag from "@/logos/NigerianFlag";
+import NotificationIcon from "@/logos/NotificationIcon";
 
 const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
 	<svg
@@ -182,11 +183,13 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 						<button
 							type="button"
-							className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-gray-500"
+							className="relative flex h-8 w-8 shrink-0 text-black items-center justify-center rounded-full border border-transparent bg-transparent"
 							aria-label="Notifications"
 						>
-							<BellIcon className="h-5 w-5" />
-							<span className="absolute top-0 right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white" />
+							<NotificationIcon />
+							<span className="absolute top-0 right-0.5 h-3 w-3 rounded-full bg-emerald-400 text-[#070711] flex items-center justify-center font-bold text-[6px]" >
+								{"1"}
+							</span>
 						</button>
 
 						<Link
