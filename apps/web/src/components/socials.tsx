@@ -29,7 +29,7 @@ export const socials = [
 	{
 		id: 5,
 		icon: DiscordIcon,
-		link: "https://www.tiktok.com/@sportsdey247",
+		link: "https://discord.com/invite/AKRc3K2v",
 	}
 ];
 const Socials = () => {
