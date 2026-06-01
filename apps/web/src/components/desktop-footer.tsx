@@ -34,7 +34,7 @@ export default function DesktopFooter() {
 						<li>
 							<Link
 								to="/"
-								search={{ sports: currentSport }}
+								search={{ sports: currentSport, league: undefined }}
 								className="text-gray-500 transition-colors hover:text-accent dark:text-gray-400"
 							>
 								Matches
@@ -52,6 +52,7 @@ export default function DesktopFooter() {
 						<li>
 							<Link
 								to="/betting"
+								search={{ type: undefined }}
 								className="text-gray-500 transition-colors hover:text-accent dark:text-gray-400"
 							>
 								Tips
