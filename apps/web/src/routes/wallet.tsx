@@ -150,10 +150,8 @@ function WalletPage() {
 	};
 
 	return (
-		<div className="grid lg:grid-cols-[320px_1fr]">
-			{/* <WalletSidebar /> */}
+		<>
 
-			<section>
 				{isInitialPageLoading ? (
 					<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 						<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
@@ -334,7 +332,6 @@ function WalletPage() {
 						<WalletInfo />
 					</>
 				)}
-			</section>
 			{isDepositModalOpen && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
 					<div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
@@ -409,6 +406,6 @@ function WalletPage() {
 					categoryName={billPaymentCategory.name}
 				/>
 			)}
-		</div>
+		</>
 	);
 }
