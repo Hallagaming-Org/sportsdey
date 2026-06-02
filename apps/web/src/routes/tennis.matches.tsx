@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import { useApiError } from "@/hooks/useApiError";
 import { apiRequest } from "@/lib/api";
 import SportAccordionCard from "@/shared/SportAccordionCard";
@@ -189,6 +190,7 @@ function RouteComponent() {
 
 	return (
 		<div className="space-y-4">
+			<MobileSportsFilter />
 			<div className="sticky top-0 z-10 hidden w-full bg-background/95 px-1 py-4 backdrop-blur-sm lg:block">
 				<TennisFixtureFilterHeaders counts={counts} />
 			</div>
