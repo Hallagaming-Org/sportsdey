@@ -119,7 +119,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
-			<div className="w-full bg-white dark:bg-[#121212] text-foreground lg:bg-primary dark:lg:bg-primary">
+			<div className="w-full bg-white dark:bg-[#121212] text-foreground lg:bg-black dark:lg:bg-black">
 				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-2 py-2 lg:hidden">
 					<div className="flex items-center gap-1.5 shrink-0">
 						<button
