@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as WalletTransactionStatusRouteImport } from './routes/wallet-transaction-status'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as UfcRouteImport } from './routes/ufc'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TennisRouteImport } from './routes/tennis'
 import { Route as SportsbookRouteImport } from './routes/sportsbook'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
 import { Route as GamesRouteImport } from './routes/games'
@@ -66,6 +68,11 @@ const UfcRoute = UfcRouteImport.update({
   path: '/ufc',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TennisRoute = TennisRouteImport.update({
   id: '/tennis',
   path: '/tennis',
@@ -74,6 +81,11 @@ const TennisRoute = TennisRouteImport.update({
 const SportsbookRoute = SportsbookRouteImport.update({
   id: '/sportsbook',
   path: '/sportsbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -270,8 +282,10 @@ export interface FileRoutesByFullPath {
   '/games': typeof GamesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/sportsbook': typeof SportsbookRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
+  '/terms': typeof TermsRoute
   '/ufc': typeof UfcRouteWithChildren
   '/wallet': typeof WalletRoute
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
@@ -309,7 +323,9 @@ export interface FileRoutesByTo {
   '/betting': typeof BettingRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/sportsbook': typeof SportsbookRouteWithChildren
+  '/terms': typeof TermsRoute
   '/wallet': typeof WalletRoute
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
@@ -351,8 +367,10 @@ export interface FileRoutesById {
   '/games': typeof GamesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
+  '/privacy-policy': typeof PrivacyPolicyRoute
   '/sportsbook': typeof SportsbookRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
+  '/terms': typeof TermsRoute
   '/ufc': typeof UfcRouteWithChildren
   '/wallet': typeof WalletRoute
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
@@ -396,8 +414,10 @@ export interface FileRouteTypes {
     | '/games'
     | '/kyc'
     | '/news'
+    | '/privacy-policy'
     | '/sportsbook'
     | '/tennis'
+    | '/terms'
     | '/ufc'
     | '/wallet'
     | '/wallet-transaction-status'
@@ -435,7 +455,9 @@ export interface FileRouteTypes {
     | '/betting'
     | '/favorites'
     | '/games'
+    | '/privacy-policy'
     | '/sportsbook'
+    | '/terms'
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth'
@@ -476,8 +498,10 @@ export interface FileRouteTypes {
     | '/games'
     | '/kyc'
     | '/news'
+    | '/privacy-policy'
     | '/sportsbook'
     | '/tennis'
+    | '/terms'
     | '/ufc'
     | '/wallet'
     | '/wallet-transaction-status'
@@ -520,8 +544,10 @@ export interface RootRouteChildren {
   GamesRoute: typeof GamesRoute
   KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   SportsbookRoute: typeof SportsbookRouteWithChildren
   TennisRoute: typeof TennisRouteWithChildren
+  TermsRoute: typeof TermsRoute
   UfcRoute: typeof UfcRouteWithChildren
   WalletRoute: typeof WalletRoute
   WalletTransactionStatusRoute: typeof WalletTransactionStatusRoute
@@ -561,6 +587,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UfcRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tennis': {
       id: '/tennis'
       path: '/tennis'
@@ -573,6 +606,13 @@ declare module '@tanstack/react-router' {
       path: '/sportsbook'
       fullPath: '/sportsbook'
       preLoaderRoute: typeof SportsbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -944,8 +984,10 @@ const rootRouteChildren: RootRouteChildren = {
   GamesRoute: GamesRoute,
   KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
   SportsbookRoute: SportsbookRouteWithChildren,
   TennisRoute: TennisRouteWithChildren,
+  TermsRoute: TermsRoute,
   UfcRoute: UfcRouteWithChildren,
   WalletRoute: WalletRoute,
   WalletTransactionStatusRoute: WalletTransactionStatusRoute,
