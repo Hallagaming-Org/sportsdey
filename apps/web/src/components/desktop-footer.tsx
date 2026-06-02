@@ -8,12 +8,21 @@ import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 
+const footerSocials = [
+	{ icon: FacebookIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
+	{ icon: XIcon, label: "Twitter/X", link: "https://X.com/sportsdey247" },
+	{ icon: InstagramIcon, label: "Instagram", link: "https://Instagram.com/Sportsdey247" },
+	{ icon: TelegramIcon, label: "Telegram", link: "https://t.me/sportsdey2" },
+	{ icon: Whatsapp, label: "WhatsApp", link: "https://t.me/sportsdey2" },
+	{ icon: DiscordIcon, label: "Discord", link: "https://discord.gg/AKRc3K2v" },
+];
+
 export default function DesktopFooter() {
 	const currentSport = useCurrentSport();
 
 	return (
 		<footer className="hidden w-full border-gray-200 border-t bg-[#f8f9fa] px-6 py-12 text-foreground transition-colors lg:block dark:border-gray-800 dark:bg-[#111211]">
-			<div className="mx-auto mb-8 grid max-w-7xl grid-cols-1 gap-8 md:grid-cols-5">
+			<div className="mx-auto mb-8 grid max-w-7xl grid-cols-1 gap-8 md:grid-cols-4">
 				<div className="space-y-4">
 					<div className="flex items-center gap-2">
 						<img
@@ -123,77 +132,25 @@ export default function DesktopFooter() {
 						</li>
 					</ul>
 				</div>
-
-				<div>
-					<h3 className="mb-4 font-bold text-base text-gray-800 dark:text-white">
-						Follow Us
-					</h3>
-					<p className="mb-3 text-gray-500 text-xs dark:text-gray-400">
-						For more updates follow us on:
-					</p>
-					<div className="flex items-center gap-3">
-						<a
-							href="https://facebook.com/sportsdey247"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
-							aria-label="Facebook"
-						>
-							<FacebookIcon className="h-4 w-4 fill-current" />
-						</a>
-						<a
-							href="https://X.com/sportsdey247"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
-							aria-label="Twitter/X"
-						>
-							<XIcon className="h-4 w-4 fill-current" />
-						</a>
-						<a
-							href="https://Instagram.com/Sportsdey247"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
-							aria-label="Instagram"
-						>
-							<InstagramIcon className="h-4 w-4 fill-current" />
-						</a>
-						<a
-							href="https://t.me/sportsdey2"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
-							aria-label="Telegram"
-						>
-							<TelegramIcon className="h-4 w-4 fill-current" />
-						</a>
-						<a
-							href="https://t.me/sportsdey2"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
-							aria-label="whatsapp"
-						>
-							<Whatsapp />
-						</a>
-						<a
-							href="https://discord.gg/AKRc3K2v"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
-							aria-label="discord"
-						>
-							<DiscordIcon className="h-4 w-4 fill-current" />
-						</a>
-					</div>
-				</div>
 			</div>
-
-			<div className="mx-auto flex max-w-7xl items-center justify-center border-gray-200 border-t pt-8 dark:border-gray-800">
+			<div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 border-gray-200 border-t pt-8 sm:flex-row dark:border-gray-800">
 				<p className="text-gray-500 text-xs dark:text-gray-400">
 					© 2026 Sportsdey. All Right Reserved.
 				</p>
+				<div className="flex items-center gap-3">
+					{footerSocials.map(({ icon: Icon, label, link }) => (
+						<a
+							key={label}
+							href={link}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="group flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-all duration-300 hover:-translate-y-1 hover:bg-[#006AFF] hover:shadow-lg dark:bg-[#1E1E1E] dark:text-gray-400"
+							aria-label={label}
+						>
+							<Icon className="h-4 w-4 fill-current transition-colors group-hover:text-white" />
+						</a>
+					))}
+				</div>
 			</div>
 		</footer>
 	);
