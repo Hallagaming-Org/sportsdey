@@ -146,12 +146,8 @@ function AccountPage() {
 
 	return (
 		<div className="px-4 py-2 lg:container lg:mx-auto">
-			<div className="items-start gap-6 lg:grid lg:grid-cols-[1fr_3fr]">
-				<div className="hidden lg:block">
-					<WalletSidebar />
-				</div>
-				<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
-					<div className="rounded-2xl bg-white p-6 pb-8 shadow-sm dark:bg-[#202120]">
+			<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
+				<div className="rounded-2xl bg-white p-6 pb-8 shadow-sm dark:bg-[#202120]">
 						{/* Edit profile link - top right */}
 						<div className="flex justify-end">
 							<button
@@ -309,7 +305,6 @@ function AccountPage() {
 						</form>
 					</div>
 				</div>
-			</div>
 
 			{/* Email Change Modal */}
 			{isChangingEmail && (
