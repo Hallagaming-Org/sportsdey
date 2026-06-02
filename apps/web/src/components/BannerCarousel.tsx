@@ -70,7 +70,7 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 				<img
 					src={banner.imageUrl}
 					alt={banner.alt || "Banner"}
-					className="h-auto w-full"
+					className="h-auto w-full object-cover"
 				/>
 			</a>
 		);
@@ -94,7 +94,7 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 								<img
 									src={banner.imageUrl}
 									alt={banner.alt || "Banner"}
-									className="h-auto w-full"
+									className="h-auto w-full object-cover"
 								/>
 							</a>
 						</div>
