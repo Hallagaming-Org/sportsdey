@@ -280,14 +280,14 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && (
-							<div className="flex h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#111211] p-0.5">
+							<div className="flex h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-[8px] bg-[#1A1A1A] p-0.5 dark:bg-[#111211] dark:border dark:border-gray-700">
 								<div
-									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2"
+									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
 									aria-label="Wallet balance"
 								>
 									<NigerianFlag />
 									<span
-										className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all text-xs xl:text-sm"
+										className="truncate font-semibold tracking-tight text-white transition-all text-xs xl:text-sm"
 									>
 										{mobileBalance}
 									</span>
@@ -302,7 +302,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										})
 									}
 									aria-label="Add funds"
-									className="flex h-7 px-3 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent font-bold text-xs text-white transition-colors hover:bg-green-500"
+									className="flex h-8 px-4 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent font-bold text-[11px] text-black transition-colors hover:bg-[#00d600]"
 								>
 									Deposit
 								</button>
