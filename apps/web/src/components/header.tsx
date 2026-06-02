@@ -280,7 +280,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && (
-							<div className="flex h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-[8px] bg-[#1A1A1A] p-0.5 dark:bg-[#111211] dark:border dark:border-gray-700">
+							<div className="flex h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-[8px] bg-[#1A1A1A] py-[6px] px-[6px] dark:bg-[#111211] dark:border dark:border-gray-700">
 								<div
 									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
 									aria-label="Wallet balance"
@@ -302,7 +302,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										})
 									}
 									aria-label="Add funds"
-									className="flex h-8 px-4 shrink-0 cursor-pointer items-center justify-center rounded-full bg-accent font-bold text-[11px] text-black transition-colors hover:bg-[#00d600]"
+									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-[#0AEC20] font-semibold text-[11px] text-black transition-colors hover:bg-[#00d600]"
 								>
 									Deposit
 								</button>
