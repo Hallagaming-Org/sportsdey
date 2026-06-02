@@ -133,23 +133,38 @@ export default function DesktopFooter() {
 					</ul>
 				</div>
 			</div>
-			<div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 border-gray-200 border-t pt-8 sm:flex-row dark:border-gray-800">
-				<p className="text-gray-500 text-xs dark:text-gray-400">
-					© 2026 Sportsdey. All Right Reserved.
-				</p>
-				<div className="flex items-center gap-3">
-					{footerSocials.map(({ icon: Icon, label, link }) => (
-						<a
-							key={label}
-							href={link}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="group flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-all duration-300 hover:-translate-y-1 hover:bg-[#006AFF] hover:shadow-lg dark:bg-[#1E1E1E] dark:text-gray-400"
-							aria-label={label}
-						>
-							<Icon className="h-8 w-8 fill-current transition-colors group-hover:text-white" />
-						</a>
-					))}
+			<div className="mx-auto max-w-7xl border-gray-200 border-t pt-8 dark:border-gray-800">
+				<div className="flex flex-col items-center justify-between gap-4 sm:flex-row mb-8">
+					<p className="text-gray-500 text-xs dark:text-gray-400">
+						© 2026 Sportsdey. All Right Reserved.
+					</p>
+					<div className="flex items-center gap-3">
+						{footerSocials.map(({ icon: Icon, label, link }) => (
+							<a
+								key={label}
+								href={link}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="group flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-all duration-300 hover:-translate-y-1 hover:bg-[#006AFF] hover:shadow-lg dark:bg-[#1E1E1E] dark:text-gray-400"
+								aria-label={label}
+							>
+								<Icon className="h-8 w-8 fill-current transition-colors group-hover:text-white" />
+							</a>
+						))}
+					</div>
+				</div>
+
+				<div className="text-center text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 space-y-6">
+					<p className="leading-relaxed">
+						This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
+					</p>
+					<div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 font-bold text-[10px] sm:text-[11px] tracking-wider text-gray-700 dark:text-gray-300">
+						<span>PLAY RESPONSIBLY</span>
+						<span className="text-gray-300 dark:text-gray-600">|</span>
+						<span>18+ ONLY</span>
+						<span className="text-gray-300 dark:text-gray-600">|</span>
+						<span>PLEASE GAMBLE RESPONSIBLY</span>
+					</div>
 				</div>
 			</div>
 		</footer>
