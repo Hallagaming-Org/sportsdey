@@ -241,7 +241,7 @@ function WalletPage() {
 							<p className="border-[#E0E0E0] border-b pb-3 font-semibold text-base text-primary dark:text-white">
 								Quick Access
 							</p>
-							<ul className="mt-4 space-y-3">
+							<ul className="mt-4 grid grid-cols-4 gap-3 lg:flex lg:flex-col lg:gap-3">
 								<li>
 									<button
 										type="button"
@@ -252,12 +252,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
 									>
-										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-											<AirtimeIcon className="h-5 w-5 text-primary dark:text-white" />
-										</div>
-										<span className="text-primary text-sm dark:text-white">
+										<AirtimeIcon className="h-5 w-5 text-primary dark:text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
 											Airtime
 										</span>
 									</button>
@@ -272,12 +270,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
 									>
-										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-											<InternetIcon className="h-5 w-5 text-primary dark:text-white" />
-										</div>
-										<span className="text-primary text-sm dark:text-white">
+										<InternetIcon className="h-5 w-5 text-primary dark:text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
 											Internet
 										</span>
 									</button>
@@ -292,12 +288,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
 									>
-										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-											<CableTvIcon className="h-5 w-5 text-primary dark:text-white" />
-										</div>
-										<span className="text-primary text-sm dark:text-white">
+										<CableTvIcon className="h-5 w-5 text-primary dark:text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
 											Cable TV
 										</span>
 									</button>
@@ -312,12 +306,12 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
 									>
-										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-											<ElectricityIcon className="h-5 w-5 text-primary dark:text-white" />
-										</div>
-										<span className="text-primary text-sm dark:text-white">
+
+										<ElectricityIcon className="h-5 w-5 text-primary dark:text-white" />
+
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
 											Electricity
 										</span>
 									</button>
