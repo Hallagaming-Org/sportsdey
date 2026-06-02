@@ -22,7 +22,7 @@ type SportsbookTokenResponse = {
     token: string;
 };
 
-function SportsbookPage() {
+export function SportsbookPage() {
     const { data: session, isPending: isSessionLoading } = useSession();
     const [isDarkTheme, setIsDarkTheme] = useState(false);
     const [token, setToken] = useState<string | null>(null);
