@@ -374,11 +374,24 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									rel="noopener noreferrer"
 									className="mt-5 flex w-full bg-gray-200 items-center gap-4 rounded-lg p-3.5 transition-colors hover:bg-[#1E78FF]/10 dark:border-[#1E78FF]/30 dark:bg-[#1E78FF]/10 dark:hover:bg-[#1E78FF]/20"
 								>
-									<Whatsapp />
-									<span className="font-medium text-sm text-gray-900 dark:text-gray-200">
+									<Whatsapp className="h-8 w-8 shrink-0" />
+									<span className="font-medium text-xs text-gray-900 dark:text-gray-200">
 										Contact us on Whatsapp <br /> for support.
 									</span>
 								</a>
+
+								<div className="mt-8 text-center text-[9px] leading-relaxed text-gray-500 dark:text-gray-400">
+									<p className="mb-4">
+										This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
+									</p>
+									<div className="flex flex-wrap items-center justify-center gap-1.5 font-bold text-[8px] tracking-wider text-gray-700 dark:text-gray-300">
+										<span>PLAY RESPONSIBLY</span>
+										<span className="text-gray-300 dark:text-gray-600">|</span>
+										<span>18+ ONLY</span>
+										<span className="text-gray-300 dark:text-gray-600">|</span>
+										<span>PLEASE GAMBLE RESPONSIBLY</span>
+									</div>
+								</div>
 
 								<div className="mt-6 flex items-center justify-end">
 									<div className="flex items-center gap-2 rounded-full bg-primary">
