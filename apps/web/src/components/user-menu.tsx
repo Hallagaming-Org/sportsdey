@@ -1,10 +1,11 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
 	Bell,
 	Clock3,
 	LogOut,
 	Settings,
 	Star,
+	User,
 	UserRound,
 	Wallet,
 } from "lucide-react";
@@ -156,11 +157,12 @@ export function UserMenu() {
 	}
 
 	return (
-		<a
-			href="/auth/sign-in"
-			className="flex items-center justify-center rounded-full bg-[#F4F4F4] px-4 py-2 font-medium text-black text-sm transition-colors hover:bg-[#E5E5E5]"
+		<Link
+			to="/auth/sign-in"
+			aria-label="Sign In"
+			className="flex items-center justify-center h-7 w-7 rounded-full bg-gray-200 dark:bg-gray-700 transition-colors hover:bg-gray-300 dark:hover:bg-gray-600 shrink-0"
 		>
-			<span className="flex items-center gap-2">Sign In</span>
-		</a>
+			<User className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+		</Link>
 	);
 }
