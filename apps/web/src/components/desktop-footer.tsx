@@ -147,7 +147,7 @@ export default function DesktopFooter() {
 							className="group flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-all duration-300 hover:-translate-y-1 hover:bg-[#006AFF] hover:shadow-lg dark:bg-[#1E1E1E] dark:text-gray-400"
 							aria-label={label}
 						>
-							<Icon className="h-4 w-4 fill-current transition-colors group-hover:text-white" />
+							<Icon className="h-8 w-8 fill-current transition-colors group-hover:text-white" />
 						</a>
 					))}
 				</div>
