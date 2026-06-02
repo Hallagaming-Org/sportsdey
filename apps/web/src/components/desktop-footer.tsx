@@ -6,6 +6,7 @@ import InstagramIcon from "@/logos/instagram.svg?react";
 import TelegramIcon from "@/logos/telegram.svg?react";
 import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
+import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 
 export default function DesktopFooter() {
 	const currentSport = useCurrentSport();
@@ -17,9 +18,10 @@ export default function DesktopFooter() {
 					<div className="flex items-center gap-2">
 						<img
 							src="/sportsdey-logo.png"
-							className="h-10 dark:brightness-100"
+							className="h-10 hidden dark:block"
 							alt="SportsDey Logo"
 						/>
+						<NewSportsdeyLogo className="h-10 w-auto dark:hidden" />
 					</div>
 					<p className="max-w-xs text-gray-500 text-sm leading-relaxed dark:text-gray-400">
 						Your #1 Sports Hub for News, Scores, Tips & More.
@@ -134,7 +136,7 @@ export default function DesktopFooter() {
 							href="https://facebook.com/sportsdey247"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
+							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
 							aria-label="Facebook"
 						>
 							<FacebookIcon className="h-4 w-4 fill-current" />
@@ -143,7 +145,7 @@ export default function DesktopFooter() {
 							href="https://X.com/sportsdey247"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
+							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
 							aria-label="Twitter/X"
 						>
 							<XIcon className="h-4 w-4 fill-current" />
@@ -152,16 +154,16 @@ export default function DesktopFooter() {
 							href="https://Instagram.com/Sportsdey247"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
+							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
 							aria-label="Instagram"
 						>
-							<InstagramIcon className="h-4 w-4" />
+							<InstagramIcon className="h-4 w-4 fill-current" />
 						</a>
 						<a
 							href="https://t.me/sportsdey2"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
+							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
 							aria-label="Telegram"
 						>
 							<TelegramIcon className="h-4 w-4 fill-current" />
@@ -170,7 +172,7 @@ export default function DesktopFooter() {
 							href="https://t.me/sportsdey2"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
+							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
 							aria-label="whatsapp"
 						>
 							<Whatsapp />
@@ -179,8 +181,8 @@ export default function DesktopFooter() {
 							href="https://discord.gg/AKRc3K2v"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="flex h-8 w-8 items-center justify-center rounded-full text-white transition-colors"
-							aria-label="whatsapp"
+							className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-accent hover:text-white transition-colors"
+							aria-label="discord"
 						>
 							<DiscordIcon className="h-4 w-4 fill-current" />
 						</a>
