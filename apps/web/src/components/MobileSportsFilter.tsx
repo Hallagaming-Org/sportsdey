@@ -4,9 +4,6 @@ import { cn } from "@/lib/utils";
 const sports = [
 	{ id: "football", label: "Football", route: "/index/matches" },
 	{ id: "basketball", label: "Basketball", route: "/basketball/matches" },
-	{ id: "tennis", label: "Tennis", route: "/tennis/matches" },
-	{ id: "boxing", label: "Boxing", route: "/boxing" },
-	{ id: "ufc", label: "UFC", route: "/ufc" },
 ];
 
 export function MobileSportsFilter() {
