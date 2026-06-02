@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useNewsData } from "@/hooks/use-news-data";
 import { useNewsVideos } from "@/hooks/use-news-videos";
 import BannerCarousel from "@/components/BannerCarousel";
+import { SportsbookPage } from "@/routes/sportsbook/$";
 import AppDownloadBanner from "@/components/app-download-banner";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
 import { urlFor } from "@/lib/sanity";
@@ -69,6 +70,11 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 					<BannerCarousel banners={banners} />
 				</div>
 			)}
+
+			{/* Sportsbook */}
+			<div className="w-full">
+				<SportsbookPage />
+			</div>
 
 			{/* Trending News Section */}
 			<div className="space-y-4">
