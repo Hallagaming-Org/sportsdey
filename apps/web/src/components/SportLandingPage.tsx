@@ -65,7 +65,7 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 		<div className="w-full space-y-8 pb-12 transition-all px-4 sm:px-6">
 			{/* Hero Banners */}
 			{banners.length > 0 && (
-				<div className="w-full overflow-hidden rounded-xl shadow-md h-36 sm:h-44 md:h-64">
+				<div className="w-full shadow-md">
 					<BannerCarousel banners={banners} />
 				</div>
 			)}
