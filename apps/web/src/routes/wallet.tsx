@@ -173,74 +173,72 @@ function WalletPage() {
 									</div>
 								</div>
 								<div className="min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-									{isWalletSectionLoading ? (
-										<div className="flex min-h-32 items-center justify-center">
-											<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
-										</div>
-									) : (
-										<>
-											<p className="text-[14px] text-primary dark:text-white">
-												Wallet Balance
-											</p>
-											<div className="mt-3 flex items-start gap-2">
-												<p className="font-semibold text-primary leading-none dark:text-white">
-													{showBalance ? (
-														<span className="leading-none space-x-2">
-															<span className="relative -top-2 align-super text-[24px]">
-																₦
-															</span>
-															<span className="text-[50px]">{walletBalance}</span>
-														</span>
-													) : (
-														<span className="text-[50px]">••••••</span>
-													)}
-												</p>
-												<button
-													type="button"
-													onClick={() => setShowBalance((prev) => !prev)}
-													className="cursor-pointer text-primary dark:text-white"
-													aria-label={
-														showBalance
-															? "Hide wallet balance"
-															: "Show wallet balance"
-													}
-												>
-													{showBalance ? (
-														<EyeOff className="h-4 w-4" />
-													) : (
-														<Eye className="h-4 w-4" />
-													)}
-												</button>
-											</div>
-											<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-												<button
-													type="button"
-													onClick={() => {
-														setDepositError("");
-														setIsDepositModalOpen(true);
-													}}
-													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-												>
-													Deposit
-												</button>
-												<button
-													type="button"
-													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-												>
-													Tranfer fund
-												</button>
-												<button
-													type="button"
-													onClick={() => {
-														setIsWithdrawModalOpen(true);
-													}}
-													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-												>
-													Withdraw
-												</button>
-											</div>
-										</>
-									)}
+									<p className="text-[14px] text-primary dark:text-white">
+										Wallet Balance
+									</p>
+									<div className="mt-3 flex items-start gap-2">
+										<p className="font-semibold text-primary leading-none dark:text-white">
+											{isWalletSectionLoading ? (
+												<span className="flex h-[50px] items-center">
+													<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
+												</span>
+											) : showBalance ? (
+												<span className="leading-none space-x-2">
+													<span className="relative -top-2 align-super text-[24px]">
+														₦
+													</span>
+													<span className="text-[50px]">{walletBalance}</span>
+												</span>
+											) : (
+												<span className="text-[50px]">••••••</span>
+											)}
+										</p>
+										{!isWalletSectionLoading && (
+											<button
+												type="button"
+												onClick={() => setShowBalance((prev) => !prev)}
+												className="cursor-pointer mt-2 text-primary dark:text-white"
+												aria-label={
+													showBalance
+														? "Hide wallet balance"
+														: "Show wallet balance"
+												}
+											>
+												{showBalance ? (
+													<EyeOff className="h-4 w-4" />
+												) : (
+													<Eye className="h-4 w-4" />
+												)}
+											</button>
+										)}
+									</div>
+									<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+										<button
+											type="button"
+											onClick={() => {
+												setDepositError("");
+												setIsDepositModalOpen(true);
+											}}
+											className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+										>
+											Deposit
+										</button>
+										<button
+											type="button"
+											className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+										>
+											Tranfer fund
+										</button>
+										<button
+											type="button"
+											onClick={() => {
+												setIsWithdrawModalOpen(true);
+											}}
+											className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+										>
+											Withdraw
+										</button>
+									</div>
 								</div>
 							</div>
 							<div className="col-start-2 row-span-2 min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
