@@ -280,7 +280,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && (
-							<div className="flex h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-[8px] bg-[#1A1A1A] py-[6px] px-[6px] dark:bg-[#111211] dark:border dark:border-gray-700">
+							<div className="flex border border-[#F2EEFB] h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-[8px] bg-[#1A1A1A] py-[6px] px-[6px] dark:bg-[#111211] dark:border dark:border-gray-700">
 								<div
 									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
 									aria-label="Wallet balance"
