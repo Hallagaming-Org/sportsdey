@@ -381,6 +381,13 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										Contact us on Whatsapp <br /> for support.
 									</span>
 								</a>
+
+								<div className="mt-6 flex items-center justify-end">
+									<div className="flex items-center gap-2 rounded-full bg-primary">
+
+										<ThemeToggle />
+									</div>
+								</div>
 							</div>
 						</div>
 					</aside>
