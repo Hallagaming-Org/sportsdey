@@ -8,7 +8,7 @@ async function fetchWithSanityTimeout<T>(query: string): Promise<T> {
 	const timeoutId = setTimeout(() => controller.abort(), SANITY_TIMEOUT);
 
 	try {
-		const result = await client.fetch<T>(query, undefined, {
+		const result = await client.fetch<T>(query, {}, {
 			signal: controller.signal,
 		});
 		clearTimeout(timeoutId);
