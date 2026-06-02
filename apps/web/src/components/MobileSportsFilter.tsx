@@ -14,7 +14,7 @@ export function MobileSportsFilter() {
 	const currentPath = location.pathname;
 
 	return (
-		<div className="lg:hidden w-full overflow-x-auto no-scrollbar border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#121212] sticky top-0 z-20">
+		<div className="w-full overflow-x-auto no-scrollbar border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#121212] sticky top-0 z-20">
 			<nav className="flex items-center px-4 py-3 gap-6">
 				{sports.map((sport) => {
 					const isActive = currentPath === sport.route || currentPath.startsWith(sport.route + "/");
