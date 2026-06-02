@@ -25,6 +25,7 @@ import MenuBar from "@/logos/MenuBar";
 import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
+import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 
 const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
 	<svg
@@ -146,11 +147,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								className="h-7 sm:h-8 w-auto hidden dark:block"
 								alt="sportsdey's logo"
 							/>
-							<img
-								src="/sportsdey-logo.jpeg"
-								className="h-7 sm:h-8 w-auto block dark:hidden"
-								alt="sportsdey's logo"
-							/>
+							<NewSportsdeyLogo className="h-7 sm:h-8 w-auto block dark:hidden" />
 						</Link>
 					</div>
 
@@ -339,11 +336,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								className="h-10 hidden dark:block"
 								alt="sportsdey's logo"
 							/>
-							<img
-								src="/sportsdey-logo.jpeg"
-								className="h-10 block dark:hidden"
-								alt="sportsdey's logo"
-							/>
+							<NewSportsdeyLogo className="h-10 w-auto block dark:hidden" />
 							<button
 								ref={closeButtonRef}
 								type="button"
