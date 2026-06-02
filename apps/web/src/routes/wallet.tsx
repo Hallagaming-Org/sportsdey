@@ -150,8 +150,8 @@ function WalletPage() {
 	};
 
 	return (
-		<div className="my-5 grid gap-6 lg:grid-cols-[320px_1fr]">
-			<WalletSidebar />
+		<div className="grid lg:grid-cols-[320px_1fr]">
+			{/* <WalletSidebar /> */}
 
 			<section>
 				{isInitialPageLoading ? (
@@ -165,7 +165,7 @@ function WalletPage() {
 								<div className="h-fit self-start rounded-2xl bg-white p-[20px] shadow-sm dark:bg-[#202120]">
 									<div className="flex items-center justify-between">
 										<p className="font-semibold text-[30px] text-primary dark:text-white">
-											Wallet &amp; Credits
+											Wallet
 										</p>
 										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
 											<WalletIcon width={18} height={18} className="block" />
@@ -185,7 +185,7 @@ function WalletPage() {
 											<div className="mt-3 flex items-start gap-2">
 												<p className="font-semibold text-primary leading-none dark:text-white">
 													{showBalance ? (
-														<span className="leading-none">
+														<span className="leading-none space-x-2">
 															<span className="relative -top-2 align-super text-[24px]">
 																₦
 															</span>
