@@ -119,7 +119,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
-			<div className="w-full bg-white text-foreground lg:bg-primary">
+			<div className="w-full bg-white dark:bg-[#121212] text-foreground lg:bg-primary dark:lg:bg-primary">
 				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-2 py-2 lg:hidden">
 					<div className="flex items-center gap-1.5 shrink-0">
 						<button
@@ -142,22 +142,27 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							className="shrink-0"
 						>
 							<img
+								src="/sportsdey-logo.png"
+								className="h-7 sm:h-8 w-auto hidden dark:block"
+								alt="sportsdey's logo"
+							/>
+							<img
 								src="/sportsdey-logo.jpeg"
-								className="h-7 sm:h-8 w-auto"
+								className="h-7 sm:h-8 w-auto block dark:hidden"
 								alt="sportsdey's logo"
 							/>
 						</Link>
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
-						<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] p-0.5">
+						<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
 							<div
 								className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
 								aria-label="Wallet balance"
 							>
 								<NigerianFlag />
 								<span
-									className="truncate font-semibold tracking-tight text-[#4b5563] transition-all"
+									className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all"
 									style={{
 										fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
 									}}
@@ -183,7 +188,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 						<button
 							type="button"
-							className="relative flex h-8 w-8 shrink-0 text-black items-center justify-center rounded-full border border-transparent bg-transparent"
+							className="relative flex h-8 w-8 shrink-0 text-black dark:text-white items-center justify-center rounded-full border border-transparent bg-transparent"
 							aria-label="Notifications"
 						>
 							<NotificationIcon />
