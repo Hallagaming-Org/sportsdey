@@ -2,14 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { ChevronLeft, Star, Trash2 } from "lucide-react";
 import { useMemo } from "react";
-import BannerCarousel from "@/components/BannerCarousel";
 import {
 	type FavoriteMatch,
 	type FavoriteTeam,
 	useFavorites,
 } from "@/hooks/useFavorites";
 import { apiRequest } from "@/lib/api";
-import { getBanners } from "@/lib/banners-server";
 import {
 	BasketballComponentHeader,
 	MatchCard,
@@ -26,7 +24,6 @@ const getScore = (
 };
 
 export const Route = createFileRoute("/favorites")({
-	loader: () => getBanners(),
 	component: FavoritesPage,
 });
 
@@ -103,7 +100,6 @@ const FavoriteMatchCardRow = ({
 
 function FavoritesPage() {
 	const router = useRouter();
-	const banners = Route.useLoaderData() || [];
 	const {
 		favoriteTeams,
 		favoriteMatches,
@@ -164,13 +160,6 @@ function FavoritesPage() {
 
 	return (
 		<div className="min-h-screen bg-[#f8f9fa] pb-20">
-			{banners.length > 0 && (
-				<div className="px-4 lg:container lg:mx-auto">
-					<div className="w-full overflow-hidden rounded-xl">
-						<BannerCarousel banners={banners} />
-					</div>
-				</div>
-			)}
 			{/* Header */}
 			<div className="sticky top-0 z-20 mb-4 flex items-center bg-white px-6 py-5 shadow-sm">
 				<button
