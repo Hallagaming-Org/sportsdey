@@ -4,9 +4,9 @@ import { Eye, EyeOff, Loader2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WalletInfo } from "@/components/wallet-info";
 import { WalletRecentTransactions } from "@/components/wallet-recent-transactions";
-import { WalletSidebar } from "@/components/wallet-sidebar";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -179,9 +179,7 @@ function WalletPage() {
 									<div className="mt-3 flex items-start gap-2">
 										<p className="font-semibold text-primary leading-none dark:text-white">
 											{isWalletSectionLoading ? (
-												<span className="flex h-[50px] items-center">
-													<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
-												</span>
+												<Skeleton className="h-[50px] w-[150px]" />
 											) : showBalance ? (
 												<span className="leading-none space-x-2">
 													<span className="relative -top-2 align-super text-[24px]">
