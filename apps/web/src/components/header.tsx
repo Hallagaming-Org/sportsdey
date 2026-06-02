@@ -192,17 +192,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							</span>
 						</button>
 
-						<Link
-							to={session?.user ? "/account" : "/auth/sign-in"}
-							className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white"
-							aria-label="Account"
-						>
-							<img
-								src={mobileAvatarSrc}
-								alt="Account"
-								className="h-full w-full object-cover"
-							/>
-						</Link>
+						<UserMenu />
 					</div>
 				</div>
 
