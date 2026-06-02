@@ -159,16 +159,16 @@ function FavoritesPage() {
 	}, [favoriteMatches]);
 
 	return (
-		<div className="min-h-screen bg-[#f8f9fa] pb-20">
+		<div className="h-full bg-[#f8f9fa] dark:bg-[#111211]">
 			{/* Header */}
-			<div className="sticky top-0 z-20 mb-4 flex items-center bg-white px-6 py-5 shadow-sm">
+			<div className="sticky top-0 z-20 mb-4 flex items-center bg-white px-6 py-5 shadow-sm dark:bg-[#1A1A1A] dark:border-b dark:border-gray-800">
 				<button
 					onClick={() => router.history.back()}
-					className="mr-5 rounded-full p-2 transition-colors hover:bg-gray-100"
+					className="mr-5 rounded-full p-2 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
 				>
-					<ChevronLeft className="h-6 w-6 text-primary" />
+					<ChevronLeft className="h-6 w-6 text-primary dark:text-white" />
 				</button>
-				<h1 className="font-bold text-primary text-xl">Favorites</h1>
+				<h1 className="font-bold text-primary text-xl dark:text-white">Favorites</h1>
 			</div>
 
 			<div className="mx-auto w-full space-y-8 px-4">
@@ -176,13 +176,13 @@ function FavoritesPage() {
 				favoriteMatches.length === 0 &&
 				favoriteLeagues.length === 0 ? (
 					<div className="flex flex-col items-center justify-center py-24 text-center">
-						<div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
-							<Star className="h-10 w-10 text-gray-300" />
+						<div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gray-100 dark:bg-[#202120]">
+							<Star className="h-10 w-10 text-gray-300 dark:text-gray-600" />
 						</div>
-						<h2 className="mb-2 font-bold text-lg text-primary">
+						<h2 className="mb-2 font-bold text-lg text-primary dark:text-white">
 							No favorites yet
 						</h2>
-						<p className="max-w-[260px] text-gray-500 text-sm">
+						<p className="max-w-[260px] text-gray-500 text-sm dark:text-gray-400">
 							Tap the star icon next to teams or matches to keep track of them
 							here.
 						</p>
