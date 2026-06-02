@@ -57,7 +57,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	const shouldHideSportsNav = hideSportsNav || isAuthRoute;
 	const currentSport = useCurrentSport();
 	const { data: session } = useSession();
-	const { setTab, tab } = useActiveTab();
+	// const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
 	const links = [
@@ -218,13 +218,39 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<span>EN</span>
 							<ChevronDown className="h-2.5 w-2.5" />
 						</div>
+						<ThemeToggle />
 					</div>
 
 					{!shouldHideSportsNav && (
 						<nav
 							aria-label="Sports navigation"
-							className="hidden lg:flex lg:items-center lg:gap-3"
+							className="hidden lg:flex lg:items-center lg:gap-6 font-bold text-sm"
 						>
+							<Link
+								to="/"
+								search={{ sports: undefined, league: undefined } as any}
+								className={cn(
+									"flex items-center gap-2 px-1 transition-colors",
+									!location.pathname.includes("favorites")
+										? "border-accent border-b-2 pb-1 text-accent"
+										: "text-secondary hover:text-white pb-1.5"
+								)}
+							>
+								Scores
+							</Link>
+							<Link
+								to="/favorites"
+								className={cn(
+									"flex items-center gap-2 px-1 transition-colors",
+									location.pathname.includes("favorites")
+										? "border-accent border-b-2 pb-1 text-accent"
+										: "text-secondary hover:text-white pb-1.5"
+								)}
+							>
+								Favorites
+							</Link>
+
+							{/* Legacy Sports Nav - Commented out as requested
 							{links.map((l) => {
 								const isActive = (currentSport || SPORTS.FOOTBALL) === l.sport;
 								const Icon = l.icon as React.FC<any>;
@@ -248,11 +274,40 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									</Link>
 								);
 							})}
+							*/}
 						</nav>
 					)}
 
-					<div className="flex items-center gap-6">
-						<ThemeToggle />
+					<div className="flex items-center gap-4 xl:gap-6">
+						{!isAuthRoute && (
+							<div className="flex h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#111211] p-0.5">
+								<div
+									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2"
+									aria-label="Wallet balance"
+								>
+									<NigerianFlag />
+									<span
+										className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all text-xs xl:text-sm"
+									>
+										{mobileBalance}
+									</span>
+								</div>
+
+								<button
+									type="button"
+									onClick={() =>
+										router.navigate({
+											to: "/wallet",
+											state: { openDeposit: true } as any,
+										})
+									}
+									aria-label="Add funds"
+									className="flex h-7 px-3 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent font-bold text-xs text-white transition-colors hover:bg-green-500"
+								>
+									Deposit
+								</button>
+							</div>
+						)}
 
 						{/* Search Magnifying Glass */}
 						<button
