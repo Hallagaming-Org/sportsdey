@@ -227,11 +227,10 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							className="hidden lg:flex lg:items-center lg:gap-6 font-bold text-sm"
 						>
 							<Link
-								to="/"
-								search={{ sports: undefined, league: undefined } as any}
+								to="/index/matches"
 								className={cn(
 									"flex items-center gap-2 px-1 transition-colors",
-									!location.pathname.includes("favorites")
+									location.pathname.includes("matches")
 										? "border-accent border-b-2 pb-1 text-accent"
 										: "text-secondary hover:text-white pb-1.5"
 								)}
