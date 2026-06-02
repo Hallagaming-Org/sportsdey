@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import BannerCarousel from "@/components/BannerCarousel";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import RightSidebar from "@/components/RightSidebar";
 import { useCurrentFilter } from "@/hooks/use-current-filter";
 import { useFootballSchedule } from "@/hooks/use-fooball-schedule";
@@ -240,16 +241,31 @@ function RouteComponent() {
 							)
 						return false
 					})
-					.map((match) => ({
-						id: match.id,
-						team1: match.competitors.home.name,
-						team2: match.competitors.away.name,
-						score1: match.competitors.home.score,
-						score2: match.competitors.away.score,
-						status: match.match_status,
-						time: match.start_time,
-						clock: match.clock?.toString(),
-					}))
+					.map((match) => {
+						const formatTime = (dateStr?: string) => {
+							if (!dateStr) return undefined;
+							try {
+								return new Date(dateStr).toLocaleTimeString("en-US", {
+									hour: "2-digit",
+									minute: "2-digit",
+									hour12: false,
+								});
+							} catch {
+								return undefined;
+							}
+						};
+
+						return {
+							id: match.id,
+							team1: match.competitors.home.name,
+							team2: match.competitors.away.name,
+							score1: match.competitors.home.score,
+							score2: match.competitors.away.score,
+							status: match.match_status,
+							time: formatTime(match.start_time) || match.start_time,
+							clock: match.clock?.toString(),
+						};
+					})
 
 				if (filteredMatches.length === 0) return null;
 
@@ -302,6 +318,7 @@ function RouteComponent() {
 		<div className="h-full">
 			<div className="h-full items-start gap-6 lg:grid lg:grid-cols-[3fr_1fr]">
 				<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
+					<MobileSportsFilter />
 					<div className="sticky top-0 z-10 hidden w-full bg-background/95 px-1 py-4 backdrop-blur-sm lg:block">
 						<FixtureFilterHeaders counts={counts} />
 					</div>
