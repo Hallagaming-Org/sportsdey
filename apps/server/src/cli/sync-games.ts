@@ -122,7 +122,7 @@ async function fetchGames(
 
 	const allParams: Record<string, string> = {
 		...queryParams,
-		"filter[is_mobile]": "0",
+		"filter[is_mobile]": "1",
 		"X-Merchant-Id": merchantId,
 		"X-Timestamp": timestamp,
 		"X-Nonce": nonce,
@@ -137,7 +137,7 @@ async function fetchGames(
 
 	const xSign = await generateXSign(allQueryString, merchantKey);
 
-	const url = `${slotegratorApiUrl}/games/index?filter[is_mobile]=0&${queryString}`;
+	const url = `${slotegratorApiUrl}/games/index?filter[is_mobile]=1&${queryString}`;
 
 	const response = await fetch(url, {
 		method: "GET",
@@ -158,7 +158,7 @@ async function fetchGames(
 
 	const data = (await response.json()) as GamesApiResponse;
 
-	console.log("games", data);
+	
 	return data;
 }
 
