@@ -10,6 +10,7 @@ import { Play, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { BannerData } from "@/lib/banners-server";
 import type { NewsListItem } from "@/lib/news-server";
+import { Skeleton } from "@/components/ui/skeleton";
 import PopularAndCasinoSection from "./PopularAndCasinoSection";
 
 interface SportLandingPageProps {
@@ -97,8 +98,20 @@ export default function SportLandingPage({
 				</div>
 
 				{isNewsLoading ? (
-					<div className="flex justify-center items-center h-48">
-						<Loader2 className="animate-spin text-accent h-8 w-8" />
+					<div className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-hidden pb-2 pr-1 lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:gap-6">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div
+								key={`news-skel-${i}`}
+								className="flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+							>
+								<Skeleton className="h-36 w-full sm:aspect-video rounded-none" />
+								<div className="flex flex-1 flex-col p-4 space-y-3">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-3/4" />
+									<Skeleton className="mt-auto h-3 w-1/2" />
+								</div>
+							</div>
+						))}
 					</div>
 				) : displayNews.length === 0 ? (
 					<div className="text-center py-12 bg-white dark:bg-card rounded-2xl border border-gray-100 dark:border-0 shadow-sm text-gray-500">
@@ -165,8 +178,19 @@ export default function SportLandingPage({
 				</div>
 
 				{isVideosLoading ? (
-					<div className="flex justify-center items-center h-48">
-						<Loader2 className="animate-spin text-accent h-8 w-8" />
+					<div className="no-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-hidden pb-2 pr-1 lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:gap-6">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div
+								key={`video-skel-${i}`}
+								className="flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+							>
+								<Skeleton className="h-36 w-full sm:aspect-video rounded-none" />
+								<div className="p-3 space-y-2">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-2/3" />
+								</div>
+							</div>
+						))}
 					</div>
 				) : displayVideos.length === 0 ? (
 					<div className="text-center py-12 bg-white dark:bg-card rounded-2xl border border-gray-100 dark:border-0 shadow-sm text-gray-500">
