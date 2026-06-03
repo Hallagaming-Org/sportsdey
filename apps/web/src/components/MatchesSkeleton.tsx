@@ -16,13 +16,11 @@ export function MatchesSkeleton() {
 						</div>
 					</div>
 
-					{/* Skeleton Accordion Cards */}
 					{[1, 2, 3].map((i) => (
 						<div
 							key={i}
 							className="overflow-hidden rounded-2xl bg-white shadow-sm dark:bg-[#202120]"
 						>
-							{/* Header */}
 							<div className="flex items-center gap-3 bg-gray-50 p-4 dark:bg-[#2A2B2A]">
 								<Skeleton className="h-8 w-8 rounded-full" />
 								<div className="space-y-2">
@@ -30,7 +28,6 @@ export function MatchesSkeleton() {
 									<Skeleton className="h-3 w-24" />
 								</div>
 							</div>
-							{/* Matches */}
 							<div className="divide-y divide-gray-100 dark:divide-gray-800">
 								{[1, 2].map((j) => (
 									<div key={j} className="flex items-center justify-between p-4">
