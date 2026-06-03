@@ -29,7 +29,7 @@ const Footer = () => {
 	return (
 		<div className="px-0 pt-3 lg:hidden">
 			<div className="w-full">
-				<div className="rounded-t-lg border-gray-100 border-t bg-white p-2 shadow-lg">
+				<div className="rounded-t-lg border-t border-[#F1F2F4] bg-white p-2 shadow-lg dark:border-[#2F3033] dark:bg-[#1C1D1F]">
 					<div className="flex items-center justify-between">
 						{bottomBarItems.map(({ id, icon: Icon, item, label }) => (
 							<button
