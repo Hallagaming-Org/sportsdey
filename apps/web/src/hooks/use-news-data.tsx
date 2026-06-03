@@ -8,16 +8,13 @@ export function useNewsData(category: string) {
 		queryKey: ["news", category],
 		queryFn: async ({ pageParam = 0 }) => {
 			const result = await getNews({
-				data: {
-					category,
-					offset: pageParam,
-					limit: LIMIT,
-				},
+				category,
+				offset: pageParam,
+				limit: LIMIT,
 			});
 			return result || [];
 		},
 		getNextPageParam: (lastPage, allPages) => {
-			// If we got fewer items than LIMIT, there are no more pages
 			if (!lastPage || lastPage.length < LIMIT) {
 				return undefined;
 			}

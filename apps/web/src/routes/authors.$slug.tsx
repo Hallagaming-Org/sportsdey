@@ -3,28 +3,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import BannerCarousel from "@/components/BannerCarousel";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { type AuthorNewsItem, useAuthorNews } from "@/hooks/use-author-news";
 import type { BannerData } from "@/lib/banners-server";
 import { getBanners } from "@/lib/banners-server";
+import type { AuthorDetail } from "@/lib/news-server";
 import { getAuthorBySlug } from "@/lib/news-server";
-import { urlFor } from "@/lib/sanity";
 import LinkedIn from "@/logos/linkedin.svg?react";
 import X from "@/logos/x.svg?react";
 
-interface Author {
-	_id: string;
-	name: string;
-	slug: { current: string };
-	image: any;
-	bio: any;
-	x?: string;
-	linkedin?: string;
-}
+type Author = AuthorDetail;
 
 export const Route = createFileRoute("/authors/$slug")({
 	loader: async ({ params }) => {
 		const [author, banners] = await Promise.all([
-			getAuthorBySlug({ data: params.slug }),
+			getAuthorBySlug(params.slug),
 			getBanners(),
 		]);
 		return { author, banners };
@@ -84,17 +77,18 @@ function RouteComponent() {
 			)}
 			<div className="w-full rounded-xl bg-white p-6 shadow-sm dark:bg-card">
 				<div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start">
-					<div className="h-40 w-40 shrink-0 overflow-hidden rounded-full">
-						{author.image ? (
-							<img
-								src={urlFor(author.image).url()}
-								alt={author.name}
-								className="h-full w-full object-cover"
-							/>
-						) : (
-							<div className="h-full w-full bg-gray-200" />
-						)}
-					</div>
+				<div className="h-40 w-40 shrink-0 overflow-hidden rounded-full">
+					{author.image ? (
+						<ImageWithSkeleton
+							src={author.image.hero}
+							alt={author.name}
+							wrapperClassName="h-40 w-40 rounded-full"
+							className="h-full w-full object-cover"
+						/>
+					) : (
+						<div className="h-full w-full bg-gray-200" />
+					)}
+				</div>
 					<div className="flex-1 text-center lg:text-left">
 						<h1 className="mb-2 font-bold text-3xl">{author.name}</h1>
 						{author.bio && (
@@ -153,9 +147,10 @@ function RouteComponent() {
 							>
 								<div className="relative mb-3 w-full overflow-hidden rounded-lg pb-[100%]">
 									{item.image ? (
-										<img
-											src={urlFor(item.image).url()}
+										<ImageWithSkeleton
+											src={item.image.card}
 											alt={item.title}
+											wrapperClassName="absolute inset-0"
 											className="absolute top-0 left-0 h-full w-full object-cover"
 										/>
 									) : (

@@ -3,6 +3,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { createAuth } from "./auth";
+import adminCmsRoute from "./routes/admin-cms";
 import adminRoute from "./routes/admin";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
@@ -130,6 +131,7 @@ app.use("*", async (c, next) => {
 
 app.route("/", routes);
 app.route("/admin", adminRoute);
+app.route("/cms", adminCmsRoute);
 app.route("/cms", cmsRoute);
 
 app.get("/docs", swaggerUI({ url: "/openapi.json" }));

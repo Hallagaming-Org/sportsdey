@@ -5,7 +5,7 @@ import { VideoModal } from "@/components/basketball-section/VideoModal";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { useNewsData } from "@/hooks/use-news-data";
 import { useNewsVideos } from "@/hooks/use-news-videos";
-import { urlFor } from "@/lib/sanity";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { formatRelativeTime } from "@/lib/utils";
 import { ShareButton } from "./ShareButton";
 
@@ -76,11 +76,14 @@ const RightSidebar = () => {
 						}
 					>
 						<div className="group relative mb-3 aspect-video w-full cursor-pointer overflow-hidden rounded-xl">
-							<img
-								src={urlFor(latestNews.image).url()}
-								alt={latestNews.title}
-								className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-							/>
+							{latestNews.image && (
+								<ImageWithSkeleton
+									src={latestNews.image.hero}
+									alt={latestNews.title}
+									wrapperClassName="absolute inset-0"
+									className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+								/>
+							)}
 						</div>
 						<h4
 							onClick={() =>

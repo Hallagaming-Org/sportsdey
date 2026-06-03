@@ -2,6 +2,7 @@ import { clsx } from "clsx";
 import Autoplay from "embla-carousel-autoplay";
 import useEmblaCarousel from "embla-carousel-react";
 import { useCallback, useEffect, useState } from "react";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import type { BannerData } from "@/lib/banners-server";
 
 interface BannerCarouselProps {
@@ -67,9 +68,10 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 				rel="noopener noreferrer"
 				className="block w-full"
 			>
-				<img
+				<ImageWithSkeleton
 					src={banner.imageUrl}
 					alt={banner.alt || "Banner"}
+					wrapperClassName="w-full"
 					className="h-auto w-full"
 				/>
 			</a>
@@ -91,9 +93,10 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 								rel="noopener noreferrer"
 								className="block w-full"
 							>
-								<img
+								<ImageWithSkeleton
 									src={banner.imageUrl}
 									alt={banner.alt || "Banner"}
+									wrapperClassName="w-full"
 									className="h-auto w-full"
 								/>
 							</a>

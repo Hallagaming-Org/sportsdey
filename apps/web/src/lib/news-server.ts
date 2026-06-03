@@ -1,237 +1,136 @@
-import { createServerFn } from "@tanstack/react-start";
-import { client } from "./sanity";
-import { serverClient } from "./sanity-server";
+import { apiRequest } from "./api";
 
-const SANITY_TIMEOUT = 8000;
-
-async function fetchWithSanityTimeout<T>(
-	query: string,
-	params?: Record<string, unknown>,
-): Promise<T> {
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), SANITY_TIMEOUT);
-
-	try {
-		const result = await client.fetch<T>(query, params, {
-			signal: controller.signal,
-		});
-		clearTimeout(timeoutId);
-		return result;
-	} catch (error) {
-		clearTimeout(timeoutId);
-		if (error instanceof Error && error.name === "AbortError") {
-			console.warn("Sanity API request timed out");
-			throw new Error("Sanity request timed out");
-		}
-		throw error;
-	}
-}
-
-export const getNews = createServerFn({ method: "GET" })
-	.inputValidator(
-		(data: { category: string; offset?: number; limit?: number }) => data,
-	)
-	.handler(async ({ data }) => {
-		const { category, offset = 0, limit = 12 } = data;
-		const start = offset;
-		const end = offset + limit;
-
-		const query =
-			category === "all"
-				? `*[_type == "news"] | order(publishedAt desc)[$start...$end]{
-					_id,
-					title,
-					publishedAt,
-					category,
-					image,
-					slug,
-					body,
-					"author": author->{_id, name, slug, image}
-				}`
-				: `*[_type == "news" && category == $category] | order(publishedAt desc)[$start...$end]{
-					_id,
-					title,
-					publishedAt,
-					category,
-					image,
-					slug,
-					body,
-					"author": author->{_id, name, slug, image}
-				}`;
-
-		const response = await fetchWithSanityTimeout(query, {
-			start,
-			end,
-			...(category !== "all" ? { category } : {}),
-		});
-		return response || [];
-	});
-
-export const getNewsById = createServerFn({ method: "GET" })
-	.inputValidator((id: string) => id)
-	.handler(async ({ data: id }) => {
-		const response = await fetchWithSanityTimeout(
-			`
-	      *[_type == "news" && _id == $id][0]{
-        _id,
-        title,
-        publishedAt,
-        image,
-        slug,
-        body,
-        "author": author->{_id, name, slug, image}
-      }
-    `,
-			{ id },
-		);
-		return response;
-	});
-
-export const getNewsBySlug = createServerFn({ method: "GET" })
-	.inputValidator((slug: string) => slug)
-	.handler(async ({ data: slug }) => {
-		const response = await fetchWithSanityTimeout(
-			`
-	      *[_type == "news" && slug.current == $slug][0]{
-        _id,
-        title,
-        publishedAt,
-        image,
-        slug,
-        body,
-        "author": author->{_id, name, slug, image}
-      }
-    `,
-			{ slug },
-		);
-		return response;
-	});
-
-export const getAuthorBySlug = createServerFn({ method: "GET" })
-	.inputValidator((slug: string) => slug)
-	.handler(async ({ data: slug }) => {
-		const response = await fetchWithSanityTimeout(
-			`
-	      *[_type == "author" && slug.current == $slug][0]{
-        _id,
-        name,
-        slug,
-        image,
-        bio,
-        facebook,
-        x,
-        linkedin
-      }
-    `,
-			{ slug },
-		);
-		return response;
-	});
-
-export const getNewsByAuthor = createServerFn({ method: "GET" })
-	.inputValidator(
-		(data: { authorId: string; limit?: number; offset?: number }) => {
-			if (!data.authorId) throw new Error("authorId is required");
-			return data;
-		},
-	)
-	.handler(async ({ data }) => {
-		const { authorId, limit = 10, offset = 0 } = data;
-		try {
-			const response = await fetchWithSanityTimeout(
-				`
-	      *[_type == "news" && references($authorId)] | order(publishedAt desc) [$offset...$end] {
-        _id,
-        title,
-        publishedAt,
-        image,
-        slug,
-        body,
-        sport
-      }
-    `,
-				{ authorId, offset, end: offset + limit },
-			);
-			return response;
-		} catch {
-			// Return empty array on error to prevent error boundary trigger
-			return [];
-		}
-	});
-
-export const getNewsByAuthorTotal = createServerFn({ method: "GET" })
-	.inputValidator((authorId: string) => authorId)
-	.handler(async ({ data: authorId }) => {
-		try {
-			const response = await fetchWithSanityTimeout(
-				`
-	      count(*[_type == "news" && references($authorId)])
-	    `,
-				{ authorId },
-			);
-			return response;
-		} catch {
-			// Return 0 on error to prevent error boundary trigger
-			return 0;
-		}
-	});
-
-type CommentInput = {
-	newsId: string;
-	message: string;
-	user: {
-		id: string;
-		name?: string | null;
-		email?: string | null;
-	};
+export type ImageSizes = {
+	url: string;
+	thumb: string;
+	card: string;
+	hero: string;
+	og: string;
 };
 
-export const getCommentsForNews = createServerFn({ method: "GET" })
-	.inputValidator((newsId: string) => newsId)
-	.handler(async ({ data: newsId }) => {
-		const response = await fetchWithSanityTimeout(
-			`*[_type == "comment" && news._ref == $newsId] 
-			 | order(createdAt desc){
-				_id,
-				name,
-				message,
-				createdAt
-			}`,
-			{ newsId },
-		);
-		return response || [];
+export type NewsListItem = {
+	_id: string;
+	title: string;
+	publishedAt: string;
+	category?: string;
+	image: ImageSizes | null;
+	slug: { current: string } | null;
+	author: AuthorRef | null;
+	body: unknown;
+};
+
+export type AuthorRef = {
+	_id: string;
+	name: string;
+	slug: { current: string } | null;
+	image: ImageSizes | null;
+	bio?: unknown;
+	facebook?: string;
+	x?: string;
+	linkedin?: string;
+};
+
+export type NewsDetail = {
+	_id: string;
+	title: string;
+	publishedAt: string;
+	image: ImageSizes | null;
+	slug: { current: string } | null;
+	body: unknown;
+	author: AuthorRef | null;
+};
+
+export type AuthorDetail = {
+	_id: string;
+	name: string;
+	slug: { current: string } | null;
+	image: ImageSizes | null;
+	bio: unknown;
+	facebook?: string;
+	x?: string;
+	linkedin?: string;
+};
+
+export type AuthorNewsItem = {
+	_id: string;
+	title: string;
+	publishedAt: string;
+	image: ImageSizes | null;
+	slug: { current: string } | null;
+	body: unknown;
+	sport?: string;
+};
+
+export type Comment = {
+	_id: string;
+	name: string;
+	message: string;
+	createdAt: string;
+};
+
+export async function getNews(params: {
+	category: string;
+	offset?: number;
+	limit?: number;
+}): Promise<NewsListItem[]> {
+	const query = new URLSearchParams({
+		category: params.category,
+		offset: String(params.offset ?? 0),
+		limit: String(params.limit ?? 12),
 	});
+	return apiRequest<NewsListItem[]>(`cms/public/news?${query.toString()}`);
+}
 
-export const addCommentToNews = createServerFn({ method: "POST" })
-	.inputValidator((data: CommentInput) => {
-		if (!data.newsId) throw new Error("newsId is required");
-		if (!data.message?.trim()) throw new Error("message is required");
-		if (!data.user?.id) throw new Error("user id is required");
-		return data;
-	})
-	.handler(async ({ data }) => {
-		if (!process.env.SANITY_WRITE_TOKEN) {
-			throw new Error("Sanity write client is not configured");
-		}
+export async function getNewsById(id: string): Promise<NewsDetail | null> {
+	return apiRequest<NewsDetail | null>(`cms/public/news/by-id/${encodeURIComponent(id)}`);
+}
 
-		const now = new Date().toISOString();
-		const doc = await serverClient.create({
-			_type: "comment",
-			name: data.user.name || "SportsDey user",
-			email: data.user.email || undefined,
-			userId: data.user.id,
-			message: data.message.trim(),
-			news: {
-				_type: "reference",
-				_ref: data.newsId,
-			},
-			createdAt: now,
-		});
+export async function getNewsBySlug(slug: string): Promise<NewsDetail | null> {
+	return apiRequest<NewsDetail | null>(`cms/public/news/by-slug/${encodeURIComponent(slug)}`);
+}
 
-		return {
-			_id: doc._id,
-			name: data.user.name || "SportsDey user",
-			message: data.message.trim(),
-			createdAt: now,
-		};
+export async function getAuthorBySlug(slug: string): Promise<AuthorDetail | null> {
+	return apiRequest<AuthorDetail | null>(
+		`cms/public/authors/by-slug/${encodeURIComponent(slug)}`,
+	);
+}
+
+export async function getNewsByAuthor(params: {
+	authorId: string;
+	offset?: number;
+	limit?: number;
+}): Promise<AuthorNewsItem[]> {
+	const query = new URLSearchParams({
+		offset: String(params.offset ?? 0),
+		limit: String(params.limit ?? 10),
 	});
+	return apiRequest<AuthorNewsItem[]>(
+		`cms/public/authors/${encodeURIComponent(params.authorId)}/news?${query.toString()}`,
+	);
+}
+
+export async function getNewsByAuthorTotal(authorId: string): Promise<number> {
+	return apiRequest<number>(
+		`cms/public/authors/${encodeURIComponent(authorId)}/news/total`,
+	);
+}
+
+export async function getCommentsForNews(newsId: string): Promise<Comment[]> {
+	return apiRequest<Comment[]>(
+		`cms/public/news/${encodeURIComponent(newsId)}/comments`,
+	);
+}
+
+export async function addCommentToNews(params: {
+	newsId: string;
+	message: string;
+}): Promise<Comment> {
+	return apiRequest<Comment>(
+		`cms/public/news/${encodeURIComponent(params.newsId)}/comments`,
+		{
+			method: "POST",
+			credentials: "include",
+			body: JSON.stringify({ message: params.message }),
+		},
+	);
+}

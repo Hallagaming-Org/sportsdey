@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getNewsBySlug } from "@/lib/news-server";
-import { urlFor } from "@/lib/sanity";
 
 const fontUrlBold =
 	"https://cdn.jsdelivr.net/fontsource/fonts/inter@latest/latin-700-normal.woff";
@@ -52,7 +51,7 @@ export const Route = createFileRoute("/news/$slug/og")({
 	server: {
 		handlers: {
 			GET: async ({ params }) => {
-				const news = await getNewsBySlug({ data: params.slug });
+				const news = await getNewsBySlug(params.slug);
 				if (!news) return new Response("Not Found", { status: 404 });
 
 				let bodyText = "";
@@ -73,9 +72,7 @@ export const Route = createFileRoute("/news/$slug/og")({
 				const boldBase64 = Buffer.from(boldData).toString("base64");
 				const regularBase64 = Buffer.from(regularData).toString("base64");
 
-				const imageUrl = news.image
-					? urlFor(news.image).width(480).height(630).url()
-					: null;
+				const imageUrl = news.image ? news.image.og : null;
 
 				const truncatedTitle = truncateText(news.title, 60);
 				const truncatedBody = truncateText(bodyText, 150);
