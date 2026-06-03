@@ -5,42 +5,51 @@ import { useNewsVideos } from "@/hooks/use-news-videos";
 import BannerCarousel from "@/components/BannerCarousel";
 import AppDownloadBanner from "@/components/app-download-banner";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
-import { urlFor } from "@/lib/sanity";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import PopularAndCasinoSection from "@/components/PopularAndCasinoSection";
 import { formatRelativeTime } from "@/lib/utils";
 import { Play, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { BannerData } from "@/lib/banners-server";
+import type { NewsListItem } from "@/lib/news-server";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
 	banners?: BannerData[];
 }
 
-export default function SportLandingPage({ sport, banners = [] }: SportLandingPageProps) {
+export default function SportLandingPage({
+	sport,
+	banners = [],
+}: SportLandingPageProps) {
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
 	// Map sport to Sanity news category filter
-	const newsCategory =
-		sport === "ufc" ? "mma/ufc" : sport;
+	const newsCategory = sport === "ufc" ? "mma/ufc" : sport;
 
 	// Map sport to video query string
-	const videoQuery =
-		sport === "ufc" ? "ufc mma" : sport;
+	const videoQuery = sport === "ufc" ? "ufc mma" : sport;
 
 	// Load news
-	const { data: newsData, isLoading: isNewsLoading } = useNewsData(newsCategory);
+	const { data: newsData, isLoading: isNewsLoading } =
+		useNewsData(newsCategory);
 	const allNews = newsData?.pages.flat() || [];
 	const displayNews = allNews.slice(0, 4);
 
 	// Load video highlights
-	const { data: videoData, isLoading: isVideosLoading } = useNewsVideos(videoQuery);
+	const { data: videoData, isLoading: isVideosLoading } =
+		useNewsVideos(videoQuery);
 	const allVideos = videoData?.pages.flatMap((page) => page.videos) || [];
 	const displayVideos = allVideos.slice(0, 4);
 
 	// Tag styling helper
 	const getTagStyle = (category: string) => {
 		const cat = category?.toLowerCase() || "";
-		if (cat.includes("premier") || cat.includes("league") || cat.includes("football")) {
+		if (
+			cat.includes("premier") ||
+			cat.includes("league") ||
+			cat.includes("football")
+		) {
 			return "bg-green-600 text-white";
 		}
 		if (cat.includes("transfer")) {
@@ -70,6 +79,9 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 				</div>
 			)}
 
+			{/* Popular Matches & Hot Casino */}
+			<PopularAndCasinoSection />
+
 			{/* Trending News Section */}
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
@@ -95,7 +107,7 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 					</div>
 				) : (
 					<div className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6">
-						{displayNews.map((news: any) => {
+						{displayNews.map((news: NewsListItem) => {
 							const tag = news.category || sport;
 							return (
 								<Link
@@ -106,9 +118,10 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 								>
 									<div className="relative h-36 w-full overflow-hidden bg-gray-100 dark:bg-gray-800 sm:aspect-video">
 										{news.image ? (
-											<img
-												src={urlFor(news.image).width(400).height(225).url()}
+											<ImageWithSkeleton
+												src={news.image.thumb}
 												alt={news.title}
+												wrapperClassName="absolute inset-0"
 												className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
 											/>
 										) : (
@@ -204,7 +217,10 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 			</div>
 
 			{/* Video Modal */}
-			<VideoModal videoId={selectedVideoId} onClose={() => setSelectedVideoId(null)} />
+			<VideoModal
+				videoId={selectedVideoId}
+				onClose={() => setSelectedVideoId(null)}
+			/>
 		</div>
 	);
 }
