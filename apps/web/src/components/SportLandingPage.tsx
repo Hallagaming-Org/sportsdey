@@ -3,45 +3,52 @@ import { Link } from "@tanstack/react-router";
 import { useNewsData } from "@/hooks/use-news-data";
 import { useNewsVideos } from "@/hooks/use-news-videos";
 import BannerCarousel from "@/components/BannerCarousel";
-import { SportsbookPage } from "@/routes/sportsbook/$";
 import AppDownloadBanner from "@/components/app-download-banner";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
-import { urlFor } from "@/lib/sanity";
 import { formatRelativeTime } from "@/lib/utils";
 import { Play, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { BannerData } from "@/lib/banners-server";
+import type { NewsListItem } from "@/lib/news-server";
+import PopularAndCasinoSection from "./PopularAndCasinoSection";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
 	banners?: BannerData[];
 }
 
-export default function SportLandingPage({ sport, banners = [] }: SportLandingPageProps) {
+export default function SportLandingPage({
+	sport,
+	banners = [],
+}: SportLandingPageProps) {
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 
 	// Map sport to Sanity news category filter
-	const newsCategory =
-		sport === "ufc" ? "mma/ufc" : sport;
+	const newsCategory = sport === "ufc" ? "mma/ufc" : sport;
 
 	// Map sport to video query string
-	const videoQuery =
-		sport === "ufc" ? "ufc mma" : sport;
+	const videoQuery = sport === "ufc" ? "ufc mma" : sport;
 
 	// Load news
-	const { data: newsData, isLoading: isNewsLoading } = useNewsData(newsCategory);
+	const { data: newsData, isLoading: isNewsLoading } =
+		useNewsData(newsCategory);
 	const allNews = newsData?.pages.flat() || [];
 	const displayNews = allNews.slice(0, 4);
 
 	// Load video highlights
-	const { data: videoData, isLoading: isVideosLoading } = useNewsVideos(videoQuery);
+	const { data: videoData, isLoading: isVideosLoading } =
+		useNewsVideos(videoQuery);
 	const allVideos = videoData?.pages.flatMap((page) => page.videos) || [];
 	const displayVideos = allVideos.slice(0, 4);
 
 	// Tag styling helper
 	const getTagStyle = (category: string) => {
 		const cat = category?.toLowerCase() || "";
-		if (cat.includes("premier") || cat.includes("league") || cat.includes("football")) {
+		if (
+			cat.includes("premier") ||
+			cat.includes("league") ||
+			cat.includes("football")
+		) {
 			return "bg-green-600 text-white";
 		}
 		if (cat.includes("transfer")) {
@@ -66,15 +73,13 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 		<div className="w-full space-y-8 pb-12 transition-all px-4 sm:px-6">
 			{/* Hero Banners */}
 			{banners.length > 0 && (
-				<div className="w-full shadow-md">
+				<div className="w-full overflow-hidden rounded-xl shadow-md h-36 sm:h-44 md:h-64">
 					<BannerCarousel banners={banners} />
 				</div>
 			)}
 
-			{/* Sportsbook */}
-			<div className="w-full">
-				<SportsbookPage />
-			</div>
+			{/* Popular Matches & Hot Casino */}
+			<PopularAndCasinoSection />
 
 			{/* Trending News Section */}
 			<div className="space-y-4">
@@ -101,22 +106,25 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 					</div>
 				) : (
 					<div className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6">
-						{displayNews.map((news: any) => {
+						{displayNews.map((news: NewsListItem) => {
 							const tag = news.category || sport;
 							return (
 								<Link
 									to="/news/$slug"
-									params={{ slug: news.slug?.current }}
+									params={{ slug: news.slug?.current ?? "" }}
 									key={news._id}
 									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
 								>
 									<div className="relative h-36 w-full overflow-hidden bg-gray-100 dark:bg-gray-800 sm:aspect-video">
 										{news.image ? (
-											<img
-												src={urlFor(news.image).width(400).height(225).url()}
-												alt={news.title}
-												className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
-											/>
+											<>
+												<div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />
+												<img
+													src={news.image.thumb}
+													alt={news.title}
+													className="relative z-10 h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+												/>
+											</>
 										) : (
 											<div className="h-full w-full bg-gray-200 dark:bg-gray-700" />
 										)}
@@ -210,7 +218,10 @@ export default function SportLandingPage({ sport, banners = [] }: SportLandingPa
 			</div>
 
 			{/* Video Modal */}
-			<VideoModal videoId={selectedVideoId} onClose={() => setSelectedVideoId(null)} />
+			<VideoModal
+				videoId={selectedVideoId}
+				onClose={() => setSelectedVideoId(null)}
+			/>
 		</div>
 	);
 }
