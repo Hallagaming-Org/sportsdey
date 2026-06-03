@@ -92,7 +92,7 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 								rel="noopener noreferrer"
 								className="block w-full overflow-hidden rounded-xl"
 							>
-								<ImageWithSkeleton
+								<img
 									src={banner.imageUrl}
 									alt={banner.alt || "Banner"}
 									className="w-full h-auto object-contain"
