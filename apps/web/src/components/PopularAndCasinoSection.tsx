@@ -196,7 +196,7 @@ export default function PopularAndCasinoSection() {
 							type="button"
 							onClick={() => setActiveTab(tab.id)}
 							className={cn(
-								"rounded-full px-4 py-2 cursor-pointer font-semibold text-sm transition-colors",,
+								"rounded-full px-4 py-2 cursor-pointer font-semibold text-sm transition-colors",
 								"focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background",
 								isActive
 									? "bg-accent text-accent-foreground shadow-sm"
@@ -369,7 +369,10 @@ function HotCasinoPanel() {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-hidden pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
 				{Array.from({ length: 6 }).map((_, i) => (
-					<Skeleton key={`casino-skel-${i}`} className="h-44 min-w-[55%] rounded-xl lg:min-w-0" />
+					<Skeleton
+						key={`casino-skel-${i}`}
+						className="h-44 min-w-[55%] rounded-xl lg:min-w-0"
+					/>
 				))}
 			</div>
 		);
