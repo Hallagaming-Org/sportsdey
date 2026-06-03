@@ -379,7 +379,7 @@ function HotCasinoPanel() {
 	}
 
 	return (
-		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0">
+		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
 			{hotGames.map((game) => {
 				const known = KNOWN_GAMES[game.code];
 				const display = {
