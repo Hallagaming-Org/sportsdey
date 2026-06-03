@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -9,6 +9,7 @@ import {
 	getSportsbookTheme,
 	isSportsbookConfigured,
 	loadSportsbookWidgets,
+	SPORTSBOOK_CONTAINER_ID,
 } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
@@ -17,20 +18,6 @@ import PlinkoLogo from "@/logos/plinko.svg?react";
 import SlotsLogo from "@/logos/slots.svg?react";
 import SolitaireLogo from "@/logos/solitaire.svg?react";
 import TwentyOneLogo from "@/logos/twentyone.svg?react";
-
-declare module "react" {
-	namespace JSX {
-		interface IntrinsicElements {
-			"top-events-outside-widget": React.DetailedHTMLProps<
-				React.HTMLAttributes<HTMLElement>,
-				HTMLElement
-			> & {
-				"sport-type"?: string;
-				"with-sport-title"?: boolean;
-			};
-		}
-	}
-}
 
 type Game = {
 	id: string;
@@ -113,6 +100,7 @@ export default function PopularAndCasinoSection() {
 	const [isDark, setIsDark] = useState(false);
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
+	const initRef = useRef(false);
 
 	useEffect(() => {
 		const isDarkMode = document.documentElement.classList.contains("dark");
@@ -131,6 +119,9 @@ export default function PopularAndCasinoSection() {
 	}, []);
 
 	useEffect(() => {
+		if (initRef.current) return;
+		initRef.current = true;
+
 		if (!isSportsbookConfigured()) {
 			setWidgetError(
 				"Sportsbook widget is not configured. Set VITE_DATABET_SPA_BOOTSTRAP_SCRIPT.",
@@ -145,7 +136,7 @@ export default function PopularAndCasinoSection() {
 
 		const init = async () => {
 			try {
-				const { token } = await apiRequest<{ token: string }>(
+				const data = await apiRequest<{ token: string }>(
 					"sportsbook/token/create",
 					{
 						method: "POST",
@@ -153,11 +144,12 @@ export default function PopularAndCasinoSection() {
 					},
 				);
 				if (cancelled) return;
-				await loadSportsbookWidgets(token, isDark, () => {
+				await loadSportsbookWidgets(data.token, isDark, () => {
 					if (!cancelled) setWidgetReady(true);
 				});
 			} catch (err) {
 				if (cancelled) return;
+				console.error("[PopularAndCasinoSection] Widget init error:", err);
 				const message =
 					err instanceof ApiError
 						? err.message
@@ -274,6 +266,7 @@ function PopularMatchesPanel({
 
 	return (
 		<div className="relative min-h-[200px]">
+			<div id={SPORTSBOOK_CONTAINER_ID} className="hidden" />
 			{!widgetReady && (
 				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 dark:bg-card/80 sm:p-2">
 					{Array.from({ length: 3 }).map((_, i) => (

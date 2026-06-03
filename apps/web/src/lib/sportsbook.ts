@@ -243,6 +243,24 @@ export function loadSportsbookBootstrapScript(
 	});
 }
 
+export function buildWidgetInitOptions(
+	token: string,
+	isDark: boolean,
+): AppInitOptions {
+	return {
+		url: {
+			basename: "/sportsbook",
+		},
+		token,
+		rootElement: SPORTSBOOK_CONTAINER_ID,
+		theme: getSportsbookTheme(isDark, SPORTSBOOK_HEADER_OFFSET),
+		defaultSettings: {
+			oddFormat: "Decimal",
+			oddAcceptStrategy: "acceptAll",
+		},
+	};
+}
+
 export async function loadSportsbookWidgets(
 	token: string,
 	isDark: boolean,
@@ -259,7 +277,7 @@ export async function loadSportsbookWidgets(
 	}
 
 	window.bettingLoader.loadWidgets(
-		buildAppInitOptions(token, isDark),
+		buildWidgetInitOptions(token, isDark),
 		(bettingAPI) => {
 			dispatchBettingInit(bettingAPI);
 			onLoad?.(bettingAPI);
