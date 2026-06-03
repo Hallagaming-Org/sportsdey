@@ -5,12 +5,14 @@ import type { CloudflareBindings } from "../types";
 const SANITY_PROJECT_ID = "en1qcqbd";
 const SANITY_DATASET = "production";
 
-export function getSanityClient(_env: CloudflareBindings) {
+export function getSanityClient(env: CloudflareBindings) {
+	const token = env.SANITY_WRITE_TOKEN_COMMENT;
 	return createClient({
 		projectId: SANITY_PROJECT_ID,
 		dataset: SANITY_DATASET,
 		apiVersion: "2024-01-01",
 		useCdn: false,
+		token,
 	});
 }
 
@@ -36,5 +38,7 @@ export function getSanityImageUrlBuilder(env: CloudflareBindings) {
 }
 
 export function urlFor(env: CloudflareBindings, source: unknown) {
-	return getSanityImageUrlBuilder(env).image(source as Parameters<typeof createImageUrlBuilder>[0]);
+	return getSanityImageUrlBuilder(env).image(
+		source as Parameters<typeof createImageUrlBuilder>[0],
+	);
 }

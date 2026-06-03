@@ -43,6 +43,7 @@ declare namespace Cloudflare {
 		POCKETS_SECRET_KEY: string;
 		API_SPORTS_KEY: string;
 		SANITY_WRITE_TOKEN: string;
+		SANITY_WRITE_TOKEN_COMMENT: string;
 		SLOTITEGRATION_MERCHANT_ID: string;
 		SLOTITEGRATION_MERCHANT_KEY: string;
 		SLOTEGRATOR_API_URL: string;
@@ -8926,6 +8927,7 @@ declare module "cloudflare:email" {
 		prototype: EmailMessage;
 		new (from: string, to: string, raw: ReadableStream | string): EmailMessage;
 	};
+
 	export type { _EmailMessage as EmailMessage };
 }
 /**
@@ -9755,6 +9757,7 @@ declare module "cloudflare:sockets" {
 		address: string | SocketAddress,
 		options?: SocketOptions,
 	): Socket;
+
 	export type { _connect as connect };
 }
 type MarkdownDocument = {

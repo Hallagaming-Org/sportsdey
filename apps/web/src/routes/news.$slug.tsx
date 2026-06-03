@@ -1,44 +1,24 @@
 import { PortableText } from "@portabletext/react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import BannerCarousel from "@/components/BannerCarousel";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import type { BannerData } from "@/lib/banners-server";
 import { getBanners } from "@/lib/banners-server";
+import type { Comment, NewsDetail } from "@/lib/news-server";
 import {
 	addCommentToNews,
 	getCommentsForNews,
 	getNewsBySlug,
 } from "@/lib/news-server";
-import { urlFor } from "@/lib/sanity";
 import { formatRelativeTime } from "@/lib/utils";
 import { ShareButton } from "@/components/ShareButton";
 import { useSession } from "@/lib/auth/client";
 
-interface NewsAuthor {
-	_id: string;
-	name: string;
-	slug: { current: string };
-	image: any;
-}
-
-interface NewsComment {
-	_id: string;
-	name: string;
-	message: string;
-	createdAt: string;
-}
-
-interface NewsItem {
-	_id: string;
-	title: string;
-	publishedAt: string;
-	image: any;
-	slug: { current: string };
-	body: any;
-	author: NewsAuthor;
-}
+type NewsItem = NewsDetail;
+type NewsComment = Comment;
 
 function getDescription(body: any): string {
 	if (!Array.isArray(body)) return "Read the latest news on SportsDey";
@@ -53,12 +33,10 @@ function getDescription(body: any): string {
 export const Route = createFileRoute("/news/$slug")({
 	loader: async ({ params }) => {
 		const [news, banners] = await Promise.all([
-			getNewsBySlug({ data: params.slug }),
+			getNewsBySlug(params.slug),
 			getBanners(),
 		]);
-		const comments = news?._id
-			? await getCommentsForNews({ data: news._id })
-			: [];
+		const comments = news?._id ? await getCommentsForNews(news._id) : [];
 		return { news, banners, comments };
 	},
 	head: ({ loaderData }) => {
@@ -66,7 +44,7 @@ export const Route = createFileRoute("/news/$slug")({
 		const data = loaderData?.news as NewsItem | null;
 		const title = data?.title || "News | SportsDey";
 		const description = getDescription(data?.body);
-		const image = data?.image ? urlFor(data.image).width(1200).height(630).url() : `${siteUrl}/news/${data?.slug?.current}/og`;
+		const image = data?.image?.og ?? `${siteUrl}/news/${data?.slug?.current}/og`;
 
 		return {
 			meta: [
@@ -131,25 +109,11 @@ function RouteComponent() {
 	const [comments, setComments] = useState<NewsComment[]>(initialComments || []);
 	const [commentText, setCommentText] = useState("");
 	const [commentError, setCommentError] = useState("");
-	const userProfile = useMemo(
-		() => ({
-			id: session?.user?.id ?? "",
-			name: session?.user?.name ?? session?.user?.email ?? "SportsDey user",
-			email: session?.user?.email ?? null,
-		}),
-		[session],
-	);
 	const commentMutation = useMutation({
 		mutationFn: async (message: string) =>
-			addCommentToNews({
-				data: {
-					newsId,
-					message,
-					user: userProfile,
-				},
-			}),
+			addCommentToNews({ newsId, message }),
 		onSuccess: (newComment) => {
-			setComments((prev) => [newComment as NewsComment, ...prev]);
+			setComments((prev) => [newComment, ...prev]);
 			setCommentText("");
 			setCommentError("");
 		},
@@ -158,7 +122,6 @@ function RouteComponent() {
 				err instanceof Error ? err.message : "Unable to add comment right now.",
 			);
 		},
-		// keep name for UI? no
 	});
 	useEffect(() => {
 		// console.log(news);
@@ -181,9 +144,10 @@ function RouteComponent() {
 			</Link>
 			<div className="relative w-full overflow-hidden rounded-lg pb-[65%]">
 				{news.image ? (
-					<img
-						src={urlFor(news.image).url()}
+					<ImageWithSkeleton
+						src={news.image.hero}
 						alt={news.title}
+						wrapperClassName="absolute inset-0"
 						className="absolute top-0 left-0 h-full w-full object-cover"
 					/>
 				) : (
@@ -207,17 +171,18 @@ function RouteComponent() {
 					params={{ slug: news.author.slug?.current }}
 					className="mb-6 flex max-w-fit items-center gap-3 rounded-lg p-3 transition-colors hover:bg-gray-100 dark:bg-card/60 hover:dark:bg-[#5A5F63]"
 				>
-					<div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full">
-						{news.author.image ? (
-							<img
-								src={urlFor(news.author.image).width(80).height(80).url()}
-								alt={news.author.name}
-								className="h-full w-full object-contain"
-							/>
-						) : (
-							<div className="h-full w-full bg-gray-200" />
-						)}
-					</div>
+				<div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full">
+					{news.author.image ? (
+						<ImageWithSkeleton
+							src={news.author.image.thumb}
+							alt={news.author.name}
+							wrapperClassName="h-10 w-10"
+							className="h-full w-full object-contain"
+						/>
+					) : (
+						<div className="h-full w-full bg-gray-200" />
+					)}
+				</div>
 					<span className="font-medium text-gray-900 dark:text-white">
 						{news.author.name}
 					</span>

@@ -1,14 +1,15 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { ImageSizes } from "@/lib/news-server";
 import { getNewsByAuthor, getNewsByAuthorTotal } from "@/lib/news-server";
 
 export interface AuthorNewsItem {
 	_id: string;
 	title: string;
 	publishedAt: string;
-	image: any;
-	slug: { current: string };
-	body: any;
-	sport: string;
+	image: ImageSizes | null;
+	slug: { current: string } | null;
+	body: unknown;
+	sport?: string;
 }
 
 const ITEMS_PER_PAGE = 9;
@@ -16,7 +17,7 @@ const ITEMS_PER_PAGE = 9;
 export function useAuthorNews(authorId: string) {
 	const { data: totalData } = useQuery({
 		queryKey: ["author-news-total", authorId],
-		queryFn: () => getNewsByAuthorTotal({ data: authorId }),
+		queryFn: () => getNewsByAuthorTotal(authorId),
 		enabled: !!authorId,
 	});
 
@@ -27,11 +28,9 @@ export function useAuthorNews(authorId: string) {
 			queryKey: ["author-news", authorId],
 			queryFn: ({ pageParam = 0 }) =>
 				getNewsByAuthor({
-					data: {
-						authorId,
-						limit: ITEMS_PER_PAGE,
-						offset: pageParam as number,
-					},
+					authorId,
+					limit: ITEMS_PER_PAGE,
+					offset: pageParam as number,
 				}),
 			initialPageParam: 0,
 			getNextPageParam: (lastPage, allPages) => {

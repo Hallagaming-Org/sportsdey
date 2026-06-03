@@ -3,7 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useNewsData } from "@/hooks/use-news-data";
-import { urlFor } from "@/lib/sanity";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import type { NewsListItem } from "@/lib/news-server";
 import { formatRelativeTime } from "@/lib/utils";
 import { ShareButton } from "./ShareButton";
 
@@ -55,7 +56,7 @@ export const NewsPage = ({ category }: { category: string }) => {
 				</p>
 			)}
 			<div className="grid grid-cols-1 gap-4 px-4 py-2 md:grid-cols-2 lg:grid-cols-3">
-				{allNews.map((news: any) => (
+				{allNews.map((news: NewsListItem) => (
 					<Link
 						to="/news/$slug"
 						params={{ slug: news.slug?.current }}
@@ -64,9 +65,10 @@ export const NewsPage = ({ category }: { category: string }) => {
 					>
 						<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
 							{news.image ? (
-								<img
-									src={urlFor(news.image).width(800).height(450).url()}
+								<ImageWithSkeleton
+									src={news.image.card}
 									alt={`${news.title}'s poster`}
+									wrapperClassName="absolute inset-0"
 									className="absolute top-0 left-0 h-full w-full object-cover object-center"
 								/>
 							) : (

@@ -61,8 +61,51 @@ export type BettingAPI = {
 	) => void;
 };
 
+export type BaseWidgetStyle = {
+	[key in
+		| "--bet-font-sans"
+		| "--bet-base-font-size"
+		| "--bet-colors-primary-1"
+		| "--bet-colors-primary-2"
+		| "--bet-colors-secondary-1"
+		| "--bet-colors-secondary-2"
+		| "--bet-colors-secondary-3"
+		| "--bet-colors-accent-1"
+		| "--bet-colors-accent-2"
+		| "--bet-colors-accent-3"
+		| "--bet-text-button"
+		| "--bet-text-primary"
+		| "--bet-text-secondary"
+		| "--bet-notification-blocked"
+		| "--bet-notification-error"
+		| "--bet-notification-info"
+		| "--bet-notification-success"
+		| "--bet-notification-warning"
+		| "--bet-rounded-2"
+		| "--bet-rounded-4"
+		| "--bet-rounded-6"
+		| "--bet-rounded-8"
+		| "--bet-rounded-12"
+		| "--bet-rounded-24"]?: string;
+};
+
+export type IDefaultWidgetProps = {
+	style?: BaseWidgetStyle;
+	"global-size"?: boolean;
+	className?: string;
+};
+
+export type TopEventsOutsideWidgetProps = IDefaultWidgetProps & {
+	"sport-type"?: "sports" | "esports" | "all";
+	"with-sport-title"?: boolean;
+};
+
 export type BettingLoader = {
 	load: (
+		options: AppInitOptions,
+		onLoad?: (bettingAPI: BettingAPI) => void,
+	) => void;
+	loadWidgets: (
 		options: AppInitOptions,
 		onLoad?: (bettingAPI: BettingAPI) => void,
 	) => void;
@@ -203,14 +246,23 @@ export function loadSportsbookBootstrapScript(
 export async function loadSportsbookWidgets(
 	token: string,
 	isDark: boolean,
-	onReady: () => void,
+	onLoad?: (bettingAPI: BettingAPI) => void,
 ): Promise<void> {
-	await loadSportsbookBootstrapScript(getSportsbookBootstrapScript());
-	if (!window.bettingLoader) {
-		throw new Error("Failed to initialize sportsbook widget loader");
+	if (!isSportsbookConfigured()) {
+		throw new Error("Sportsbook widgets are not configured.");
 	}
-	window.bettingLoader.load(buildAppInitOptions(token, isDark), (api) => {
-		dispatchBettingInit(api);
-		onReady();
-	});
+
+	await loadSportsbookBootstrapScript(getSportsbookBootstrapScript());
+
+	if (!window.bettingLoader) {
+		throw new Error("Betting loader is not available.");
+	}
+
+	window.bettingLoader.loadWidgets(
+		buildAppInitOptions(token, isDark),
+		(bettingAPI) => {
+			dispatchBettingInit(bettingAPI);
+			onLoad?.(bettingAPI);
+		},
+	);
 }

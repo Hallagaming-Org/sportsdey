@@ -5,13 +5,13 @@ import { useNewsVideos } from "@/hooks/use-news-videos";
 import BannerCarousel from "@/components/BannerCarousel";
 import AppDownloadBanner from "@/components/app-download-banner";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
+import PopularAndCasinoSection from "@/components/PopularAndCasinoSection";
 import { formatRelativeTime } from "@/lib/utils";
 import { Play, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { BannerData } from "@/lib/banners-server";
 import type { NewsListItem } from "@/lib/news-server";
 import { Skeleton } from "@/components/ui/skeleton";
-import PopularAndCasinoSection from "./PopularAndCasinoSection";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
