@@ -65,12 +65,12 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 				href={banner.url}
 				target="_blank"
 				rel="noopener noreferrer"
-				className="block w-full overflow-hidden rounded-xl aspect-[16/10] sm:aspect-[16/9] md:aspect-[21/9]"
+				className="block w-full overflow-hidden rounded-xl"
 			>
 				<img
 					src={banner.imageUrl}
 					alt={banner.alt || "Banner"}
-					className="h-full w-full object-cover"
+					className="w-full h-auto object-contain"
 				/>
 			</a>
 		);
