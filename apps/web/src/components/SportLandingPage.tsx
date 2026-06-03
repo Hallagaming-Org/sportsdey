@@ -5,13 +5,13 @@ import { useNewsVideos } from "@/hooks/use-news-videos";
 import BannerCarousel from "@/components/BannerCarousel";
 import AppDownloadBanner from "@/components/app-download-banner";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
-import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import PopularAndCasinoSection from "@/components/PopularAndCasinoSection";
 import { formatRelativeTime } from "@/lib/utils";
 import { Play, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { BannerData } from "@/lib/banners-server";
 import type { NewsListItem } from "@/lib/news-server";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
@@ -74,7 +74,7 @@ export default function SportLandingPage({
 		<div className="w-full space-y-8 pb-12 transition-all px-4 sm:px-6">
 			{/* Hero Banners */}
 			{banners.length > 0 && (
-				<div className="w-full overflow-hidden rounded-xl shadow-md h-36 sm:h-44 md:h-64">
+				<div className="w-full overflow-hidden rounded-xl shadow-md">
 					<BannerCarousel banners={banners} />
 				</div>
 			)}
@@ -98,8 +98,20 @@ export default function SportLandingPage({
 				</div>
 
 				{isNewsLoading ? (
-					<div className="flex justify-center items-center h-48">
-						<Loader2 className="animate-spin text-accent h-8 w-8" />
+					<div className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-hidden pb-2 pr-1 lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:gap-6">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div
+								key={`news-skel-${i}`}
+								className="flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+							>
+								<Skeleton className="h-36 w-full sm:aspect-video rounded-none" />
+								<div className="flex flex-1 flex-col p-4 space-y-3">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-3/4" />
+									<Skeleton className="mt-auto h-3 w-1/2" />
+								</div>
+							</div>
+						))}
 					</div>
 				) : displayNews.length === 0 ? (
 					<div className="text-center py-12 bg-white dark:bg-card rounded-2xl border border-gray-100 dark:border-0 shadow-sm text-gray-500">
@@ -112,18 +124,20 @@ export default function SportLandingPage({
 							return (
 								<Link
 									to="/news/$slug"
-									params={{ slug: news.slug?.current }}
+									params={{ slug: news.slug?.current ?? "" }}
 									key={news._id}
 									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
 								>
 									<div className="relative h-36 w-full overflow-hidden bg-gray-100 dark:bg-gray-800 sm:aspect-video">
 										{news.image ? (
-											<ImageWithSkeleton
-												src={news.image.thumb}
-												alt={news.title}
-												wrapperClassName="absolute inset-0"
-												className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
-											/>
+											<>
+												<div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />
+												<img
+													src={news.image.thumb}
+													alt={news.title}
+													className="relative z-10 h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+												/>
+											</>
 										) : (
 											<div className="h-full w-full bg-gray-200 dark:bg-gray-700" />
 										)}
@@ -164,8 +178,19 @@ export default function SportLandingPage({
 				</div>
 
 				{isVideosLoading ? (
-					<div className="flex justify-center items-center h-48">
-						<Loader2 className="animate-spin text-accent h-8 w-8" />
+					<div className="no-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-hidden pb-2 pr-1 lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:gap-6">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div
+								key={`video-skel-${i}`}
+								className="flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+							>
+								<Skeleton className="h-36 w-full sm:aspect-video rounded-none" />
+								<div className="p-3 space-y-2">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-2/3" />
+								</div>
+							</div>
+						))}
 					</div>
 				) : displayVideos.length === 0 ? (
 					<div className="text-center py-12 bg-white dark:bg-card rounded-2xl border border-gray-100 dark:border-0 shadow-sm text-gray-500">

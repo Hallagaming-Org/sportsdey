@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatAmount, formatDateTime } from "@/lib/utils";
 
 type WalletTransaction = {
@@ -27,7 +28,23 @@ export function WalletRecentTransactions({
 			<div className="mt-2 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 				<div className="mt-4">
 					{isLoading ? (
-						<p className="text-[#6E6E6E] text-sm">Loading transactions...</p>
+						<ul className="space-y-3">
+							{[...Array(3)].map((_, i) => (
+								<li
+									key={i}
+									className="flex items-center justify-between rounded-lg bg-[#F9F9F9] p-3 dark:bg-[#2B2C2B]"
+								>
+									<div className="space-y-2">
+										<Skeleton className="h-4 w-[120px]" />
+										<Skeleton className="h-3 w-[80px]" />
+									</div>
+									<div className="space-y-2 flex flex-col items-end">
+										<Skeleton className="h-4 w-[100px]" />
+										<Skeleton className="h-3 w-[60px]" />
+									</div>
+								</li>
+							))}
+						</ul>
 					) : transactions.length === 0 ? (
 						<div className="flex flex-col items-center justify-center py-8 text-center">
 							<img

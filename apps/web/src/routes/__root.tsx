@@ -115,6 +115,9 @@ function RootDocument() {
 		"/sportsbook/$",
 		"/games",
 		"/game/$gameId",
+		"/wallet",
+		"/account",
+		"/favorites",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
 

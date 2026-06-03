@@ -4,9 +4,9 @@ import { Eye, EyeOff, Loader2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WalletInfo } from "@/components/wallet-info";
 import { WalletRecentTransactions } from "@/components/wallet-recent-transactions";
-import { WalletSidebar } from "@/components/wallet-sidebar";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -150,195 +150,182 @@ function WalletPage() {
 	};
 
 	return (
-		<div className="my-5 grid gap-6 lg:grid-cols-[320px_1fr]">
-			<WalletSidebar />
+		<>
 
-			<section>
-				{isInitialPageLoading ? (
-					<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-						<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
-					</div>
-				) : (
-					<>
-						<div className="lg:grid grid-cols-2 max-lg:space-y-8 gap-4 mb-6">
-							<div className="col-start-1 row-span-2 space-y-4">
-								<div className="h-fit self-start rounded-2xl bg-white p-[20px] shadow-sm dark:bg-[#202120]">
-									<div className="flex items-center justify-between">
-										<p className="font-semibold text-[30px] text-primary dark:text-white">
-											Wallet &amp; Credits
-										</p>
-										<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-											<WalletIcon width={18} height={18} className="block" />
-										</div>
+			{isInitialPageLoading ? (
+				<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
+					<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
+				</div>
+			) : (
+				<>
+					<div className="flex flex-col lg:grid lg:grid-cols-5 gap-4 mb-6">
+						<div className="lg:col-span-3 space-y-4">
+							<div className="h-fit self-start rounded-2xl bg-white p-[20px] shadow-sm dark:bg-[#202120]">
+								<div className="flex items-center justify-between">
+									<p className="font-semibold text-[30px] text-primary dark:text-white">
+										Wallet
+									</p>
+									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
+										<WalletIcon width={18} height={18} className="block" />
 									</div>
 								</div>
-								<div className="min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-									{isWalletSectionLoading ? (
-										<div className="flex min-h-32 items-center justify-center">
-											<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
-										</div>
-									) : (
-										<>
-											<p className="text-[14px] text-primary dark:text-white">
-												Wallet Balance
-											</p>
-											<div className="mt-3 flex items-start gap-2">
-												<p className="font-semibold text-primary leading-none dark:text-white">
-													{showBalance ? (
-														<span className="leading-none">
-															<span className="relative -top-2 align-super text-[24px]">
-																₦
-															</span>
-															<span className="text-[50px]">{walletBalance}</span>
-														</span>
-													) : (
-														<span className="text-[50px]">••••••</span>
-													)}
-												</p>
-												<button
-													type="button"
-													onClick={() => setShowBalance((prev) => !prev)}
-													className="cursor-pointer text-primary dark:text-white"
-													aria-label={
-														showBalance
-															? "Hide wallet balance"
-															: "Show wallet balance"
-													}
-												>
-													{showBalance ? (
-														<EyeOff className="h-4 w-4" />
-													) : (
-														<Eye className="h-4 w-4" />
-													)}
-												</button>
-											</div>
-											<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-												<button
-													type="button"
-													onClick={() => {
-														setDepositError("");
-														setIsDepositModalOpen(true);
-													}}
-													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-												>
-													Deposit
-												</button>
-												<button
-													type="button"
-													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-												>
-													Tranfer fund
-												</button>
-												<button
-													type="button"
-													onClick={() => {
-														setIsWithdrawModalOpen(true);
-													}}
-													className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
-												>
-													Withdraw
-												</button>
-											</div>
-										</>
+							</div>
+							<div className="w-full min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
+								<p className="text-[14px] text-primary dark:text-white">
+									Wallet Balance
+								</p>
+								<div className="mt-3 flex items-start gap-2">
+									<p className="font-semibold text-primary leading-none dark:text-white">
+										{isWalletSectionLoading ? (
+											<Skeleton className="h-[50px] w-[150px]" />
+										) : showBalance ? (
+											<span className="leading-none space-x-2">
+												<span className="relative -top-2 align-super text-[24px]">
+													₦
+												</span>
+												<span className="text-[50px]">{walletBalance}</span>
+											</span>
+										) : (
+											<span className="text-[50px]">••••••</span>
+										)}
+									</p>
+									{!isWalletSectionLoading && (
+										<button
+											type="button"
+											onClick={() => setShowBalance((prev) => !prev)}
+											className="cursor-pointer mt-2 text-primary dark:text-white"
+											aria-label={
+												showBalance
+													? "Hide wallet balance"
+													: "Show wallet balance"
+											}
+										>
+											{showBalance ? (
+												<EyeOff className="h-4 w-4" />
+											) : (
+												<Eye className="h-4 w-4" />
+											)}
+										</button>
 									)}
 								</div>
-							</div>
-							<div className="col-start-2 row-span-2 min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-								<p className="border-[#E0E0E0] border-b pb-3 font-semibold text-base text-primary dark:text-white">
-									Quick Access
-								</p>
-								<ul className="mt-4 space-y-3">
-									<li>
-										<button
-											type="button"
-											onClick={() => {
-												setBillPaymentCategory({
-													code: "AIRTIME",
-													name: "Airtime",
-												});
-												setIsBillPaymentOpen(true);
-											}}
-											className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
-										>
-											<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-												<AirtimeIcon className="h-5 w-5 text-primary dark:text-white" />
-											</div>
-											<span className="text-primary text-sm dark:text-white">
-												Airtime
-											</span>
-										</button>
-									</li>
-									<li>
-										<button
-											type="button"
-											onClick={() => {
-												setBillPaymentCategory({
-													code: "DATA_BUNDLE",
-													name: "Internet",
-												});
-												setIsBillPaymentOpen(true);
-											}}
-											className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
-										>
-											<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-												<InternetIcon className="h-5 w-5 text-primary dark:text-white" />
-											</div>
-											<span className="text-primary text-sm dark:text-white">
-												Internet
-											</span>
-										</button>
-									</li>
-									<li>
-										<button
-											type="button"
-											onClick={() => {
-												setBillPaymentCategory({
-													code: "CABLE_TV",
-													name: "Cable TV",
-												});
-												setIsBillPaymentOpen(true);
-											}}
-											className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
-										>
-											<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-												<CableTvIcon className="h-5 w-5 text-primary dark:text-white" />
-											</div>
-											<span className="text-primary text-sm dark:text-white">
-												Cable TV
-											</span>
-										</button>
-									</li>
-									<li>
-										<button
-											type="button"
-											onClick={() => {
-												setBillPaymentCategory({
-													code: "ELECTRICITY",
-													name: "Electricity",
-												});
-												setIsBillPaymentOpen(true);
-											}}
-											className="flex w-full cursor-pointer items-center gap-3 rounded-lg bg-[#F0F0F0] p-3"
-										>
-											<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-												<ElectricityIcon className="h-5 w-5 text-primary dark:text-white" />
-											</div>
-											<span className="text-primary text-sm dark:text-white">
-												Electricity
-											</span>
-										</button>
-									</li>
-								</ul>
+								<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+									<button
+										type="button"
+										onClick={() => {
+											setDepositError("");
+											setIsDepositModalOpen(true);
+										}}
+										className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+									>
+										Deposit
+									</button>
+									<button
+										type="button"
+										className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+									>
+										Transfer funds
+									</button>
+									<button
+										type="button"
+										onClick={() => {
+											setIsWithdrawModalOpen(true);
+										}}
+										className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+									>
+										Withdraw
+									</button>
+								</div>
 							</div>
 						</div>
-						<WalletRecentTransactions
-							transactions={transactions}
-							isLoading={isTransactionsLoading}
-						/>
-						<WalletInfo />
-					</>
-				)}
-			</section>
+						<div className="lg:col-span-2 min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
+							<p className="border-[#E0E0E0] border-b pb-3 font-semibold text-base text-primary dark:text-white">
+								Quick Access
+							</p>
+							<ul className="mt-4 grid grid-cols-4 gap-3 lg:flex lg:flex-col lg:gap-3">
+								<li>
+									<button
+										type="button"
+										onClick={() => {
+											setBillPaymentCategory({
+												code: "AIRTIME",
+												name: "Airtime",
+											});
+											setIsBillPaymentOpen(true);
+										}}
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+									>
+										<AirtimeIcon className="h-5 w-5 text-primary dark:text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+											Airtime
+										</span>
+									</button>
+								</li>
+								<li>
+									<button
+										type="button"
+										onClick={() => {
+											setBillPaymentCategory({
+												code: "DATA_BUNDLE",
+												name: "Internet",
+											});
+											setIsBillPaymentOpen(true);
+										}}
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+									>
+										<InternetIcon className="h-5 w-5 text-primary dark:text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+											Internet
+										</span>
+									</button>
+								</li>
+								<li>
+									<button
+										type="button"
+										onClick={() => {
+											setBillPaymentCategory({
+												code: "CABLE_TV",
+												name: "Cable TV",
+											});
+											setIsBillPaymentOpen(true);
+										}}
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+									>
+										<CableTvIcon className="h-5 w-5 text-primary dark:text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+											Cable TV
+										</span>
+									</button>
+								</li>
+								<li>
+									<button
+										type="button"
+										onClick={() => {
+											setBillPaymentCategory({
+												code: "ELECTRICITY",
+												name: "Electricity",
+											});
+											setIsBillPaymentOpen(true);
+										}}
+										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+									>
+
+										<ElectricityIcon className="h-5 w-5 text-primary dark:text-white" />
+
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+											Electricity
+										</span>
+									</button>
+								</li>
+							</ul>
+						</div>
+					</div>
+					<WalletRecentTransactions
+						transactions={transactions}
+						isLoading={isTransactionsLoading}
+					/>
+					<WalletInfo />
+				</>
+			)}
 			{isDepositModalOpen && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
 					<div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
@@ -413,6 +400,6 @@ function WalletPage() {
 					categoryName={billPaymentCategory.name}
 				/>
 			)}
-		</div>
+		</>
 	);
 }

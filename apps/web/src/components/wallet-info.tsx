@@ -12,7 +12,7 @@ export function WalletInfo() {
 				</li>
 				<li>
 					Any card details you choose to save are encrypted. We do not store your
-					CVV. We will also ask you to input your Sporty PIN any time you want to
+					CVV. We will also ask you to input your Sportsdey PIN any time you want to
 					use your card after it has been successfully used for the first time and
 					saved.
 				</li>

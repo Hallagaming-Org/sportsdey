@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import { useApiError } from "@/hooks/useApiError";
 import { apiRequest } from "@/lib/api";
 import SportAccordionCard from "@/shared/SportAccordionCard";
@@ -13,7 +14,10 @@ import { useAppSelector } from "@/store/hook";
 import type { TennisScheduleData } from "@/types/api";
 import type { MatchCardProps, SetScore } from "@/types/sport";
 
+import { MatchesSkeleton } from "@/components/MatchesSkeleton";
+
 export const Route = createFileRoute("/tennis/matches")({
+	pendingComponent: MatchesSkeleton,
 	component: RouteComponent,
 });
 
@@ -179,16 +183,12 @@ function RouteComponent() {
 	}
 
 	if (isLoading) {
-		return (
-			<div className="flex flex-col items-center justify-center space-y-2 py-20">
-				<Loader2 className="animate-spin" width={24} height={24} />
-				<p className="text-gray-500 text-sm">Loading tennis matches...</p>
-			</div>
-		);
+		return <MatchesSkeleton />;
 	}
 
 	return (
 		<div className="space-y-4">
+			<MobileSportsFilter />
 			<div className="sticky top-0 z-10 hidden w-full bg-background/95 px-1 py-4 backdrop-blur-sm lg:block">
 				<TennisFixtureFilterHeaders counts={counts} />
 			</div>

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import {
@@ -16,6 +17,20 @@ import PlinkoLogo from "@/logos/plinko.svg?react";
 import SlotsLogo from "@/logos/slots.svg?react";
 import SolitaireLogo from "@/logos/solitaire.svg?react";
 import TwentyOneLogo from "@/logos/twentyone.svg?react";
+
+declare module "react" {
+	namespace JSX {
+		interface IntrinsicElements {
+			"top-events-outside-widget": React.DetailedHTMLProps<
+				React.HTMLAttributes<HTMLElement>,
+				HTMLElement
+			> & {
+				"sport-type"?: string;
+				"with-sport-title"?: boolean;
+			};
+		}
+	}
+}
 
 type Game = {
 	id: string;
@@ -181,7 +196,7 @@ export default function PopularAndCasinoSection() {
 							type="button"
 							onClick={() => setActiveTab(tab.id)}
 							className={cn(
-								"rounded-full px-4 py-2 font-semibold text-sm transition-colors",
+								"rounded-full px-4 py-2 cursor-pointer font-semibold text-sm transition-colors",,
 								"focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background",
 								isActive
 									? "bg-accent text-accent-foreground shadow-sm"
@@ -260,8 +275,10 @@ function PopularMatchesPanel({
 	return (
 		<div className="relative min-h-[200px]">
 			{!widgetReady && (
-				<div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-card/80">
-					<Loader2 className="h-8 w-8 animate-spin text-accent" />
+				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 dark:bg-card/80 sm:p-2">
+					{Array.from({ length: 3 }).map((_, i) => (
+						<Skeleton key={i} className="h-20 w-full rounded-xl" />
+					))}
 				</div>
 			)}
 			<top-events-outside-widget
@@ -350,8 +367,10 @@ function HotCasinoPanel() {
 
 	if (isLoading) {
 		return (
-			<div className="flex h-48 items-center justify-center">
-				<Loader2 className="h-8 w-8 animate-spin text-accent" />
+			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-hidden pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<Skeleton key={`casino-skel-${i}`} className="h-44 min-w-[55%] rounded-xl lg:min-w-0" />
+				))}
 			</div>
 		);
 	}
@@ -365,7 +384,7 @@ function HotCasinoPanel() {
 	}
 
 	return (
-		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-6 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0">
+		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
 			{hotGames.map((game) => {
 				const known = KNOWN_GAMES[game.code];
 				const display = {

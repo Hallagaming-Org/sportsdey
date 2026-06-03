@@ -25,6 +25,7 @@ import MenuBar from "@/logos/MenuBar";
 import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
+import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 
 const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
 	<svg
@@ -56,7 +57,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	const shouldHideSportsNav = hideSportsNav || isAuthRoute;
 	const currentSport = useCurrentSport();
 	const { data: session } = useSession();
-	const { setTab, tab } = useActiveTab();
+	// const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
 	const links = [
@@ -119,9 +120,20 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
-			<div className="w-full bg-white text-foreground lg:bg-primary">
-				{isAuthRoute ? (
-					<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 bg-primary px-2 sm:px-2 py-2 text-secondary lg:hidden">
+			<div className="w-full bg-white dark:bg-[#121212] text-foreground lg:bg-black dark:lg:bg-black">
+				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-2 py-2 lg:hidden">
+					<div className="flex items-center gap-1.5 shrink-0">
+						<button
+							type="button"
+							onClick={() => setOpen(!open)}
+							ref={menuButtonRef}
+							aria-expanded={open}
+							aria-controls="mobile-menu"
+							aria-label={open ? "Close main menu" : "Open main menu"}
+							className="flex items-center justify-center shrink-0"
+						>
+							<MenuBar />
+						</button>
 						<Link
 							to="/"
 							search={{
@@ -132,128 +144,59 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						>
 							<img
 								src="/sportsdey-logo.png"
-								className="h-7 sm:h-8 w-auto"
+								className="h-7 sm:h-8 w-auto hidden dark:block"
 								alt="sportsdey's logo"
 							/>
+							<NewSportsdeyLogo className="h-7 sm:h-8 w-auto block dark:hidden" />
 						</Link>
-
-						<div className="flex items-center gap-3 shrink-0">
-							<ThemeToggle />
-
-							<button
-								type="button"
-								className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-secondary"
-								aria-label="Notifications"
-							>
-								<svg
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									strokeWidth="2.5"
-									className="h-4 w-4"
-								>
-									<title>Notifications</title>
-									<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-								</svg>
-							</button>
-
-							<button
-								type="button"
-								onClick={handleBackToSite}
-								className="flex items-center gap-1 text-secondary hover:text-white"
-							>
-								<Undo2 className="h-4 w-4" />
-								<span className="text-sm underline">Back to site</span>
-							</button>
-						</div>
 					</div>
-				) : (
-					<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-2 py-2 lg:hidden">
-						<div className="flex items-center gap-1.5 shrink-0">
-							<button
-								type="button"
-								onClick={() => setOpen(!open)}
-								ref={menuButtonRef}
-								aria-expanded={open}
-								aria-controls="mobile-menu"
-								aria-label={open ? "Close main menu" : "Open main menu"}
-								className="flex items-center justify-center shrink-0"
-							>
-								<MenuBar />
-							</button>
-							<Link
-								to="/"
-								search={{
-									league: undefined,
-									sports: currentSport || SPORTS.FOOTBALL,
-								}}
-								className="shrink-0"
-							>
-								<img
-									src="/sportsdey-logo.jpeg"
-									className="h-7 sm:h-8 w-auto"
-									alt="sportsdey's logo"
-								/>
-							</Link>
-						</div>
 
-						<div className="flex items-center gap-1.5 shrink-0">
-							<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] p-0.5">
-								<div
-									className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
-									aria-label="Wallet balance"
+					<div className="flex items-center gap-1.5 shrink-0">
+						<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
+							<div
+								className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
+								aria-label="Wallet balance"
+							>
+								<NigerianFlag />
+								<span
+									className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all"
+									style={{
+										fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
+									}}
 								>
-									<NigerianFlag />
-									<span
-										className="truncate font-semibold tracking-tight text-[#4b5563] transition-all"
-										style={{
-											fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
-										}}
-									>
-										{mobileBalance}
-									</span>
-								</div>
-
-								<button
-									type="button"
-									onClick={() =>
-										router.navigate({
-											to: "/wallet",
-											state: { openDeposit: true } as any,
-										})
-									}
-									aria-label="Add funds"
-									className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-[#1E78FF] text-white transition-colors hover:bg-blue-600"
-								>
-									<Plus className="h-4 w-4" />
-								</button>
+									{mobileBalance}
+								</span>
 							</div>
 
 							<button
 								type="button"
-								className="relative flex h-8 w-8 shrink-0 text-black items-center justify-center rounded-full border border-transparent bg-transparent"
-								aria-label="Notifications"
+								onClick={() =>
+									router.navigate({
+										to: "/wallet",
+										state: { openDeposit: true } as any,
+									})
+								}
+								aria-label="Add funds"
+								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-[#1E78FF] text-white transition-colors hover:bg-blue-600"
 							>
-								<NotificationIcon />
-								<span className="absolute top-0 right-0.5 h-3 w-3 rounded-full bg-emerald-400 text-[#070711] flex items-center justify-center font-bold text-[6px]" >
-									{"1"}
-								</span>
+								<Plus className="h-4 w-4" />
 							</button>
-
-							<Link
-								to={session?.user ? "/account" : "/auth/sign-in"}
-								className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white"
-								aria-label="Account"
-							>
-								<img
-									src={mobileAvatarSrc}
-									alt="Account"
-									className="h-full w-full object-cover"
-								/>
-							</Link>
 						</div>
+
+						<button
+							type="button"
+							className="relative flex h-8 w-8 shrink-0 text-black dark:text-white items-center justify-center rounded-full border border-transparent bg-transparent"
+							aria-label="Notifications"
+						>
+							<NotificationIcon />
+							<span className="absolute top-0 right-0.5 h-3 w-3 rounded-full bg-emerald-400 text-[#070711] flex items-center justify-center font-bold text-[6px]" >
+								{"1"}
+							</span>
+						</button>
+
+						<UserMenu />
 					</div>
-				)}
+				</div>
 
 				<div className="hidden min-w-0 lg:flex lg:h-20 lg:w-full lg:items-center lg:justify-between lg:px-[10%] lg:py-1">
 					<div className="flex items-center gap-6">
@@ -275,13 +218,38 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<span>EN</span>
 							<ChevronDown className="h-2.5 w-2.5" />
 						</div>
+						<ThemeToggle />
 					</div>
 
 					{!shouldHideSportsNav && (
 						<nav
 							aria-label="Sports navigation"
-							className="hidden lg:flex lg:items-center lg:gap-3"
+							className="hidden lg:flex lg:items-center lg:gap-6 font-bold text-sm"
 						>
+							<Link
+								to="/index/matches"
+								className={cn(
+									"flex items-center gap-2 px-1 transition-colors",
+									location.pathname.includes("matches")
+										? "border-accent border-b-2 pb-1 text-accent"
+										: "text-secondary hover:text-white pb-1.5"
+								)}
+							>
+								Scores
+							</Link>
+							<Link
+								to="/favorites"
+								className={cn(
+									"flex items-center gap-2 px-1 transition-colors",
+									location.pathname.includes("favorites")
+										? "border-accent border-b-2 pb-1 text-accent"
+										: "text-secondary hover:text-white pb-1.5"
+								)}
+							>
+								Favorites
+							</Link>
+
+							{/* Legacy Sports Nav - Commented out as requested
 							{links.map((l) => {
 								const isActive = (currentSport || SPORTS.FOOTBALL) === l.sport;
 								const Icon = l.icon as React.FC<any>;
@@ -305,11 +273,59 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									</Link>
 								);
 							})}
+							*/}
 						</nav>
 					)}
 
-					<div className="flex items-center gap-6">
-						<ThemeToggle />
+					<div className="flex items-center gap-4 xl:gap-6">
+						{!isAuthRoute && (
+							<div className="flex border border-[#F2EEFB] h-9 w-[180px] xl:w-[200px] shrink-0 items-center justify-between rounded-[8px] bg-[#1A1A1A] py-[6px] px-[6px] dark:bg-[#111211] dark:border dark:border-gray-700">
+								<div
+									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
+									aria-label="Wallet balance"
+								>
+									<NigerianFlag />
+									<span
+										className="truncate font-semibold tracking-tight text-white transition-all text-xs xl:text-sm"
+									>
+										{mobileBalance}
+									</span>
+								</div>
+
+								<button
+									type="button"
+									onClick={() =>
+										router.navigate({
+											to: "/wallet",
+											state: { openDeposit: true } as any,
+										})
+									}
+									aria-label="Add funds"
+									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-[#0AEC20] font-semibold text-[11px] text-black transition-colors hover:bg-[#00d600]"
+								>
+									Deposit
+								</button>
+							</div>
+						)}
+
+						{/* Search Magnifying Glass */}
+						<button
+							type="button"
+							className="cursor-pointer rounded-full p-1.5 text-secondary transition-colors hover:bg-white/10 dark:text-white"
+							aria-label="Search"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2.5"
+								className="h-4 w-4"
+							>
+								<title>Search</title>
+								<circle cx="11" cy="11" r="8" />
+								<path d="m21 21-4.3-4.3" />
+							</svg>
+						</button>
 
 						{/* Notification Bell */}
 						<button
@@ -374,11 +390,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								className="h-10 hidden dark:block"
 								alt="sportsdey's logo"
 							/>
-							<img
-								src="/sportsdey-logo.jpeg"
-								className="h-10 block dark:hidden"
-								alt="sportsdey's logo"
-							/>
+							<NewSportsdeyLogo className="h-10 w-auto block dark:hidden" />
 							<button
 								ref={closeButtonRef}
 								type="button"
@@ -416,11 +428,31 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									rel="noopener noreferrer"
 									className="mt-5 flex w-full bg-gray-200 items-center gap-4 rounded-lg p-3.5 transition-colors hover:bg-[#1E78FF]/10 dark:border-[#1E78FF]/30 dark:bg-[#1E78FF]/10 dark:hover:bg-[#1E78FF]/20"
 								>
-									<Whatsapp />
-									<span className="font-medium text-sm text-gray-900 dark:text-gray-200">
+									<Whatsapp className="h-8 w-8 shrink-0" />
+									<span className="font-medium text-xs text-gray-900 dark:text-gray-200">
 										Contact us on Whatsapp <br /> for support.
 									</span>
 								</a>
+
+								<div className="mt-8 text-center text-[9px] leading-relaxed text-gray-500 dark:text-gray-400">
+									<p className="mb-4">
+										This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
+									</p>
+									<div className="flex flex-wrap items-center justify-center gap-1.5 font-bold text-[8px] tracking-wider text-gray-700 dark:text-gray-300">
+										<span>PLAY RESPONSIBLY</span>
+										<span className="text-gray-300 dark:text-gray-600">|</span>
+										<span>18+ ONLY</span>
+										<span className="text-gray-300 dark:text-gray-600">|</span>
+										<span>PLEASE GAMBLE RESPONSIBLY</span>
+									</div>
+								</div>
+
+								<div className="mt-6 flex items-center justify-end">
+									<div className="flex items-center gap-2 rounded-full bg-primary">
+
+										<ThemeToggle />
+									</div>
+								</div>
 							</div>
 						</div>
 					</aside>
