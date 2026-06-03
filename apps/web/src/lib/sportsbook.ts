@@ -199,3 +199,18 @@ export function loadSportsbookBootstrapScript(
 		document.body.appendChild(script);
 	});
 }
+
+export async function loadSportsbookWidgets(
+	token: string,
+	isDark: boolean,
+	onReady: () => void,
+): Promise<void> {
+	await loadSportsbookBootstrapScript(getSportsbookBootstrapScript());
+	if (!window.bettingLoader) {
+		throw new Error("Failed to initialize sportsbook widget loader");
+	}
+	window.bettingLoader.load(buildAppInitOptions(token, isDark), (api) => {
+		dispatchBettingInit(api);
+		onReady();
+	});
+}
