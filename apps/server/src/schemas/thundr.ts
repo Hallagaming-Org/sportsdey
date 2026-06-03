@@ -90,9 +90,9 @@ export const ThundrBetTransactionSchema = z.object({
 	roundId: z.string().openapi({ description: "Round ID" }),
 	currency: z.string().openapi({ description: "Currency" }),
 	gameId: ThundrGameIdSchema.openapi({ description: "Game ID" }),
-	amount: z.number().openapi({ description: "Amount" }),
-	reward: z.number().optional().openapi({ description: "Reward" }),
-	serviceFee: z.number().optional().openapi({ description: "Service fee" }),
+	amount: z.number().openapi({ description: "Amount in kobo" }),
+	reward: z.number().optional().openapi({ description: "Reward in kobo" }),
+	serviceFee: z.number().optional().openapi({ description: "Service fee in kobo" }),
 }).openapi("ThundrBetTransaction");
 
 export const ThundrWinTransactionSchema = z.object({
@@ -104,7 +104,7 @@ export const ThundrWinTransactionSchema = z.object({
 	roundId: z.string().openapi({ description: "Round ID" }),
 	currency: z.string().openapi({ description: "Currency" }),
 	gameId: ThundrGameIdSchema.openapi({ description: "Game ID" }),
-	amount: z.number().openapi({ description: "Amount" }),
+	amount: z.number().openapi({ description: "Amount in kobo" }),
 	roomId: z.string().optional().openapi({ description: "Room ID" }),
 }).openapi("ThundrWinTransaction");
 
@@ -129,7 +129,7 @@ export const ThundrDrawTransactionSchema = z.object({
 	roundId: z.string().openapi({ description: "Round ID" }),
 	currency: z.string().openapi({ description: "Currency" }),
 	gameId: ThundrGameIdSchema.openapi({ description: "Game ID" }),
-	amount: z.number().openapi({ description: "Amount" }),
+	amount: z.number().openapi({ description: "Amount in kobo" }),
 	roomId: z.string().optional().openapi({ description: "Room ID" }),
 }).openapi("ThundrDrawTransaction");
 
@@ -157,7 +157,7 @@ export const ThundrTransactionResponseSchema = z.object({
 	transactionId: z.string().openapi({ description: "Transaction ID" }),
 	userId: z.string().openapi({ description: "User ID" }),
 	currency: z.string().openapi({ description: "Currency" }),
-	amount: z.number().openapi({ description: "Amount" }),
+	amount: z.number().openapi({ description: "Amount in kobo" }),
 	type: z.enum(["BET", "WIN", "LOSE", "DRAW", "ROLLBACK"]).openapi({ description: "Transaction type" }),
 }).openapi("ThundrTransactionResponse");
 
@@ -172,5 +172,5 @@ export const ThundrBalanceQuerySchema = z.object({
 }).openapi("ThundrBalanceQuery");
 
 export const ThundrBalanceResponseSchema = z.object({
-	balance: z.number().openapi({ description: "Balance" }),
+	balance: z.number().openapi({ description: "Balance in kobo" }),
 }).openapi("ThundrBalanceResponse");

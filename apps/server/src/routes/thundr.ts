@@ -301,7 +301,7 @@ thundrRoute.post("/transactions", async (c) => {
 				transactionId: existingTx.transactionId,
 				userId: existingTx.userId,
 				currency: "NGN",
-				amount: existingTx.amount * 100,
+				amount: existingTx.amount,
 				type: existingTx.type as "BET" | "WIN" | "LOSE" | "DRAW" | "ROLLBACK",
 			}),
 			200,
@@ -392,7 +392,7 @@ thundrRoute.post("/transactions", async (c) => {
 			.limit(1);
 
 		if (originalTx && originalTx.type === "BET") {
-			txAmountKobo = Math.round(originalTx.amount * 100);
+			txAmountKobo = originalTx.amount;
 			newBalanceKobo = currentBalanceKobo + txAmountKobo;
 			const [updatedWallet] = await db
 				.update(schema.wallet)
@@ -428,7 +428,7 @@ thundrRoute.post("/transactions", async (c) => {
 			transactionId: tx.transactionId,
 			userId: session.userId,
 			type: tx.type,
-			amount: txAmountKobo / 100,
+			amount: txAmountKobo,
 			roundId: tx.roundId,
 			gameId: tx.gameId,
 			sessionId: tx.sessionId,

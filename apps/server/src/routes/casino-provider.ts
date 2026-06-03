@@ -361,7 +361,7 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 	console.log("auth data", {
 		user_id: user.id,
 		username: user.name ?? user.email.split("@")[0],
-		balance: balance * 100,
+		balance,
 		currency: currency ?? "NGN",
 	});
 
@@ -371,7 +371,7 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 			data: {
 				user_id: user.id,
 				username: user.name ?? user.email.split("@")[0],
-				balance: balance * 1000,
+				balance,
 				currency: currency ?? "NGN",
 			},
 		},
@@ -480,7 +480,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo - amount / 1000;
+	const newBalanceKobo = balanceKobo - amount;
 	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
@@ -496,7 +496,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		.values({
 			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 			userId: user_id,
-			amount: amount / 1000,
+			amount: amount,
 			type: "debit",
 			reference: null,
 			status: "success",
@@ -641,7 +641,7 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 	const newBalanceKobo = balanceKobo + amount;
 	const [updatedWallet] = await db
 		.update(schema.wallet)
-		.set({ balance: newBalanceKobo / 1000 })
+		.set({ balance: newBalanceKobo })
 		.where(eq(schema.wallet.userId, user_id))
 		.returning();
 
@@ -800,7 +800,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	const newBalanceKobo = balanceKobo + adjustment;
 	const [updatedWallet] = await db
 		.update(schema.wallet)
-		.set({ balance: newBalanceKobo / 1000 })
+		.set({ balance: newBalanceKobo })
 		.where(eq(schema.wallet.userId, user_id))
 		.returning();
 

@@ -238,7 +238,7 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 			id: transactionId,
 			userId: playerId,
 			type: "DEBIT",
-			amount: amount / 100,
+			amount: amount,
 			currency,
 		})
 		.returning();
@@ -375,7 +375,7 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 			id: transactionId,
 			userId: playerId,
 			type: "CREDIT",
-			amount: amount / 100,
+			amount: amount,
 			currency,
 		})
 		.returning();
@@ -512,7 +512,7 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 			id: transactionId,
 			userId: playerId,
 			type: "REFUND",
-			amount: amount / 100,
+			amount: amount,
 			currency,
 		})
 		.returning();
