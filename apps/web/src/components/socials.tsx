@@ -79,13 +79,12 @@ const Socials = () => {
 	}, []);
 
 	return (
-		<div className="hidden w-full px-8 md:px-0 lg:flex lg:justify-center" > <div className="relative block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]"
-
-		> <div ref={
-			widgetRef
-		}
-
-			className="flex w-full h-14" /> </div> </div>);
+		<div className="flex w-full justify-center">
+			<div className="relative block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]">
+				<div ref={widgetRef} className="flex w-full h-14" />
+			</div>
+		</div>
+	);
 }
 	;
 
