@@ -53,9 +53,18 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		});
 	};
 
-	const goToSportsbook = () => {
-		setTab("betting");
-		navigate({ to: "/sportsbook" });
+	const goToScores = () => {
+		setTab("match-scores");
+		const targetSport = currentSport || "football";
+		navigate({
+			to:
+				targetSport === "tennis"
+					? "/tennis/matches"
+					: targetSport === "basketball"
+						? "/basketball/matches"
+						: "/index/matches",
+			search: { league: undefined, sports: targetSport } as any,
+		});
 	};
 
 	const goToCasino = () => {
@@ -121,11 +130,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToHome,
 		},
 		{
-			id: "sportsbook",
-			label: "Sportsbook",
+			id: "scores",
+			label: "Scores",
 			icon: Soccer,
-			isActive: location.pathname.startsWith("/sportsbook"),
-			onClick: goToSportsbook,
+			isActive: location.pathname.includes("/matches"),
+			onClick: goToScores,
 		},
 		{
 			id: "casino",
