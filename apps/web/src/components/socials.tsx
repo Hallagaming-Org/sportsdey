@@ -61,22 +61,6 @@ const Socials = () => {
 					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"
 				)}
 			>
-				{/* Left fade overlay */}
-				{/* <div
-					className={cn(
-						"pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-gradient-to-r to-transparent",
-						currentTheme === "dark" ? "from-[#04100B]" : "from-white"
-					)}
-				/> */}
-
-				{/* Right fade overlay */}
-				{/* <div
-					className={cn(
-						"pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l to-transparent",
-						currentTheme === "dark" ? "from-[#04100B]" : "from-white"
-					)}
-				/> */}
-
 				<tv-ticker-tape
 					symbols="BINANCE:BTCUSDT,BINANCE:ETHUSDT,BINANCE:SOLUSDT,BINANCE:XRPUSDT,BINANCE:BNBUSDT,BINANCE:SUIUSDT,KUCOIN:HYPEUSDT,BINANCE:ZECUSDT,BINANCE:DOGEUSDT,BINANCE:NEARUSDT,BINANCE:AVAXUSDT,BINANCE:LINKUSDT,BINANCE:ADAUSDT,BINANCE:ZECUSDT"
 					item-size="compact"
