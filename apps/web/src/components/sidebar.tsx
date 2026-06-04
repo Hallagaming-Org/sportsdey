@@ -235,7 +235,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	];
 
 	return (
-		<div className="w-full space-y-6 pb-20">
+		<div className="w-full space-y-6">
 			{/* Menu list */}
 			<div
 				className={cn(
