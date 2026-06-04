@@ -66,12 +66,12 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 				href={banner.url}
 				target="_blank"
 				rel="noopener noreferrer"
-				className="block w-full overflow-hidden rounded-xl"
+				className="block w-full overflow-hidden rounded-xl bg-[#f8f9fa] dark:bg-[#1A1A1A]"
 			>
 				<ImageWithSkeleton
 					src={banner.imageUrl}
 					alt={banner.alt || "Banner"}
-					className="w-full h-auto object-contain"
+					className="w-full h-[180px] sm:h-[220px] md:h-[280px] object-contain"
 				/>
 			</a>
 		);
@@ -90,12 +90,12 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 								href={banner.url}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="block w-full overflow-hidden rounded-xl"
+								className="block w-full overflow-hidden rounded-xl bg-[#f8f9fa] dark:bg-[#1A1A1A]"
 							>
 								<ImageWithSkeleton
 									src={banner.imageUrl}
 									alt={banner.alt || "Banner"}
-									className="w-full h-auto object-contain"
+									className="w-full h-[180px] sm:h-[220px] md:h-[280px] object-contain"
 								/>
 							</a>
 						</div>
