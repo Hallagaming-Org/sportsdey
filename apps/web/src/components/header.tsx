@@ -4,7 +4,7 @@ import {
 	useLocation,
 	useRouter,
 } from "@tanstack/react-router";
-import { ChevronDown, Menu, Plus, Undo2, X } from "lucide-react";
+import { ChevronDown, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { apiRequest } from "@/lib/api";
@@ -16,7 +16,6 @@ import BoxingIcon from "@/logos/boxing.svg?react";
 import FootballIcon from "@/logos/football.svg?react";
 import TennisIcon from "@/logos/tennis.svg?react";
 import WorldIcon from "@/logos/world.svg?react";
-import { useActiveTab } from "./active-tab-context";
 import { socials } from "./socials";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
