@@ -1,10 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Camera, Edit, Loader2, Mail } from "lucide-react";
+import { Camera, Edit, Loader2, Mail, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { WalletSidebar } from "@/components/wallet-sidebar";
 import { apiRequest } from "@/lib/api";
 import { changeEmail, useSession } from "@/lib/auth/client";
 
@@ -147,13 +146,29 @@ function AccountPage() {
 	return (
 		<div className="px-4 py-2 lg:container lg:mx-auto">
 			<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
-				<div className="rounded-2xl bg-white p-6 pb-8 shadow-sm dark:bg-[#202120]">
+				<div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-[#2F3033] dark:bg-[#0D0D0D]">
+					{/* Header section */}
+					<div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-[#2F3033]">
+						<div>
+							<h2 className="text-xl font-bold text-gray-900 dark:text-white">
+								Account Information
+							</h2>
+							<p className="text-sm text-gray-500 dark:text-[#8C8F8F]">
+								Edit your information details
+							</p>
+						</div>
+						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-[#1C1D1F]">
+							<User className="h-5 w-5 text-gray-500 dark:text-[#8C8F8F]" />
+						</div>
+					</div>
+
+					<div className="relative p-6 pb-8">
 						{/* Edit profile link - top right */}
-						<div className="flex justify-end">
+						<div className="absolute right-6 top-6 mb-4 flex justify-end">
 							<button
 								type="button"
 								onClick={() => setIsEditing((prev) => !prev)}
-								className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-primary"
+								className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-primary dark:text-[#8C8F8F] dark:hover:text-white"
 							>
 								<Edit className="h-4 w-4" />
 								<span>{isEditing ? "Cancel edit" : "Edit profile"}</span>
@@ -161,34 +176,34 @@ function AccountPage() {
 						</div>
 
 						{/* Profile photo - centered circle */}
-						<div className="mb-10 flex justify-center">
+						<div className="mb-10 mt-6 flex justify-center">
 							<div className="relative">
 								{profileImage ? (
 									<img
 										src={profileImage}
 										alt={displayName}
-										className="h-36 w-36 rounded-full border-4 border-gray-100 object-cover dark:border-gray-700"
+										className="h-32 w-32 rounded-full border border-gray-200 object-cover dark:border-gray-700"
 									/>
 								) : (
-									<div className="flex h-36 w-36 items-center justify-center rounded-full border-4 border-gray-100 bg-[#F0F0F0] font-semibold text-3xl text-muted-foreground dark:border-gray-700 dark:bg-[#333]">
+									<div className="flex h-32 w-32 items-center justify-center rounded-full border border-gray-200 bg-[#F0F0F0] font-semibold text-3xl text-muted-foreground dark:border-[#2F3033] dark:bg-[#1C1D1F] dark:text-[#8C8F8F]">
 										{initials}
 									</div>
 								)}
 								{/* Camera icon overlay */}
-								<div className="absolute right-2 bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-muted-foreground dark:bg-gray-600">
-									<Camera className="h-3.5 w-3.5" />
+								<div className="absolute right-1 bottom-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white shadow-md dark:border dark:border-[#2F3033] dark:bg-[#1C1D1F]">
+									<Camera className="h-4 w-4 text-gray-600 dark:text-[#8C8F8F]" />
 								</div>
 							</div>
 						</div>
 
 						{/* Form fields */}
 						<form onSubmit={handleSubmit}>
-							<div className="space-y-0">
+							<div className="space-y-4">
 								{/* Full Name Field */}
-								<div className="flex flex-col gap-2 border-gray-100 border-b py-5 sm:flex-row sm:items-center dark:border-gray-700/50">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.fullName}
-										className="shrink-0 font-medium text-primary text-sm sm:w-48"
+										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
 									>
 										Full name:
 									</label>
@@ -200,15 +215,15 @@ function AccountPage() {
 											updateField("fullName", event.target.value)
 										}
 										disabled={!isEditing}
-										className="border-none bg-[#F4F4F4] text-center shadow-none disabled:opacity-100 dark:bg-[#2a2b2a]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
 								{/* Email Field */}
-								<div className="flex flex-col gap-2 border-gray-100 border-b py-5 sm:flex-row sm:items-center dark:border-gray-700/50">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.email}
-										className="shrink-0 font-medium text-primary text-sm sm:w-48"
+										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
 									>
 										Email address:
 									</label>
@@ -218,24 +233,24 @@ function AccountPage() {
 											type="email"
 											value={formState.email}
 											disabled={true}
-											className="flex-1 border-none bg-[#F4F4F4] text-center shadow-none disabled:opacity-100 dark:bg-[#2a2b2a]"
+											className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 										/>
 										<button
 											type="button"
 											onClick={() => setIsChangingEmail(true)}
-											className="flex shrink-0 cursor-pointer items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-primary"
+											className="flex shrink-0 cursor-pointer items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-primary dark:text-[#8C8F8F] dark:hover:text-white"
 										>
 											<Mail className="h-4 w-4" />
-											<span>Change</span>
+											<span className="hidden sm:inline">Change</span>
 										</button>
 									</div>
 								</div>
 
 								{/* Country Field */}
-								<div className="flex flex-col gap-2 border-gray-100 border-b py-5 sm:flex-row sm:items-center dark:border-gray-700/50">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.country}
-										className="shrink-0 font-medium text-primary text-sm sm:w-48"
+										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
 									>
 										Country:
 									</label>
@@ -247,15 +262,15 @@ function AccountPage() {
 											updateField("country", event.target.value)
 										}
 										disabled={!isEditing}
-										className="border-none bg-[#F4F4F4] text-center shadow-none disabled:opacity-100 dark:bg-[#2a2b2a]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
 								{/* Mobile Number Field */}
-								<div className="flex flex-col gap-2 border-gray-100 border-b py-5 sm:flex-row sm:items-center dark:border-gray-700/50">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.mobileNumbers}
-										className="shrink-0 font-medium text-primary text-sm sm:w-48"
+										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
 									>
 										Mobile number:
 									</label>
@@ -267,15 +282,15 @@ function AccountPage() {
 											updateField("mobileNumbers", event.target.value)
 										}
 										disabled={!isEditing}
-										className="border-none bg-[#F4F4F4] text-center shadow-none disabled:opacity-100 dark:bg-[#2a2b2a]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
 								{/* Referral ID Field */}
-								<div className="flex flex-col gap-2 border-gray-100 border-b py-5 sm:flex-row sm:items-center dark:border-gray-700/50">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.referralId}
-										className="shrink-0 font-medium text-primary text-sm sm:w-48"
+										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
 									>
 										Referral ID:
 									</label>
@@ -287,7 +302,7 @@ function AccountPage() {
 											updateField("referralId", event.target.value)
 										}
 										disabled={true}
-										className="border-none bg-[#F4F4F4] text-center shadow-none disabled:opacity-100 dark:bg-[#2a2b2a]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 							</div>
@@ -297,7 +312,7 @@ function AccountPage() {
 								<button
 									type="submit"
 									disabled={!isEditing || updateUserMutation.isPending}
-									className="w-full cursor-pointer rounded-lg bg-[#EBEBEB] px-4 py-3.5 font-medium text-primary text-sm transition-colors hover:bg-[#E0E0E0] disabled:cursor-default disabled:opacity-70 dark:bg-[#333] dark:hover:bg-[#3a3a3a]"
+									className="w-full cursor-pointer rounded-lg bg-[#EBEBEB] px-4 py-4 font-medium text-[#8C8F8F] text-sm transition-colors hover:bg-[#E0E0E0] disabled:cursor-default disabled:opacity-70 dark:bg-[#1C1D1F] dark:hover:bg-[#2A2B2A] [&:not(:disabled)]:bg-accent [&:not(:disabled)]:text-white [&:not(:disabled)]:dark:bg-accent [&:not(:disabled)]:dark:text-white"
 								>
 									{updateUserMutation.isPending ? "Saving..." : "Save Changes"}
 								</button>
@@ -305,7 +320,7 @@ function AccountPage() {
 						</form>
 					</div>
 				</div>
-
+			</div>
 			{/* Email Change Modal */}
 			{isChangingEmail && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
