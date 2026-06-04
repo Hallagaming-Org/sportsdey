@@ -52,14 +52,17 @@ const Socials = () => {
 
 	const currentTheme = theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
 
+	// Always use dark theme for the ticker because we are forcing a dark pill background
+	const tickerTheme = "dark";
+
 	return (
-		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex">
-			<div className="mt-4 flex w-full overflow-hidden rounded-xl bg-white dark:bg-[#202120] min-h-[56px]">
+		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center py-16">
+			<div className={`mt-4 flex w-full h-[110px] py-4  max-w-[95%] items-center overflow-hidden rounded-full  h-[46px] border border-[#F2EEFB]/10 ${currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"}`}>
 				<tv-ticker-tape
 					symbols="BINANCE:BTCUSDT,BINANCE:ETHUSDT,BINANCE:SOLUSDT,BINANCE:XRPUSDT,BINANCE:BNBUSDT,BINANCE:SUIUSDT,KUCOIN:HYPEUSDT,BINANCE:ZECUSDT,BINANCE:DOGEUSDT,BINANCE:NEARUSDT,BINANCE:AVAXUSDT,BINANCE:LINKUSDT,BINANCE:ADAUSDT,BINANCE:ZECUSDT"
 					item-size="compact"
 					transparent="true"
-					color-theme={currentTheme}
+					color-theme={tickerTheme}
 				></tv-ticker-tape>
 			</div>
 		</div>
