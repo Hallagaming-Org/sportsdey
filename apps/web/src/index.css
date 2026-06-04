@@ -220,5 +220,6 @@ body {
 }
 
 .swiper-pagination-bullet-active {
+	background: white !important;
 	opacity: 1;
 }
