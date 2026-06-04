@@ -4,7 +4,6 @@ import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
 import X from "@/logos/x.svg?react";
-import DiscordIcon from "@/logos/DiscordIcon";
 
 export const socials = [
 	{
@@ -31,9 +30,8 @@ export const socials = [
 		id: 5,
 		icon: DiscordIcon,
 		link: "https://discord.com/invite/AKRc3K2v",
-	}
+	},
 ];
-
 
 const Socials = () => {
 	const { theme, resolvedTheme } = useTheme();

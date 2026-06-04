@@ -133,6 +133,12 @@ function GamesPage() {
 		return a.name.localeCompare(b.name);
 	});
 
+	const chunkSize = 3;
+	const gameChunks: Game[][] = [];
+	for (let i = 0; i < sortedGames.length; i += chunkSize) {
+		gameChunks.push(sortedGames.slice(i, i + chunkSize));
+	}
+
 	const handleGameClick = async (game: Game) => {
 		setLoadingGame(game.code);
 		try {
@@ -254,13 +260,92 @@ function GamesPage() {
 				<h1 className="mb-6 font-bold text-2xl text-gray-900 dark:text-white">
 					All Games
 				</h1>
-				<div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+
+				<div className="flex flex-col gap-4 lg:hidden">
+					{gameChunks.map((chunk, rowIndex) => (
+						<div
+							key={rowIndex}
+							className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
+						>
+							{chunk.map((game) => {
+								const display = getGameDisplay(game);
+								return (
+									<div
+										key={game.code}
+										className="relative flex h-[240px] flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
+										style={{ background: display.gradient, flex: "0 0 160px" }}
+										onClick={() => handleGameClick(game)}
+										onKeyDown={(e) => handleKeyDown(e, game)}
+										role="button"
+										tabIndex={0}
+									>
+										{loadingGame === game.code && (
+											<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+												<Loader2 className="h-10 w-10 animate-spin text-white" />
+											</div>
+										)}
+
+										{display.icon ? (
+											<div
+												className="absolute inset-0 flex items-center justify-center p-4"
+												style={{
+													opacity: loadingGame === game.code ? 0.35 : 1,
+												}}
+											>
+												{display.icon && (
+													<display.icon className="h-full w-full object-contain" />
+												)}
+											</div>
+										) : display.image ? (
+											<img
+												src={display.image}
+												alt={display.name}
+												loading="lazy"
+												className="absolute inset-0 h-full w-full object-contain p-2 transition-opacity"
+												style={{
+													opacity: loadingGame === game.code ? 0.35 : 1,
+												}}
+											/>
+										) : (
+											<div
+												className="absolute inset-0 flex items-center justify-center"
+												style={{
+													opacity: loadingGame === game.code ? 0.35 : 1,
+												}}
+											>
+												<span className="text-4xl font-bold text-white/50">
+													{display.name.charAt(0)}
+												</span>
+											</div>
+										)}
+										<p
+											className="text-center font-normal text-[27px] text-white"
+											style={{ fontFamily: "Luckiest Guy" }}
+										>
+											{display.name}
+										</p>
+										{display.subtitle && (
+											<p
+												className="text-center text-gray-100 text-sm"
+												style={{ fontFamily: "Quicksand" }}
+											>
+												{display.subtitle}
+											</p>
+										)}
+									</div>
+								);
+							})}
+						</div>
+					))}
+				</div>
+
+				<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] lg:gap-6">
 					{sortedGames.map((game) => {
 						const display = getGameDisplay(game);
 						return (
 							<div
 								key={game.code}
-								className="relative flex h-[350px] w-[180px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-4 md:h-[280px]"
+								className="relative flex h-[270px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
 								style={{ background: display.gradient }}
 								onClick={() => handleGameClick(game)}
 								onKeyDown={(e) => handleKeyDown(e, game)}
