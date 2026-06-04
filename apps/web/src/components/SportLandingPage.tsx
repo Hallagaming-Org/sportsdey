@@ -12,6 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { BannerData } from "@/lib/banners-server";
 import type { NewsListItem } from "@/lib/news-server";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
@@ -125,31 +126,29 @@ export default function SportLandingPage({
 									to="/news/$slug"
 									params={{ slug: news.slug?.current ?? "" }}
 									key={news._id}
-									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+									className="group flex cursor-pointer snap-start min-w-[65%] flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
 								>
-									<div className="relative h-36 w-full overflow-hidden bg-gray-100 dark:bg-gray-800 sm:aspect-video">
+									<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
 										{news.image ? (
-											<>
-												<div className="absolute inset-0 animate-pulse bg-gray-200 dark:bg-gray-700" />
-												<img
-													src={news.image.thumb}
-													alt={news.title}
-													className="relative z-10 h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
-												/>
-											</>
+											<ImageWithSkeleton
+												src={news.image.card}
+												alt={`${news.title}'s poster`}
+												wrapperClassName="absolute inset-0"
+												className="absolute top-0 left-0 h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+											/>
 										) : (
-											<div className="h-full w-full bg-gray-200 dark:bg-gray-700" />
+											<div className="absolute top-0 left-0 h-full w-full bg-gray-100 dark:bg-gray-800" />
 										)}
 										<span
-											className={`absolute bottom-3 left-3 px-2 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider ${getTagStyle(tag)}`}
+											className={`absolute bottom-3 left-3 px-2 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider z-10 ${getTagStyle(tag)}`}
 										>
 											{tag}
 										</span>
 									</div>
-									<div className="p-3 md:p-4 flex flex-col flex-1 space-y-2">
-										<h3 className="font-extrabold text-sm text-gray-800 dark:text-white line-clamp-2 leading-snug group-hover:text-accent transition-colors">
+									<div className="flex flex-col flex-1 space-y-2 pt-2">
+										<p className="mb-2 line-clamp-2 font-bold text-sm text-gray-800 dark:text-white leading-snug group-hover:text-accent transition-colors">
 											{news.title}
-										</h3>
+										</p>
 										<p className="text-[11px] text-gray-400 dark:text-gray-500 mt-auto">
 											{formatRelativeTime(news.publishedAt)}
 										</p>
