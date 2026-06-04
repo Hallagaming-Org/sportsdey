@@ -280,7 +280,7 @@ function RouteComponent() {
 								Add your comment
 							</span>
 							<textarea
-								className="min-h-[120px] w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm outline-none transition focus:border-primary dark:border-white/10 dark:bg-[#1e1f23] dark:text-white"
+								className="min-h-[120px] w-full rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm outline-none transition dark:border-white/10 dark:bg-[#1e1f23] dark:text-white"
 								placeholder={
 									session?.user
 										? "Share your thoughts..."
