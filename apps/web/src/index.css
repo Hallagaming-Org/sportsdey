@@ -213,3 +213,12 @@ body {
 .dark .app-download-banner {
 	background-image: linear-gradient(to right, #04100B, #072D08, #072D08) !important;
 }
+
+.swiper-pagination-bullet {
+	background: white;
+	opacity: 0.6;
+}
+
+.swiper-pagination-bullet-active {
+	opacity: 1;
+}
