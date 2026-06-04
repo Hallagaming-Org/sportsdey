@@ -57,25 +57,25 @@ const Socials = () => {
 		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center">
 			<div
 				className={cn(
-					"relative mt-4 flex w-full max-w-[90%] py-4 items-center overflow-hidden rounded-full h-[104px] border border-[#F2EEFB]/10",
+					"relative mt-4 flex w-full items-center overflow-hidden border border-[#F2EEFB]/10",
 					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"
 				)}
 			>
 				{/* Left fade overlay */}
-				<div
+				{/* <div
 					className={cn(
 						"pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-gradient-to-r to-transparent",
 						currentTheme === "dark" ? "from-[#04100B]" : "from-white"
 					)}
-				/>
+				/> */}
 
 				{/* Right fade overlay */}
-				<div
+				{/* <div
 					className={cn(
 						"pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l to-transparent",
 						currentTheme === "dark" ? "from-[#04100B]" : "from-white"
 					)}
-				/>
+				/> */}
 
 				<tv-ticker-tape
 					symbols="BINANCE:BTCUSDT,BINANCE:ETHUSDT,BINANCE:SOLUSDT,BINANCE:XRPUSDT,BINANCE:BNBUSDT,BINANCE:SUIUSDT,KUCOIN:HYPEUSDT,BINANCE:ZECUSDT,BINANCE:DOGEUSDT,BINANCE:NEARUSDT,BINANCE:AVAXUSDT,BINANCE:LINKUSDT,BINANCE:ADAUSDT,BINANCE:ZECUSDT"
