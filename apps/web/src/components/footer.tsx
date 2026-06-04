@@ -79,7 +79,7 @@ const Footer = () => {
 								<div
 									className={cn(
 										"flex h-10 w-10 items-center justify-center rounded-full transition-all",
-										tab === item ? "text-[#006AFF]" : "text-[#8C8F8F]",
+										tab === item ? "text-accent" : "text-[#8C8F8F]",
 									)}
 								>
 								<Icon
@@ -89,7 +89,7 @@ const Footer = () => {
 								<span
 									className={cn(
 										"mt-1 text-[11px]",
-										tab === item ? "text-[#006AFF]" : "text-gray-400",
+										tab === item ? "text-accent" : "text-gray-400",
 									)}
 								>
 									{label}
