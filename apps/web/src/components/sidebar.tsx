@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
 import Soccer from "@/logos/Soccer";
+import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import Video from "@/logos/Video";
 import { useActiveTab } from "./active-tab-context";
@@ -72,6 +73,14 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		navigate({ to: "/games" });
 	};
 
+	const goToSportsbook = () => {
+		setTab("betting");
+		navigate({
+			to: "/sportsbook",
+			search: { sports: currentSport } as any,
+		});
+	};
+
 	const goToNews = () => {
 		setTab("news");
 		navigate({
@@ -130,11 +139,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToHome,
 		},
 		{
-			id: "scores",
-			label: "Scores",
-			icon: Soccer,
-			isActive: location.pathname.includes("/matches"),
-			onClick: goToScores,
+			id: isMobile ? "scores" : "betting",
+			label: isMobile ? "Scores" : "Sportsbook",
+			icon: isMobile ? Soccer : SportsIcon,
+			isActive: isMobile 
+				? location.pathname.includes("/matches") 
+				: location.pathname.startsWith("/sportsbook"),
+			onClick: isMobile ? goToScores : goToSportsbook,
 		},
 		{
 			id: "casino",
