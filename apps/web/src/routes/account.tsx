@@ -235,14 +235,14 @@ function AccountPage() {
 											disabled={true}
 											className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 										/>
-										<button
+										{/* <button
 											type="button"
 											onClick={() => setIsChangingEmail(true)}
 											className="flex shrink-0 cursor-pointer items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-primary dark:text-[#8C8F8F] dark:hover:text-white"
 										>
 											<Mail className="h-4 w-4" />
 											<span className="hidden sm:inline">Change</span>
-										</button>
+										</button> */}
 									</div>
 								</div>
 
