@@ -177,7 +177,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									})
 								}
 								aria-label="Add funds"
-								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-[#1E78FF] text-white transition-colors hover:bg-blue-600"
+								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent text-white transition-colors hover:bg-blue-600"
 							>
 								<Plus className="h-4 w-4" />
 							</button>
