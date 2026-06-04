@@ -233,7 +233,7 @@ function AccountPage() {
 											type="email"
 											value={formState.email}
 											disabled={true}
-											className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+											className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-5 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 										/>
 										<button
 											type="button"
