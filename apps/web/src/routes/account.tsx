@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Camera, Edit, Loader2, Mail, User } from "lucide-react";
+import { Camera, Edit, Loader2, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -215,7 +215,7 @@ function AccountPage() {
 											updateField("fullName", event.target.value)
 										}
 										disabled={!isEditing}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
@@ -233,7 +233,7 @@ function AccountPage() {
 											type="email"
 											value={formState.email}
 											disabled={true}
-											className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+											className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 										/>
 										{/* <button
 											type="button"
@@ -262,7 +262,7 @@ function AccountPage() {
 											updateField("country", event.target.value)
 										}
 										disabled={!isEditing}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
@@ -282,7 +282,7 @@ function AccountPage() {
 											updateField("mobileNumbers", event.target.value)
 										}
 										disabled={!isEditing}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 h-[42px] text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
@@ -302,7 +302,7 @@ function AccountPage() {
 											updateField("referralId", event.target.value)
 										}
 										disabled={true}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 h-[42px] text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 							</div>
