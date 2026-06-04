@@ -79,7 +79,7 @@ const Socials = () => {
 	}, []);
 
 	return (
-		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center" > <div className="relative mt-4 block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]"
+		<div className="hidden w-full px-8 md:px-0 lg:flex lg:justify-center" > <div className="relative block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]"
 
 		> <div ref={
 			widgetRef
