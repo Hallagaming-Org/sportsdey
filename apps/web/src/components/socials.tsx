@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import Facebook from "@/logos/facebook.svg?react";
@@ -39,6 +39,31 @@ export const socials = [
 const Socials = () => {
 	const { theme, resolvedTheme } = useTheme();
 
+	const widgetRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		const SCRIPT_SRC = "https://www.livecoinwatch.com/static/lcw-widget.js";
+		if (!widgetRef.current) return;
+
+		// Add the widget container if it's not already present
+		if (!widgetRef.current.querySelector(".livecoinwatch-widget-5")) {
+			const w = document.createElement("div");
+			w.className = "livecoinwatch-widget-5";
+			w.setAttribute("lcw-base", "USD");
+			w.setAttribute("lcw-color-tx", "#999999");
+			w.setAttribute("lcw-marquee-1", "coins");
+			w.setAttribute("lcw-marquee-2", "none");
+			w.setAttribute("lcw-marquee-items", "10");
+			widgetRef.current.appendChild(w);
+		}
+		if (!document.querySelector(`script[src="${SCRIPT_SRC}"]`)) {
+			const s = document.createElement("script");
+			s.src = SCRIPT_SRC;
+			s.defer = true;
+			document.body.appendChild(s);
+		}
+	}, []);
+
 	useEffect(() => {
 		const scriptId = "lcw-widget-script";
 		if (!document.getElementById(scriptId)) {
@@ -56,20 +81,11 @@ const Socials = () => {
 		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center">
 			<div
 				className={cn(
-					"relative mt-4 flex w-full items-center overflow-hidden gap-x-6 border border-[#F2EEFB]/10",
+					"relative mt-4 block w-full overflow-hidden border border-[#F2EEFB]/10",
 					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"
 				)}
 			>
-				<div
-					className="livecoinwatch-widget-5"
-					{...{
-						"lcw-base": "USDT",
-						"lcw-color-tx": "#999999",
-						"lcw-marquee-1": "coins",
-						"lcw-marquee-2": "none",
-						"lcw-marquee-items": "20",
-					}}
-				></div>
+				<div ref={widgetRef} className="flex w-full h-14" />
 			</div>
 		</div>
 	);
