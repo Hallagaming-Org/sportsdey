@@ -74,7 +74,7 @@ export default function SportLandingPage({
 		<div className="w-full space-y-8 pb-12 transition-all px-4 sm:px-6">
 			{/* Hero Banners */}
 			{banners.length > 0 && (
-				<div className="w-full overflow-hidden rounded-xl shadow-md">
+				<div className="w-full rounded-xl shadow-md">
 					<BannerCarousel banners={banners} />
 				</div>
 			)}
