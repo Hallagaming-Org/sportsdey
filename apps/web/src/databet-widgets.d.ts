@@ -19,6 +19,15 @@ declare module "react" {
 				style?: React.CSSProperties;
 				className?: string;
 			};
+			"tv-ticker-tape": React.DetailedHTMLProps<
+				React.HTMLAttributes<HTMLElement>,
+				HTMLElement
+			> & {
+				symbols?: string;
+				"item-size"?: string;
+				transparent?: boolean | string;
+				"color-theme"?: string;
+			};
 		}
 	}
 }
