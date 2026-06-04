@@ -406,7 +406,14 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full px-2 pt-2 pb-6">
-								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
+								<div className="flex items-center justify-between">
+									<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
+									<div className="flex items-center gap-2 rounded-full bg-primary">
+
+										<ThemeToggle />
+									</div>
+								</div>
+
 								<div className="flex flex-wrap items-center gap-3">
 									{socials.map(({ icon: Icon, id, link }) => (
 										<a
@@ -444,13 +451,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										<span>18+ ONLY</span>
 										<span className="text-gray-300 dark:text-gray-600">|</span>
 										<span>PLEASE GAMBLE RESPONSIBLY</span>
-									</div>
-								</div>
-
-								<div className="mt-6 flex items-center justify-end">
-									<div className="flex items-center gap-2 rounded-full bg-primary">
-
-										<ThemeToggle />
 									</div>
 								</div>
 							</div>
