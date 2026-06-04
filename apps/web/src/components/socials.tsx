@@ -57,7 +57,7 @@ const Socials = () => {
 
 	return (
 		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center">
-			<div className={`mt-4 flex w-full h-[110px] py-4  max-w-[95%] items-center overflow-hidden rounded-full  h-[46px] border border-[#F2EEFB]/10 ${currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"}`}>
+			<div className={`mt-4 flex w-full h-[110px] py-4  max-w-[90%] items-center overflow-hidden rounded-full  h-[46px] border border-[#F2EEFB]/10 ${currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"}`}>
 				<tv-ticker-tape
 					symbols="BINANCE:BTCUSDT,BINANCE:ETHUSDT,BINANCE:SOLUSDT,BINANCE:XRPUSDT,BINANCE:BNBUSDT,BINANCE:SUIUSDT,KUCOIN:HYPEUSDT,BINANCE:ZECUSDT,BINANCE:DOGEUSDT,BINANCE:NEARUSDT,BINANCE:AVAXUSDT,BINANCE:LINKUSDT,BINANCE:ADAUSDT,BINANCE:ZECUSDT"
 					item-size="compact"
