@@ -40,13 +40,12 @@ const Socials = () => {
 	const { theme, resolvedTheme } = useTheme();
 
 	useEffect(() => {
-		const scriptId = "tv-ticker-tape-script";
+		const scriptId = "lcw-widget-script";
 		if (!document.getElementById(scriptId)) {
 			const script = document.createElement("script");
 			script.id = scriptId;
-			script.type = "module";
-			script.src = "https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js";
-			script.async = true;
+			script.defer = true;
+			script.src = "https://www.livecoinwatch.com/static/lcw-widget.js";
 			document.body.appendChild(script);
 		}
 	}, []);
@@ -57,16 +56,20 @@ const Socials = () => {
 		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center">
 			<div
 				className={cn(
-					"relative mt-4 flex w-full items-center overflow-hidden border border-[#F2EEFB]/10",
+					"relative mt-4 flex w-full items-center overflow-hidden gap-x-6 border border-[#F2EEFB]/10",
 					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"
 				)}
 			>
-				<tv-ticker-tape
-					symbols="BINANCE:BTCUSDT,BINANCE:ETHUSDT,BINANCE:SOLUSDT,BINANCE:XRPUSDT,BINANCE:BNBUSDT,BINANCE:SUIUSDT,KUCOIN:HYPEUSDT,BINANCE:ZECUSDT,BINANCE:DOGEUSDT,BINANCE:NEARUSDT,BINANCE:AVAXUSDT,BINANCE:LINKUSDT,BINANCE:ADAUSDT,BINANCE:ZECUSDT"
-					item-size="compact"
-					transparent="true"
-					color-theme={currentTheme}
-				></tv-ticker-tape>
+				<div
+					className="livecoinwatch-widget-5"
+					{...{
+						"lcw-base": "USDT",
+						"lcw-color-tx": "#999999",
+						"lcw-marquee-1": "coins",
+						"lcw-marquee-2": "none",
+						"lcw-marquee-items": "20",
+					}}
+				></div>
 			</div>
 		</div>
 	);
