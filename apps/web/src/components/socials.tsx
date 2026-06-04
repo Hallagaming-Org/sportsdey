@@ -1,11 +1,11 @@
-import { useEffect } from "react";
 import { useTheme } from "next-themes";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import DiscordIcon from "@/logos/DiscordIcon";
 import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
 import X from "@/logos/x.svg?react";
-import DiscordIcon from "@/logos/DiscordIcon";
 
 export const socials = [
 	{
@@ -32,9 +32,8 @@ export const socials = [
 		id: 5,
 		icon: DiscordIcon,
 		link: "https://discord.com/invite/AKRc3K2v",
-	}
+	},
 ];
-
 
 const Socials = () => {
 	const { theme, resolvedTheme } = useTheme();
@@ -45,27 +44,29 @@ const Socials = () => {
 			const script = document.createElement("script");
 			script.id = scriptId;
 			script.type = "module";
-			script.src = "https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js";
+			script.src =
+				"https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js";
 			script.async = true;
 			document.body.appendChild(script);
 		}
 	}, []);
 
-	const currentTheme = theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
+	const currentTheme =
+		theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
 
 	return (
-		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center">
+		<div className="my-4 w-full px-8 md:px-0 flex justify-center">
 			<div
 				className={cn(
 					"relative mt-4 flex w-full max-w-[90%] py-4 items-center overflow-hidden rounded-full h-[104px] border border-[#F2EEFB]/10",
-					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"
+					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white",
 				)}
 			>
 				{/* Left fade overlay */}
 				<div
 					className={cn(
 						"pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-gradient-to-r to-transparent",
-						currentTheme === "dark" ? "from-[#04100B]" : "from-white"
+						currentTheme === "dark" ? "from-[#04100B]" : "from-white",
 					)}
 				/>
 
@@ -73,7 +74,7 @@ const Socials = () => {
 				<div
 					className={cn(
 						"pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l to-transparent",
-						currentTheme === "dark" ? "from-[#04100B]" : "from-white"
+						currentTheme === "dark" ? "from-[#04100B]" : "from-white",
 					)}
 				/>
 
