@@ -17,7 +17,7 @@ const bottomBarItems: {
 	icon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }>;
 }[] = [
 	{ id: 1, item: "scores", label: "Home", icon: Home },
-	{ id: 2, item: "match-scores", label: "Scores", icon: Sports },
+	{ id: 2, item: "betting", label: "Sportsbook", icon: Sports },
 	{ id: 3, item: "games", label: "Casino", icon: Games },
 	{ id: 4, item: "news", label: "News", icon: News },
 	{ id: 5, item: "favourites", label: "Wallet", icon: WalletIcon },
@@ -49,16 +49,10 @@ const Footer = () => {
 										});
 									}
 
-									if (item === "match-scores") {
-										const targetSport = currentSport || "football";
+									if (item === "betting") {
 										router.navigate({
-											to:
-												targetSport === "tennis"
-													? "/tennis/matches"
-													: targetSport === "basketball"
-														? "/basketball/matches"
-														: "/index/matches",
-											search: { league: undefined, sports: targetSport } as any,
+											to: "/sportsbook",
+											search: { sports: currentSport } as any,
 										});
 									}
 
