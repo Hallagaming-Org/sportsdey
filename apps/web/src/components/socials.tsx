@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
-import { cn } from "@/lib/utils";
 import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
@@ -41,6 +40,10 @@ const Socials = () => {
 
 	const widgetRef = useRef<HTMLDivElement | null>(null);
 
+
+	const currentTheme = theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
+
+
 	useEffect(() => {
 		const SCRIPT_SRC = "https://www.livecoinwatch.com/static/lcw-widget.js";
 		if (!widgetRef.current) return;
@@ -62,7 +65,7 @@ const Socials = () => {
 			s.defer = true;
 			document.body.appendChild(s);
 		}
-	}, []);
+	}, [currentTheme]);
 
 	useEffect(() => {
 		const scriptId = "lcw-widget-script";
@@ -75,20 +78,15 @@ const Socials = () => {
 		}
 	}, []);
 
-	const currentTheme = theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
-
 	return (
-		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center">
-			<div
-				className={cn(
-					"relative mt-4 block w-full overflow-hidden border border-[#F2EEFB]/10",
-					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white"
-				)}
-			>
-				<div ref={widgetRef} className="flex w-full h-14" />
-			</div>
-		</div>
-	);
-};
+		<div className="my-4 hidden w-full px-8 md:px-0 lg:flex lg:justify-center" > <div className="relative mt-4 block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]"
+
+		> <div ref={
+			widgetRef
+		}
+
+			className="flex w-full h-14" /> </div> </div>);
+}
+	;
 
 export default Socials;
