@@ -53,9 +53,18 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		});
 	};
 
-	const goToSportsbook = () => {
-		setTab("betting");
-		navigate({ to: "/sportsbook" });
+	const goToScores = () => {
+		setTab("match-scores");
+		const targetSport = currentSport || "football";
+		navigate({
+			to:
+				targetSport === "tennis"
+					? "/tennis/matches"
+					: targetSport === "basketball"
+						? "/basketball/matches"
+						: "/index/matches",
+			search: { league: undefined, sports: targetSport } as any,
+		});
 	};
 
 	const goToCasino = () => {
@@ -121,11 +130,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToHome,
 		},
 		{
-			id: "sportsbook",
-			label: "Sportsbook",
+			id: "scores",
+			label: "Scores",
 			icon: Soccer,
-			isActive: location.pathname.startsWith("/sportsbook"),
-			onClick: goToSportsbook,
+			isActive: location.pathname.includes("/matches"),
+			onClick: goToScores,
 		},
 		{
 			id: "casino",
@@ -232,7 +241,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				className={cn(
 					"w-full transition-colors",
 					!isMobile &&
-						"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
+					"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
 				)}
 			>
 				<nav
@@ -255,28 +264,28 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 									"flex w-full cursor-pointer items-center gap-3 text-left font-semibold text-sm transition-all",
 									isMobile ? "px-2 py-4" : "rounded-xl px-4 py-3",
 									isMobile &&
-										!isLast &&
-										"border-b border-gray-300 dark:border-[#2F3033]",
+									!isLast &&
+									"border-b border-gray-300 dark:border-[#2F3033]",
 									!isMobile &&
-										item.isActive &&
-										"bg-accent text-white shadow-md shadow-accent/15",
+									item.isActive &&
+									"bg-accent text-white shadow-md shadow-accent/15",
 									!isMobile &&
-										!item.isActive &&
-										"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
+									!item.isActive &&
+									"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
 									isMobile && item.isActive && "text-accent",
 									isMobile &&
-										!item.isActive &&
-										"text-gray-900 dark:text-[#8C8F8F]",
+									!item.isActive &&
+									"text-gray-900 dark:text-[#8C8F8F]",
 									item.disabled &&
-										"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
+									"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
 								)}
 							>
 								<Icon
 									className={cn(
 										"h-4 w-4 shrink-0",
 										isMobile &&
-											!item.isActive &&
-											"text-gray-500 dark:text-[#8C8F8F]",
+										!item.isActive &&
+										"text-gray-500 dark:text-[#8C8F8F]",
 									)}
 								/>
 								<span>{item.label}</span>

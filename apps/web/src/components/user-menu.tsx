@@ -24,9 +24,9 @@ const userMenuItems: UserMenuItem[] = [
 	{ label: "My profile", icon: UserRound, path: "/account" },
 	{ label: "Notifications", icon: Bell },
 	{ label: "Wallet", icon: Wallet, path: "/wallet" },
-	{ label: "Bet history", icon: Clock3 },
-	{ label: "Engage", icon: Star },
-	{ label: "Settings", icon: Settings },
+	// { label: "Bet history", icon: Clock3 },
+	// { label: "Engage", icon: Star },
+	// { label: "Settings", icon: Settings },
 ];
 
 export function UserMenu() {

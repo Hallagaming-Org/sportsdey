@@ -4,7 +4,7 @@ import {
 	useLocation,
 	useRouter,
 } from "@tanstack/react-router";
-import { ChevronDown, Menu, Plus, Undo2, X } from "lucide-react";
+import { ChevronDown, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { apiRequest } from "@/lib/api";
@@ -16,7 +16,6 @@ import BoxingIcon from "@/logos/boxing.svg?react";
 import FootballIcon from "@/logos/football.svg?react";
 import TennisIcon from "@/logos/tennis.svg?react";
 import WorldIcon from "@/logos/world.svg?react";
-import { useActiveTab } from "./active-tab-context";
 import { socials } from "./socials";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
@@ -177,7 +176,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									})
 								}
 								aria-label="Add funds"
-								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-[#1E78FF] text-white transition-colors hover:bg-blue-600"
+								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent text-white transition-colors hover:bg-blue-600"
 							>
 								<Plus className="h-4 w-4" />
 							</button>
@@ -301,7 +300,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										})
 									}
 									aria-label="Add funds"
-									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-[#0AEC20] font-semibold text-[11px] text-black transition-colors hover:bg-[#00d600]"
+									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-accent font-semibold text-[11px] text-white transition-colors hover:bg-[#00d600]"
 								>
 									Deposit
 								</button>
@@ -406,7 +405,14 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full px-2 pt-2 pb-6">
-								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
+								<div className="flex items-center justify-between">
+									<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
+									<div className="flex items-center gap-2 rounded-full bg-primary">
+
+										<ThemeToggle />
+									</div>
+								</div>
+
 								<div className="flex flex-wrap items-center gap-3">
 									{socials.map(({ icon: Icon, id, link }) => (
 										<a
@@ -444,13 +450,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										<span>18+ ONLY</span>
 										<span className="text-gray-300 dark:text-gray-600">|</span>
 										<span>PLEASE GAMBLE RESPONSIBLY</span>
-									</div>
-								</div>
-
-								<div className="mt-6 flex items-center justify-end">
-									<div className="flex items-center gap-2 rounded-full bg-primary">
-
-										<ThemeToggle />
 									</div>
 								</div>
 							</div>

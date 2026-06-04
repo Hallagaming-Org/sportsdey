@@ -1,7 +1,5 @@
+import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
-import { useEffect } from "react";
-import { cn } from "@/lib/utils";
-import DiscordIcon from "@/logos/DiscordIcon";
 import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
@@ -38,55 +36,54 @@ export const socials = [
 const Socials = () => {
 	const { theme, resolvedTheme } = useTheme();
 
+	const widgetRef = useRef<HTMLDivElement | null>(null);
+
+
+	const currentTheme = theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
+
+
 	useEffect(() => {
-		const scriptId = "tv-ticker-tape-script";
+		const SCRIPT_SRC = "https://www.livecoinwatch.com/static/lcw-widget.js";
+		if (!widgetRef.current) return;
+
+		// Add the widget container if it's not already present
+		if (!widgetRef.current.querySelector(".livecoinwatch-widget-5")) {
+			const w = document.createElement("div");
+			w.className = "livecoinwatch-widget-5";
+			w.setAttribute("lcw-base", "USD");
+			w.setAttribute("lcw-color-tx", "#999999");
+			w.setAttribute("lcw-marquee-1", "coins");
+			w.setAttribute("lcw-marquee-2", "none");
+			w.setAttribute("lcw-marquee-items", "10");
+			widgetRef.current.appendChild(w);
+		}
+		if (!document.querySelector(`script[src="${SCRIPT_SRC}"]`)) {
+			const s = document.createElement("script");
+			s.src = SCRIPT_SRC;
+			s.defer = true;
+			document.body.appendChild(s);
+		}
+	}, [currentTheme]);
+
+	useEffect(() => {
+		const scriptId = "lcw-widget-script";
 		if (!document.getElementById(scriptId)) {
 			const script = document.createElement("script");
 			script.id = scriptId;
-			script.type = "module";
-			script.src =
-				"https://widgets.tradingview-widget.com/w/en/tv-ticker-tape.js";
-			script.async = true;
+			script.defer = true;
+			script.src = "https://www.livecoinwatch.com/static/lcw-widget.js";
 			document.body.appendChild(script);
 		}
 	}, []);
 
-	const currentTheme =
-		theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
-
 	return (
-		<div className="my-4 w-full px-8 md:px-0 flex justify-center">
-			<div
-				className={cn(
-					"relative mt-4 flex w-full max-w-[90%] py-4 items-center overflow-hidden rounded-full h-[104px] border border-[#F2EEFB]/10",
-					currentTheme === "dark" ? "bg-[#04100B]" : "bg-white",
-				)}
-			>
-				{/* Left fade overlay */}
-				<div
-					className={cn(
-						"pointer-events-none absolute left-0 top-0 z-10 h-full w-24 bg-gradient-to-r to-transparent",
-						currentTheme === "dark" ? "from-[#04100B]" : "from-white",
-					)}
-				/>
-
-				{/* Right fade overlay */}
-				<div
-					className={cn(
-						"pointer-events-none absolute right-0 top-0 z-10 h-full w-24 bg-gradient-to-l to-transparent",
-						currentTheme === "dark" ? "from-[#04100B]" : "from-white",
-					)}
-				/>
-
-				<tv-ticker-tape
-					symbols="BINANCE:BTCUSDT,BINANCE:ETHUSDT,BINANCE:SOLUSDT,BINANCE:XRPUSDT,BINANCE:BNBUSDT,BINANCE:SUIUSDT,KUCOIN:HYPEUSDT,BINANCE:ZECUSDT,BINANCE:DOGEUSDT,BINANCE:NEARUSDT,BINANCE:AVAXUSDT,BINANCE:LINKUSDT,BINANCE:ADAUSDT,BINANCE:ZECUSDT"
-					item-size="compact"
-					transparent="true"
-					color-theme={currentTheme}
-				></tv-ticker-tape>
+		<div className="flex w-full justify-center">
+			<div className="relative block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]">
+				<div ref={widgetRef} className="flex w-full h-14" />
 			</div>
 		</div>
 	);
-};
+}
+	;
 
 export default Socials;
