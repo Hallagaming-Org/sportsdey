@@ -301,7 +301,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										})
 									}
 									aria-label="Add funds"
-									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-[#0AEC20] font-semibold text-[11px] text-black transition-colors hover:bg-[#00d600]"
+									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-accent font-semibold text-[11px] text-black transition-colors hover:bg-[#00d600]"
 								>
 									Deposit
 								</button>
