@@ -71,19 +71,18 @@ export default function SportLandingPage({
 	};
 
 	return (
-		<div className="w-full space-y-8 pb-12 transition-all px-4 sm:px-6">
-			{/* Hero Banners */}
+		<div className="w-full space-y-8 pb-12 transition-all">
 			{banners.length > 0 && (
-				<div className="w-full rounded-xl shadow-md">
-					<BannerCarousel banners={banners} />
-				</div>
+
+				<BannerCarousel banners={banners} />
+
 			)}
 
 			{/* Popular Matches & Hot Casino */}
 			<PopularAndCasinoSection />
 
 			{/* Trending News Section */}
-			<div className="space-y-4">
+			<div className="space-y-4 px-4 sm:px-6">
 				<div className="flex items-center justify-between">
 					<h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
 						Trending News
