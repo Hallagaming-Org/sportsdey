@@ -4,7 +4,6 @@ import { Camera, Edit, Loader2, Mail, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { WalletSidebar } from "@/components/wallet-sidebar";
 import { apiRequest } from "@/lib/api";
 import { changeEmail, useSession } from "@/lib/auth/client";
 
