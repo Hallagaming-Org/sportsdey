@@ -237,8 +237,8 @@ function WalletPage() {
 								</div>
 							</div>
 						</div>
-						<div className="lg:col-span-2 min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-							<p className="border-[#E0E0E0] border-b pb-3 font-semibold text-base text-primary dark:text-white">
+						<div className="lg:col-span-2 min-h-40 rounded-2xl bg-[#000606] p-6 shadow-sm border border-[#1B2722]">
+							<p className="border-[#1B2722] border-b pb-3 font-semibold text-base text-primary dark:text-white">
 								Quick Access
 							</p>
 							<ul className="mt-4 grid grid-cols-4 gap-3 lg:flex lg:flex-col lg:gap-3">
@@ -252,10 +252,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
 									>
-										<AirtimeIcon className="h-5 w-5 text-primary dark:text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+										<AirtimeIcon className="h-5 w-5 text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
 											Airtime
 										</span>
 									</button>
@@ -270,10 +270,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
 									>
-										<InternetIcon className="h-5 w-5 text-primary dark:text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+										<InternetIcon className="h-5 w-5 text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
 											Internet
 										</span>
 									</button>
@@ -288,10 +288,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
 									>
-										<CableTvIcon className="h-5 w-5 text-primary dark:text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+										<CableTvIcon className="h-5 w-5 text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
 											Cable TV
 										</span>
 									</button>
@@ -306,12 +306,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full dark:bg-[#F0F0F0] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg md:bg-[#F0F0F0] p-2 lg:p-3"
+										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
 									>
-
-										<ElectricityIcon className="h-5 w-5 text-primary dark:text-white" />
-
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-primary dark:text-black">
+										<ElectricityIcon className="h-5 w-5 text-white" />
+										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
 											Electricity
 										</span>
 									</button>
