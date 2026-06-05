@@ -7,6 +7,8 @@ import TelegramIcon from "@/logos/telegram.svg?react";
 import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
+import GooglePlayIcon from "@/logos/google-play.svg?react";
+import { Apple } from "lucide-react";
 
 const footerSocials = [
 	{ icon: FacebookIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
@@ -21,32 +23,42 @@ export default function DesktopFooter() {
 	const currentSport = useCurrentSport();
 
 	return (
-		<footer className="hidden w-full border-gray-200 border-t bg-[#f8f9fa] px-6 py-12 text-foreground transition-colors lg:block dark:border-gray-800 dark:bg-[#111211]">
-			<div className="mx-auto mb-8 grid max-w-7xl grid-cols-1 gap-8 md:grid-cols-4">
-				<div className="space-y-4">
-					<div className="flex items-center gap-2">
+		<footer className="w-full border-t border-[#1B2722] bg-[#000606] px-6 py-12 text-white transition-colors">
+			<div className="mx-auto mb-12 grid max-w-7xl grid-cols-1 gap-8 md:grid-cols-5">
+				<div className="space-y-4 md:col-span-2">
+					<div className="flex items-center gap-3">
 						<img
 							src="/sportsdey-logo.png"
-							className="h-10 hidden dark:block"
+							className="h-8 hidden dark:block"
 							alt="SportsDey Logo"
 						/>
-						<NewSportsdeyLogo className="h-10 w-auto dark:hidden" />
+						<NewSportsdeyLogo className="h-8 w-auto dark:hidden text-white" />
+						<div className="flex h-6 items-center rounded-full bg-[#1A1A1A] px-3 text-[10px] font-medium text-gray-300">
+							EN <span className="ml-1 text-[8px]">▼</span>
+						</div>
 					</div>
-					<p className="max-w-xs text-gray-500 text-sm leading-relaxed dark:text-gray-400">
+					<p className="max-w-xs text-sm leading-relaxed text-[#A0A0A0]">
 						Your #1 Sports Hub for News, Scores, Tips & More.
 					</p>
+
+					<div className="mt-6 flex items-start gap-3">
+						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-600 text-[10px] font-bold text-red-600">
+							18+
+						</div>
+						<p className="max-w-[250px] text-xs leading-relaxed text-[#A0A0A0]">
+							All Players must be 18 or older to register or play. Please Gamble responsibly
+						</p>
+					</div>
 				</div>
 
 				<div>
-					<h3 className="mb-4 font-bold text-base text-gray-800 dark:text-white">
-						Quick Links
-					</h3>
-					<ul className="space-y-2.5 text-sm">
+					<h3 className="mb-6 font-bold text-base text-white">Quick Links</h3>
+					<ul className="space-y-4 text-sm">
 						<li>
 							<Link
 								to="/"
 								search={{ sports: currentSport, league: undefined }}
-								className="text-gray-500 transition-colors hover:text-accent dark:text-gray-400"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Matches
 							</Link>
@@ -55,7 +67,7 @@ export default function DesktopFooter() {
 							<Link
 								to="/news"
 								search={{ sports: currentSport, tab: "news" }}
-								className="text-gray-500 transition-colors hover:text-accent dark:text-gray-400"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								News
 							</Link>
@@ -64,7 +76,7 @@ export default function DesktopFooter() {
 							<Link
 								to="/betting"
 								search={{ type: undefined }}
-								className="text-gray-500 transition-colors hover:text-accent dark:text-gray-400"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Tips
 							</Link>
@@ -73,7 +85,7 @@ export default function DesktopFooter() {
 							<Link
 								to="/news"
 								search={{ sports: currentSport, tab: "videos" }}
-								className="text-gray-500 transition-colors hover:text-accent dark:text-gray-400"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Videos
 							</Link>
@@ -82,61 +94,47 @@ export default function DesktopFooter() {
 				</div>
 
 				<div>
-					<h3 className="mb-4 font-bold text-base text-gray-800 dark:text-white">
-						Popular Leagues
-					</h3>
-					<ul className="space-y-2.5 text-sm">
-						<li>
-							<span className="text-gray-500 dark:text-gray-400">
-								Premier Leagues
-							</span>
-						</li>
-						<li>
-							<span className="text-gray-500 dark:text-gray-400">La Liga</span>
-						</li>
-						<li>
-							<span className="text-gray-500 dark:text-gray-400">Seria A</span>
-						</li>
-						<li>
-							<span className="text-gray-500 dark:text-gray-400">
-								Champions Leagues
-							</span>
-						</li>
+					<h3 className="mb-6 font-bold text-base text-white">Our Engagements</h3>
+					<ul className="space-y-4 text-sm">
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Prediction Market</span></li>
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">FAQs</span></li>
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Esports Tournament</span></li>
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Jackpots</span></li>
 					</ul>
 				</div>
 
 				<div>
-					<h3 className="mb-4 font-bold text-base text-gray-800 dark:text-white">
-						About SportsDey
-					</h3>
-					<ul className="space-y-2.5 text-sm">
-						<li>
-							<span className="cursor-pointer text-gray-500 transition-colors hover:text-accent dark:text-gray-400">
-								About Us
-							</span>
-						</li>
-						<li>
-							<span className="cursor-pointer text-gray-500 transition-colors hover:text-accent dark:text-gray-400">
-								Contact Us
-							</span>
-						</li>
-						<li>
-							<span className="cursor-pointer text-gray-500 transition-colors hover:text-accent dark:text-gray-400">
-								Terms and Conditions
-							</span>
-						</li>
-						<li>
-							<span className="cursor-pointer text-gray-500 transition-colors hover:text-accent dark:text-gray-400">
-								Privacy Policy
-							</span>
-						</li>
+					<h3 className="mb-6 font-bold text-base text-white">About SportsDey</h3>
+					<ul className="space-y-4 text-sm mb-8">
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">About Us</span></li>
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Contact Us</span></li>
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Terms and Conditions</span></li>
+						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Privacy Policy</span></li>
 					</ul>
+
+					<div className="flex flex-row items-center gap-3">
+						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-transparent px-3 py-2 transition-colors hover:bg-white/5">
+							<Apple className="h-6 w-6 text-white" />
+							<div className="flex flex-col items-start">
+								<span className="text-[9px] leading-tight text-gray-400">Download on</span>
+								<span className="text-sm font-semibold leading-tight text-white">App store</span>
+							</div>
+						</button>
+						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-transparent px-3 py-2 transition-colors hover:bg-white/5">
+							<GooglePlayIcon className="h-6 w-6 text-white" />
+							<div className="flex flex-col items-start">
+								<span className="text-[9px] leading-tight text-gray-400">Get it on</span>
+								<span className="text-sm font-semibold leading-tight text-white">Google Play</span>
+							</div>
+						</button>
+					</div>
 				</div>
 			</div>
-			<div className="mx-auto max-w-7xl border-gray-200 border-t pt-8 dark:border-gray-800">
-				<div className="flex flex-col items-center justify-between gap-4 sm:flex-row mb-8">
-					<p className="text-gray-500 text-xs dark:text-gray-400">
-						© 2026 Sportsdey. All Right Reserved.
+
+			<div className="mx-auto max-w-7xl border-t border-[#1B2722] pt-8">
+				<div className="mb-8 flex flex-col items-center justify-between gap-6 sm:flex-row">
+					<p className="text-xs text-[#A0A0A0]">
+						© 2026 Sportsdey, All Right Reserved.
 					</p>
 					<div className="flex items-center gap-3">
 						{footerSocials.map(({ icon: Icon, label, link }) => (
@@ -145,26 +143,28 @@ export default function DesktopFooter() {
 								href={link}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="group flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 text-gray-600 transition-all duration-300 hover:-translate-y-1 hover:bg-[#006AFF] hover:shadow-lg dark:bg-[#1E1E1E] dark:text-gray-400"
+								className="group flex h-8 w-8 items-center justify-center rounded-full bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
 								aria-label={label}
 							>
-								<Icon className="h-8 w-8 fill-current transition-colors group-hover:text-white" />
+								<Icon className="h-4 w-4 text-black transition-colors" />
 							</a>
 						))}
 					</div>
 				</div>
 
-				<div className="text-center text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 space-y-6">
-					<p className="leading-relaxed">
-						This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
+				<div className="mb-8 space-y-6 text-center text-[10px] text-[#A0A0A0] sm:text-xs">
+					<p className="mx-auto max-w-4xl leading-relaxed">
+						This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First Floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
 					</p>
-					<div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 font-bold text-[10px] sm:text-[11px] tracking-wider text-gray-700 dark:text-gray-300">
-						<span>PLAY RESPONSIBLY</span>
-						<span className="text-gray-300 dark:text-gray-600">|</span>
-						<span>18+ ONLY</span>
-						<span className="text-gray-300 dark:text-gray-600">|</span>
-						<span>PLEASE GAMBLE RESPONSIBLY</span>
-					</div>
+				</div>
+
+				{/* Payment Providers Placeholder */}
+				<div className="flex flex-wrap items-center justify-center gap-3">
+					{["OPay", "PalmPay", "Kele", "fincra", "paystack", "paga", "Veedez", "BillerOne"].map((provider) => (
+						<div key={provider} className="flex h-8 items-center justify-center rounded bg-white px-3 text-xs font-bold text-black">
+							{provider}
+						</div>
+					))}
 				</div>
 			</div>
 		</footer>
