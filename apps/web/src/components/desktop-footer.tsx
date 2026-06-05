@@ -150,10 +150,10 @@ export default function DesktopFooter() {
 								href={link}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="group flex items-center justify-center transition-all duration-300 hover:-translate-y-1"
+								className="group flex items-center justify-center transition-all duration-300 hover:-translate-y-1 cursor-pointer"
 								aria-label={label}
 							>
-								<Icon className="h-4 w-4 text-black transition-colors" />
+								<Icon className="h-7 w-7 text-black transition-colors" />
 							</a>
 						))}
 					</div>
