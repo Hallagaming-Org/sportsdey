@@ -17,6 +17,9 @@ type Product = {
 	billers: { code: string; name: string }[];
 	minAmount: number | null;
 	maxAmount: number | null;
+	isAmountFixed: number;
+	fixedAmount?: number;
+	amount?: number;
 	price: number;
 	priceType: "OPEN" | "FIXED";
 	metadata: {
@@ -342,13 +345,12 @@ export function BillPaymentModal({
 						>
 							{isVending
 								? "Processing..."
-								: `Pay ₦${
-										selectedProduct.isAmountFixed === 1
-											? (selectedProduct.fixedAmount ??
-												selectedProduct.amount ??
-												Number(amount))
-											: Number(amount)
-									}`}
+								: `Pay ₦${selectedProduct.isAmountFixed === 1
+									? (selectedProduct.fixedAmount ??
+										selectedProduct.amount ??
+										Number(amount))
+									: Number(amount)
+								}`}
 						</button>
 					</div>
 				)}
