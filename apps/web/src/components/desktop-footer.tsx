@@ -41,7 +41,7 @@ export default function DesktopFooter() {
 					</p>
 
 					<div className="mt-6 flex items-start gap-3">
-						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-red-600 text-[10px] font-bold text-red-600">
+						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#FF0606] text-[10px] font-bold text-[#FF0606]">
 							18+
 						</div>
 						<p className="max-w-[250px] text-xs leading-relaxed text-[#A0A0A0]">
