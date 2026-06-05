@@ -113,34 +113,34 @@ export default function DesktopFooter() {
 				</div>
 
 				<div className="flex flex-row lg:flex-col items-center lg:items-start gap-3">
-						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
-							onClick={() => window.open('https://apps.apple.com', '_blank')}
-						>
-							<Apple
-								size={20}
-								color="white"
-								variant="Bold"
-							/>
-							<div className="flex flex-col items-start">
-								<span className="text-[9px] leading-tight text-gray-400">Download on</span>
-								<span className="text-sm font-semibold leading-tight text-white">App store</span>
-							</div>
-						</button>
-						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
-							onClick={() => window.open('https://play.google.com/store/apps', '_blank')}
-						// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
-						>
-							<GooglePlay
-								size={20}
-								color="white"
-								variant="Bold"
-							/>
-							<div className="flex flex-col items-start">
-								<span className="text-[9px] leading-tight text-gray-400">Get it on</span>
-								<span className="text-sm font-semibold leading-tight text-white">Google Play</span>
-							</div>
-						</button>
-					</div>
+					<button className="flex w-[150px] items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
+						onClick={() => window.open('https://apps.apple.com', '_blank')}
+					>
+						<Apple
+							size={20}
+							color="white"
+							variant="Bold"
+						/>
+						<div className="flex flex-col items-start">
+							<span className="text-[9px] leading-tight text-gray-400">Download on</span>
+							<span className="text-sm font-semibold leading-tight text-white">App store</span>
+						</div>
+					</button>
+					<button className="flex w-[150px] items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
+						onClick={() => window.open('https://play.google.com/store/apps', '_blank')}
+					// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
+					>
+						<GooglePlay
+							size={20}
+							color="white"
+							variant="Bold"
+						/>
+						<div className="flex flex-col items-start">
+							<span className="text-[9px] leading-tight text-gray-400">Get it on</span>
+							<span className="text-sm font-semibold leading-tight text-white">Google Play</span>
+						</div>
+					</button>
+				</div>
 			</div>
 
 			<div className="border-t border-[#1B2722] pt-8">
