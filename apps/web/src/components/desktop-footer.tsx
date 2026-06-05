@@ -112,7 +112,9 @@ export default function DesktopFooter() {
 					</ul>
 
 					<div className="flex flex-row items-center gap-3">
-						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer">
+						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
+							onClick={() => window.open('https://apps.apple.com', '_blank')}
+						>
 							<Apple
 								size={20}
 								color="white"
@@ -123,7 +125,10 @@ export default function DesktopFooter() {
 								<span className="text-sm font-semibold leading-tight text-white">App store</span>
 							</div>
 						</button>
-						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer">
+						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
+							onClick={() => window.open('https://play.google.com/store/apps', '_blank')}
+						// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
+						>
 							<GooglePlay
 								size={20}
 								color="white"
