@@ -151,7 +151,8 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
-						<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
+						{!!session?.user && (
+							<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
 							<div
 								className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
 								aria-label="Wallet balance"
@@ -181,6 +182,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								<Plus className="h-4 w-4" />
 							</button>
 						</div>
+						)}
 
 						<button
 							type="button"
@@ -276,7 +278,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 					)}
 
 					<div className="flex items-center gap-4 xl:gap-6">
-						{!isAuthRoute && (
+						{!isAuthRoute && !!session?.user && (
 							<div className="flex border border-[#F2EEFB] h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] bg-[#04100B] py-[7px] px-[6px] dark:bg-[#04100B] dark:border-[#F2EEFB]">
 								<div
 									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
