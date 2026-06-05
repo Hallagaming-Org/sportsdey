@@ -202,11 +202,11 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 														<Outlet />
 													</section>
 												</div>
-												{!isSportsbookRoute && (
+												{/* {!isSportsbookRoute && (
 													<div className="mx-4 lg:mx-[104px] mb-8">
 														<AppDownloadBanner />
 													</div>
-												)}
+												)} */}
 												<DesktopFooter />
 											</main>
 
