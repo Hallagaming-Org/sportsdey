@@ -17,7 +17,7 @@ import FootballIcon from "@/logos/football.svg?react";
 import TennisIcon from "@/logos/tennis.svg?react";
 import WorldIcon from "@/logos/world.svg?react";
 import { socials } from "./socials";
-import { ThemeToggle } from "./theme-toggle";
+
 import { UserMenu } from "./user-menu";
 import Sidebar from "./sidebar";
 import MenuBar from "@/logos/MenuBar";
@@ -217,7 +217,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<span>EN</span>
 							<ChevronDown className="h-2.5 w-2.5" />
 						</div>
-						<ThemeToggle />
 					</div>
 
 					{!shouldHideSportsNav && (
@@ -405,13 +404,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full px-2 pt-2 pb-6">
-								<div className="flex items-center justify-between">
-									<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
-									<div className="flex items-center gap-2 rounded-full bg-primary">
-
-										<ThemeToggle />
-									</div>
-								</div>
+								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
 
 								<div className="flex flex-wrap items-center gap-3">
 									{socials.map(({ icon: Icon, id, link }) => (
