@@ -160,17 +160,17 @@ function WalletPage() {
 				<>
 					<div className="flex flex-col lg:grid lg:grid-cols-5 gap-4 mb-6">
 						<div className="lg:col-span-3 space-y-4">
-							<div className="h-fit self-start rounded-2xl bg-white p-[20px] shadow-sm dark:bg-[#202120]">
+							<div className="h-fit self-start rounded-2xl p-[20px] shadow-sm border border-[#1B2722] bg-[#04100B]">
 								<div className="flex items-center justify-between">
 									<p className="font-semibold text-[30px] text-primary dark:text-white">
 										Wallet
 									</p>
-									<div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F0F0F0]">
-										<WalletIcon width={18} height={18} className="block" />
+									<div className="flex h-[40px] w-[60px] items-center rounded-lg justify-center border border-[#1B2722] bg-[#04100B]">
+										<WalletIcon width={18} height={18} className="block text-[#6C7073]" />
 									</div>
 								</div>
 							</div>
-							<div className="w-full min-h-40 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
+							<div className="w-full min-h-40 rounded-2xl bg-[#000606] p-6 shadow-sm border border-[#1B2722]">
 								<p className="text-[14px] text-primary dark:text-white">
 									Wallet Balance
 								</p>
@@ -215,13 +215,13 @@ function WalletPage() {
 											setDepositError("");
 											setIsDepositModalOpen(true);
 										}}
-										className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+										className="w-full cursor-pointer rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white border border-[#1B2722] text-sm"
 									>
 										Deposit
 									</button>
 									<button
 										type="button"
-										className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+										className="w-full cursor-pointer border border-[#1B2722] rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white text-sm"
 									>
 										Transfer funds
 									</button>
@@ -230,7 +230,7 @@ function WalletPage() {
 										onClick={() => {
 											setIsWithdrawModalOpen(true);
 										}}
-										className="w-full cursor-pointer rounded-lg bg-[#F0F0F0] px-4 py-2 font-medium text-primary text-sm"
+										className="w-full cursor-pointer border border-[#1B2722] rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white text-sm"
 									>
 										Withdraw
 									</button>
