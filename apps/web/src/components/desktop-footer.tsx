@@ -1,16 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import DiscordIcon from "@/logos/discord.svg?react";
-import FacebookIcon from "@/logos/facebook.svg?react";
 import InstagramIcon from "@/logos/instagram.svg?react";
 import TelegramIcon from "@/logos/telegram.svg?react";
 import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import { Apple, GooglePlay } from "iconsax-reactjs";
+import FacebookFooterIcon from "@/logos/FacebookFooterIcon";
 
 const footerSocials = [
-	{ icon: FacebookIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
+	{ icon: FacebookFooterIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
 	{ icon: XIcon, label: "Twitter/X", link: "https://X.com/sportsdey247" },
 	{ icon: InstagramIcon, label: "Instagram", link: "https://Instagram.com/Sportsdey247" },
 	{ icon: TelegramIcon, label: "Telegram", link: "https://t.me/sportsdey2" },
@@ -150,7 +150,7 @@ export default function DesktopFooter() {
 								href={link}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="group flex h-8 w-8 items-center justify-center rounded-full bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
+								className="group flex items-center justify-center transition-all duration-300 hover:-translate-y-1"
 								aria-label={label}
 							>
 								<Icon className="h-4 w-4 text-black transition-colors" />
