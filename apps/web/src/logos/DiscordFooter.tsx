@@ -5,7 +5,7 @@ const DiscordFooter = () => {
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g clip-path="url(#clip0_3083_6374)">
                 <path d="M21.4375 0H6.5625C2.93813 0 0 2.93813 0 6.5625V21.4375C0 25.0619 2.93813 28 6.5625 28H21.4375C25.0619 28 28 25.0619 28 21.4375V6.5625C28 2.93813 25.0619 0 21.4375 0Z" fill="#5865F2" />
-                <mask id="mask0_3083_6374" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="3" y="5" width="22" height="18">
+                <mask id="mask0_3083_6374" style={{ maskType: "luminance" }} maskUnits="userSpaceOnUse" x="3" y="5" width="22" height="18">
                     <path d="M3.0625 5.57812H24.9375V22.5236H3.0625V5.57812Z" fill="white" />
                 </mask>
                 <g mask="url(#mask0_3083_6374)">
