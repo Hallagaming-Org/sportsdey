@@ -11,7 +11,6 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Provider } from "react-redux";
 import z from "zod";
-import AppDownloadBanner from "@/components/app-download-banner";
 import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
@@ -84,9 +83,6 @@ function RootDocument() {
 	const matches = useMatches();
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
-	const isSportsbookRoute =
-		activeRouteId === "/sportsbook" ||
-		location.pathname.startsWith("/sportsbook");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
@@ -123,7 +119,7 @@ function RootDocument() {
 
 	return (
 		<Provider store={store}>
-			<ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+			<ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
 				<html lang="en" className="dark">
 					<head>
 						<script
@@ -202,11 +198,11 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 														<Outlet />
 													</section>
 												</div>
-												{!isSportsbookRoute && (
+												{/* {!isSportsbookRoute && (
 													<div className="mx-4 lg:mx-[104px] mb-8">
 														<AppDownloadBanner />
 													</div>
-												)}
+												)} */}
 												<DesktopFooter />
 											</main>
 

@@ -11,13 +11,9 @@ import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
 import { cn, formatAmount } from "@/lib/utils";
-import BasketballIcon from "@/logos/basketball.svg?react";
-import BoxingIcon from "@/logos/boxing.svg?react";
-import FootballIcon from "@/logos/football.svg?react";
-import TennisIcon from "@/logos/tennis.svg?react";
 import WorldIcon from "@/logos/world.svg?react";
 import { socials } from "./socials";
-import { ThemeToggle } from "./theme-toggle";
+
 import { UserMenu } from "./user-menu";
 import Sidebar from "./sidebar";
 import MenuBar from "@/logos/MenuBar";
@@ -25,22 +21,6 @@ import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
-
-const UfcIcon = (props: React.SVGProps<SVGSVGElement>) => (
-	<svg
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke="currentColor"
-		strokeWidth="2.5"
-		className={cn("h-5 w-5 text-yellow-500", props.className)}
-		{...props}
-	>
-		<title>UFC</title>
-		<path d="M3 5v6a3 3 0 0 0 6 0V5" />
-		<path d="M12 14V5h5M12 9h4" />
-		<path d="M21 7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v4a2 2 0 0 0 2 2 2 2 0 0 0 2-2" />
-	</svg>
-);
 
 type HeaderProps = {
 	hideSportsNav?: boolean;
@@ -59,18 +39,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	// const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
-	const links = [
-		{ to: "/", label: "Football", icon: FootballIcon, sport: SPORTS.FOOTBALL },
-		{
-			to: "/basketball",
-			label: "Basketball",
-			icon: BasketballIcon,
-			sport: SPORTS.BASKETBALL,
-		},
-		{ to: "/tennis", label: "Tennis", icon: TennisIcon, sport: SPORTS.TENNIS },
-		{ to: "/boxing", label: "Boxing", icon: BoxingIcon, sport: "boxing" },
-		{ to: "/ufc", label: "UFC", icon: UfcIcon, sport: "ufc" },
-	] as const;
 
 	const [open, setOpen] = useState(false);
 	const menuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -87,7 +55,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	const mobileBalance = walletData?.balance
 		? `₦ ${formatAmount(walletData.balance)}`
 		: "₦ 0.00";
-	const mobileAvatarSrc = session?.user?.image || "/Profile.png";
 
 	useEffect(() => {
 		if (open) {
@@ -151,36 +118,38 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 					</div>
 
 					<div className="flex items-center gap-1.5 shrink-0">
-						<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
-							<div
-								className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
-								aria-label="Wallet balance"
-							>
-								<NigerianFlag />
-								<span
-									className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all"
-									style={{
-										fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
-									}}
+						{!!session?.user && (
+							<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
+								<div
+									className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
+									aria-label="Wallet balance"
 								>
-									{mobileBalance}
-								</span>
-							</div>
+									<NigerianFlag />
+									<span
+										className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all"
+										style={{
+											fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
+										}}
+									>
+										{mobileBalance}
+									</span>
+								</div>
 
-							<button
-								type="button"
-								onClick={() =>
-									router.navigate({
-										to: "/wallet",
-										state: { openDeposit: true } as any,
-									})
-								}
-								aria-label="Add funds"
-								className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent text-white transition-colors hover:bg-blue-600"
-							>
-								<Plus className="h-4 w-4" />
-							</button>
-						</div>
+								<button
+									type="button"
+									onClick={() =>
+										router.navigate({
+											to: "/wallet",
+											state: { openDeposit: true } as any,
+										})
+									}
+									aria-label="Add funds"
+									className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent text-white transition-colors hover:bg-blue-600"
+								>
+									<Plus className="h-4 w-4" />
+								</button>
+							</div>
+						)}
 
 						<button
 							type="button"
@@ -217,7 +186,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<span>EN</span>
 							<ChevronDown className="h-2.5 w-2.5" />
 						</div>
-						<ThemeToggle />
 					</div>
 
 					{!shouldHideSportsNav && (
@@ -277,7 +245,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 					)}
 
 					<div className="flex items-center gap-4 xl:gap-6">
-						{!isAuthRoute && (
+						{!isAuthRoute && !!session?.user && (
 							<div className="flex border border-[#F2EEFB] h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] bg-[#04100B] py-[7px] px-[6px] dark:bg-[#04100B] dark:border-[#F2EEFB]">
 								<div
 									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
@@ -405,13 +373,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full px-2 pt-2 pb-6">
-								<div className="flex items-center justify-between">
-									<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
-									<div className="flex items-center gap-2 rounded-full bg-primary">
-
-										<ThemeToggle />
-									</div>
-								</div>
+								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
 
 								<div className="flex flex-wrap items-center gap-3">
 									{socials.map(({ icon: Icon, id, link }) => (

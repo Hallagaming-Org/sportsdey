@@ -1,7 +1,7 @@
 export function WalletInfo() {
 	return (
-		<div className="mt-4 rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
-			<ol className="list-decimal space-y-4 pl-6 text-[14px] text-primary dark:text-white">
+		<div className="mt-4 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm">
+			<ol className="list-decimal space-y-4 pl-6 text-[14px] text-white">
 				<li>
 					Minimum deposit amount is NGN 100.00 - you can deposit at least NGN
 					100.00 in one transaction.
