@@ -189,7 +189,7 @@ function WalletPage() {
 											<span className="text-[50px]">••••••</span>
 										)}
 									</p>
-									{!isWalletSectionLoading && (
+									{/* {!isWalletSectionLoading && (
 										<button
 											type="button"
 											onClick={() => setShowBalance((prev) => !prev)}
@@ -206,7 +206,7 @@ function WalletPage() {
 												<Eye className="h-4 w-4" />
 											)}
 										</button>
-									)}
+									)} */}
 								</div>
 								<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<button
