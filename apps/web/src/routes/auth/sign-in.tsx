@@ -10,11 +10,11 @@ export const Route = createFileRoute("/auth/sign-in")({
 export default function SignInPage() {
 	const navigate = useNavigate();
 	const callbackURL = import.meta.env.DEV
-		? (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001")
+		? "http://localhost:3001"
 		: import.meta.env.VITE_PUBLIC_URL ||
 		  (typeof window !== "undefined"
 				? window.location.origin
-				: "http://localhost:3001");
+				: "https://sportsdey.com");
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
