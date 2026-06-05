@@ -8,14 +8,18 @@ import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import { Apple, GooglePlay } from "iconsax-reactjs";
 import FacebookFooterIcon from "@/logos/FacebookFooterIcon";
+import XFooter from "@/logos/XFooter";
+import InstagramFooter from "@/logos/InstagramFooter";
+import TelegramFooter from "@/logos/TelegramFooter";
+import DiscordFooter from "@/logos/DiscordFooter";
 
 const footerSocials = [
 	{ icon: FacebookFooterIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
-	{ icon: XIcon, label: "Twitter/X", link: "https://X.com/sportsdey247" },
-	{ icon: InstagramIcon, label: "Instagram", link: "https://Instagram.com/Sportsdey247" },
-	{ icon: TelegramIcon, label: "Telegram", link: "https://t.me/sportsdey2" },
+	{ icon: XFooter, label: "Twitter/X", link: "https://X.com/sportsdey247" },
+	{ icon: InstagramFooter, label: "Instagram", link: "https://Instagram.com/Sportsdey247" },
+	{ icon: TelegramFooter, label: "Telegram", link: "https://t.me/sportsdey2" },
 	{ icon: Whatsapp, label: "WhatsApp", link: "https://t.me/sportsdey2" },
-	{ icon: DiscordIcon, label: "Discord", link: "https://discord.gg/AKRc3K2v" },
+	{ icon: DiscordFooter, label: "Discord", link: "https://discord.gg/AKRc3K2v" },
 ];
 
 export default function DesktopFooter() {
