@@ -1,9 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { useCurrentSport } from "@/hooks/use-current-sport";
-import DiscordIcon from "@/logos/discord.svg?react";
-import InstagramIcon from "@/logos/instagram.svg?react";
-import TelegramIcon from "@/logos/telegram.svg?react";
-import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import { Apple, GooglePlay } from "iconsax-reactjs";
