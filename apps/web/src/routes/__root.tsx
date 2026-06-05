@@ -123,7 +123,7 @@ function RootDocument() {
 
 	return (
 		<Provider store={store}>
-			<ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+			<ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
 				<html lang="en" className="dark">
 					<head>
 						<script
