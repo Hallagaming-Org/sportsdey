@@ -11,7 +11,6 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Provider } from "react-redux";
 import z from "zod";
-import AppDownloadBanner from "@/components/app-download-banner";
 import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
@@ -84,9 +83,6 @@ function RootDocument() {
 	const matches = useMatches();
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
-	const isSportsbookRoute =
-		activeRouteId === "/sportsbook" ||
-		location.pathname.startsWith("/sportsbook");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
