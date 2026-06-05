@@ -7,7 +7,6 @@ import TelegramIcon from "@/logos/telegram.svg?react";
 import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
-import GooglePlayIcon from "@/logos/google-play.svg?react";
 import { Apple, GooglePlay } from "iconsax-reactjs";
 
 const footerSocials = [
