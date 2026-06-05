@@ -358,13 +358,6 @@ casinoProviderRoute.openapi(authRoute, async (c) => {
 		.set({ used: true })
 		.where(eq(schema.gameLaunchTokens.token, user_token));
 
-	console.log("auth data", {
-		user_id: user.id,
-		username: user.name ?? user.email.split("@")[0],
-		balance,
-		currency: currency ?? "NGN",
-	});
-
 	return c.json(
 		{
 			code: 200,
@@ -467,8 +460,9 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 
 	const balanceKobo = wallet?.balance ?? 0;
 	const oldBalanceKobo = balanceKobo;
+	const amountKobo = Math.round(amount / 10);
 
-	if (!wallet || balanceKobo < amount) {
+	if (!wallet || balanceKobo < amountKobo) {
 		return c.json(
 			{
 				code: 402,
@@ -480,7 +474,8 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo - amount;
+	const newBalanceKobo = balanceKobo - amountKobo;
+
 	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
@@ -496,7 +491,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		.values({
 			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 			userId: user_id,
-			amount: amount,
+			amount: amountKobo,
 			type: "debit",
 			reference: null,
 			status: "success",
@@ -519,7 +514,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 			userId: user_id,
 			providerTxId: provider_tx_id,
 			type: "BET",
-			amount,
+			amount: amountKobo,
 			sessionToken: session_token,
 			game,
 		})
@@ -539,8 +534,8 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 				user_id,
 				provider,
 				provider_tx_id,
-				old_balance: oldBalanceKobo,
-				new_balance: newBalanceKobo,
+				old_balance: oldBalanceKobo * 10,
+				new_balance: newBalanceKobo * 10,
 				operator_tx_id: operatorTxId,
 				currency,
 			},
@@ -636,9 +631,11 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 
 	const balanceKobo = wallet?.balance ?? 0;
 	const oldBalanceKobo = balanceKobo;
+	const amountKobo = Math.round(amount / 10);
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo + amount;
+	const newBalanceKobo = balanceKobo + amountKobo;
+
 	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
@@ -654,7 +651,7 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		.values({
 			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 			userId: user_id,
-			amount: amount,
+			amount: amountKobo,
 			type: "credit",
 			reference: null,
 			status: "success",
@@ -677,7 +674,7 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 			userId: user_id,
 			providerTxId: provider_tx_id,
 			type: "WIN",
-			amount,
+			amount: amountKobo,
 			sessionToken: session_token,
 			game,
 		})
@@ -700,8 +697,8 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 				amount,
 				provider,
 				currency,
-				old_balance: oldBalanceKobo,
-				new_balance: newBalanceKobo,
+				old_balance: oldBalanceKobo * 10,
+				new_balance: newBalanceKobo * 10,
 			},
 		},
 		200,
@@ -794,10 +791,12 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 
 	const balanceKobo = wallet?.balance ?? 0;
 	const oldBalanceKobo = balanceKobo;
-	const adjustment = existingTx.type === "BET" ? amount : -amount;
+	const amountKobo = Math.round(amount / 10);
+	const adjustment = existingTx.type === "BET" ? amountKobo : -amountKobo;
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	const newBalanceKobo = balanceKobo + adjustment;
+
 	const [updatedWallet] = await db
 		.update(schema.wallet)
 		.set({ balance: newBalanceKobo })
@@ -836,7 +835,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 			userId: user_id,
 			providerTxId: `rollback_${rollback_provider_tx_id}`,
 			type: "ROLLBACK",
-			amount,
+			amount: amountKobo,
 			sessionToken: session_token,
 			game,
 		})
@@ -856,8 +855,8 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 				user_id,
 				provider,
 				provider_tx_id: rollback_provider_tx_id,
-				old_balance: oldBalanceKobo,
-				new_balance: newBalanceKobo,
+				old_balance: oldBalanceKobo * 10,
+				new_balance: newBalanceKobo * 10,
 				operator_tx_id: operatorTxId,
 				currency: "NGN",
 			},
@@ -931,7 +930,7 @@ casinoProviderRoute.openapi(playerInfoRoute, async (c) => {
 		{
 			code: 200,
 			data: {
-				balance: wallet?.balance ?? 0,
+				balance: (wallet?.balance ?? 0) * 10,
 				currency: "NGN",
 			},
 		},

@@ -21,14 +21,14 @@ export const AuthResponseSchema = z.object({
 	data: z.object({
 		user_id: z.string().openapi({ description: "User ID" }),
 		username: z.string().openapi({ description: "Username" }),
-		balance: z.number().openapi({ description: "Balance in kobo" }),
+		balance: z.number().openapi({ description: "Balance in provider units (1 NGN = 1000 units)" }),
 		currency: z.string().openapi({ description: "Currency" }),
 	}).openapi({ description: "Response data" }),
 }).openapi("AuthResponse");
 
 export const WithdrawRequestSchema = z.object({
 	user_id: z.string().openapi({ description: "User ID" }),
-	amount: z.number().openapi({ description: "Amount in kobo" }),
+	amount: z.number().openapi({ description: "Amount in provider units (1 NGN = 1000 units)" }),
 	currency: z.string().openapi({ description: "Bet currency (currency code)" }),
 	provider_tx_id: z
 		.string()
@@ -55,10 +55,10 @@ export const CasinoWithdrawResponseSchema = z.object({
 			.openapi({ description: "Provider transaction ID" }),
 		old_balance: z
 			.number()
-			.openapi({ description: "Balance before bet in kobo" }),
+			.openapi({ description: "Balance before bet in provider units (1 NGN = 1000 units)" }),
 		new_balance: z
 			.number()
-			.openapi({ description: "Balance after bet in kobo" }),
+			.openapi({ description: "Balance after bet in provider units (1 NGN = 1000 units)" }),
 		operator_tx_id: z.string().openapi({
 			description: "Operator transaction ID (game transaction ID)",
 		}),
@@ -68,7 +68,7 @@ export const CasinoWithdrawResponseSchema = z.object({
 
 export const DepositRequestSchema = z.object({
 	user_id: z.string().openapi({ description: "User ID" }),
-	amount: z.number().openapi({ description: "Amount in kobo" }),
+	amount: z.number().openapi({ description: "Amount in provider units (1 NGN = 1000 units)" }),
 	currency: z.string().openapi({ description: "Currency code" }),
 	provider_tx_id: z
 		.string()
@@ -95,19 +95,19 @@ export const DepositResponseSchema = z.object({
 		operator_tx_id: z.string().openapi({
 			description: "Operator transaction ID (game transaction ID)",
 		}),
-		amount: z.number().openapi({ description: "Win amount in kobo" }),
+		amount: z.number().openapi({ description: "Win amount in provider units (1 NGN = 1000 units)" }),
 		old_balance: z
 			.number()
-			.openapi({ description: "Balance before win in kobo" }),
+			.openapi({ description: "Balance before win in provider units (1 NGN = 1000 units)" }),
 		new_balance: z
 			.number()
-			.openapi({ description: "Balance after win in kobo" }),
+			.openapi({ description: "Balance after win in provider units (1 NGN = 1000 units)" }),
 	}).openapi({ description: "Response data" }),
 }).openapi("DepositResponse");
 
 export const RollbackRequestSchema = z.object({
 	user_id: z.string().openapi({ description: "User ID" }),
-	amount: z.number().openapi({ description: "Amount in kobo" }),
+	amount: z.number().openapi({ description: "Amount in provider units (1 NGN = 1000 units)" }),
 	rollback_provider_tx_id: z
 		.string()
 		.openapi({ description: "Transaction ID to rollback" }),
@@ -130,10 +130,10 @@ export const RollbackResponseSchema = z.object({
 			.openapi({ description: "Provider transaction ID" }),
 		old_balance: z
 			.number()
-			.openapi({ description: "Balance before rollback in kobo" }),
+			.openapi({ description: "Balance before rollback in provider units (1 NGN = 1000 units)" }),
 		new_balance: z
 			.number()
-			.openapi({ description: "Balance after rollback in kobo" }),
+			.openapi({ description: "Balance after rollback in provider units (1 NGN = 1000 units)" }),
 		operator_tx_id: z.string().openapi({
 			description: "Operator transaction ID (game transaction ID)",
 		}),
@@ -149,7 +149,7 @@ export const PlayerInfoRequestSchema = z.object({
 export const PlayerInfoResponseSchema = z.object({
 	code: z.number().openapi({ description: "Response code" }),
 	data: z.object({
-		balance: z.number().openapi({ description: "Balance in kobo" }),
+		balance: z.number().openapi({ description: "Balance in provider units (1 NGN = 1000 units)" }),
 		currency: z.string().openapi({ description: "Currency" }),
 	}).openapi({ description: "Response data" }),
 }).openapi("PlayerInfoResponse");
