@@ -8,7 +8,7 @@ import XIcon from "@/logos/x.svg?react";
 import Whatsapp from "@/logos/Whatsapp";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import GooglePlayIcon from "@/logos/google-play.svg?react";
-import { Apple } from "lucide-react";
+import { Apple, GooglePlay } from "iconsax-reactjs";
 
 const footerSocials = [
 	{ icon: FacebookIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
@@ -113,15 +113,23 @@ export default function DesktopFooter() {
 					</ul>
 
 					<div className="flex flex-row items-center gap-3">
-						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-transparent px-3 py-2 transition-colors hover:bg-white/5">
-							<Apple className="h-6 w-6 text-white" />
+						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5">
+							<Apple
+								size={20}
+								color="white"
+								variant="Bold"
+							/>
 							<div className="flex flex-col items-start">
 								<span className="text-[9px] leading-tight text-gray-400">Download on</span>
 								<span className="text-sm font-semibold leading-tight text-white">App store</span>
 							</div>
 						</button>
-						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-transparent px-3 py-2 transition-colors hover:bg-white/5">
-							<GooglePlayIcon className="h-6 w-6 text-white" />
+						<button className="flex w-[150px] items-center gap-3 rounded-xl border border-gray-700 bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5">
+							<GooglePlay
+								size={20}
+								color="white"
+								variant="Bold"
+							/>
 							<div className="flex flex-col items-start">
 								<span className="text-[9px] leading-tight text-gray-400">Get it on</span>
 								<span className="text-sm font-semibold leading-tight text-white">Google Play</span>
