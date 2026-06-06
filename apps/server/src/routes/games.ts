@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -24,6 +24,11 @@ const CreateGameSchema = z
 			.nullable()
 			.optional()
 			.openapi({ description: "Image URL (optional)" }),
+		category: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "Game category" }),
 		enabled: z
 			.boolean()
 			.optional()
@@ -58,6 +63,7 @@ const GameResponseSchema = z
 		name: z.string().openapi({ description: "Game name" }),
 		code: z.string().openapi({ description: "Game code" }),
 		imageUrl: z.string().nullable().openapi({ description: "Image URL" }),
+		category: z.string().nullable().openapi({ description: "Game category" }),
 		enabled: z.boolean().openapi({ description: "Enabled status" }),
 		createdAt: z.number().openapi({ description: "Created at timestamp" }),
 		updatedAt: z.number().openapi({ description: "Updated at timestamp" }),
@@ -68,13 +74,21 @@ const GameListResponseSchema = z
 	.array(GameResponseSchema)
 	.openapi("GameListResponse");
 
+const GameListQuerySchema = z
+	.object({
+		category: z.string().optional().openapi({ description: "Filter by game category" }),
+	})
+	.openapi("GameListQuery");
+
 gamesRoute.openapi(
 	createRoute({
 		method: "get",
 		path: "/",
 		summary: "List all games",
-		description: "Returns all games, both enabled and disabled",
-		request: {},
+		description: "Returns all games, optionally filtered by category",
+		request: {
+			query: GameListQuerySchema,
+		},
 		responses: {
 			200: {
 				content: {
@@ -88,8 +102,15 @@ gamesRoute.openapi(
 		tags: ["Games"],
 	}),
 	async (c) => {
+		const { category } = c.req.valid("query");
 		const db = drizzle(c.env.DB, { schema });
-		const games = await db.select().from(schema.game).orderBy(schema.game.name);
+		const conditions = [];
+		if (category) {
+			conditions.push(eq(schema.game.category, category));
+		}
+		const games = conditions.length > 0
+			? await db.select().from(schema.game).where(and(...conditions)).orderBy(schema.game.name)
+			: await db.select().from(schema.game).orderBy(schema.game.name);
 		return c.json({ success: true as const, data: games }, 200);
 	},
 );
@@ -224,6 +245,7 @@ gamesRoute.openapi(
 			name: game.name,
 			code: game.code,
 			imageUrl: game.imageUrl ?? null,
+			category: game.category ?? null,
 			enabled: game.enabled ?? true,
 			createdAt: now,
 			updatedAt: now,

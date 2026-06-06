@@ -40,6 +40,13 @@ const args = process.argv.slice(2);
 let env: "production" | "staging" = "staging";
 let limit = 0; // 0 means all pages
 let dbName = "staging-db";
+let txtPath: string | null = null;
+let categorize = false;
+
+const defaultTxtPath = path.resolve(
+	process.cwd(),
+	"../../Casino_Games_Condensed.txt",
+);
 
 for (const arg of args) {
 	if (arg === "production" || arg === "staging") {
@@ -48,6 +55,10 @@ for (const arg of args) {
 		limit = Number.parseInt(arg, 10);
 	} else if (arg.startsWith("--db=")) {
 		dbName = arg.replace("--db=", "");
+	} else if (arg.startsWith("--txt-path=")) {
+		txtPath = arg.replace("--txt-path=", "");
+	} else if (arg === "--categorize") {
+		categorize = true;
 	}
 }
 
@@ -88,6 +99,59 @@ function escape(value: string | number | null | undefined): string {
 	return typeof value === "number"
 		? value.toString()
 		: `'${String(value).replace(/'/g, "''")}'`;
+}
+
+const GAME_TYPES = [
+	"Table/Card Games",
+	"Crash Games",
+	"Slots",
+	"Classic",
+	"Arcade",
+	"Bingo",
+	"Dice",
+	"Scratch",
+	"Jackpot",
+	"Lottery",
+	"Roulette",
+] as const;
+
+function normalizeName(name: string): string {
+	return name.toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+function parseCasinoGamesFile(filePath: string): Map<string, string> {
+	const content = fs.readFileSync(filePath, "utf-8");
+	const lines = content.split("\n");
+	const map = new Map<string, string>();
+	const sortedTypes = [...GAME_TYPES].sort((a, b) => b.length - a.length);
+
+	for (const line of lines) {
+		const trimmed = line.trimEnd();
+		if (!trimmed || trimmed.startsWith("CASINO") || trimmed.startsWith("=") || trimmed.startsWith("GAME TITLE") || trimmed.startsWith("-")) {
+			continue;
+		}
+
+		for (const type of sortedTypes) {
+			if (trimmed.endsWith(type)) {
+				const name = normalizeName(trimmed.slice(0, -type.length));
+				if (name && !map.has(name)) {
+					map.set(name, type.toLowerCase().replace(/\s+/g, "-"));
+				}
+				break;
+			}
+		}
+	}
+
+	console.log(`Loaded ${map.size} game categories from ${filePath}`);
+	return map;
+}
+
+function getCategory(
+	gameName: string,
+	categoryMap: Map<string, string>,
+): string | null {
+	const normalized = normalizeName(gameName);
+	return categoryMap.get(normalized) ?? "others";
 }
 
 async function generateXSign(
@@ -233,13 +297,22 @@ async function main() {
 
 	const existingIds = await getExistingGameIds();
 
+	const resolvedTxtPath = txtPath ?? defaultTxtPath;
+	const categoryMap = fs.existsSync(resolvedTxtPath)
+		? parseCasinoGamesFile(resolvedTxtPath)
+		: new Map<string, string>();
+
+	for (const game of allGames) {
+		(game as GameItem & { category: string | null }).category = getCategory(game.name, categoryMap);
+	}
+
 	const newGames = allGames.filter(
 		(game) => !existingIds.has(game.uuid) || existingIds.size === 0,
 	);
 
 	console.log(`New games to insert: ${newGames.length}`);
 
-	if (newGames.length === 0) {
+	if (newGames.length === 0 && !categorize) {
 		console.log("\nNo new games to insert.");
 		return;
 	}
@@ -249,11 +322,11 @@ async function main() {
 	const values = newGames
 		.map(
 			(game) =>
-				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${now}, ${now})`,
+				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape((game as GameItem & { category: string | null }).category)}, 1, ${now}, ${now})`,
 		)
 		.join(",\n");
 
-	const sql = `INSERT INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${values};`;
+	const sql = `INSERT INTO game (id, name, code, image_url, category, enabled, created_at, updated_at) VALUES ${values};`;
 
 	const batchSize = 100;
 	const timestamp = Date.now();
@@ -267,8 +340,6 @@ async function main() {
 	console.log(`Running on database: ${usedDbName}`);
 
 	const { exec } = await import("node:child_process");
-	const fs = await import("node:fs");
-	const os = await import("node:os");
 	let inserted = 0;
 	let failed = 0;
 	for (let i = 0; i < newGames.length; i += batchSize) {
@@ -276,10 +347,10 @@ async function main() {
 		const batchValues = batch
 			.map(
 				(game) =>
-					`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${timestamp}, ${timestamp})`,
+					`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape((game as GameItem & { category: string | null }).category)}, 1, ${timestamp}, ${timestamp})`,
 			)
 			.join(",\n");
-		const batchSql = `INSERT INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${batchValues};`;
+		const batchSql = `INSERT INTO game (id, name, code, image_url, category, enabled, created_at, updated_at) VALUES ${batchValues};`;
 		const batchNum = Math.floor(i / batchSize) + 1;
 
 		const tempFile = path.join(
@@ -311,7 +382,62 @@ async function main() {
 			console.error(`Batch ${batchNum} failed:`, err);
 		}
 	}
-	console.log(`\nDone! Inserted ${inserted} games.`);
+
+	if (inserted > 0) {
+		console.log(`\nDone! Inserted ${inserted} games.`);
+	}
+
+	if (categorize && categoryMap.size > 0) {
+		console.log("\nBackfilling categories for existing uncategorized games...");
+		const allGamesForBackfill = allGames.filter((game) =>
+			existingIds.has(game.uuid),
+		);
+
+		const { exec: execBackfill } = await import("node:child_process");
+
+		for (let i = 0; i < allGamesForBackfill.length; i += batchSize) {
+			const batch = allGamesForBackfill.slice(i, i + batchSize);
+			const cases = batch
+				.map((game) => {
+					const cat = getCategory(game.name, categoryMap);
+					if (!cat) return null;
+					return `WHEN '${game.uuid.replace(/'/g, "''")}' THEN '${cat.replace(/'/g, "''")}'`;
+				})
+				.filter(Boolean);
+
+			if (cases.length === 0) continue;
+
+			const matchedIds = batch
+				.filter((g) => getCategory(g.name, categoryMap))
+				.map((g) => `'${g.uuid.replace(/'/g, "''")}'`)
+				.join(",");
+			const updateSql = `UPDATE game SET category = CASE id ${cases.join(" ")} END, updated_at = ${Date.now()} WHERE id IN (${matchedIds});`;
+
+			const batchNum = Math.floor(i / batchSize) + 1;
+			const tempFile = path.join(
+				os.tmpdir(),
+				`backfill-categories-${timestamp}-${batchNum}.sql`,
+			);
+			fs.writeFileSync(tempFile, updateSql);
+
+			try {
+				await new Promise((resolve, reject) => {
+					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`;
+					execBackfill(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
+						try {
+							fs.unlinkSync(tempFile);
+						} catch {}
+						if (error) reject(error);
+						else resolve(stdout);
+					});
+				});
+				console.log(`Backfill batch ${batchNum}: ${cases.length} games updated`);
+			} catch (err) {
+				console.error(`Backfill batch ${batchNum} failed:`, err);
+			}
+		}
+		console.log("\nBackfill complete!");
+	}
 }
 
 main().catch((error) => {

@@ -8,16 +8,16 @@ if (args[0] === "production" || args[0] === "staging") {
 }
 
 const GAMES = [
-	{ name: "Solitaire", code: "solitaire" },
-	{ name: "Blocks", code: "blocks" },
-	{ name: "Twenty One", code: "twentyone" },
-	{ name: "Blackjack", code: "blackjack" },
-	{ name: "Slots", code: "slots" },
-	{ name: "Plinko", code: "plinko" },
-	{ name: "Xcape", code: "XCAPEHB" },
-	{ name: "Eagle", code: "EAGLEHB" },
-	{ name: "Lucky Rise", code: "LUCKYRISEHB" },
-	{ name: "Lagos Rush", code: "LAGOSRUSH" },
+	{ name: "Solitaire", code: "solitaire", category: "others" },
+	{ name: "Blocks", code: "blocks", category: "others" },
+	{ name: "Twenty One", code: "twentyone", category: "others" },
+	{ name: "Blackjack", code: "blackjack", category: "others" },
+	{ name: "Slots", code: "slots", category: "others" },
+	{ name: "Plinko", code: "plinko", category: "others" },
+	{ name: "Xcape", code: "XCAPEHB", category: "others" },
+	{ name: "Eagle", code: "EAGLEHB", category: "others" },
+	{ name: "Lucky Rise", code: "LUCKYRISEHB", category: "others" },
+	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "others" },
 ];
 
 function escape(value: string | number | null | undefined): string {
@@ -35,10 +35,10 @@ function main() {
 
 	const values = GAMES.map(
 		(game) =>
-			`(${escape(crypto.randomUUID())}, ${escape(game.name)}, ${escape(game.code)}, NULL, 1, ${now}, ${now})`,
+			`(${escape(crypto.randomUUID())}, ${escape(game.name)}, ${escape(game.code)}, NULL, ${escape(game.category)}, 1, ${now}, ${now})`,
 	).join(", ");
 
-	const sql = `INSERT INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${values};`;
+	const sql = `INSERT INTO game (id, name, code, image_url, category, enabled, created_at, updated_at) VALUES ${values};`;
 
 	const dbName = env === "production" ? "sportsdey_db" : "staging-db";
 
