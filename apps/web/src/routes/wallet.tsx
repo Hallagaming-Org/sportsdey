@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
-import { Eye, EyeOff, Loader2, X } from "lucide-react";
+import { Copy, Eye, EyeOff, Loader2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
+import { TransferModal } from "@/components/transfer-modal";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WalletInfo } from "@/components/wallet-info";
@@ -49,6 +50,7 @@ const MAX_DEPOSIT_AMOUNT = 9_999_999;
 function WalletPage() {
 	const [showBalance, setShowBalance] = useState(true);
 	const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+	const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 	const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 	const [depositAmount, setDepositAmount] = useState("");
 	const [depositError, setDepositError] = useState("");
@@ -174,6 +176,23 @@ function WalletPage() {
 								<p className="text-[14px] text-primary dark:text-white">
 									Wallet Balance
 								</p>
+								{walletData?.id && !isWalletSectionLoading && (
+									<div className="mt-2 flex items-center gap-2">
+										<span className="text-[12px] text-[#6C7073] font-mono truncate max-w-[200px]">
+											ID: {walletData.id}
+										</span>
+										<button
+											type="button"
+											onClick={() => {
+												navigator.clipboard.writeText(walletData.id);
+											}}
+											className="cursor-pointer text-[#6C7073] hover:text-white transition-colors"
+											aria-label="Copy wallet ID"
+										>
+											<Copy className="h-3.5 w-3.5" />
+										</button>
+									</div>
+								)}
 								<div className="mt-3 flex items-start gap-2">
 									<p className="font-semibold text-primary leading-none dark:text-white">
 										{isWalletSectionLoading ? (
@@ -221,6 +240,9 @@ function WalletPage() {
 									</button>
 									<button
 										type="button"
+										onClick={() => {
+											setIsTransferModalOpen(true);
+										}}
 										className="w-full cursor-pointer border border-[#1B2722] rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white text-sm"
 									>
 										Transfer funds
@@ -382,6 +404,11 @@ function WalletPage() {
 					</div>
 				</div>
 			)}
+			<TransferModal
+				isOpen={isTransferModalOpen}
+				onClose={() => setIsTransferModalOpen(false)}
+				onUnauthorized={() => setShouldRedirectToSignIn(true)}
+			/>
 			<WithdrawModal
 				isOpen={isWithdrawModalOpen}
 				onClose={() => setIsWithdrawModalOpen(false)}

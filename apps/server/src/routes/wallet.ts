@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { desc, eq, inArray, and } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
@@ -762,6 +762,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 					"card",
 					"paystack",
 					"bank transfer",
+					"wallet_transfer",
 				]),
 			),
 		)
