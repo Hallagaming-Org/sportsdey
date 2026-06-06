@@ -17,7 +17,8 @@
 		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
 		"admin:create": "node --import tsx src/cli/create-admin.ts",
 		"games:seed": "node --import tsx src/cli/seed-games.ts",
-		"games:sync": "node --import tsx src/cli/sync-games.ts"
+		"games:sync": "node --import tsx src/cli/sync-games.ts",
+"games:backfill-categories": "node --import tsx src/cli/backfill-categories.ts"
 	},
 	"dependencies": {
 		"@better-auth/expo": "^1.4.19",

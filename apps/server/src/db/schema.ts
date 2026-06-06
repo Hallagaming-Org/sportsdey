@@ -654,6 +654,7 @@ export const game = sqliteTable("game", {
 	name: text("name").notNull(),
 	code: text("code").notNull(),
 	imageUrl: text("image_url"),
+	category: text("category"),
 	enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
