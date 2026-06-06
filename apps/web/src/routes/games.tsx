@@ -15,11 +15,27 @@ export const Route = createFileRoute("/games")({
 	component: GamesPage,
 });
 
+const CATEGORIES = [
+	"arcade",
+	"bingo",
+	"classic",
+	"crash-games",
+	"dice",
+	"jackpot",
+	"lottery",
+	"others",
+	"roulette",
+	"scratch",
+	"slots",
+	"table/card-games",
+] as const;
+
 type Game = {
 	id: string;
 	name: string;
 	code: string;
 	imageUrl: string | null;
+	category: string | null;
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
@@ -109,6 +125,7 @@ const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots"
 function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
+	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
@@ -133,10 +150,23 @@ function GamesPage() {
 		return a.name.localeCompare(b.name);
 	});
 
+	const categoryCounts = sortedGames.reduce(
+		(acc, game) => {
+			const cat = game.category ?? "others";
+			acc[cat] = (acc[cat] ?? 0) + 1;
+			return acc;
+		},
+		{} as Record<string, number>,
+	);
+
+	const filteredGames = selectedCategory
+		? sortedGames.filter((game) => (game.category ?? "others") === selectedCategory)
+		: sortedGames;
+
 	const chunkSize = 3;
 	const gameChunks: Game[][] = [];
-	for (let i = 0; i < sortedGames.length; i += chunkSize) {
-		gameChunks.push(sortedGames.slice(i, i + chunkSize));
+	for (let i = 0; i < filteredGames.length; i += chunkSize) {
+		gameChunks.push(filteredGames.slice(i, i + chunkSize));
 	}
 
 	const handleGameClick = async (game: Game) => {
@@ -261,19 +291,150 @@ function GamesPage() {
 					All Games
 				</h1>
 
-				<div className="flex flex-col gap-4 lg:hidden">
-					{gameChunks.map((chunk, rowIndex) => (
-						<div
-							key={rowIndex}
-							className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
+				<div className="mb-8 flex flex-wrap gap-3">
+					<button
+						onClick={() => setSelectedCategory(null)}
+						className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
+							selectedCategory === null
+								? "border-[#1BAA04] bg-[#1BAA04] text-white"
+								: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+						}`}
+					>
+						All
+						<span
+							className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${
+								selectedCategory === null
+									? "bg-white/20 text-white"
+									: "bg-[#1B2722] text-gray-300"
+							}`}
 						>
-							{chunk.map((game) => {
+							{sortedGames.length}
+						</span>
+					</button>
+					{CATEGORIES.map((cat) => {
+						const count = categoryCounts[cat] ?? 0;
+						if (count === 0) return null;
+						return (
+							<button
+								key={cat}
+								onClick={() =>
+									setSelectedCategory(
+										selectedCategory === cat ? null : cat,
+									)
+								}
+								className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${
+									selectedCategory === cat
+										? "border-[#1BAA04] bg-[#1BAA04] text-white"
+										: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+								}`}
+							>
+								{cat}
+								<span
+									className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${
+										selectedCategory === cat
+											? "bg-white/20 text-white"
+											: "bg-[#1B2722] text-gray-300"
+									}`}
+								>
+									{count}
+								</span>
+							</button>
+						);
+					})}
+				</div>
+
+				{filteredGames.length === 0 ? (
+					<p className="text-center text-gray-500">
+						No games found in this category.
+					</p>
+				) : (
+					<>
+						<div className="flex flex-col gap-4 lg:hidden">
+							{gameChunks.map((chunk, rowIndex) => (
+								<div
+									key={rowIndex}
+									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
+								>
+									{chunk.map((game) => {
+										const display = getGameDisplay(game);
+										return (
+											<div
+												key={game.code}
+												className="relative flex h-[240px] flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
+												style={{ background: display.gradient, flex: "0 0 160px" }}
+												onClick={() => handleGameClick(game)}
+												onKeyDown={(e) => handleKeyDown(e, game)}
+												role="button"
+												tabIndex={0}
+											>
+												{loadingGame === game.code && (
+													<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+														<Loader2 className="h-10 w-10 animate-spin text-white" />
+													</div>
+												)}
+
+												{display.icon ? (
+													<div
+														className="absolute inset-0 flex items-center justify-center p-4"
+														style={{
+															opacity: loadingGame === game.code ? 0.35 : 1,
+														}}
+													>
+														{display.icon && (
+															<display.icon className="h-full w-full object-contain" />
+														)}
+													</div>
+												) : display.image ? (
+													<img
+														src={display.image}
+														alt={display.name}
+														loading="lazy"
+														className="absolute inset-0 h-full w-full object-contain p-2 transition-opacity"
+														style={{
+															opacity: loadingGame === game.code ? 0.35 : 1,
+														}}
+													/>
+												) : (
+													<div
+														className="absolute inset-0 flex items-center justify-center"
+														style={{
+															opacity: loadingGame === game.code ? 0.35 : 1,
+														}}
+													>
+														<span className="text-4xl font-bold text-white/50">
+															{display.name.charAt(0)}
+														</span>
+													</div>
+												)}
+												<p
+													className="text-center font-normal text-[27px] text-white"
+													style={{ fontFamily: "Luckiest Guy" }}
+												>
+													{display.name}
+												</p>
+												{display.subtitle && (
+													<p
+														className="text-center text-gray-100 text-sm"
+														style={{ fontFamily: "Quicksand" }}
+													>
+														{display.subtitle}
+													</p>
+												)}
+											</div>
+										);
+									})}
+								</div>
+							))}
+						</div>
+
+						<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] lg:gap-6">
+							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
 									<div
 										key={game.code}
-										className="relative flex h-[240px] flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
-										style={{ background: display.gradient, flex: "0 0 160px" }}
+										className="relative flex h-[270px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
+										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
 										role="button"
@@ -336,79 +497,8 @@ function GamesPage() {
 								);
 							})}
 						</div>
-					))}
-				</div>
-
-				<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] lg:gap-6">
-					{sortedGames.map((game) => {
-						const display = getGameDisplay(game);
-						return (
-							<div
-								key={game.code}
-								className="relative flex h-[270px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
-								style={{ background: display.gradient }}
-								onClick={() => handleGameClick(game)}
-								onKeyDown={(e) => handleKeyDown(e, game)}
-								role="button"
-								tabIndex={0}
-							>
-								{loadingGame === game.code && (
-									<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-										<Loader2 className="h-10 w-10 animate-spin text-white" />
-									</div>
-								)}
-
-								{display.icon ? (
-									<div
-										className="absolute inset-0 flex items-center justify-center p-4"
-										style={{
-											opacity: loadingGame === game.code ? 0.35 : 1,
-										}}
-									>
-										{display.icon && (
-											<display.icon className="h-full w-full object-contain" />
-										)}
-									</div>
-								) : display.image ? (
-									<img
-										src={display.image}
-										alt={display.name}
-										loading="lazy"
-										className="absolute inset-0 h-full w-full object-contain p-2 transition-opacity"
-										style={{
-											opacity: loadingGame === game.code ? 0.35 : 1,
-										}}
-									/>
-								) : (
-									<div
-										className="absolute inset-0 flex items-center justify-center"
-										style={{
-											opacity: loadingGame === game.code ? 0.35 : 1,
-										}}
-									>
-										<span className="text-4xl font-bold text-white/50">
-											{display.name.charAt(0)}
-										</span>
-									</div>
-								)}
-								<p
-									className="text-center font-normal text-[27px] text-white"
-									style={{ fontFamily: "Luckiest Guy" }}
-								>
-									{display.name}
-								</p>
-								{display.subtitle && (
-									<p
-										className="text-center text-gray-100 text-sm"
-										style={{ fontFamily: "Quicksand" }}
-									>
-										{display.subtitle}
-									</p>
-								)}
-							</div>
-						);
-					})}
-				</div>
+					</>
+				)}
 			</div>
 		</div>
 	);
