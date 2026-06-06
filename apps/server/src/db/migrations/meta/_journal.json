@@ -92,6 +92,13 @@
       "when": 1779274449494,
       "tag": "0012_vengeful_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1780763299119,
+      "tag": "0013_military_doomsday",
+      "breakpoints": true
     }
   ]
 }

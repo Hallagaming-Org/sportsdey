@@ -9,6 +9,7 @@ type TransferResponse = {
 	transactionId: string;
 	amount: number;
 	recipientWalletId: string;
+	recipientName: string;
 };
 
 const MIN_TRANSFER_AMOUNT = 100;
@@ -41,7 +42,7 @@ export function TransferModal({
 			}),
 		onSuccess: (data) => {
 			setTransferSuccess(
-				`₦${formatAmount(data.amount)} transferred successfully!`,
+				`₦${formatAmount(data.amount)} transferred to ${data.recipientName}`,
 			);
 			setTimeout(() => {
 				handleClose();
