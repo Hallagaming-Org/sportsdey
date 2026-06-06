@@ -773,6 +773,10 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 		...tx,
 		amount: (tx.amount ?? 0) / 100,
 		balance: (tx.balance ?? 0) / 100,
+		...(tx.paymentMethod !== "wallet_transfer" && {
+			recipientWalletId: undefined,
+			recipientName: undefined,
+		}),
 	}));
 
 	return c.json(
@@ -1650,6 +1654,14 @@ walletRoute.openapi(transferRoute, async (c) => {
 		);
 	}
 
+	const [recipientUser] = await db
+		.select({ name: schema.user.name })
+		.from(schema.user)
+		.where(eq(schema.user.id, recipientWallet.userId))
+		.limit(1);
+
+	const recipientName = recipientUser?.name ?? "Unknown";
+
 	const reference = `trf_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	try {
@@ -1680,6 +1692,8 @@ walletRoute.openapi(transferRoute, async (c) => {
 				status: "completed",
 				paymentMethod: "wallet_transfer",
 				balance: senderWallet.balance - amount * 100,
+				recipientWalletId,
+				recipientName,
 			})
 			.returning();
 
@@ -1701,6 +1715,8 @@ walletRoute.openapi(transferRoute, async (c) => {
 				status: "completed",
 				paymentMethod: "wallet_transfer",
 				balance: recipientWallet.balance + amount * 100,
+				recipientWalletId,
+				recipientName,
 			})
 			.returning();
 
@@ -1718,6 +1734,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 					transactionId: reference,
 					amount,
 					recipientWalletId,
+					recipientName,
 				},
 			},
 			200,

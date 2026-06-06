@@ -192,9 +192,11 @@ export const walletTransaction = sqliteTable(
 		type: text("type").notNull(),
 reference: text("reference").unique(),
 		status: text("status").notNull(),
-paymentMethod: text("payment_method")
+		paymentMethod: text("payment_method")
 			.notNull()
 			.default("card"),
+		recipientWalletId: text("recipient_wallet_id"),
+		recipientName: text("recipient_name"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),

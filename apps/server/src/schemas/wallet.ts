@@ -27,6 +27,12 @@ export const TransactionResponseSchema = z.object({
 	reference: z.string().openapi({ description: "Transaction reference" }),
 	status: z.string().openapi({ description: "Transaction status" }),
 	paymentMethod: z.string().openapi({ description: "Payment method used" }),
+	recipientWalletId: z.string().optional().openapi({
+		description: "Recipient wallet ID (for wallet_transfer only)",
+	}),
+	recipientName: z.string().optional().openapi({
+		description: "Recipient name (for wallet_transfer only)",
+	}),
 	balance: z.number().openapi({ description: "Wallet balance after transaction" }),
 	createdAt: z.string().openapi({ description: "Creation timestamp" }),
 }).openapi("TransactionResponse");
@@ -252,6 +258,7 @@ export const TransferResponseSchema = z.object({
 		recipientWalletId: z
 			.string()
 			.openapi({ description: "Recipient wallet ID" }),
+		recipientName: z.string().openapi({ description: "Recipient name" }),
 	}).openapi({ description: "Response data" }),
 }).openapi("TransferResponse");
 
