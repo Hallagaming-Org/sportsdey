@@ -99,6 +99,13 @@
       "when": 1780668943118,
       "tag": "0013_stormy_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1780850303660,
+      "tag": "0014_fancy_apocalypse",
+      "breakpoints": true
     }
   ]
 }

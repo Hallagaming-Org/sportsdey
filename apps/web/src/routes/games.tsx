@@ -141,6 +141,13 @@ function GamesPage() {
 		},
 	});
 
+	if (games.length > 0) {
+		const cats = games.slice(0, 10).map((g) => ({ name: g.name, category: g.category }));
+		console.log("Game categories:", cats);
+		const uniqueCats = [...new Set(games.map((g) => g.category ?? "others"))];
+		console.log("Unique categories in data:", uniqueCats);
+	}
+
 	const sortedGames = [...games].sort((a, b) => {
 		const aIndex = PRIORITY_GAMES.indexOf(a.code);
 		const bIndex = PRIORITY_GAMES.indexOf(b.code);
@@ -313,7 +320,6 @@ function GamesPage() {
 					</button>
 					{CATEGORIES.map((cat) => {
 						const count = categoryCounts[cat] ?? 0;
-						if (count === 0) return null;
 						return (
 							<button
 								key={cat}
@@ -325,7 +331,9 @@ function GamesPage() {
 								className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${
 									selectedCategory === cat
 										? "border-[#1BAA04] bg-[#1BAA04] text-white"
-										: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+										: count === 0
+											? "border-[#1B2722] text-gray-600 cursor-default"
+											: "border-[#1B2722] text-gray-300 hover:border-gray-500"
 								}`}
 							>
 								{cat}
