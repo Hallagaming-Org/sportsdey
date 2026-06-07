@@ -141,13 +141,6 @@ function GamesPage() {
 		},
 	});
 
-	if (games.length > 0) {
-		const cats = games.slice(0, 10).map((g) => ({ name: g.name, category: g.category }));
-		console.log("Game categories:", cats);
-		const uniqueCats = [...new Set(games.map((g) => g.category ?? "others"))];
-		console.log("Unique categories in data:", uniqueCats);
-	}
-
 	const sortedGames = [...games].sort((a, b) => {
 		const aIndex = PRIORITY_GAMES.indexOf(a.code);
 		const bIndex = PRIORITY_GAMES.indexOf(b.code);
