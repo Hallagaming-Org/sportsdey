@@ -99,6 +99,13 @@
       "when": 1780763299119,
       "tag": "0013_military_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1780850303660,
+      "tag": "0014_fancy_apocalypse",
+      "breakpoints": true
     }
   ]
 }
