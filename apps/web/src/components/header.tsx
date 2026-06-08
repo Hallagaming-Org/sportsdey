@@ -1,9 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-	Link,
-	useLocation,
-	useRouter,
-} from "@tanstack/react-router";
+import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { ChevronDown, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
@@ -11,16 +7,15 @@ import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
 import { cn, formatAmount } from "@/lib/utils";
-import WorldIcon from "@/logos/world.svg?react";
-import { socials } from "./socials";
-
-import { UserMenu } from "./user-menu";
-import Sidebar from "./sidebar";
 import MenuBar from "@/logos/MenuBar";
+import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
-import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
+import WorldIcon from "@/logos/world.svg?react";
+import Sidebar from "./sidebar";
+import { socials } from "./socials";
+import { UserMenu } from "./user-menu";
 
 type HeaderProps = {
 	hideSportsNav?: boolean;
@@ -39,7 +34,6 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 	// const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
-
 	const [open, setOpen] = useState(false);
 	const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 	const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -51,6 +45,8 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 				credentials: "include",
 			}),
 		enabled: !!session?.user,
+		refetchInterval: 30 * 1000,
+		retry: true,
 	});
 	const mobileBalance = walletData?.balance
 		? `₦ ${formatAmount(walletData.balance)}`
@@ -128,7 +124,12 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									<span
 										className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all"
 										style={{
-											fontSize: mobileBalance.length > 15 ? '9px' : mobileBalance.length > 12 ? '10px' : '11px'
+											fontSize:
+												mobileBalance.length > 15
+													? "9px"
+													: mobileBalance.length > 12
+														? "10px"
+														: "11px",
 										}}
 									>
 										{mobileBalance}
@@ -157,7 +158,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							aria-label="Notifications"
 						>
 							<NotificationIcon />
-							<span className="absolute top-0 right-0.5 h-3 w-3 rounded-full bg-emerald-400 text-[#070711] flex items-center justify-center font-bold text-[6px]" >
+							<span className="absolute top-0 right-0.5 h-3 w-3 rounded-full bg-emerald-400 text-[#070711] flex items-center justify-center font-bold text-[6px]">
 								{"1"}
 							</span>
 						</button>
@@ -199,7 +200,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									"flex items-center gap-2 px-1 transition-colors",
 									location.pathname.includes("matches")
 										? "border-accent border-b-2 pb-1 text-accent"
-										: "text-secondary hover:text-white pb-1.5"
+										: "text-secondary hover:text-white pb-1.5",
 								)}
 							>
 								Scores
@@ -210,7 +211,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									"flex items-center gap-2 px-1 transition-colors",
 									location.pathname.includes("favorites")
 										? "border-accent border-b-2 pb-1 text-accent"
-										: "text-secondary hover:text-white pb-1.5"
+										: "text-secondary hover:text-white pb-1.5",
 								)}
 							>
 								Favorites
@@ -252,9 +253,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									aria-label="Wallet balance"
 								>
 									<NigerianFlag />
-									<span
-										className="truncate font-semibold tracking-tight text-white transition-all text-xs xl:text-sm"
-									>
+									<span className="truncate font-semibold tracking-tight text-white transition-all text-xs xl:text-sm">
 										{mobileBalance}
 									</span>
 								</div>
@@ -348,7 +347,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						className={cn(
 							"fixed top-0 left-0 h-full w-[80%] transform shadow-xl transition-transform duration-300 sm:w-80",
 							open ? "translate-x-0" : "-translate-x-full",
-							"bg-[#f2f2f2] text-gray-900 dark:bg-[#121212] dark:text-[#8C8F8F]" // #8C8F8F0D is roughly #f2f2f2
+							"bg-[#f2f2f2] text-gray-900 dark:bg-[#121212] dark:text-[#8C8F8F]", // #8C8F8F0D is roughly #f2f2f2
 						)}
 					>
 						<div className="flex min-w-0 justify-between p-4">
@@ -365,7 +364,11 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								aria-label="Close main menu"
 								onClick={() => setOpen(false)}
 							>
-								<X width={28} height={28} className="text-gray-900 dark:text-gray-400" />
+								<X
+									width={28}
+									height={28}
+									className="text-gray-900 dark:text-gray-400"
+								/>
 							</button>
 						</div>
 
@@ -373,7 +376,9 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full px-2 pt-2 pb-6">
-								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">Social links</h3>
+								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">
+									Social links
+								</h3>
 
 								<div className="flex flex-wrap items-center gap-3">
 									{socials.map(({ icon: Icon, id, link }) => (
@@ -404,7 +409,13 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 								<div className="mt-8 text-center text-[9px] leading-relaxed text-gray-500 dark:text-gray-400">
 									<p className="mb-4">
-										This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
+										This Website and the "Sportsdey" trademark are owned and
+										operated by Halla Gaming Limited, a company established in
+										Nigeria with RC1396896, having its registered address at
+										First floor, Lagos City Mall, Onikan, Lagos state. Halla
+										Gaming Limited is licensed and regulated by the National
+										Lottery Regulatory Commission under license 00000010, issued
+										on the 15th of August 2023.
 									</p>
 									<div className="flex flex-wrap items-center justify-center gap-1.5 font-bold text-[8px] tracking-wider text-gray-700 dark:text-gray-300">
 										<span>PLAY RESPONSIBLY</span>
