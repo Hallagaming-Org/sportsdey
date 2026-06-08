@@ -47,6 +47,7 @@ app.use("*", async (c, next) => {
 			"exp://172.20.10.9:8081",
 			"https://admin.sportsdey.com",
 			"https://staging-admin.sportsdey.com",
+			"https://binary.sportsdey.com",
 		]);
 
 		console.log(allowedOrigins.has(origin) ? origin : "");
@@ -81,6 +82,7 @@ app.use(
 				"exp://172.20.10.9:8081",
 				"https://admin.sportsdey.com",
 				"https://staging-admin.sportsdey.com",
+				"https://binary.sportsdey.com",
 			]);
 			console.log(allowedOrigins.has(origin) ? origin : "");
 			return allowedOrigins.has(origin) ? origin : "";

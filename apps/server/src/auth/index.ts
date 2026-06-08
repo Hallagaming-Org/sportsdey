@@ -23,6 +23,7 @@ export const createAuth = (env: CloudflareBindings) => {
 				"http://localhost:3001",
 				"https://stagingweb.sportsdey.com",
 				"https://sportsdey.com",
+				"https://binary.sportsdey.com",
 				"sportsdey-mobile://",
 				"exp://**",
 				"https://admin.sportsdey.com",
