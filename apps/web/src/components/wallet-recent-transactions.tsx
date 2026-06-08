@@ -27,8 +27,8 @@ export function WalletRecentTransactions({
 			<p className="mt-4 font-semibold text-[20px] text-primary dark:text-white">
 				Recent Transactions
 			</p>
-			<div className="mt-2 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm min-h-[355px] max-h-[355px] overflow-y-auto">
-				<div className="mt-4">
+			<div className="mt-2 flex flex-col rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm min-h-[355px] max-h-[355px] overflow-y-auto">
+				<div className={transactions.length === 0 && !isLoading ? "flex flex-1 flex-col items-center justify-center text-center" : "mt-4"}>
 					{isLoading ? (
 						<ul className="space-y-3">
 							{[...Array(3)].map((_, i) => (
@@ -48,7 +48,7 @@ export function WalletRecentTransactions({
 							))}
 						</ul>
 					) : transactions.length === 0 ? (
-						<div className="flex flex-col items-center justify-center py-8 text-center">
+						<>
 							<img
 								src={EmptyStateWithdrawal}
 								alt="No transactions"
@@ -57,7 +57,7 @@ export function WalletRecentTransactions({
 							<p className="mt-4 font-medium text-base text-primary dark:text-[#6C7073]">
 								Looks like you don&apos;t have any transaction yet!
 							</p>
-						</div>
+						</>
 					) : (
 						<ul className="space-y-3">
 							{transactions.slice(0, 10).map((transaction) => (
