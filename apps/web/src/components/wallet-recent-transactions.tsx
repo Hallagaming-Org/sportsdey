@@ -16,6 +16,8 @@ type WalletRecentTransactionsProps = {
 	isLoading: boolean;
 };
 
+import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
+
 export function WalletRecentTransactions({
 	transactions,
 	isLoading,
@@ -48,7 +50,7 @@ export function WalletRecentTransactions({
 					) : transactions.length === 0 ? (
 						<div className="flex flex-col items-center justify-center py-8 text-center">
 							<img
-								src="/empty-transactions.svg"
+								src={EmptyStateWithdrawal}
 								alt="No transactions"
 								className="h-auto w-full max-w-[160px]"
 							/>
