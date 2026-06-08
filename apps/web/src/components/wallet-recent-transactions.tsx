@@ -27,7 +27,7 @@ export function WalletRecentTransactions({
 			<p className="mt-4 font-semibold text-[20px] text-primary dark:text-white">
 				Recent Transactions
 			</p>
-			<div className="mt-2 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm">
+			<div className="mt-2 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm min-h-[355px]">
 				<div className="mt-4">
 					{isLoading ? (
 						<ul className="space-y-3">
