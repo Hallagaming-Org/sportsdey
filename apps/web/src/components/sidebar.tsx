@@ -142,8 +142,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: isMobile ? "scores" : "betting",
 			label: isMobile ? "Scores" : "Sportsbook",
 			icon: isMobile ? Soccer : SportsIcon,
-			isActive: isMobile 
-				? location.pathname.includes("/matches") 
+			isActive: isMobile
+				? location.pathname.includes("/matches")
 				: location.pathname.startsWith("/sportsbook"),
 			onClick: isMobile ? goToScores : goToSportsbook,
 		},
@@ -238,10 +238,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: LiveSupport,
 			isActive: false,
 			onClick: () =>
-				window.open(
-					"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
-					"_blank",
-				),
+				// window.open(
+				// 	"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
+				// 	"_blank",
+				// ),
+				console.log("clicked")
 		},
 	];
 
