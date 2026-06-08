@@ -52,9 +52,9 @@ export function WalletRecentTransactions({
 							<img
 								src={EmptyStateWithdrawal}
 								alt="No transactions"
-								className="h-auto w-full max-w-[160px]"
+								className="h-21 w-21 max-w-[160px]"
 							/>
-							<p className="mt-4 font-medium text-[20px] text-primary dark:text-white">
+							<p className="mt-4 font-medium text-base text-primary dark:text-[#6C7073]">
 								Looks like you don&apos;t have any transaction yet!
 							</p>
 						</div>
