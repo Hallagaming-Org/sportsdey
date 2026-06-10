@@ -230,7 +230,7 @@ function buildWidgetStyle(isDark: boolean): React.CSSProperties {
 	return {
 		"--bet-font-sans": '"Inter", "Geist", ui-sans-serif, system-ui, sans-serif',
 		"--bet-base-font-size": "14px",
-		"--bet-colors-primary-1": palette.colorsPrimary1,
+		"--bet-colors-primary-1": isDark ? "#ffffff" : palette.colorsPrimary1,
 		"--bet-colors-primary-2": palette.colorsPrimary2,
 		"--bet-colors-secondary-1": palette.colorsSecondary1,
 		"--bet-colors-secondary-2": palette.colorsSecondary2,
