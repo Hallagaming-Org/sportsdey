@@ -8,7 +8,6 @@ import {
 import {
 	KycCheckIcon,
 	KycHeader,
-	KycInfoCard,
 	KycSecurityIllustration,
 	KycShell,
 } from "@/components/kyc";
@@ -47,44 +46,44 @@ function StatusCard({
 
 	const config = isApproved
 		? {
-				title: "Identity Verified",
-				description: "Your identity has been successfully verified.",
-				iconBg: "bg-[#14804A]",
-				pingBg: "bg-[#CCF3DD]",
-				textColor: "text-[#14804A]",
-				icon: "✓",
-				animation: "ping",
-		  }
+			title: "Identity Verified",
+			description: "Your identity has been successfully verified.",
+			iconBg: "bg-[#14804A]",
+			pingBg: "bg-[#CCF3DD]",
+			textColor: "text-[#14804A]",
+			icon: "✓",
+			animation: "ping",
+		}
 		: isPending
 			? {
-					title: "Under Review",
-					description: "Your documents are being reviewed. This usually takes 1-2 business days.",
-					iconBg: "bg-[#B26A00]",
-					pingBg: "bg-[#F2CF93]",
-					textColor: "text-[#B26A00]",
-					icon: "",
-					animation: "spinner",
-			  }
+				title: "Under Review",
+				description: "Your documents are being reviewed. This usually takes 1-2 business days.",
+				iconBg: "bg-[#B26A00]",
+				pingBg: "bg-[#F2CF93]",
+				textColor: "text-[#B26A00]",
+				icon: "",
+				animation: "spinner",
+			}
 			: {
-					title: "Verification Failed",
-					description: rejectionReason || "We couldn't verify your documents. Please try again.",
-					iconBg: "bg-[#D13030]",
-					pingBg: "bg-[#FADBD8]",
-					textColor: "text-[#D13030]",
-					icon: "×",
-					animation: "pulse",
-			  };
+				title: "Verification Failed",
+				description: rejectionReason || "We couldn't verify your documents. Please try again.",
+				iconBg: "bg-[#D13030]",
+				pingBg: "bg-[#FADBD8]",
+				textColor: "text-[#D13030]",
+				icon: "×",
+				animation: "pulse",
+			};
 
 	const date = submittedAt
 		? new Date(submittedAt).toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-				year: "numeric",
-		  })
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		})
 		: null;
 
 	return (
-		<div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-[#202120]">
+		<div className="mx-auto max-w-md rounded-2xl border border-transparent bg-white p-8 text-center shadow-sm dark:border-[#1B2722] dark:bg-[#000606]">
 			<div className="mb-6 flex justify-center">
 				{isApproved && (
 					<div className="relative flex h-24 w-24 items-center justify-center">
@@ -139,7 +138,7 @@ function StatusCard({
 function KycLanding() {
 	return (
 		<>
-			<div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120] sm:p-8">
+			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 				<div className="grid items-center gap-8 lg:grid-cols-[1fr_260px]">
 					<div>
 						<h2 className="font-semibold text-[30px] text-primary leading-tight dark:text-white">
@@ -166,13 +165,13 @@ function KycLanding() {
 				</div>
 				<Link
 					to="/kyc/verify"
-					className="mt-10 flex w-full items-center justify-center gap-2 rounded-lg bg-[#45BF35] px-4 py-4 font-medium text-sm text-white transition-colors hover:bg-accent"
+					className="mt-10 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1BAA04] px-4 py-4 font-medium text-sm text-white transition-colors hover:bg-accent"
 				>
 					Start Verification
 					<ChevronRight className="h-5 w-5" />
 				</Link>
 			</div>
-			<KycInfoCard />
+
 		</>
 	);
 }
@@ -180,7 +179,7 @@ function KycLanding() {
 function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 	return (
 		<>
-			<div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120] sm:p-8">
+			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 				<div className="mb-6 flex items-center justify-between">
 					<h2 className="font-semibold text-[30px] text-primary leading-tight dark:text-white">
 						Identity Verification
@@ -228,7 +227,7 @@ function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 					</div>
 				)}
 			</div>
-			<KycInfoCard />
+
 		</>
 	);
 }

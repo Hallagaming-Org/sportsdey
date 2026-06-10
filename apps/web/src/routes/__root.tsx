@@ -118,6 +118,9 @@ function RootDocument() {
 		"/about",
 		"/privacy-policy",
 		"/terms",
+		"/kyc",
+		"/kyc/",
+		"/kyc/verify",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
 
