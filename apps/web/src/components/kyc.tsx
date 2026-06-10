@@ -9,7 +9,6 @@ import {
 	UserRound,
 	X,
 } from "lucide-react";
-import { WalletInfo } from "@/components/wallet-info";
 import { WalletSidebar } from "@/components/wallet-sidebar";
 
 export function KycShell({ children }: { children: ReactNode }) {
@@ -58,10 +57,6 @@ export function KycSecurityIllustration({ className = "" }: { className?: string
 			</div>
 		</div>
 	);
-}
-
-export function KycInfoCard() {
-	return <WalletInfo />;
 }
 
 export function KycInputField({
