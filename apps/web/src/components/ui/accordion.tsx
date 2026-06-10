@@ -1,5 +1,5 @@
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
-import { ChevronDownIcon, ChevronLeft } from "lucide-react";
+import { ArrowDown, ChevronLeft } from "lucide-react";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";
@@ -42,7 +42,7 @@ function AccordionTrigger({
 			>
 				{children}
 				{props.isCollapsible ? (
-					<ChevronDownIcon className="pointer-events-none shrink-0 translate-y-0.5 text-primary text-xs transition-transform duration-200" />
+					<ArrowDown className="pointer-events-none shrink-0 translate-y-0.5 text-primary text-xs transition-transform duration-200" />
 				) : (
 					<ChevronLeft className="pointer-events-none shrink-0 translate-y-0.5 text-primary text-xs transition-transform duration-200" />
 				)}

@@ -96,7 +96,11 @@ export default function DesktopFooter() {
 					<h3 className="mb-6 font-bold text-base text-white">Our Engagements</h3>
 					<ul className="space-y-4 text-sm">
 						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Prediction Market</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">FAQs</span></li>
+						<li>
+							<Link to="/faq" className="text-[#A0A0A0] transition-colors hover:text-white">
+								FAQs
+							</Link>
+						</li>
 						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Esports Tournament</span></li>
 						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Jackpots</span></li>
 					</ul>
@@ -107,8 +111,16 @@ export default function DesktopFooter() {
 					<ul className="space-y-4 text-sm mb-8">
 						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">About Us</span></li>
 						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Contact Us</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Terms and Conditions</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Privacy Policy</span></li>
+						<li>
+							<Link to="/terms" className="text-[#A0A0A0] transition-colors hover:text-white">
+								Terms and Conditions
+							</Link>
+						</li>
+						<li>
+							<Link to="/privacy-policy" className="text-[#A0A0A0] transition-colors hover:text-white">
+								Privacy Policy
+							</Link>
+						</li>
 					</ul>
 				</div>
 

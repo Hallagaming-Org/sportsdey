@@ -20,6 +20,7 @@ import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
 import { Route as GamesRouteImport } from './routes/games'
 import { Route as FavoritesRouteImport } from './routes/favorites'
+import { Route as FaqRouteImport } from './routes/faq'
 import { Route as BoxingRouteImport } from './routes/boxing'
 import { Route as BettingRouteImport } from './routes/betting'
 import { Route as BasketballRouteImport } from './routes/basketball'
@@ -106,6 +107,11 @@ const GamesRoute = GamesRouteImport.update({
 const FavoritesRoute = FavoritesRouteImport.update({
   id: '/favorites',
   path: '/favorites',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoxingRoute = BoxingRouteImport.update({
@@ -278,6 +284,7 @@ export interface FileRoutesByFullPath {
   '/basketball': typeof BasketballRouteWithChildren
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
+  '/faq': typeof FaqRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
   '/kyc': typeof KycRouteWithChildren
@@ -321,6 +328,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/betting': typeof BettingRoute
+  '/faq': typeof FaqRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -363,6 +371,7 @@ export interface FileRoutesById {
   '/basketball': typeof BasketballRouteWithChildren
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
+  '/faq': typeof FaqRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
   '/kyc': typeof KycRouteWithChildren
@@ -410,6 +419,7 @@ export interface FileRouteTypes {
     | '/basketball'
     | '/betting'
     | '/boxing'
+    | '/faq'
     | '/favorites'
     | '/games'
     | '/kyc'
@@ -453,6 +463,7 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/betting'
+    | '/faq'
     | '/favorites'
     | '/games'
     | '/privacy-policy'
@@ -494,6 +505,7 @@ export interface FileRouteTypes {
     | '/basketball'
     | '/betting'
     | '/boxing'
+    | '/faq'
     | '/favorites'
     | '/games'
     | '/kyc'
@@ -540,6 +552,7 @@ export interface RootRouteChildren {
   BasketballRoute: typeof BasketballRouteWithChildren
   BettingRoute: typeof BettingRoute
   BoxingRoute: typeof BoxingRouteWithChildren
+  FaqRoute: typeof FaqRoute
   FavoritesRoute: typeof FavoritesRoute
   GamesRoute: typeof GamesRoute
   KycRoute: typeof KycRouteWithChildren
@@ -641,6 +654,13 @@ declare module '@tanstack/react-router' {
       path: '/favorites'
       fullPath: '/favorites'
       preLoaderRoute: typeof FavoritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boxing': {
@@ -980,6 +1000,7 @@ const rootRouteChildren: RootRouteChildren = {
   BasketballRoute: BasketballRouteWithChildren,
   BettingRoute: BettingRoute,
   BoxingRoute: BoxingRouteWithChildren,
+  FaqRoute: FaqRoute,
   FavoritesRoute: FavoritesRoute,
   GamesRoute: GamesRoute,
   KycRoute: KycRouteWithChildren,
