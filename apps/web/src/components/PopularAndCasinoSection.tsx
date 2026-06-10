@@ -214,7 +214,8 @@ export default function PopularAndCasinoSection() {
 					<PopularMatchesPanel
 						widgetReady={widgetReady}
 						widgetError={widgetError}
-						widgetStyle={widgetStyle}
+						widgetStyle={buildWidgetStyle(isDark)}
+						isDark={isDark}
 					/>
 				) : (
 					<HotCasinoPanel />
@@ -225,7 +226,7 @@ export default function PopularAndCasinoSection() {
 }
 
 function buildWidgetStyle(isDark: boolean): React.CSSProperties {
-	const palette = getSportsbookTheme(true, 0).palette;
+	const palette = getSportsbookTheme(isDark, 0).palette;
 	return {
 		"--bet-font-sans": '"Inter", "Geist", ui-sans-serif, system-ui, sans-serif',
 		"--bet-base-font-size": "14px",
@@ -252,12 +253,14 @@ interface PopularMatchesPanelProps {
 	widgetReady: boolean;
 	widgetError: string | null;
 	widgetStyle: React.CSSProperties;
+	isDark: boolean;
 }
 
 function PopularMatchesPanel({
 	widgetReady,
 	widgetError,
 	widgetStyle,
+	isDark,
 }: PopularMatchesPanelProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [widgetContentReady, setWidgetContentReady] = useState(false);
@@ -334,6 +337,7 @@ function PopularMatchesPanel({
 				with-sport-title={false}
 				className="block w-full"
 				style={widgetStyle}
+				theme={isDark ? "dark" : "light"}
 			/>
 		</div>
 	);
