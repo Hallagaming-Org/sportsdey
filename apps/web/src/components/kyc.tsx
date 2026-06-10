@@ -20,7 +20,7 @@ export function KycShell({ children }: { children: ReactNode }) {
 
 export function KycHeader({ compact = false }: { compact?: boolean }) {
 	return (
-		<div className="flex items-center justify-between rounded-2xl bg-white px-6 py-5 shadow-sm dark:bg-[#202120]">
+		<div className="flex items-center justify-between rounded-2xl border border-transparent bg-white px-6 py-5 shadow-sm dark:border-[#1B2722] dark:bg-[#000606]">
 			<div>
 				<h1 className="font-semibold text-[28px] text-primary leading-tight dark:text-white">
 					KYC Verification
