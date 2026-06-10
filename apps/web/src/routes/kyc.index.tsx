@@ -83,7 +83,7 @@ function StatusCard({
 		: null;
 
 	return (
-		<div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-[#202120]">
+		<div className="mx-auto max-w-md rounded-2xl border border-transparent bg-white p-8 text-center shadow-sm dark:border-[#1B2722] dark:bg-[#000606]">
 			<div className="mb-6 flex justify-center">
 				{isApproved && (
 					<div className="relative flex h-24 w-24 items-center justify-center">
@@ -138,7 +138,7 @@ function StatusCard({
 function KycLanding() {
 	return (
 		<>
-			<div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120] sm:p-8">
+			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 				<div className="grid items-center gap-8 lg:grid-cols-[1fr_260px]">
 					<div>
 						<h2 className="font-semibold text-[30px] text-primary leading-tight dark:text-white">
@@ -179,7 +179,7 @@ function KycLanding() {
 function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 	return (
 		<>
-			<div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120] sm:p-8">
+			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 				<div className="mb-6 flex items-center justify-between">
 					<h2 className="font-semibold text-[30px] text-primary leading-tight dark:text-white">
 						Identity Verification
