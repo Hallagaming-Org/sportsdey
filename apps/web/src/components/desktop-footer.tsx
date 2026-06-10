@@ -62,6 +62,14 @@ export default function DesktopFooter() {
 					<ul className="space-y-4 text-sm">
 						<li>
 							<Link
+								to="/index/matches"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								Scores
+							</Link>
+						</li>
+						<li>
+							<Link
 								to="/"
 								search={{ sports: currentSport, league: undefined }}
 								className="text-[#A0A0A0] transition-colors hover:text-white"
@@ -88,14 +96,7 @@ export default function DesktopFooter() {
 								Videos
 							</Link>
 						</li>
-						<li>
-							<Link
-								to="/faqs"
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								FAQs
-							</Link>
-						</li>
+
 					</ul>
 				</div>
 
@@ -121,8 +122,14 @@ export default function DesktopFooter() {
 								Binary Trading
 							</a>
 						</li>
-						{/* <li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Esports Tournament</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Jackpots</span></li> */}
+						<li>
+							<Link
+								to="/faqs"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								FAQs
+							</Link>
+						</li>
 					</ul>
 				</div>
 
