@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import {
 	KycHeader,
-	KycInfoCard,
 	KycInputField,
 	KycSelectField,
 	KycShell,
@@ -307,8 +306,6 @@ function KycVerifyPage() {
 					<RefreshCw className="h-4 w-4" />
 					<span>Submit new documents</span>
 				</button>
-
-				<KycInfoCard />
 			</KycShell>
 		);
 	}
@@ -379,7 +376,6 @@ function KycVerifyPage() {
 				error={error}
 				handleSubmit={handleSubmit}
 			/>
-			<KycInfoCard />
 		</KycShell>
 	);
 }
