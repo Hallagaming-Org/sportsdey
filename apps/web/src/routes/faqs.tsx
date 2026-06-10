@@ -90,7 +90,7 @@ function FAQs() {
           </div>
         )}
 
-        <div className="mt-20 w-full flex flex-col items-center bg-[#0B100E] border border-[#1A1A1A] rounded-2xl p-8 sm:p-10 text-center">
+        {/* <div className="mt-20 w-full flex flex-col items-center bg-[#0B100E] border border-[#1A1A1A] rounded-2xl p-8 sm:p-10 text-center">
           <h3 className="text-xl font-bold mb-2">Still have questions?</h3>
           <p className="text-[#A0A0A0] text-sm mb-8">
             Can't find the answer you're looking for? Contact us directly on WhatsApp.
@@ -106,7 +106,7 @@ function FAQs() {
             </svg>
             Contact Us on WhatsApp
           </a>
-        </div>
+        </div> */}
       </div>
     </div>
   );
