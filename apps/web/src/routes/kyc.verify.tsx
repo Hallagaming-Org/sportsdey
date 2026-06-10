@@ -234,7 +234,7 @@ function KycForm({
 				type="button"
 				disabled={isSubmitting || !fullName || fullName.length < 2 || !identificationType || !frontDocument || !backDocument}
 				onClick={handleSubmit}
-				className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-4 font-medium text-white transition-all hover:bg-primary/90 disabled:opacity-50"
+				className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-4 font-medium text-white transition-all hover:bg-primary/90 disabled:bg-[#232323] disabled:cursor-not-allowed"
 			>
 				{isSubmitting ? (
 					<>
