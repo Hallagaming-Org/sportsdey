@@ -114,6 +114,7 @@ function RootDocument() {
 		"/wallet",
 		"/account",
 		"/favorites",
+		"/faqs",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
 
