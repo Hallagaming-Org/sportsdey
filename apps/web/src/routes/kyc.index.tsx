@@ -165,7 +165,7 @@ function KycLanding() {
 				</div>
 				<Link
 					to="/kyc/verify"
-					className="mt-10 flex w-full items-center justify-center gap-2 rounded-lg bg-[#45BF35] px-4 py-4 font-medium text-sm text-white transition-colors hover:bg-accent"
+					className="mt-10 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1BAA04] px-4 py-4 font-medium text-sm text-white transition-colors hover:bg-accent"
 				>
 					Start Verification
 					<ChevronRight className="h-5 w-5" />
