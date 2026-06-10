@@ -9,12 +9,10 @@ import {
 	UserRound,
 	X,
 } from "lucide-react";
-import { WalletSidebar } from "@/components/wallet-sidebar";
 
 export function KycShell({ children }: { children: ReactNode }) {
 	return (
-		<div className="my-5 grid gap-6 lg:grid-cols-[320px_1fr]">
-			<WalletSidebar />
+		<div className="my-5">
 			<section className="space-y-4">{children}</section>
 		</div>
 	);
