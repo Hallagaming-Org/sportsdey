@@ -4,7 +4,6 @@ import {
 	Loader2,
 	Shield,
 	RefreshCw,
-	FileCheck,
 	ArrowRight,
 	AlertCircle,
 	ArrowLeft,
@@ -173,9 +172,6 @@ function KycForm({
 	return (
 		<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 			<div className="mb-6 flex items-center gap-3">
-				<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-					<FileCheck className="h-5 w-5 text-primary dark:text-white" />
-				</div>
 				<div>
 					<h2 className="text-xl font-semibold text-primary dark:text-white">
 						Verify Your Identity
