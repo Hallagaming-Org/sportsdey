@@ -100,13 +100,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		});
 	};
 
-	const goToPredictions = () => {
-		setTab("betting");
-		navigate({
-			to: "/betting",
-			search: { type: "jackpots" },
-		});
-	};
+	// const goToPredictions = () => {
+	// 	setTab("betting");
+	// 	navigate({
+	// 		to: "/betting",
+	// 		search: { type: "jackpots" },
+	// 	});
+	// };
 
 	const goToVideos = () => {
 		setTab("videos");
@@ -152,7 +152,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "p2p",
 			label: "P2P",
-			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color="#8C8F8F" />,
+			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
 			isActive: isItemActive("p2p", false),
 			onClick: () => {
 				setActiveOverride("p2p");
