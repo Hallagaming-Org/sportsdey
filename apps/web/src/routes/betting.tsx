@@ -17,27 +17,9 @@ export const Route = createFileRoute("/betting")({
 
 function RouteComponent() {
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
-	const [theme, setTheme] = useState("sportsdeyLite");
+	const theme = "sportsdeyDark";
 	const { type = "jackpots" } = useSearch({ from: "/betting" });
 	const banners = Route.useLoaderData() || [];
-	useEffect(() => {
-		// Detect initial theme
-		const isDarkMode = document.documentElement.classList.contains("dark");
-		setTheme(isDarkMode ? "sportsdeyDark" : "sportsdeyLite");
-
-		// Watch for theme changes
-		const observer = new MutationObserver(() => {
-			const isDark = document.documentElement.classList.contains("dark");
-			setTheme(isDark ? "sportsdeyDark" : "sportsdeyLite");
-		});
-
-		observer.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["class"],
-		});
-
-		return () => observer.disconnect();
-	}, []);
 
 	useEffect(() => {
 		// Trigger loading state when type changes so opacity transition runs
