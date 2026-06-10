@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import {
 	getSportsbookTheme,
@@ -169,8 +169,6 @@ export default function PopularAndCasinoSection() {
 			window.clearTimeout(fallbackTimer);
 		};
 	}, []);
-
-	const widgetStyle = buildWidgetStyle(isDark);
 
 	return (
 		<section className="space-y-4">
