@@ -59,37 +59,37 @@ function KycStatusDisplay({
 
 	const config = isApproved
 		? {
-				title: "Identity Verified",
-				description: "Your identity has been successfully verified. You now have full access to all platform features.",
-				iconBg: "bg-[#14804A]",
-				pingBg: "bg-[#CCF3DD]",
-				textColor: "text-[#14804A]",
-				icon: "✓",
-		  }
+			title: "Identity Verified",
+			description: "Your identity has been successfully verified. You now have full access to all platform features.",
+			iconBg: "bg-[#14804A]",
+			pingBg: "bg-[#CCF3DD]",
+			textColor: "text-[#14804A]",
+			icon: "✓",
+		}
 		: isPending
 			? {
-					title: "Under Review",
-					description: "Your documents are being reviewed. This usually takes 1-2 business days.",
-					iconBg: "bg-[#B26A00]",
-					pingBg: "bg-[#F2CF93]",
-					textColor: "text-[#B26A00]",
-					icon: "",
-			  }
+				title: "Under Review",
+				description: "Your documents are being reviewed. This usually takes 1-2 business days.",
+				iconBg: "bg-[#B26A00]",
+				pingBg: "bg-[#F2CF93]",
+				textColor: "text-[#B26A00]",
+				icon: "",
+			}
 			: {
-					title: "Verification Failed",
-					description: rejectionReason || "We couldn't verify your documents. Please review the requirements and try again.",
-					iconBg: "bg-[#D13030]",
-					pingBg: "bg-[#FADBD8]",
-					textColor: "text-[#D13030]",
-					icon: "×",
-			  };
+				title: "Verification Failed",
+				description: rejectionReason || "We couldn't verify your documents. Please review the requirements and try again.",
+				iconBg: "bg-[#D13030]",
+				pingBg: "bg-[#FADBD8]",
+				textColor: "text-[#D13030]",
+				icon: "×",
+			};
 
 	const date = submittedAt
 		? new Date(submittedAt).toLocaleDateString("en-US", {
-				month: "long",
-				day: "numeric",
-				year: "numeric",
-		  })
+			month: "long",
+			day: "numeric",
+			year: "numeric",
+		})
 		: null;
 
 	return (
@@ -205,7 +205,7 @@ function KycForm({
 				<KycSelectField
 					id="kyc-identification"
 					label="Identification Type"
-					placeholder="Select your ID type"
+					placeholder="Select a form of identification"
 					value={identificationType}
 					onChange={setIdentificationType}
 					options={IDENTIFICATION_OPTIONS}
