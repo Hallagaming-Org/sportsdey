@@ -21,13 +21,11 @@ function FAQs() {
   return (
     <div className="min-h-screen bg-[#000606] text-white py-12 px-4 flex flex-col items-center">
       <div className="w-full max-w-3xl flex flex-col items-center">
-        {/* Header */}
         <h1 className="text-3xl sm:text-4xl font-bold mb-3 text-center">Frequently Asked Questions</h1>
         <p className="text-[#A0A0A0] mb-8 text-center text-sm sm:text-base">
           Get quick answers to questions you may have.
         </p>
 
-        {/* Search Input */}
         {/* <div className="relative w-full mb-10">
           <input
             type="text"
@@ -39,7 +37,6 @@ function FAQs() {
           <Search className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6E6E6E] w-5 h-5 pointer-events-none" />
         </div> */}
 
-        {/* FAQs Accordion */}
         <Accordion.Root
           type="single"
           collapsible
@@ -93,7 +90,6 @@ function FAQs() {
           </div>
         )}
 
-        {/* Still have questions? */}
         {/* <div className="mt-20 w-full flex flex-col items-center bg-[#0B100E] border border-[#1A1A1A] rounded-2xl p-8 sm:p-10 text-center">
           <div className="flex -space-x-3 mb-6">
             <img src="https://ui-avatars.com/api/?name=A&background=random" alt="Avatar 1" className="w-12 h-12 rounded-full border-2 border-[#0B100E] bg-[#1A1A1A] object-cover" />
