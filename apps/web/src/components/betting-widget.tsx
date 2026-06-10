@@ -4,26 +4,7 @@ import { cn } from "@/lib/utils";
 
 export default function BettingWidget() {
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
-	const [theme, setTheme] = useState("sportsdeyLite");
-
-	useEffect(() => {
-		// Detect initial theme
-		const isDarkMode = document.documentElement.classList.contains("dark");
-		setTheme(isDarkMode ? "sportsdeyDark" : "sportsdeyLite");
-
-		// Watch for theme changes
-		const observer = new MutationObserver(() => {
-			const isDark = document.documentElement.classList.contains("dark");
-			setTheme(isDark ? "sportsdeyDark" : "sportsdeyLite");
-		});
-
-		observer.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["class"],
-		});
-
-		return () => observer.disconnect();
-	}, []);
+	const theme = "sportsdeyDark";
 
 	useEffect(() => {
 		const timer = setTimeout(() => setIsIframeLoading(false), 5000);

@@ -8,6 +8,13 @@ import XFooter from "@/logos/XFooter";
 import InstagramFooter from "@/logos/InstagramFooter";
 import TelegramFooter from "@/logos/TelegramFooter";
 import DiscordFooter from "@/logos/DiscordFooter";
+import OPayLogo from "@/logos/opay.png";
+import PalmPayLogo from "@/logos/palmpay.png";
+import PaystackLogo from "@/logos/paystack.png";
+import MonnifyLogo from "@/logos/monnify.png";
+import MastercardLogo from "@/logos/mastercard.png";
+import KudaLogo from "@/logos/kuda.png";
+import FlutterwaveLogo from "@/logos/flutterwave.png";
 
 const footerSocials = [
 	{ icon: FacebookFooterIcon, label: "Facebook", link: "https://facebook.com/sportsdey247" },
@@ -55,6 +62,14 @@ export default function DesktopFooter() {
 					<ul className="space-y-4 text-sm">
 						<li>
 							<Link
+								to="/index/matches"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								Scores
+							</Link>
+						</li>
+						<li>
+							<Link
 								to="/"
 								search={{ sports: currentSport, league: undefined }}
 								className="text-[#A0A0A0] transition-colors hover:text-white"
@@ -71,15 +86,7 @@ export default function DesktopFooter() {
 								News
 							</Link>
 						</li>
-						<li>
-							<Link
-								to="/betting"
-								search={{ type: undefined }}
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								Tips
-							</Link>
-						</li>
+
 						<li>
 							<Link
 								to="/news"
@@ -89,26 +96,66 @@ export default function DesktopFooter() {
 								Videos
 							</Link>
 						</li>
+
 					</ul>
 				</div>
 
 				<div>
-					<h3 className="mb-6 font-bold text-base text-white">Our Engagements</h3>
+					<h3 className="mb-6 font-bold text-base text-white">Our Ecosystem</h3>
 					<ul className="space-y-4 text-sm">
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Prediction Market</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">FAQs</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Esports Tournament</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Jackpots</span></li>
+						<li>
+							<Link
+								to="/betting"
+								search={{ type: "jackpots" } as any}
+								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer"
+							>
+								Prediction Market
+							</Link>
+						</li>
+						<li>
+							<a
+								href="https://binary.sportsdey.com/sportsdayApi/connectSportsDay"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
+							>
+								Binary Trading
+							</a>
+						</li>
+						<li>
+							<Link
+								to="/faqs"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								FAQs
+							</Link>
+						</li>
 					</ul>
 				</div>
 
 				<div>
 					<h3 className="mb-6 font-bold text-base text-white">About SportsDey</h3>
 					<ul className="space-y-4 text-sm mb-8">
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">About Us</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Contact Us</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Terms and Conditions</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Privacy Policy</span></li>
+						<li>
+							<Link to="/about" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								About Us
+							</Link>
+						</li>
+						<li>
+							<a href="https://wa.me/2340000000000" target="_blank" rel="noopener noreferrer" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								Contact Us
+							</a>
+						</li>
+						<li>
+							<Link to="/terms" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								Terms and Conditions
+							</Link>
+						</li>
+						<li>
+							<Link to="/privacy-policy" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								Privacy Policy
+							</Link>
+						</li>
 					</ul>
 				</div>
 
@@ -166,15 +213,21 @@ export default function DesktopFooter() {
 
 				<div className="mb-8 space-y-6 text-center text-[10px] text-[#A0A0A0] sm:text-xs">
 					<p className="mx-auto max-w-4xl leading-relaxed">
-						This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First Floor, Lagos City Mall, Onikan, Lagos state. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
+						This Website and the "Sportsdey" trademark are owned and operated by Halla Gaming Limited, a company established in Nigeria with RC1396896, having its registered address at First floor, @#100 IBB Way, Municipal Calabar. Halla Gaming Limited is licensed and regulated by the National Lottery Regulatory Commission under license 00000010, issued on the 15th of August 2023.
 					</p>
 				</div>
-
-				{/* Payment Providers Placeholder */}
-				<div className="flex flex-wrap items-center justify-center gap-3">
-					{["OPay", "PalmPay", "Kele", "fincra", "paystack", "paga", "Veedez", "BillerOne"].map((provider) => (
-						<div key={provider} className="flex h-8 items-center justify-center rounded bg-white px-3 text-xs font-bold text-black">
-							{provider}
+				<div className="flex flex-wrap items-center justify-center gap-2">
+					{[
+						{ name: "OPay", logo: OPayLogo },
+						{ name: "PalmPay", logo: PalmPayLogo },
+						{ name: "Paystack", logo: PaystackLogo },
+						{ name: "Monnify", logo: MonnifyLogo },
+						{ name: "Mastercard", logo: MastercardLogo },
+						{ name: "Kuda", logo: KudaLogo },
+						{ name: "Flutterwave", logo: FlutterwaveLogo },
+					].map((provider) => (
+						<div key={provider.name} className="flex w-[116.98px] h-[58px] items-center justify-center rounded">
+							<img src={provider.logo} alt={provider.name} className="h-full w-auto object-contain" />
 						</div>
 					))}
 				</div>
