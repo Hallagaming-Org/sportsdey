@@ -32,11 +32,11 @@ export function KycHeader({ compact = false }: { compact?: boolean }) {
 					Verification of the profile!
 				</p>
 			</div>
-			<div className="hidden h-14 w-24 items-center justify-center rounded-xl bg-[#F0F0F0] sm:flex dark:bg-[#2A2A2A]">
+			<div className="hidden h-[56px] w-[97px] items-center justify-center rounded-xl bg-[#F0F0F0] sm:flex dark:bg-[#2A2A2A]">
 				{compact ? (
 					<KycSecurityIllustration className="scale-[0.45]" />
 				) : (
-					<UserRound className="h-9 w-9 fill-primary text-primary dark:fill-white dark:text-white" />
+					<UserRound className="h-[34px] w-[34px] fill-primary text-primary dark:fill-[#6C7073] dark:text-[#6C7073]" />
 				)}
 			</div>
 		</div>
