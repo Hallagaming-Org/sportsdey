@@ -8,7 +8,6 @@ import {
 import {
 	KycCheckIcon,
 	KycHeader,
-	KycInfoCard,
 	KycSecurityIllustration,
 	KycShell,
 } from "@/components/kyc";
@@ -47,40 +46,40 @@ function StatusCard({
 
 	const config = isApproved
 		? {
-				title: "Identity Verified",
-				description: "Your identity has been successfully verified.",
-				iconBg: "bg-[#14804A]",
-				pingBg: "bg-[#CCF3DD]",
-				textColor: "text-[#14804A]",
-				icon: "✓",
-				animation: "ping",
-		  }
+			title: "Identity Verified",
+			description: "Your identity has been successfully verified.",
+			iconBg: "bg-[#14804A]",
+			pingBg: "bg-[#CCF3DD]",
+			textColor: "text-[#14804A]",
+			icon: "✓",
+			animation: "ping",
+		}
 		: isPending
 			? {
-					title: "Under Review",
-					description: "Your documents are being reviewed. This usually takes 1-2 business days.",
-					iconBg: "bg-[#B26A00]",
-					pingBg: "bg-[#F2CF93]",
-					textColor: "text-[#B26A00]",
-					icon: "",
-					animation: "spinner",
-			  }
+				title: "Under Review",
+				description: "Your documents are being reviewed. This usually takes 1-2 business days.",
+				iconBg: "bg-[#B26A00]",
+				pingBg: "bg-[#F2CF93]",
+				textColor: "text-[#B26A00]",
+				icon: "",
+				animation: "spinner",
+			}
 			: {
-					title: "Verification Failed",
-					description: rejectionReason || "We couldn't verify your documents. Please try again.",
-					iconBg: "bg-[#D13030]",
-					pingBg: "bg-[#FADBD8]",
-					textColor: "text-[#D13030]",
-					icon: "×",
-					animation: "pulse",
-			  };
+				title: "Verification Failed",
+				description: rejectionReason || "We couldn't verify your documents. Please try again.",
+				iconBg: "bg-[#D13030]",
+				pingBg: "bg-[#FADBD8]",
+				textColor: "text-[#D13030]",
+				icon: "×",
+				animation: "pulse",
+			};
 
 	const date = submittedAt
 		? new Date(submittedAt).toLocaleDateString("en-US", {
-				month: "short",
-				day: "numeric",
-				year: "numeric",
-		  })
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		})
 		: null;
 
 	return (
@@ -172,7 +171,7 @@ function KycLanding() {
 					<ChevronRight className="h-5 w-5" />
 				</Link>
 			</div>
-			<KycInfoCard />
+
 		</>
 	);
 }
@@ -228,7 +227,7 @@ function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 					</div>
 				)}
 			</div>
-			<KycInfoCard />
+
 		</>
 	);
 }
