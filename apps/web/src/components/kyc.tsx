@@ -86,7 +86,7 @@ export function KycInputField({
 				value={value}
 				onChange={(e) => onChange?.(e.target.value)}
 				placeholder={placeholder}
-				className="w-full rounded-lg border border-[#E5E7EB] bg-[#F7F7F7] px-4 py-4 text-sm text-primary shadow-sm placeholder:text-[#6B7280] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-700 dark:bg-[#2A2A2A] dark:text-white dark:placeholder:text-white/50 dark:focus:border-primary"
+				className="w-full rounded-lg bg-[#F7F7F7] px-4 py-4 text-sm text-primary shadow-sm placeholder:text-[#6B7280] outline-none dark:bg-[#2A2A2A] dark:text-white dark:placeholder:text-white/50"
 			/>
 		</div>
 	);
