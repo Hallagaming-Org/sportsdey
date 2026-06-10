@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { Gamepad2, Gift, Home, Newspaper, Repeat, Trophy } from "lucide-react";
-// import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { SPORTS } from "@/lib/constants";
@@ -35,6 +35,17 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const currentSport = useCurrentSport();
 	const params = new URLSearchParams(searchStr);
 	// const [email, setEmail] = useState("");
+
+	const [activeOverride, setActiveOverride] = useState<string | null>(null);
+
+	useEffect(() => {
+		setActiveOverride(null);
+	}, [location.pathname, location.search]);
+
+	const isItemActive = (id: string, defaultActive: boolean) => {
+		if (activeOverride) return activeOverride === id;
+		return defaultActive;
+	};
 
 	const goToHome = () => {
 		setTab("scores");
@@ -135,67 +146,73 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "home",
 			label: "Home",
 			icon: Home,
-			isActive: isHomeActive,
+			isActive: isItemActive("home", isHomeActive),
 			onClick: goToHome,
 		},
 		{
 			id: "p2p",
 			label: "P2P",
 			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color="#8C8F8F" />,
-			isActive: false,
-			onClick: () => window.open("https://www.thndr.io/games", "_blank"),
+			isActive: isItemActive("p2p", false),
+			onClick: () => {
+				setActiveOverride("p2p");
+				window.open("https://www.thndr.io/games", "_blank");
+			},
 		},
 		{
 			id: isMobile ? "scores" : "betting",
 			label: isMobile ? "Scores" : "Sportsbook",
 			icon: isMobile ? Soccer : SportsIcon,
-			isActive: isMobile
+			isActive: isItemActive(isMobile ? "scores" : "betting", isMobile
 				? location.pathname.includes("/matches")
-				: location.pathname.startsWith("/sportsbook"),
+				: location.pathname.startsWith("/sportsbook")),
 			onClick: isMobile ? goToScores : goToSportsbook,
 		},
 		{
 			id: "casino",
 			label: "Casino",
 			icon: Gamepad2,
-			isActive:
+			isActive: isItemActive("casino",
 				location.pathname.startsWith("/games") ||
-				location.pathname.startsWith("/game/"),
+				location.pathname.startsWith("/game/")),
 			onClick: goToCasino,
 		},
 		{
 			id: "news",
 			label: "News",
 			icon: Newspaper,
-			isActive:
-				location.pathname.startsWith("/news") && params.get("tab") !== "videos",
+			isActive: isItemActive("news",
+				location.pathname.startsWith("/news") && params.get("tab") !== "videos"),
 			onClick: goToNews,
 		},
 		{
 			id: "predictions",
 			label: "Predictions Market",
 			icon: PredictionMarket,
-			isActive: location.pathname.startsWith("/betting"),
-			onClick: goToPredictions,
+			isActive: false,
+			disabled: true,
+			onClick: () => showComingSoon("Predictions Market"),
 		},
 		{
 			id: "videos",
 			label: "Videos",
 			icon: Video,
-			isActive:
-				location.pathname.startsWith("/news") && params.get("tab") === "videos",
+			isActive: isItemActive("videos",
+				location.pathname.startsWith("/news") && params.get("tab") === "videos"),
 			onClick: goToVideos,
 		},
 		{
 			id: "trading",
 			label: "Trading",
 			icon: Trading,
-			isActive: false,
-			onClick: () =>
+			isActive: isItemActive("trading", false),
+			onClick: () => {
+				setActiveOverride("trading");
 				window.open(
 					"https://binary.sportsdey.com/sportsdayApi/connectSportsDay",
 					"_blank",
-				),
+				);
+			},
 		},
 		{
 			id: "tournament",
