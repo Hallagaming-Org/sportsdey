@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Gift, Home, Newspaper, Trophy } from "lucide-react";
-import { useState } from "react";
+import { Gamepad2, Gift, Home, Newspaper, Repeat, Trophy } from "lucide-react";
+// import { useState } from "react";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { SPORTS } from "@/lib/constants";
@@ -34,7 +34,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const searchStr = location.search || "";
 	const currentSport = useCurrentSport();
 	const params = new URLSearchParams(searchStr);
-	const [email, setEmail] = useState("");
+	// const [email, setEmail] = useState("");
 
 	const goToHome = () => {
 		setTab("scores");
@@ -109,15 +109,15 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		toast.info(`${feature} is coming soon!`);
 	};
 
-	const handleSubscribe = (e: React.FormEvent) => {
-		e.preventDefault();
-		if (!email || !email.includes("@")) {
-			toast.error("Please enter a valid email address");
-			return;
-		}
-		toast.success("Thank you for subscribing to our newsletter!");
-		setEmail("");
-	};
+	// const handleSubscribe = (e: React.FormEvent) => {
+	// 	e.preventDefault();
+	// 	if (!email || !email.includes("@")) {
+	// 		toast.error("Please enter a valid email address");
+	// 		return;
+	// 	}
+	// 	toast.success("Thank you for subscribing to our newsletter!");
+	// 	setEmail("");
+	// };
 
 	const isHomeActive =
 		location.pathname === "/" ||
@@ -137,6 +137,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Home,
 			isActive: isHomeActive,
 			onClick: goToHome,
+		},
+		{
+			id: "p2p",
+			label: "P2P",
+			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color="#8C8F8F" />,
+			isActive: false,
+			onClick: () => window.open("https://www.thndr.io/games", "_blank"),
 		},
 		{
 			id: isMobile ? "scores" : "betting",
