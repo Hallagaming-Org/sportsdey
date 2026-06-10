@@ -169,7 +169,7 @@ const lightSportsbookPalette: SportsbookThemePalette = {
 
 const darkSportsbookPalette: SportsbookThemePalette = {
 	colorsPrimary1: "#000000",
-	colorsPrimary2: "#ffffff",
+	colorsPrimary2: "#1c1d1f",
 	colorsSecondary1: "#1f1f1f",
 	colorsSecondary2: "#2c2c2c",
 	colorsSecondary3: "#9999a1",
