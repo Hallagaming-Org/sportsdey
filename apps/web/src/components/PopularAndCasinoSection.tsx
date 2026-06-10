@@ -118,6 +118,9 @@ export default function PopularAndCasinoSection() {
 		return () => observer.disconnect();
 	}, []);
 
+	const isDarkRef = useRef(isDark);
+	isDarkRef.current = isDark;
+
 	useEffect(() => {
 		if (initRef.current) return;
 		initRef.current = true;
@@ -144,14 +147,14 @@ export default function PopularAndCasinoSection() {
 					},
 				);
 				if (cancelled) return;
-				await loadSportsbookWidgets(data.token, isDark, () => {
+				await loadSportsbookWidgets(data.token, isDarkRef.current, () => {
 					if (!cancelled) setWidgetReady(true);
 				});
 			} catch (err) {
 				if (cancelled) return;
 				console.error("[PopularAndCasinoSection] Widget init error:", err);
 				const message =
-					err instanceof ApiError
+					err instanceof Error
 						? err.message
 						: "Failed to load popular matches.";
 				setWidgetError(message);
@@ -165,7 +168,7 @@ export default function PopularAndCasinoSection() {
 			cancelled = true;
 			window.clearTimeout(fallbackTimer);
 		};
-	}, [isDark]);
+	}, []);
 
 	const widgetStyle = buildWidgetStyle(isDark);
 
@@ -222,7 +225,7 @@ export default function PopularAndCasinoSection() {
 }
 
 function buildWidgetStyle(isDark: boolean): React.CSSProperties {
-	const palette = getSportsbookTheme(isDark, 0).palette;
+	const palette = getSportsbookTheme(true, 0).palette;
 	return {
 		"--bet-font-sans": '"Inter", "Geist", ui-sans-serif, system-ui, sans-serif',
 		"--bet-base-font-size": "14px",
@@ -256,6 +259,56 @@ function PopularMatchesPanel({
 	widgetError,
 	widgetStyle,
 }: PopularMatchesPanelProps) {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [widgetContentReady, setWidgetContentReady] = useState(false);
+
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+
+		const widget = container.querySelector("top-events-outside-widget");
+		if (!widget) return;
+
+		const hasContent = () =>
+			widget.children.length > 0 ||
+			(widget.shadowRoot !== null && widget.shadowRoot.children.length > 0);
+
+		if (hasContent()) {
+			setWidgetContentReady(true);
+			return;
+		}
+
+		const observer = new MutationObserver(() => {
+			if (hasContent()) {
+				setWidgetContentReady(true);
+				observer.disconnect();
+				clearInterval(pollTimer);
+			}
+		});
+
+		const setupObserver = () => {
+			observer.observe(widget, { childList: true, subtree: true });
+			if (widget.shadowRoot) {
+				observer.observe(widget.shadowRoot, { childList: true, subtree: true });
+			}
+		};
+
+		setupObserver();
+
+		const pollTimer = setInterval(() => {
+			if (hasContent()) {
+				setWidgetContentReady(true);
+				observer.disconnect();
+				clearInterval(pollTimer);
+			}
+		}, 200);
+
+		return () => {
+			observer.disconnect();
+			clearInterval(pollTimer);
+		};
+	}, []);
+
 	if (widgetError) {
 		return (
 			<div className="flex h-48 items-center justify-center text-center text-gray-500 text-sm dark:text-gray-400">
@@ -264,10 +317,12 @@ function PopularMatchesPanel({
 		);
 	}
 
+	const showSkeleton = !widgetReady && !widgetContentReady;
+
 	return (
-		<div className="relative min-h-[200px]">
+		<div ref={containerRef} className="relative min-h-[200px]">
 			<div id={SPORTSBOOK_CONTAINER_ID} className="hidden" />
-			{!widgetReady && (
+			{showSkeleton && (
 				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 dark:bg-card/80 sm:p-2">
 					{Array.from({ length: 3 }).map((_, i) => (
 						<Skeleton key={i} className="h-20 w-full rounded-xl" />
