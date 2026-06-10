@@ -93,7 +93,7 @@ function KycStatusDisplay({
 		: null;
 
 	return (
-		<div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-[#202120]">
+		<div className="mx-auto max-w-md rounded-2xl border border-transparent bg-white p-8 text-center shadow-sm dark:border-[#1B2722] dark:bg-[#000606]">
 			<div className="mb-6 flex justify-center">
 				{isApproved && (
 					<div className="relative flex h-24 w-24 items-center justify-center">
@@ -171,7 +171,7 @@ function KycForm({
 	handleSubmit: () => void;
 }) {
 	return (
-		<div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120] sm:p-8">
+		<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 			<div className="mb-6 flex items-center gap-3">
 				<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
 					<FileCheck className="h-5 w-5 text-primary dark:text-white" />
