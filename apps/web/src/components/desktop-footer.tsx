@@ -136,10 +136,26 @@ export default function DesktopFooter() {
 				<div>
 					<h3 className="mb-6 font-bold text-base text-white">About SportsDey</h3>
 					<ul className="space-y-4 text-sm mb-8">
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">About Us</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Contact Us</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Terms and Conditions</span></li>
-						<li><span className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer">Privacy Policy</span></li>
+						<li>
+							<Link to="/about" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								About Us
+							</Link>
+						</li>
+						<li>
+							<a href="https://wa.me/2340000000000" target="_blank" rel="noopener noreferrer" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								Contact Us
+							</a>
+						</li>
+						<li>
+							<Link to="/terms" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								Terms and Conditions
+							</Link>
+						</li>
+						<li>
+							<Link to="/privacy-policy" className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block">
+								Privacy Policy
+							</Link>
+						</li>
 					</ul>
 				</div>
 
