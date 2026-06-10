@@ -97,7 +97,7 @@ const TABS: TabConfig[] = [
 
 export default function PopularAndCasinoSection() {
 	const [activeTab, setActiveTab] = useState<TabId>("popular");
-	const [isDark, setIsDark] = useState(false);
+	const [isDark, setIsDark] = useState(true);
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
 	const initRef = useRef(false);
