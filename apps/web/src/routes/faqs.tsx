@@ -52,7 +52,7 @@ function FAQs() {
                 key={value}
                 value={value}
                 className={cn(
-                  "rounded-lg border px-5 py-2 transition-colors",
+                  "rounded-lg border px-5 py-2 transition-colors cursor-pointer",
                   isActive
                     ? "border-[#00FF00] bg-[#000606]"
                     : "border-[#1A1A1A] bg-transparent"
