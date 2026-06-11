@@ -90,7 +90,8 @@ export const createAuth = (env: CloudflareBindings) => {
 		trustedOrigins,
 		advanced: {
 			crossSubDomainCookies: {
-				enabled: env.NODE_ENV === "production" || env.NODE_ENV === "staging",
+				enabled: true,
+				domain: "https://binary.sportsdey.com",
 			},
 			cookiePrefix: "ba",
 			cookieOptions: {
