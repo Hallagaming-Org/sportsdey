@@ -106,6 +106,8 @@ function RootDocument() {
 		"/news/",
 		"/news/$slug",
 		"/news/$slug/og",
+		"/videos",
+		"/videos/",
 		"/betting",
 		"/sportsbook",
 		"/sportsbook/$",
@@ -228,25 +230,6 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 						</QueryClientProvider>
 					</body>
 				</html>
-				<script
-					id="tawk-script"
-					key="tawk-script"
-					dangerouslySetInnerHTML={{
-						__html: `
-window.addEventListener('load', function() {
-var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
-(function(){
-var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
-s1.async=true;
-s1.src='https://embed.tawk.to/69a13f9e865cc31c343af2ac/1jieu113b';
-s1.charset='UTF-8';
-s1.setAttribute('crossorigin','*');
-s0.parentNode.insertBefore(s1,s0);
-})();
-});
-`,
-					}}
-				/>
 			</ThemeProvider>
 		</Provider>
 	);
