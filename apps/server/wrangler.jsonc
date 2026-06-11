@@ -2,9 +2,7 @@
 	"name": "sportsdey-server",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-06-15",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
+	"compatibility_flags": ["nodejs_compat"],
 	"mtls_certificates": [
 		{
 			"binding": "DATABET_CERT",
@@ -64,9 +62,7 @@
 					"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
 				}
 			],
-			"routes": [
-				"staging-api.sportsdey.com"
-			],
+			"routes": ["staging-api.sportsdey.com"],
 			"vars": {
 				"NODE_ENV": "staging"
 				// "CORS_ORIGIN": "https://staging.sportsdey.com",
@@ -75,9 +71,7 @@
 		},
 		"production": {
 			"name": "sportsdey-prod",
-			"routes": [
-				"api.sportsdey.com"
-			],
+			"routes": ["api.sportsdey.com"],
 			"d1_databases": [
 				{
 					"binding": "DB",
