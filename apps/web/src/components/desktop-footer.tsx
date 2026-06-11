@@ -142,6 +142,14 @@ export default function DesktopFooter() {
 								Binary Trading
 							</a>
 						</li>
+						<li>
+							<Link
+								to="/faqs"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								Esports Tournaments
+							</Link>
+						</li>
 
 					</ul>
 				</div>
