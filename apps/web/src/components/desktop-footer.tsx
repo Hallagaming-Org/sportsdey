@@ -109,6 +109,14 @@ export default function DesktopFooter() {
 								Videos
 							</Link>
 						</li>
+						<li>
+							<Link
+								to="/faqs"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								FAQs
+							</Link>
+						</li>
 					</ul>
 				</div>
 
@@ -134,14 +142,7 @@ export default function DesktopFooter() {
 								Binary Trading
 							</a>
 						</li>
-						<li>
-							<Link
-								to="/faqs"
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								FAQs
-							</Link>
-						</li>
+
 					</ul>
 				</div>
 
@@ -207,7 +208,7 @@ export default function DesktopFooter() {
 						onClick={() =>
 							window.open("https://play.google.com/store/apps", "_blank")
 						}
-						// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
+					// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
 					>
 						<GooglePlay size={20} color="white" variant="Bold" />
 						<div className="flex flex-col items-start">
