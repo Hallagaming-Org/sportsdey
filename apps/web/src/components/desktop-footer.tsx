@@ -93,7 +93,7 @@ export default function DesktopFooter() {
 						<li>
 							<Link
 								to="/news"
-								search={{ sports: currentSport, tab: "news" }}
+								search={{ sports: currentSport }}
 								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								News
@@ -107,6 +107,14 @@ export default function DesktopFooter() {
 								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Videos
+							</Link>
+						</li>
+						<li>
+							<Link
+								to="/faqs"
+								className="text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								FAQs
 							</Link>
 						</li>
 					</ul>
@@ -133,14 +141,6 @@ export default function DesktopFooter() {
 							>
 								Binary Trading
 							</a>
-						</li>
-						<li>
-							<Link
-								to="/faqs"
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								FAQs
-							</Link>
 						</li>
 					</ul>
 				</div>
