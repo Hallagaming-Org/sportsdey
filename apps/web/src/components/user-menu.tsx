@@ -23,7 +23,7 @@ type UserMenuItem = {
 
 const userMenuItems: UserMenuItem[] = [
 	{ label: "My profile", icon: UserRound, path: "/account" },
-	{ label: "Notifications", icon: Bell },
+	// { label: "Notifications", icon: Bell },
 	{ label: "Wallet", icon: Wallet, path: "/wallet" },
 	{ label: "KYC Documents", icon: FileText, path: "/kyc" },
 	// { label: "Bet history", icon: Clock3 },
