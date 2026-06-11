@@ -247,10 +247,10 @@ export default function DesktopFooter() {
 					<p className="mx-auto max-w-4xl leading-relaxed">
 						This Website and the "Sportsdey" trademark are owned and operated by
 						Halla Gaming Limited, a company established in Nigeria with
-						RC1396896, having its registered address at First floor, @#100 IBB
-						Way, Municipal Calabar. Halla Gaming Limited is licensed and
-						regulated by the National Lottery Regulatory Commission under
-						license 00000010, issued on the 15th of August 2023.
+						RC1396896, having its registered address at 100 IBB Way, Municipal
+						Calabar. Halla Gaming Limited is Licensed by the Cross River State
+						Lottery and Gaming agency under license number CRSLGA/11/2025/014
+						issued on 30th of November, 2025.
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center justify-center gap-2">
