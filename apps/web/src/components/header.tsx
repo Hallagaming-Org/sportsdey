@@ -396,7 +396,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 								{/* WhatsApp Contact Button */}
 								<a
-									href="https://wa.me/2340000000000" // Replace with actual number
+									href="https://wa.link/25tnk8"
 									target="_blank"
 									rel="noopener noreferrer"
 									className="mt-5 flex w-full bg-gray-200 items-center gap-4 rounded-lg p-3.5 transition-colors hover:bg-[#1E78FF]/10 dark:border-[#1E78FF]/30 dark:bg-[#1E78FF]/10 dark:hover:bg-[#1E78FF]/20"
