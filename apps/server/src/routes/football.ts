@@ -1,5 +1,4 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { z } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import {
 	ErrorResponseSchema,
 	successResponseSchema,
@@ -421,22 +420,26 @@ footballRoute.openapi(
 		method: "get",
 		path: "/{status}",
 		request: {
-			params: z.object({
-				status: z.string().openapi({
-					description: "Matches status either all, scheduled and live",
-					example: "all",
-				}),
-			}).openapi("ScheduleParams"),
-			query: z.object({
-				lang: z
-					.string()
-					.optional()
-					.openapi({ description: "Language code", example: "en" }),
-				date: z.string().openapi({
-					description: "Schedule date (DD-MM-YYYY)",
-					example: "15/09/2024",
-				}),
-			}).openapi("ScheduleQuery"),
+			params: z
+				.object({
+					status: z.string().openapi({
+						description: "Matches status either all, scheduled and live",
+						example: "all",
+					}),
+				})
+				.openapi("ScheduleParams"),
+			query: z
+				.object({
+					lang: z
+						.string()
+						.optional()
+						.openapi({ description: "Language code", example: "en" }),
+					date: z.string().openapi({
+						description: "Schedule date (DD-MM-YYYY)",
+						example: "15/09/2024",
+					}),
+				})
+				.openapi("ScheduleQuery"),
 		},
 		responses: {
 			200: {
@@ -648,18 +651,22 @@ footballRoute.openapi(
 		method: "get",
 		path: "/tournament/{tournamentId}",
 		request: {
-			params: z.object({
-				tournamentId: z.string().openapi({
-					description: "Tournament ID",
-					example: "2",
-				}),
-			}).openapi("TournamentParams"),
-			query: z.object({
-				date: z.string().openapi({
-					description: "Schedule date (DD-MM-YYYY)",
-					example: "15/09/2024",
-				}),
-			}).openapi("TournamentQuery"),
+			params: z
+				.object({
+					tournamentId: z.string().openapi({
+						description: "Tournament ID",
+						example: "2",
+					}),
+				})
+				.openapi("TournamentParams"),
+			query: z
+				.object({
+					date: z.string().openapi({
+						description: "Schedule date (DD-MM-YYYY)",
+						example: "15/09/2024",
+					}),
+				})
+				.openapi("TournamentQuery"),
 		},
 		responses: {
 			200: {
@@ -878,18 +885,22 @@ footballRoute.openapi(
 		method: "get",
 		path: "/match/{id}",
 		request: {
-			params: z.object({
-				id: z.string().openapi({
-					description: "Match ID",
-					example: "1953516",
-				}),
-			}).openapi("MatchParams"),
-			query: z.object({
-				lang: z
-					.string()
-					.optional()
-					.openapi({ description: "Language code", example: "en" }),
-			}).openapi("MatchQuery"),
+			params: z
+				.object({
+					id: z.string().openapi({
+						description: "Match ID",
+						example: "1953516",
+					}),
+				})
+				.openapi("MatchParams"),
+			query: z
+				.object({
+					lang: z
+						.string()
+						.optional()
+						.openapi({ description: "Language code", example: "en" }),
+				})
+				.openapi("MatchQuery"),
 		},
 		responses: {
 			200: {
@@ -1189,12 +1200,14 @@ footballRoute.openapi(
 		method: "get",
 		path: "/match/{id}/stats",
 		request: {
-			params: z.object({
-				id: z.string().openapi({
-					description: "Match ID",
-					example: "1985541",
-				}),
-			}).openapi("StatsParams"),
+			params: z
+				.object({
+					id: z.string().openapi({
+						description: "Match ID",
+						example: "1985541",
+					}),
+				})
+				.openapi("StatsParams"),
 		},
 		responses: {
 			200: {
@@ -1391,12 +1404,14 @@ footballRoute.openapi(
 		method: "get",
 		path: "/standings/{tournamentId}",
 		request: {
-			params: z.object({
-				tournamentId: z.string().openapi({
-					description: "Tournament ID",
-					example: "2",
-				}),
-			}).openapi("StandingsParams"),
+			params: z
+				.object({
+					tournamentId: z.string().openapi({
+						description: "Tournament ID",
+						example: "2",
+					}),
+				})
+				.openapi("StandingsParams"),
 		},
 		responses: {
 			200: {
