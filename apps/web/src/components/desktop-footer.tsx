@@ -143,12 +143,14 @@ export default function DesktopFooter() {
 							</a>
 						</li>
 						<li>
-							<Link
-								to="/faqs"
-								className="text-[#A0A0A0] transition-colors hover:text-white"
+							<a
+								href="https://Tournament.sportsdey.com"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-[#A0A0A0] transition-colors hover:text-white block"
 							>
 								Esports Tournaments
-							</Link>
+							</a>
 						</li>
 
 					</ul>
