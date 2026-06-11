@@ -5,10 +5,24 @@ export const Route = createFileRoute("/privacy-policy")({
 });
 
 function PrivacyPolicyPage() {
+
+
 	return (
-		<div className="container mx-auto p-8">
-			<h1 className="text-3xl font-bold mb-4">Privacy Policy</h1>
-			<p>Content coming soon...</p>
+		<div className="min-h-screen bg-[#000606] text-white px-4 flex flex-col items-center">
+			<div className="w-full max-w-3xl flex flex-col items-center">
+				<div className="w-full border pt-4 border-[#1A1A1A] rounded-2xl mb-2 text-[#A0A0A0]">
+					<h1 className="text-3xl sm:text-4xl font-bold mb-3 text-left px-6">Privacy Policy</h1>
+					<p className="text-[#A0A0A0] mb-8 text-left text-sm sm:text-base px-6">
+						How we collect, use, and protect your information.
+					</p>
+				</div>
+
+				<div className="w-full bg-[#0B100E] border border-[#1A1A1A] rounded-2xl p-8 mb-10 text-[#A0A0A0] leading-relaxed">
+					<p className="mb-4">
+						(This is a placeholder for your Privacy Policy content. You can replace this text with your actual policy documentation.)
+					</p>
+				</div>
+			</div>
 		</div>
 	);
 }

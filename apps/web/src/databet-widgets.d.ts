@@ -11,6 +11,7 @@ declare module "react" {
 				"with-sport-title"?: boolean;
 				style?: React.CSSProperties;
 				className?: string;
+				theme?: string;
 			};
 			"island-betslip-widget": React.DetailedHTMLProps<
 				React.HTMLAttributes<HTMLElement>,

@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import {
 	getSportsbookTheme,
@@ -97,7 +97,7 @@ const TABS: TabConfig[] = [
 
 export default function PopularAndCasinoSection() {
 	const [activeTab, setActiveTab] = useState<TabId>("popular");
-	const [isDark, setIsDark] = useState(false);
+	const [isDark, setIsDark] = useState(true);
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
 	const initRef = useRef(false);
@@ -170,8 +170,6 @@ export default function PopularAndCasinoSection() {
 		};
 	}, []);
 
-	const widgetStyle = buildWidgetStyle(isDark);
-
 	return (
 		<section className="space-y-4">
 			<div
@@ -214,7 +212,8 @@ export default function PopularAndCasinoSection() {
 					<PopularMatchesPanel
 						widgetReady={widgetReady}
 						widgetError={widgetError}
-						widgetStyle={widgetStyle}
+						widgetStyle={buildWidgetStyle(isDark)}
+						isDark={isDark}
 					/>
 				) : (
 					<HotCasinoPanel />
@@ -225,11 +224,11 @@ export default function PopularAndCasinoSection() {
 }
 
 function buildWidgetStyle(isDark: boolean): React.CSSProperties {
-	const palette = getSportsbookTheme(true, 0).palette;
+	const palette = getSportsbookTheme(isDark, 0).palette;
 	return {
 		"--bet-font-sans": '"Inter", "Geist", ui-sans-serif, system-ui, sans-serif',
 		"--bet-base-font-size": "14px",
-		"--bet-colors-primary-1": palette.colorsPrimary1,
+		"--bet-colors-primary-1": isDark ? "#ffffff" : palette.colorsPrimary1,
 		"--bet-colors-primary-2": palette.colorsPrimary2,
 		"--bet-colors-secondary-1": palette.colorsSecondary1,
 		"--bet-colors-secondary-2": palette.colorsSecondary2,
@@ -252,12 +251,14 @@ interface PopularMatchesPanelProps {
 	widgetReady: boolean;
 	widgetError: string | null;
 	widgetStyle: React.CSSProperties;
+	isDark: boolean;
 }
 
 function PopularMatchesPanel({
 	widgetReady,
 	widgetError,
 	widgetStyle,
+	isDark,
 }: PopularMatchesPanelProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [widgetContentReady, setWidgetContentReady] = useState(false);
@@ -334,6 +335,7 @@ function PopularMatchesPanel({
 				with-sport-title={false}
 				className="block w-full"
 				style={widgetStyle}
+				theme={isDark ? "dark" : "light"}
 			/>
 		</div>
 	);

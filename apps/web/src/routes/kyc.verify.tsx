@@ -1,17 +1,15 @@
 import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	Loader2,
 	Shield,
 	RefreshCw,
-	FileCheck,
 	ArrowRight,
 	AlertCircle,
 	ArrowLeft,
 } from "lucide-react";
 import {
 	KycHeader,
-	KycInfoCard,
 	KycInputField,
 	KycSelectField,
 	KycShell,
@@ -60,41 +58,41 @@ function KycStatusDisplay({
 
 	const config = isApproved
 		? {
-				title: "Identity Verified",
-				description: "Your identity has been successfully verified. You now have full access to all platform features.",
-				iconBg: "bg-[#14804A]",
-				pingBg: "bg-[#CCF3DD]",
-				textColor: "text-[#14804A]",
-				icon: "✓",
-		  }
+			title: "Identity Verified",
+			description: "Your identity has been successfully verified. You now have full access to all platform features.",
+			iconBg: "bg-[#14804A]",
+			pingBg: "bg-[#CCF3DD]",
+			textColor: "text-[#14804A]",
+			icon: "✓",
+		}
 		: isPending
 			? {
-					title: "Under Review",
-					description: "Your documents are being reviewed. This usually takes 1-2 business days.",
-					iconBg: "bg-[#B26A00]",
-					pingBg: "bg-[#F2CF93]",
-					textColor: "text-[#B26A00]",
-					icon: "",
-			  }
+				title: "Under Review",
+				description: "Your documents are being reviewed. This usually takes 1-2 business days.",
+				iconBg: "bg-[#B26A00]",
+				pingBg: "bg-[#F2CF93]",
+				textColor: "text-[#B26A00]",
+				icon: "",
+			}
 			: {
-					title: "Verification Failed",
-					description: rejectionReason || "We couldn't verify your documents. Please review the requirements and try again.",
-					iconBg: "bg-[#D13030]",
-					pingBg: "bg-[#FADBD8]",
-					textColor: "text-[#D13030]",
-					icon: "×",
-			  };
+				title: "Verification Failed",
+				description: rejectionReason || "We couldn't verify your documents. Please review the requirements and try again.",
+				iconBg: "bg-[#D13030]",
+				pingBg: "bg-[#FADBD8]",
+				textColor: "text-[#D13030]",
+				icon: "×",
+			};
 
 	const date = submittedAt
 		? new Date(submittedAt).toLocaleDateString("en-US", {
-				month: "long",
-				day: "numeric",
-				year: "numeric",
-		  })
+			month: "long",
+			day: "numeric",
+			year: "numeric",
+		})
 		: null;
 
 	return (
-		<div className="mx-auto max-w-md rounded-2xl bg-white p-8 text-center shadow-sm dark:bg-[#202120]">
+		<div className="mx-auto max-w-md rounded-2xl border border-transparent bg-white p-8 text-center shadow-sm dark:border-[#1B2722] dark:bg-[#000606]">
 			<div className="mb-6 flex justify-center">
 				{isApproved && (
 					<div className="relative flex h-24 w-24 items-center justify-center">
@@ -172,11 +170,8 @@ function KycForm({
 	handleSubmit: () => void;
 }) {
 	return (
-		<div className="rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120] sm:p-8">
+		<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
 			<div className="mb-6 flex items-center gap-3">
-				<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-					<FileCheck className="h-5 w-5 text-primary dark:text-white" />
-				</div>
 				<div>
 					<h2 className="text-xl font-semibold text-primary dark:text-white">
 						Verify Your Identity
@@ -206,7 +201,7 @@ function KycForm({
 				<KycSelectField
 					id="kyc-identification"
 					label="Identification Type"
-					placeholder="Select your ID type"
+					placeholder="Select a form of identification"
 					value={identificationType}
 					onChange={setIdentificationType}
 					options={IDENTIFICATION_OPTIONS}
@@ -233,9 +228,9 @@ function KycForm({
 
 			<button
 				type="button"
-				disabled={isSubmitting}
+				disabled={isSubmitting || !fullName || fullName.length < 2 || !identificationType || !frontDocument || !backDocument}
 				onClick={handleSubmit}
-				className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-4 font-medium text-white transition-all hover:bg-primary/90 disabled:opacity-50"
+				className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1BAA04] px-4 py-4 font-medium text-white transition-all hover:bg-primary/90 disabled:bg-[#232323] disabled:cursor-not-allowed"
 			>
 				{isSubmitting ? (
 					<>
@@ -269,6 +264,12 @@ function KycVerifyPage() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState("");
 	const [showForm, setShowForm] = useState(false);
+
+	useEffect(() => {
+		if (error) {
+			setError("");
+		}
+	}, [fullName, identificationType, frontDocument, backDocument]);
 
 	if (isSessionLoading) {
 		return (
@@ -307,8 +308,6 @@ function KycVerifyPage() {
 					<RefreshCw className="h-4 w-4" />
 					<span>Submit new documents</span>
 				</button>
-
-				<KycInfoCard />
 			</KycShell>
 		);
 	}
@@ -379,7 +378,6 @@ function KycVerifyPage() {
 				error={error}
 				handleSubmit={handleSubmit}
 			/>
-			<KycInfoCard />
 		</KycShell>
 	);
 }

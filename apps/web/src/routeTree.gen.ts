@@ -8,1031 +8,1053 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as WalletTransactionStatusRouteImport } from './routes/wallet-transaction-status'
-import { Route as WalletRouteImport } from './routes/wallet'
-import { Route as UfcRouteImport } from './routes/ufc'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as TennisRouteImport } from './routes/tennis'
-import { Route as SportsbookRouteImport } from './routes/sportsbook'
-import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
-import { Route as NewsRouteImport } from './routes/news'
-import { Route as KycRouteImport } from './routes/kyc'
-import { Route as GamesRouteImport } from './routes/games'
-import { Route as FavoritesRouteImport } from './routes/favorites'
-import { Route as FaqRouteImport } from './routes/faq'
-import { Route as BoxingRouteImport } from './routes/boxing'
-import { Route as BettingRouteImport } from './routes/betting'
-import { Route as BasketballRouteImport } from './routes/basketball'
-import { Route as AccountRouteImport } from './routes/account'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as UfcIndexRouteImport } from './routes/ufc.index'
-import { Route as TennisIndexRouteImport } from './routes/tennis.index'
-import { Route as NewsIndexRouteImport } from './routes/news.index'
-import { Route as KycIndexRouteImport } from './routes/kyc.index'
-import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
-import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
-import { Route as TennisMatchesRouteImport } from './routes/tennis.matches'
-import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
-import { Route as SportsbookSplatRouteImport } from './routes/sportsbook/$'
-import { Route as NewsSlugRouteImport } from './routes/news.$slug'
-import { Route as KycVerifyRouteImport } from './routes/kyc.verify'
-import { Route as IndexMatchesRouteImport } from './routes/index.matches'
-import { Route as IndexGameIdRouteImport } from './routes/index.$gameId'
-import { Route as GameGameIdRouteImport } from './routes/game.$gameId'
-import { Route as BasketballMatchesRouteImport } from './routes/basketball.matches'
-import { Route as BasketballIdRouteImport } from './routes/basketball/$Id'
-import { Route as AuthorsSlugRouteImport } from './routes/authors.$slug'
-import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
-import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
-import { Route as AuthPhoneSignInRouteImport } from './routes/auth/phone-sign-in'
-import { Route as AuthOtpRouteImport } from './routes/auth/otp'
-import { Route as AuthCompleteProfileRouteImport } from './routes/auth/complete-profile'
-import { Route as AuthLayoutRouteImport } from './routes/auth/_layout'
-import { Route as TennisTournamentTournamentIdRouteImport } from './routes/tennis.tournament.$tournamentId'
-import { Route as NewsSlugOgRouteImport } from './routes/news.$slug.og'
-import { Route as IndexTournamentTournamentIdRouteImport } from './routes/index.tournament.$tournamentId'
-import { Route as BasketballTournamentTournamentIdRouteImport } from './routes/basketball.tournament.$tournamentId'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as AboutRouteImport } from "./routes/about";
+import { Route as AccountRouteImport } from "./routes/account";
+import { Route as AuthLayoutRouteImport } from "./routes/auth/_layout";
+import { Route as AuthCompleteProfileRouteImport } from "./routes/auth/complete-profile";
+import { Route as AuthOtpRouteImport } from "./routes/auth/otp";
+import { Route as AuthPhoneSignInRouteImport } from "./routes/auth/phone-sign-in";
+import { Route as AuthSignInRouteImport } from "./routes/auth/sign-in";
+import { Route as AuthSignUpRouteImport } from "./routes/auth/sign-up";
+import { Route as AuthorsSlugRouteImport } from "./routes/authors.$slug";
+import { Route as BasketballRouteImport } from "./routes/basketball";
+import { Route as BasketballIdRouteImport } from "./routes/basketball/$Id";
+import { Route as BasketballIndexRouteImport } from "./routes/basketball.index";
+import { Route as BasketballMatchesRouteImport } from "./routes/basketball.matches";
+import { Route as BasketballTournamentTournamentIdRouteImport } from "./routes/basketball.tournament.$tournamentId";
+import { Route as BettingRouteImport } from "./routes/betting";
+import { Route as BoxingRouteImport } from "./routes/boxing";
+import { Route as BoxingIndexRouteImport } from "./routes/boxing.index";
+import { Route as FaqsRouteImport } from "./routes/faqs";
+import { Route as FavoritesRouteImport } from "./routes/favorites";
+import { Route as GameGameIdRouteImport } from "./routes/game.$gameId";
+import { Route as GamesRouteImport } from "./routes/games";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as IndexGameIdRouteImport } from "./routes/index.$gameId";
+import { Route as IndexMatchesRouteImport } from "./routes/index.matches";
+import { Route as IndexTournamentTournamentIdRouteImport } from "./routes/index.tournament.$tournamentId";
+import { Route as KycRouteImport } from "./routes/kyc";
+import { Route as KycIndexRouteImport } from "./routes/kyc.index";
+import { Route as KycVerifyRouteImport } from "./routes/kyc.verify";
+import { Route as NewsRouteImport } from "./routes/news";
+import { Route as NewsSlugRouteImport } from "./routes/news.$slug";
+import { Route as NewsSlugOgRouteImport } from "./routes/news.$slug.og";
+import { Route as NewsIndexRouteImport } from "./routes/news.index";
+import { Route as PrivacyPolicyRouteImport } from "./routes/privacy-policy";
+import { Route as SportsbookRouteImport } from "./routes/sportsbook";
+import { Route as SportsbookSplatRouteImport } from "./routes/sportsbook/$";
+import { Route as TennisRouteImport } from "./routes/tennis";
+import { Route as TennisIdRouteImport } from "./routes/tennis/$Id";
+import { Route as TennisIndexRouteImport } from "./routes/tennis.index";
+import { Route as TennisMatchesRouteImport } from "./routes/tennis.matches";
+import { Route as TennisTournamentTournamentIdRouteImport } from "./routes/tennis.tournament.$tournamentId";
+import { Route as TermsRouteImport } from "./routes/terms";
+import { Route as UfcRouteImport } from "./routes/ufc";
+import { Route as UfcIndexRouteImport } from "./routes/ufc.index";
+import { Route as WalletRouteImport } from "./routes/wallet";
+import { Route as WalletTransactionStatusRouteImport } from "./routes/wallet-transaction-status";
 
 const WalletTransactionStatusRoute = WalletTransactionStatusRouteImport.update({
-  id: '/wallet-transaction-status',
-  path: '/wallet-transaction-status',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/wallet-transaction-status",
+	path: "/wallet-transaction-status",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const WalletRoute = WalletRouteImport.update({
-  id: '/wallet',
-  path: '/wallet',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/wallet",
+	path: "/wallet",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const UfcRoute = UfcRouteImport.update({
-  id: '/ufc',
-  path: '/ufc',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/ufc",
+	path: "/ufc",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/terms",
+	path: "/terms",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const TennisRoute = TennisRouteImport.update({
-  id: '/tennis',
-  path: '/tennis',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/tennis",
+	path: "/tennis",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const SportsbookRoute = SportsbookRouteImport.update({
-  id: '/sportsbook',
-  path: '/sportsbook',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/sportsbook",
+	path: "/sportsbook",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
-  id: '/privacy-policy',
-  path: '/privacy-policy',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/privacy-policy",
+	path: "/privacy-policy",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const NewsRoute = NewsRouteImport.update({
-  id: '/news',
-  path: '/news',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/news",
+	path: "/news",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const KycRoute = KycRouteImport.update({
-  id: '/kyc',
-  path: '/kyc',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/kyc",
+	path: "/kyc",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const GamesRoute = GamesRouteImport.update({
-  id: '/games',
-  path: '/games',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/games",
+	path: "/games",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const FavoritesRoute = FavoritesRouteImport.update({
-  id: '/favorites',
-  path: '/favorites',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/favorites",
+	path: "/favorites",
+	getParentRoute: () => rootRouteImport,
+} as any);
+const FaqsRoute = FaqsRouteImport.update({
+	id: "/faqs",
+	path: "/faqs",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const BoxingRoute = BoxingRouteImport.update({
-  id: '/boxing',
-  path: '/boxing',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/boxing",
+	path: "/boxing",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const BettingRoute = BettingRouteImport.update({
-  id: '/betting',
-  path: '/betting',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/betting",
+	path: "/betting",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const BasketballRoute = BasketballRouteImport.update({
-  id: '/basketball',
-  path: '/basketball',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/basketball",
+	path: "/basketball",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AccountRoute = AccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/account",
+	path: "/account",
+	getParentRoute: () => rootRouteImport,
+} as any);
+const AboutRoute = AboutRouteImport.update({
+	id: "/about",
+	path: "/about",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const UfcIndexRoute = UfcIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => UfcRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => UfcRoute,
+} as any);
 const TennisIndexRoute = TennisIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => TennisRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => TennisRoute,
+} as any);
 const NewsIndexRoute = NewsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => NewsRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => NewsRoute,
+} as any);
 const KycIndexRoute = KycIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => KycRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => KycRoute,
+} as any);
 const BoxingIndexRoute = BoxingIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => BoxingRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => BoxingRoute,
+} as any);
 const BasketballIndexRoute = BasketballIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => BasketballRoute,
-} as any)
+	id: "/",
+	path: "/",
+	getParentRoute: () => BasketballRoute,
+} as any);
 const TennisMatchesRoute = TennisMatchesRouteImport.update({
-  id: '/matches',
-  path: '/matches',
-  getParentRoute: () => TennisRoute,
-} as any)
+	id: "/matches",
+	path: "/matches",
+	getParentRoute: () => TennisRoute,
+} as any);
 const TennisIdRoute = TennisIdRouteImport.update({
-  id: '/$Id',
-  path: '/$Id',
-  getParentRoute: () => TennisRoute,
-} as any)
+	id: "/$Id",
+	path: "/$Id",
+	getParentRoute: () => TennisRoute,
+} as any);
 const SportsbookSplatRoute = SportsbookSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => SportsbookRoute,
-} as any)
+	id: "/$",
+	path: "/$",
+	getParentRoute: () => SportsbookRoute,
+} as any);
 const NewsSlugRoute = NewsSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => NewsRoute,
-} as any)
+	id: "/$slug",
+	path: "/$slug",
+	getParentRoute: () => NewsRoute,
+} as any);
 const KycVerifyRoute = KycVerifyRouteImport.update({
-  id: '/verify',
-  path: '/verify',
-  getParentRoute: () => KycRoute,
-} as any)
+	id: "/verify",
+	path: "/verify",
+	getParentRoute: () => KycRoute,
+} as any);
 const IndexMatchesRoute = IndexMatchesRouteImport.update({
-  id: '/index/matches',
-  path: '/index/matches',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/index/matches",
+	path: "/index/matches",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const IndexGameIdRoute = IndexGameIdRouteImport.update({
-  id: '/index/$gameId',
-  path: '/index/$gameId',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/index/$gameId",
+	path: "/index/$gameId",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const GameGameIdRoute = GameGameIdRouteImport.update({
-  id: '/game/$gameId',
-  path: '/game/$gameId',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/game/$gameId",
+	path: "/game/$gameId",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const BasketballMatchesRoute = BasketballMatchesRouteImport.update({
-  id: '/matches',
-  path: '/matches',
-  getParentRoute: () => BasketballRoute,
-} as any)
+	id: "/matches",
+	path: "/matches",
+	getParentRoute: () => BasketballRoute,
+} as any);
 const BasketballIdRoute = BasketballIdRouteImport.update({
-  id: '/$Id',
-  path: '/$Id',
-  getParentRoute: () => BasketballRoute,
-} as any)
+	id: "/$Id",
+	path: "/$Id",
+	getParentRoute: () => BasketballRoute,
+} as any);
 const AuthorsSlugRoute = AuthorsSlugRouteImport.update({
-  id: '/authors/$slug',
-  path: '/authors/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/authors/$slug",
+	path: "/authors/$slug",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AuthSignUpRoute = AuthSignUpRouteImport.update({
-  id: '/auth/sign-up',
-  path: '/auth/sign-up',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/auth/sign-up",
+	path: "/auth/sign-up",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AuthSignInRoute = AuthSignInRouteImport.update({
-  id: '/auth/sign-in',
-  path: '/auth/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/auth/sign-in",
+	path: "/auth/sign-in",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AuthPhoneSignInRoute = AuthPhoneSignInRouteImport.update({
-  id: '/auth/phone-sign-in',
-  path: '/auth/phone-sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/auth/phone-sign-in",
+	path: "/auth/phone-sign-in",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AuthOtpRoute = AuthOtpRouteImport.update({
-  id: '/auth/otp',
-  path: '/auth/otp',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/auth/otp",
+	path: "/auth/otp",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
-  id: '/auth/complete-profile',
-  path: '/auth/complete-profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/auth/complete-profile",
+	path: "/auth/complete-profile",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const AuthLayoutRoute = AuthLayoutRouteImport.update({
-  id: '/auth/_layout',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
+	id: "/auth/_layout",
+	path: "/auth",
+	getParentRoute: () => rootRouteImport,
+} as any);
 const TennisTournamentTournamentIdRoute =
-  TennisTournamentTournamentIdRouteImport.update({
-    id: '/tournament/$tournamentId',
-    path: '/tournament/$tournamentId',
-    getParentRoute: () => TennisRoute,
-  } as any)
+	TennisTournamentTournamentIdRouteImport.update({
+		id: "/tournament/$tournamentId",
+		path: "/tournament/$tournamentId",
+		getParentRoute: () => TennisRoute,
+	} as any);
 const NewsSlugOgRoute = NewsSlugOgRouteImport.update({
-  id: '/og',
-  path: '/og',
-  getParentRoute: () => NewsSlugRoute,
-} as any)
+	id: "/og",
+	path: "/og",
+	getParentRoute: () => NewsSlugRoute,
+} as any);
 const IndexTournamentTournamentIdRoute =
-  IndexTournamentTournamentIdRouteImport.update({
-    id: '/index/tournament/$tournamentId',
-    path: '/index/tournament/$tournamentId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
+	IndexTournamentTournamentIdRouteImport.update({
+		id: "/index/tournament/$tournamentId",
+		path: "/index/tournament/$tournamentId",
+		getParentRoute: () => rootRouteImport,
+	} as any);
 const BasketballTournamentTournamentIdRoute =
-  BasketballTournamentTournamentIdRouteImport.update({
-    id: '/tournament/$tournamentId',
-    path: '/tournament/$tournamentId',
-    getParentRoute: () => BasketballRoute,
-  } as any)
+	BasketballTournamentTournamentIdRouteImport.update({
+		id: "/tournament/$tournamentId",
+		path: "/tournament/$tournamentId",
+		getParentRoute: () => BasketballRoute,
+	} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/account': typeof AccountRoute
-  '/basketball': typeof BasketballRouteWithChildren
-  '/betting': typeof BettingRoute
-  '/boxing': typeof BoxingRouteWithChildren
-  '/faq': typeof FaqRoute
-  '/favorites': typeof FavoritesRoute
-  '/games': typeof GamesRoute
-  '/kyc': typeof KycRouteWithChildren
-  '/news': typeof NewsRouteWithChildren
-  '/privacy-policy': typeof PrivacyPolicyRoute
-  '/sportsbook': typeof SportsbookRouteWithChildren
-  '/tennis': typeof TennisRouteWithChildren
-  '/terms': typeof TermsRoute
-  '/ufc': typeof UfcRouteWithChildren
-  '/wallet': typeof WalletRoute
-  '/wallet-transaction-status': typeof WalletTransactionStatusRoute
-  '/auth': typeof AuthLayoutRoute
-  '/auth/complete-profile': typeof AuthCompleteProfileRoute
-  '/auth/otp': typeof AuthOtpRoute
-  '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/auth/sign-up': typeof AuthSignUpRoute
-  '/authors/$slug': typeof AuthorsSlugRoute
-  '/basketball/$Id': typeof BasketballIdRoute
-  '/basketball/matches': typeof BasketballMatchesRoute
-  '/game/$gameId': typeof GameGameIdRoute
-  '/index/$gameId': typeof IndexGameIdRoute
-  '/index/matches': typeof IndexMatchesRoute
-  '/kyc/verify': typeof KycVerifyRoute
-  '/news/$slug': typeof NewsSlugRouteWithChildren
-  '/sportsbook/$': typeof SportsbookSplatRoute
-  '/tennis/$Id': typeof TennisIdRoute
-  '/tennis/matches': typeof TennisMatchesRoute
-  '/basketball/': typeof BasketballIndexRoute
-  '/boxing/': typeof BoxingIndexRoute
-  '/kyc/': typeof KycIndexRoute
-  '/news/': typeof NewsIndexRoute
-  '/tennis/': typeof TennisIndexRoute
-  '/ufc/': typeof UfcIndexRoute
-  '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
-  '/index/tournament/$tournamentId': typeof IndexTournamentTournamentIdRoute
-  '/news/$slug/og': typeof NewsSlugOgRoute
-  '/tennis/tournament/$tournamentId': typeof TennisTournamentTournamentIdRoute
+	"/": typeof IndexRoute;
+	"/about": typeof AboutRoute;
+	"/account": typeof AccountRoute;
+	"/basketball": typeof BasketballRouteWithChildren;
+	"/betting": typeof BettingRoute;
+	"/boxing": typeof BoxingRouteWithChildren;
+	"/faqs": typeof FaqsRoute;
+	"/favorites": typeof FavoritesRoute;
+	"/games": typeof GamesRoute;
+	"/kyc": typeof KycRouteWithChildren;
+	"/news": typeof NewsRouteWithChildren;
+	"/privacy-policy": typeof PrivacyPolicyRoute;
+	"/sportsbook": typeof SportsbookRouteWithChildren;
+	"/tennis": typeof TennisRouteWithChildren;
+	"/terms": typeof TermsRoute;
+	"/ufc": typeof UfcRouteWithChildren;
+	"/wallet": typeof WalletRoute;
+	"/wallet-transaction-status": typeof WalletTransactionStatusRoute;
+	"/auth": typeof AuthLayoutRoute;
+	"/auth/complete-profile": typeof AuthCompleteProfileRoute;
+	"/auth/otp": typeof AuthOtpRoute;
+	"/auth/phone-sign-in": typeof AuthPhoneSignInRoute;
+	"/auth/sign-in": typeof AuthSignInRoute;
+	"/auth/sign-up": typeof AuthSignUpRoute;
+	"/authors/$slug": typeof AuthorsSlugRoute;
+	"/basketball/$Id": typeof BasketballIdRoute;
+	"/basketball/matches": typeof BasketballMatchesRoute;
+	"/game/$gameId": typeof GameGameIdRoute;
+	"/index/$gameId": typeof IndexGameIdRoute;
+	"/index/matches": typeof IndexMatchesRoute;
+	"/kyc/verify": typeof KycVerifyRoute;
+	"/news/$slug": typeof NewsSlugRouteWithChildren;
+	"/sportsbook/$": typeof SportsbookSplatRoute;
+	"/tennis/$Id": typeof TennisIdRoute;
+	"/tennis/matches": typeof TennisMatchesRoute;
+	"/basketball/": typeof BasketballIndexRoute;
+	"/boxing/": typeof BoxingIndexRoute;
+	"/kyc/": typeof KycIndexRoute;
+	"/news/": typeof NewsIndexRoute;
+	"/tennis/": typeof TennisIndexRoute;
+	"/ufc/": typeof UfcIndexRoute;
+	"/basketball/tournament/$tournamentId": typeof BasketballTournamentTournamentIdRoute;
+	"/index/tournament/$tournamentId": typeof IndexTournamentTournamentIdRoute;
+	"/news/$slug/og": typeof NewsSlugOgRoute;
+	"/tennis/tournament/$tournamentId": typeof TennisTournamentTournamentIdRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/account': typeof AccountRoute
-  '/betting': typeof BettingRoute
-  '/faq': typeof FaqRoute
-  '/favorites': typeof FavoritesRoute
-  '/games': typeof GamesRoute
-  '/privacy-policy': typeof PrivacyPolicyRoute
-  '/sportsbook': typeof SportsbookRouteWithChildren
-  '/terms': typeof TermsRoute
-  '/wallet': typeof WalletRoute
-  '/wallet-transaction-status': typeof WalletTransactionStatusRoute
-  '/auth': typeof AuthLayoutRoute
-  '/auth/complete-profile': typeof AuthCompleteProfileRoute
-  '/auth/otp': typeof AuthOtpRoute
-  '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/auth/sign-up': typeof AuthSignUpRoute
-  '/authors/$slug': typeof AuthorsSlugRoute
-  '/basketball/$Id': typeof BasketballIdRoute
-  '/basketball/matches': typeof BasketballMatchesRoute
-  '/game/$gameId': typeof GameGameIdRoute
-  '/index/$gameId': typeof IndexGameIdRoute
-  '/index/matches': typeof IndexMatchesRoute
-  '/kyc/verify': typeof KycVerifyRoute
-  '/news/$slug': typeof NewsSlugRouteWithChildren
-  '/sportsbook/$': typeof SportsbookSplatRoute
-  '/tennis/$Id': typeof TennisIdRoute
-  '/tennis/matches': typeof TennisMatchesRoute
-  '/basketball': typeof BasketballIndexRoute
-  '/boxing': typeof BoxingIndexRoute
-  '/kyc': typeof KycIndexRoute
-  '/news': typeof NewsIndexRoute
-  '/tennis': typeof TennisIndexRoute
-  '/ufc': typeof UfcIndexRoute
-  '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
-  '/index/tournament/$tournamentId': typeof IndexTournamentTournamentIdRoute
-  '/news/$slug/og': typeof NewsSlugOgRoute
-  '/tennis/tournament/$tournamentId': typeof TennisTournamentTournamentIdRoute
+	"/": typeof IndexRoute;
+	"/about": typeof AboutRoute;
+	"/account": typeof AccountRoute;
+	"/betting": typeof BettingRoute;
+	"/faqs": typeof FaqsRoute;
+	"/favorites": typeof FavoritesRoute;
+	"/games": typeof GamesRoute;
+	"/privacy-policy": typeof PrivacyPolicyRoute;
+	"/sportsbook": typeof SportsbookRouteWithChildren;
+	"/terms": typeof TermsRoute;
+	"/wallet": typeof WalletRoute;
+	"/wallet-transaction-status": typeof WalletTransactionStatusRoute;
+	"/auth": typeof AuthLayoutRoute;
+	"/auth/complete-profile": typeof AuthCompleteProfileRoute;
+	"/auth/otp": typeof AuthOtpRoute;
+	"/auth/phone-sign-in": typeof AuthPhoneSignInRoute;
+	"/auth/sign-in": typeof AuthSignInRoute;
+	"/auth/sign-up": typeof AuthSignUpRoute;
+	"/authors/$slug": typeof AuthorsSlugRoute;
+	"/basketball/$Id": typeof BasketballIdRoute;
+	"/basketball/matches": typeof BasketballMatchesRoute;
+	"/game/$gameId": typeof GameGameIdRoute;
+	"/index/$gameId": typeof IndexGameIdRoute;
+	"/index/matches": typeof IndexMatchesRoute;
+	"/kyc/verify": typeof KycVerifyRoute;
+	"/news/$slug": typeof NewsSlugRouteWithChildren;
+	"/sportsbook/$": typeof SportsbookSplatRoute;
+	"/tennis/$Id": typeof TennisIdRoute;
+	"/tennis/matches": typeof TennisMatchesRoute;
+	"/basketball": typeof BasketballIndexRoute;
+	"/boxing": typeof BoxingIndexRoute;
+	"/kyc": typeof KycIndexRoute;
+	"/news": typeof NewsIndexRoute;
+	"/tennis": typeof TennisIndexRoute;
+	"/ufc": typeof UfcIndexRoute;
+	"/basketball/tournament/$tournamentId": typeof BasketballTournamentTournamentIdRoute;
+	"/index/tournament/$tournamentId": typeof IndexTournamentTournamentIdRoute;
+	"/news/$slug/og": typeof NewsSlugOgRoute;
+	"/tennis/tournament/$tournamentId": typeof TennisTournamentTournamentIdRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/account': typeof AccountRoute
-  '/basketball': typeof BasketballRouteWithChildren
-  '/betting': typeof BettingRoute
-  '/boxing': typeof BoxingRouteWithChildren
-  '/faq': typeof FaqRoute
-  '/favorites': typeof FavoritesRoute
-  '/games': typeof GamesRoute
-  '/kyc': typeof KycRouteWithChildren
-  '/news': typeof NewsRouteWithChildren
-  '/privacy-policy': typeof PrivacyPolicyRoute
-  '/sportsbook': typeof SportsbookRouteWithChildren
-  '/tennis': typeof TennisRouteWithChildren
-  '/terms': typeof TermsRoute
-  '/ufc': typeof UfcRouteWithChildren
-  '/wallet': typeof WalletRoute
-  '/wallet-transaction-status': typeof WalletTransactionStatusRoute
-  '/auth/_layout': typeof AuthLayoutRoute
-  '/auth/complete-profile': typeof AuthCompleteProfileRoute
-  '/auth/otp': typeof AuthOtpRoute
-  '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/auth/sign-up': typeof AuthSignUpRoute
-  '/authors/$slug': typeof AuthorsSlugRoute
-  '/basketball/$Id': typeof BasketballIdRoute
-  '/basketball/matches': typeof BasketballMatchesRoute
-  '/game/$gameId': typeof GameGameIdRoute
-  '/index/$gameId': typeof IndexGameIdRoute
-  '/index/matches': typeof IndexMatchesRoute
-  '/kyc/verify': typeof KycVerifyRoute
-  '/news/$slug': typeof NewsSlugRouteWithChildren
-  '/sportsbook/$': typeof SportsbookSplatRoute
-  '/tennis/$Id': typeof TennisIdRoute
-  '/tennis/matches': typeof TennisMatchesRoute
-  '/basketball/': typeof BasketballIndexRoute
-  '/boxing/': typeof BoxingIndexRoute
-  '/kyc/': typeof KycIndexRoute
-  '/news/': typeof NewsIndexRoute
-  '/tennis/': typeof TennisIndexRoute
-  '/ufc/': typeof UfcIndexRoute
-  '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
-  '/index/tournament/$tournamentId': typeof IndexTournamentTournamentIdRoute
-  '/news/$slug/og': typeof NewsSlugOgRoute
-  '/tennis/tournament/$tournamentId': typeof TennisTournamentTournamentIdRoute
+	__root__: typeof rootRouteImport;
+	"/": typeof IndexRoute;
+	"/about": typeof AboutRoute;
+	"/account": typeof AccountRoute;
+	"/basketball": typeof BasketballRouteWithChildren;
+	"/betting": typeof BettingRoute;
+	"/boxing": typeof BoxingRouteWithChildren;
+	"/faqs": typeof FaqsRoute;
+	"/favorites": typeof FavoritesRoute;
+	"/games": typeof GamesRoute;
+	"/kyc": typeof KycRouteWithChildren;
+	"/news": typeof NewsRouteWithChildren;
+	"/privacy-policy": typeof PrivacyPolicyRoute;
+	"/sportsbook": typeof SportsbookRouteWithChildren;
+	"/tennis": typeof TennisRouteWithChildren;
+	"/terms": typeof TermsRoute;
+	"/ufc": typeof UfcRouteWithChildren;
+	"/wallet": typeof WalletRoute;
+	"/wallet-transaction-status": typeof WalletTransactionStatusRoute;
+	"/auth/_layout": typeof AuthLayoutRoute;
+	"/auth/complete-profile": typeof AuthCompleteProfileRoute;
+	"/auth/otp": typeof AuthOtpRoute;
+	"/auth/phone-sign-in": typeof AuthPhoneSignInRoute;
+	"/auth/sign-in": typeof AuthSignInRoute;
+	"/auth/sign-up": typeof AuthSignUpRoute;
+	"/authors/$slug": typeof AuthorsSlugRoute;
+	"/basketball/$Id": typeof BasketballIdRoute;
+	"/basketball/matches": typeof BasketballMatchesRoute;
+	"/game/$gameId": typeof GameGameIdRoute;
+	"/index/$gameId": typeof IndexGameIdRoute;
+	"/index/matches": typeof IndexMatchesRoute;
+	"/kyc/verify": typeof KycVerifyRoute;
+	"/news/$slug": typeof NewsSlugRouteWithChildren;
+	"/sportsbook/$": typeof SportsbookSplatRoute;
+	"/tennis/$Id": typeof TennisIdRoute;
+	"/tennis/matches": typeof TennisMatchesRoute;
+	"/basketball/": typeof BasketballIndexRoute;
+	"/boxing/": typeof BoxingIndexRoute;
+	"/kyc/": typeof KycIndexRoute;
+	"/news/": typeof NewsIndexRoute;
+	"/tennis/": typeof TennisIndexRoute;
+	"/ufc/": typeof UfcIndexRoute;
+	"/basketball/tournament/$tournamentId": typeof BasketballTournamentTournamentIdRoute;
+	"/index/tournament/$tournamentId": typeof IndexTournamentTournamentIdRoute;
+	"/news/$slug/og": typeof NewsSlugOgRoute;
+	"/tennis/tournament/$tournamentId": typeof TennisTournamentTournamentIdRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/account'
-    | '/basketball'
-    | '/betting'
-    | '/boxing'
-    | '/faq'
-    | '/favorites'
-    | '/games'
-    | '/kyc'
-    | '/news'
-    | '/privacy-policy'
-    | '/sportsbook'
-    | '/tennis'
-    | '/terms'
-    | '/ufc'
-    | '/wallet'
-    | '/wallet-transaction-status'
-    | '/auth'
-    | '/auth/complete-profile'
-    | '/auth/otp'
-    | '/auth/phone-sign-in'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
-    | '/authors/$slug'
-    | '/basketball/$Id'
-    | '/basketball/matches'
-    | '/game/$gameId'
-    | '/index/$gameId'
-    | '/index/matches'
-    | '/kyc/verify'
-    | '/news/$slug'
-    | '/sportsbook/$'
-    | '/tennis/$Id'
-    | '/tennis/matches'
-    | '/basketball/'
-    | '/boxing/'
-    | '/kyc/'
-    | '/news/'
-    | '/tennis/'
-    | '/ufc/'
-    | '/basketball/tournament/$tournamentId'
-    | '/index/tournament/$tournamentId'
-    | '/news/$slug/og'
-    | '/tennis/tournament/$tournamentId'
-  fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/account'
-    | '/betting'
-    | '/faq'
-    | '/favorites'
-    | '/games'
-    | '/privacy-policy'
-    | '/sportsbook'
-    | '/terms'
-    | '/wallet'
-    | '/wallet-transaction-status'
-    | '/auth'
-    | '/auth/complete-profile'
-    | '/auth/otp'
-    | '/auth/phone-sign-in'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
-    | '/authors/$slug'
-    | '/basketball/$Id'
-    | '/basketball/matches'
-    | '/game/$gameId'
-    | '/index/$gameId'
-    | '/index/matches'
-    | '/kyc/verify'
-    | '/news/$slug'
-    | '/sportsbook/$'
-    | '/tennis/$Id'
-    | '/tennis/matches'
-    | '/basketball'
-    | '/boxing'
-    | '/kyc'
-    | '/news'
-    | '/tennis'
-    | '/ufc'
-    | '/basketball/tournament/$tournamentId'
-    | '/index/tournament/$tournamentId'
-    | '/news/$slug/og'
-    | '/tennis/tournament/$tournamentId'
-  id:
-    | '__root__'
-    | '/'
-    | '/account'
-    | '/basketball'
-    | '/betting'
-    | '/boxing'
-    | '/faq'
-    | '/favorites'
-    | '/games'
-    | '/kyc'
-    | '/news'
-    | '/privacy-policy'
-    | '/sportsbook'
-    | '/tennis'
-    | '/terms'
-    | '/ufc'
-    | '/wallet'
-    | '/wallet-transaction-status'
-    | '/auth/_layout'
-    | '/auth/complete-profile'
-    | '/auth/otp'
-    | '/auth/phone-sign-in'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
-    | '/authors/$slug'
-    | '/basketball/$Id'
-    | '/basketball/matches'
-    | '/game/$gameId'
-    | '/index/$gameId'
-    | '/index/matches'
-    | '/kyc/verify'
-    | '/news/$slug'
-    | '/sportsbook/$'
-    | '/tennis/$Id'
-    | '/tennis/matches'
-    | '/basketball/'
-    | '/boxing/'
-    | '/kyc/'
-    | '/news/'
-    | '/tennis/'
-    | '/ufc/'
-    | '/basketball/tournament/$tournamentId'
-    | '/index/tournament/$tournamentId'
-    | '/news/$slug/og'
-    | '/tennis/tournament/$tournamentId'
-  fileRoutesById: FileRoutesById
+	fileRoutesByFullPath: FileRoutesByFullPath;
+	fullPaths:
+		| "/"
+		| "/about"
+		| "/account"
+		| "/basketball"
+		| "/betting"
+		| "/boxing"
+		| "/faqs"
+		| "/favorites"
+		| "/games"
+		| "/kyc"
+		| "/news"
+		| "/privacy-policy"
+		| "/sportsbook"
+		| "/tennis"
+		| "/terms"
+		| "/ufc"
+		| "/wallet"
+		| "/wallet-transaction-status"
+		| "/auth"
+		| "/auth/complete-profile"
+		| "/auth/otp"
+		| "/auth/phone-sign-in"
+		| "/auth/sign-in"
+		| "/auth/sign-up"
+		| "/authors/$slug"
+		| "/basketball/$Id"
+		| "/basketball/matches"
+		| "/game/$gameId"
+		| "/index/$gameId"
+		| "/index/matches"
+		| "/kyc/verify"
+		| "/news/$slug"
+		| "/sportsbook/$"
+		| "/tennis/$Id"
+		| "/tennis/matches"
+		| "/basketball/"
+		| "/boxing/"
+		| "/kyc/"
+		| "/news/"
+		| "/tennis/"
+		| "/ufc/"
+		| "/basketball/tournament/$tournamentId"
+		| "/index/tournament/$tournamentId"
+		| "/news/$slug/og"
+		| "/tennis/tournament/$tournamentId";
+	fileRoutesByTo: FileRoutesByTo;
+	to:
+		| "/"
+		| "/about"
+		| "/account"
+		| "/betting"
+		| "/faqs"
+		| "/favorites"
+		| "/games"
+		| "/privacy-policy"
+		| "/sportsbook"
+		| "/terms"
+		| "/wallet"
+		| "/wallet-transaction-status"
+		| "/auth"
+		| "/auth/complete-profile"
+		| "/auth/otp"
+		| "/auth/phone-sign-in"
+		| "/auth/sign-in"
+		| "/auth/sign-up"
+		| "/authors/$slug"
+		| "/basketball/$Id"
+		| "/basketball/matches"
+		| "/game/$gameId"
+		| "/index/$gameId"
+		| "/index/matches"
+		| "/kyc/verify"
+		| "/news/$slug"
+		| "/sportsbook/$"
+		| "/tennis/$Id"
+		| "/tennis/matches"
+		| "/basketball"
+		| "/boxing"
+		| "/kyc"
+		| "/news"
+		| "/tennis"
+		| "/ufc"
+		| "/basketball/tournament/$tournamentId"
+		| "/index/tournament/$tournamentId"
+		| "/news/$slug/og"
+		| "/tennis/tournament/$tournamentId";
+	id:
+		| "__root__"
+		| "/"
+		| "/about"
+		| "/account"
+		| "/basketball"
+		| "/betting"
+		| "/boxing"
+		| "/faqs"
+		| "/favorites"
+		| "/games"
+		| "/kyc"
+		| "/news"
+		| "/privacy-policy"
+		| "/sportsbook"
+		| "/tennis"
+		| "/terms"
+		| "/ufc"
+		| "/wallet"
+		| "/wallet-transaction-status"
+		| "/auth/_layout"
+		| "/auth/complete-profile"
+		| "/auth/otp"
+		| "/auth/phone-sign-in"
+		| "/auth/sign-in"
+		| "/auth/sign-up"
+		| "/authors/$slug"
+		| "/basketball/$Id"
+		| "/basketball/matches"
+		| "/game/$gameId"
+		| "/index/$gameId"
+		| "/index/matches"
+		| "/kyc/verify"
+		| "/news/$slug"
+		| "/sportsbook/$"
+		| "/tennis/$Id"
+		| "/tennis/matches"
+		| "/basketball/"
+		| "/boxing/"
+		| "/kyc/"
+		| "/news/"
+		| "/tennis/"
+		| "/ufc/"
+		| "/basketball/tournament/$tournamentId"
+		| "/index/tournament/$tournamentId"
+		| "/news/$slug/og"
+		| "/tennis/tournament/$tournamentId";
+	fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AccountRoute: typeof AccountRoute
-  BasketballRoute: typeof BasketballRouteWithChildren
-  BettingRoute: typeof BettingRoute
-  BoxingRoute: typeof BoxingRouteWithChildren
-  FaqRoute: typeof FaqRoute
-  FavoritesRoute: typeof FavoritesRoute
-  GamesRoute: typeof GamesRoute
-  KycRoute: typeof KycRouteWithChildren
-  NewsRoute: typeof NewsRouteWithChildren
-  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
-  SportsbookRoute: typeof SportsbookRouteWithChildren
-  TennisRoute: typeof TennisRouteWithChildren
-  TermsRoute: typeof TermsRoute
-  UfcRoute: typeof UfcRouteWithChildren
-  WalletRoute: typeof WalletRoute
-  WalletTransactionStatusRoute: typeof WalletTransactionStatusRoute
-  AuthLayoutRoute: typeof AuthLayoutRoute
-  AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
-  AuthOtpRoute: typeof AuthOtpRoute
-  AuthPhoneSignInRoute: typeof AuthPhoneSignInRoute
-  AuthSignInRoute: typeof AuthSignInRoute
-  AuthSignUpRoute: typeof AuthSignUpRoute
-  AuthorsSlugRoute: typeof AuthorsSlugRoute
-  GameGameIdRoute: typeof GameGameIdRoute
-  IndexGameIdRoute: typeof IndexGameIdRoute
-  IndexMatchesRoute: typeof IndexMatchesRoute
-  IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute
+	IndexRoute: typeof IndexRoute;
+	AboutRoute: typeof AboutRoute;
+	AccountRoute: typeof AccountRoute;
+	BasketballRoute: typeof BasketballRouteWithChildren;
+	BettingRoute: typeof BettingRoute;
+	BoxingRoute: typeof BoxingRouteWithChildren;
+	FaqsRoute: typeof FaqsRoute;
+	FavoritesRoute: typeof FavoritesRoute;
+	GamesRoute: typeof GamesRoute;
+	KycRoute: typeof KycRouteWithChildren;
+	NewsRoute: typeof NewsRouteWithChildren;
+	PrivacyPolicyRoute: typeof PrivacyPolicyRoute;
+	SportsbookRoute: typeof SportsbookRouteWithChildren;
+	TennisRoute: typeof TennisRouteWithChildren;
+	TermsRoute: typeof TermsRoute;
+	UfcRoute: typeof UfcRouteWithChildren;
+	WalletRoute: typeof WalletRoute;
+	WalletTransactionStatusRoute: typeof WalletTransactionStatusRoute;
+	AuthLayoutRoute: typeof AuthLayoutRoute;
+	AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute;
+	AuthOtpRoute: typeof AuthOtpRoute;
+	AuthPhoneSignInRoute: typeof AuthPhoneSignInRoute;
+	AuthSignInRoute: typeof AuthSignInRoute;
+	AuthSignUpRoute: typeof AuthSignUpRoute;
+	AuthorsSlugRoute: typeof AuthorsSlugRoute;
+	GameGameIdRoute: typeof GameGameIdRoute;
+	IndexGameIdRoute: typeof IndexGameIdRoute;
+	IndexMatchesRoute: typeof IndexMatchesRoute;
+	IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute;
 }
 
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/wallet-transaction-status': {
-      id: '/wallet-transaction-status'
-      path: '/wallet-transaction-status'
-      fullPath: '/wallet-transaction-status'
-      preLoaderRoute: typeof WalletTransactionStatusRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/wallet': {
-      id: '/wallet'
-      path: '/wallet'
-      fullPath: '/wallet'
-      preLoaderRoute: typeof WalletRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ufc': {
-      id: '/ufc'
-      path: '/ufc'
-      fullPath: '/ufc'
-      preLoaderRoute: typeof UfcRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tennis': {
-      id: '/tennis'
-      path: '/tennis'
-      fullPath: '/tennis'
-      preLoaderRoute: typeof TennisRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sportsbook': {
-      id: '/sportsbook'
-      path: '/sportsbook'
-      fullPath: '/sportsbook'
-      preLoaderRoute: typeof SportsbookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy-policy': {
-      id: '/privacy-policy'
-      path: '/privacy-policy'
-      fullPath: '/privacy-policy'
-      preLoaderRoute: typeof PrivacyPolicyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/news': {
-      id: '/news'
-      path: '/news'
-      fullPath: '/news'
-      preLoaderRoute: typeof NewsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/kyc': {
-      id: '/kyc'
-      path: '/kyc'
-      fullPath: '/kyc'
-      preLoaderRoute: typeof KycRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/games': {
-      id: '/games'
-      path: '/games'
-      fullPath: '/games'
-      preLoaderRoute: typeof GamesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/favorites': {
-      id: '/favorites'
-      path: '/favorites'
-      fullPath: '/favorites'
-      preLoaderRoute: typeof FavoritesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/faq': {
-      id: '/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof FaqRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/boxing': {
-      id: '/boxing'
-      path: '/boxing'
-      fullPath: '/boxing'
-      preLoaderRoute: typeof BoxingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/betting': {
-      id: '/betting'
-      path: '/betting'
-      fullPath: '/betting'
-      preLoaderRoute: typeof BettingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/basketball': {
-      id: '/basketball'
-      path: '/basketball'
-      fullPath: '/basketball'
-      preLoaderRoute: typeof BasketballRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/account': {
-      id: '/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AccountRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ufc/': {
-      id: '/ufc/'
-      path: '/'
-      fullPath: '/ufc/'
-      preLoaderRoute: typeof UfcIndexRouteImport
-      parentRoute: typeof UfcRoute
-    }
-    '/tennis/': {
-      id: '/tennis/'
-      path: '/'
-      fullPath: '/tennis/'
-      preLoaderRoute: typeof TennisIndexRouteImport
-      parentRoute: typeof TennisRoute
-    }
-    '/news/': {
-      id: '/news/'
-      path: '/'
-      fullPath: '/news/'
-      preLoaderRoute: typeof NewsIndexRouteImport
-      parentRoute: typeof NewsRoute
-    }
-    '/kyc/': {
-      id: '/kyc/'
-      path: '/'
-      fullPath: '/kyc/'
-      preLoaderRoute: typeof KycIndexRouteImport
-      parentRoute: typeof KycRoute
-    }
-    '/boxing/': {
-      id: '/boxing/'
-      path: '/'
-      fullPath: '/boxing/'
-      preLoaderRoute: typeof BoxingIndexRouteImport
-      parentRoute: typeof BoxingRoute
-    }
-    '/basketball/': {
-      id: '/basketball/'
-      path: '/'
-      fullPath: '/basketball/'
-      preLoaderRoute: typeof BasketballIndexRouteImport
-      parentRoute: typeof BasketballRoute
-    }
-    '/tennis/matches': {
-      id: '/tennis/matches'
-      path: '/matches'
-      fullPath: '/tennis/matches'
-      preLoaderRoute: typeof TennisMatchesRouteImport
-      parentRoute: typeof TennisRoute
-    }
-    '/tennis/$Id': {
-      id: '/tennis/$Id'
-      path: '/$Id'
-      fullPath: '/tennis/$Id'
-      preLoaderRoute: typeof TennisIdRouteImport
-      parentRoute: typeof TennisRoute
-    }
-    '/sportsbook/$': {
-      id: '/sportsbook/$'
-      path: '/$'
-      fullPath: '/sportsbook/$'
-      preLoaderRoute: typeof SportsbookSplatRouteImport
-      parentRoute: typeof SportsbookRoute
-    }
-    '/news/$slug': {
-      id: '/news/$slug'
-      path: '/$slug'
-      fullPath: '/news/$slug'
-      preLoaderRoute: typeof NewsSlugRouteImport
-      parentRoute: typeof NewsRoute
-    }
-    '/kyc/verify': {
-      id: '/kyc/verify'
-      path: '/verify'
-      fullPath: '/kyc/verify'
-      preLoaderRoute: typeof KycVerifyRouteImport
-      parentRoute: typeof KycRoute
-    }
-    '/index/matches': {
-      id: '/index/matches'
-      path: '/index/matches'
-      fullPath: '/index/matches'
-      preLoaderRoute: typeof IndexMatchesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/index/$gameId': {
-      id: '/index/$gameId'
-      path: '/index/$gameId'
-      fullPath: '/index/$gameId'
-      preLoaderRoute: typeof IndexGameIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/game/$gameId': {
-      id: '/game/$gameId'
-      path: '/game/$gameId'
-      fullPath: '/game/$gameId'
-      preLoaderRoute: typeof GameGameIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/basketball/matches': {
-      id: '/basketball/matches'
-      path: '/matches'
-      fullPath: '/basketball/matches'
-      preLoaderRoute: typeof BasketballMatchesRouteImport
-      parentRoute: typeof BasketballRoute
-    }
-    '/basketball/$Id': {
-      id: '/basketball/$Id'
-      path: '/$Id'
-      fullPath: '/basketball/$Id'
-      preLoaderRoute: typeof BasketballIdRouteImport
-      parentRoute: typeof BasketballRoute
-    }
-    '/authors/$slug': {
-      id: '/authors/$slug'
-      path: '/authors/$slug'
-      fullPath: '/authors/$slug'
-      preLoaderRoute: typeof AuthorsSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/sign-up': {
-      id: '/auth/sign-up'
-      path: '/auth/sign-up'
-      fullPath: '/auth/sign-up'
-      preLoaderRoute: typeof AuthSignUpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/sign-in': {
-      id: '/auth/sign-in'
-      path: '/auth/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/phone-sign-in': {
-      id: '/auth/phone-sign-in'
-      path: '/auth/phone-sign-in'
-      fullPath: '/auth/phone-sign-in'
-      preLoaderRoute: typeof AuthPhoneSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/otp': {
-      id: '/auth/otp'
-      path: '/auth/otp'
-      fullPath: '/auth/otp'
-      preLoaderRoute: typeof AuthOtpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/complete-profile': {
-      id: '/auth/complete-profile'
-      path: '/auth/complete-profile'
-      fullPath: '/auth/complete-profile'
-      preLoaderRoute: typeof AuthCompleteProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/_layout': {
-      id: '/auth/_layout'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthLayoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tennis/tournament/$tournamentId': {
-      id: '/tennis/tournament/$tournamentId'
-      path: '/tournament/$tournamentId'
-      fullPath: '/tennis/tournament/$tournamentId'
-      preLoaderRoute: typeof TennisTournamentTournamentIdRouteImport
-      parentRoute: typeof TennisRoute
-    }
-    '/news/$slug/og': {
-      id: '/news/$slug/og'
-      path: '/og'
-      fullPath: '/news/$slug/og'
-      preLoaderRoute: typeof NewsSlugOgRouteImport
-      parentRoute: typeof NewsSlugRoute
-    }
-    '/index/tournament/$tournamentId': {
-      id: '/index/tournament/$tournamentId'
-      path: '/index/tournament/$tournamentId'
-      fullPath: '/index/tournament/$tournamentId'
-      preLoaderRoute: typeof IndexTournamentTournamentIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/basketball/tournament/$tournamentId': {
-      id: '/basketball/tournament/$tournamentId'
-      path: '/tournament/$tournamentId'
-      fullPath: '/basketball/tournament/$tournamentId'
-      preLoaderRoute: typeof BasketballTournamentTournamentIdRouteImport
-      parentRoute: typeof BasketballRoute
-    }
-  }
+declare module "@tanstack/react-router" {
+	interface FileRoutesByPath {
+		"/wallet-transaction-status": {
+			id: "/wallet-transaction-status";
+			path: "/wallet-transaction-status";
+			fullPath: "/wallet-transaction-status";
+			preLoaderRoute: typeof WalletTransactionStatusRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/wallet": {
+			id: "/wallet";
+			path: "/wallet";
+			fullPath: "/wallet";
+			preLoaderRoute: typeof WalletRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/ufc": {
+			id: "/ufc";
+			path: "/ufc";
+			fullPath: "/ufc";
+			preLoaderRoute: typeof UfcRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/terms": {
+			id: "/terms";
+			path: "/terms";
+			fullPath: "/terms";
+			preLoaderRoute: typeof TermsRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/tennis": {
+			id: "/tennis";
+			path: "/tennis";
+			fullPath: "/tennis";
+			preLoaderRoute: typeof TennisRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/sportsbook": {
+			id: "/sportsbook";
+			path: "/sportsbook";
+			fullPath: "/sportsbook";
+			preLoaderRoute: typeof SportsbookRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/privacy-policy": {
+			id: "/privacy-policy";
+			path: "/privacy-policy";
+			fullPath: "/privacy-policy";
+			preLoaderRoute: typeof PrivacyPolicyRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/news": {
+			id: "/news";
+			path: "/news";
+			fullPath: "/news";
+			preLoaderRoute: typeof NewsRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/kyc": {
+			id: "/kyc";
+			path: "/kyc";
+			fullPath: "/kyc";
+			preLoaderRoute: typeof KycRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/games": {
+			id: "/games";
+			path: "/games";
+			fullPath: "/games";
+			preLoaderRoute: typeof GamesRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/favorites": {
+			id: "/favorites";
+			path: "/favorites";
+			fullPath: "/favorites";
+			preLoaderRoute: typeof FavoritesRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/faqs": {
+			id: "/faqs";
+			path: "/faqs";
+			fullPath: "/faqs";
+			preLoaderRoute: typeof FaqsRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/boxing": {
+			id: "/boxing";
+			path: "/boxing";
+			fullPath: "/boxing";
+			preLoaderRoute: typeof BoxingRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/betting": {
+			id: "/betting";
+			path: "/betting";
+			fullPath: "/betting";
+			preLoaderRoute: typeof BettingRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/basketball": {
+			id: "/basketball";
+			path: "/basketball";
+			fullPath: "/basketball";
+			preLoaderRoute: typeof BasketballRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/account": {
+			id: "/account";
+			path: "/account";
+			fullPath: "/account";
+			preLoaderRoute: typeof AccountRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/about": {
+			id: "/about";
+			path: "/about";
+			fullPath: "/about";
+			preLoaderRoute: typeof AboutRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/": {
+			id: "/";
+			path: "/";
+			fullPath: "/";
+			preLoaderRoute: typeof IndexRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/ufc/": {
+			id: "/ufc/";
+			path: "/";
+			fullPath: "/ufc/";
+			preLoaderRoute: typeof UfcIndexRouteImport;
+			parentRoute: typeof UfcRoute;
+		};
+		"/tennis/": {
+			id: "/tennis/";
+			path: "/";
+			fullPath: "/tennis/";
+			preLoaderRoute: typeof TennisIndexRouteImport;
+			parentRoute: typeof TennisRoute;
+		};
+		"/news/": {
+			id: "/news/";
+			path: "/";
+			fullPath: "/news/";
+			preLoaderRoute: typeof NewsIndexRouteImport;
+			parentRoute: typeof NewsRoute;
+		};
+		"/kyc/": {
+			id: "/kyc/";
+			path: "/";
+			fullPath: "/kyc/";
+			preLoaderRoute: typeof KycIndexRouteImport;
+			parentRoute: typeof KycRoute;
+		};
+		"/boxing/": {
+			id: "/boxing/";
+			path: "/";
+			fullPath: "/boxing/";
+			preLoaderRoute: typeof BoxingIndexRouteImport;
+			parentRoute: typeof BoxingRoute;
+		};
+		"/basketball/": {
+			id: "/basketball/";
+			path: "/";
+			fullPath: "/basketball/";
+			preLoaderRoute: typeof BasketballIndexRouteImport;
+			parentRoute: typeof BasketballRoute;
+		};
+		"/tennis/matches": {
+			id: "/tennis/matches";
+			path: "/matches";
+			fullPath: "/tennis/matches";
+			preLoaderRoute: typeof TennisMatchesRouteImport;
+			parentRoute: typeof TennisRoute;
+		};
+		"/tennis/$Id": {
+			id: "/tennis/$Id";
+			path: "/$Id";
+			fullPath: "/tennis/$Id";
+			preLoaderRoute: typeof TennisIdRouteImport;
+			parentRoute: typeof TennisRoute;
+		};
+		"/sportsbook/$": {
+			id: "/sportsbook/$";
+			path: "/$";
+			fullPath: "/sportsbook/$";
+			preLoaderRoute: typeof SportsbookSplatRouteImport;
+			parentRoute: typeof SportsbookRoute;
+		};
+		"/news/$slug": {
+			id: "/news/$slug";
+			path: "/$slug";
+			fullPath: "/news/$slug";
+			preLoaderRoute: typeof NewsSlugRouteImport;
+			parentRoute: typeof NewsRoute;
+		};
+		"/kyc/verify": {
+			id: "/kyc/verify";
+			path: "/verify";
+			fullPath: "/kyc/verify";
+			preLoaderRoute: typeof KycVerifyRouteImport;
+			parentRoute: typeof KycRoute;
+		};
+		"/index/matches": {
+			id: "/index/matches";
+			path: "/index/matches";
+			fullPath: "/index/matches";
+			preLoaderRoute: typeof IndexMatchesRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/index/$gameId": {
+			id: "/index/$gameId";
+			path: "/index/$gameId";
+			fullPath: "/index/$gameId";
+			preLoaderRoute: typeof IndexGameIdRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/game/$gameId": {
+			id: "/game/$gameId";
+			path: "/game/$gameId";
+			fullPath: "/game/$gameId";
+			preLoaderRoute: typeof GameGameIdRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/basketball/matches": {
+			id: "/basketball/matches";
+			path: "/matches";
+			fullPath: "/basketball/matches";
+			preLoaderRoute: typeof BasketballMatchesRouteImport;
+			parentRoute: typeof BasketballRoute;
+		};
+		"/basketball/$Id": {
+			id: "/basketball/$Id";
+			path: "/$Id";
+			fullPath: "/basketball/$Id";
+			preLoaderRoute: typeof BasketballIdRouteImport;
+			parentRoute: typeof BasketballRoute;
+		};
+		"/authors/$slug": {
+			id: "/authors/$slug";
+			path: "/authors/$slug";
+			fullPath: "/authors/$slug";
+			preLoaderRoute: typeof AuthorsSlugRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/auth/sign-up": {
+			id: "/auth/sign-up";
+			path: "/auth/sign-up";
+			fullPath: "/auth/sign-up";
+			preLoaderRoute: typeof AuthSignUpRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/auth/sign-in": {
+			id: "/auth/sign-in";
+			path: "/auth/sign-in";
+			fullPath: "/auth/sign-in";
+			preLoaderRoute: typeof AuthSignInRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/auth/phone-sign-in": {
+			id: "/auth/phone-sign-in";
+			path: "/auth/phone-sign-in";
+			fullPath: "/auth/phone-sign-in";
+			preLoaderRoute: typeof AuthPhoneSignInRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/auth/otp": {
+			id: "/auth/otp";
+			path: "/auth/otp";
+			fullPath: "/auth/otp";
+			preLoaderRoute: typeof AuthOtpRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/auth/complete-profile": {
+			id: "/auth/complete-profile";
+			path: "/auth/complete-profile";
+			fullPath: "/auth/complete-profile";
+			preLoaderRoute: typeof AuthCompleteProfileRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/auth/_layout": {
+			id: "/auth/_layout";
+			path: "/auth";
+			fullPath: "/auth";
+			preLoaderRoute: typeof AuthLayoutRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/tennis/tournament/$tournamentId": {
+			id: "/tennis/tournament/$tournamentId";
+			path: "/tournament/$tournamentId";
+			fullPath: "/tennis/tournament/$tournamentId";
+			preLoaderRoute: typeof TennisTournamentTournamentIdRouteImport;
+			parentRoute: typeof TennisRoute;
+		};
+		"/news/$slug/og": {
+			id: "/news/$slug/og";
+			path: "/og";
+			fullPath: "/news/$slug/og";
+			preLoaderRoute: typeof NewsSlugOgRouteImport;
+			parentRoute: typeof NewsSlugRoute;
+		};
+		"/index/tournament/$tournamentId": {
+			id: "/index/tournament/$tournamentId";
+			path: "/index/tournament/$tournamentId";
+			fullPath: "/index/tournament/$tournamentId";
+			preLoaderRoute: typeof IndexTournamentTournamentIdRouteImport;
+			parentRoute: typeof rootRouteImport;
+		};
+		"/basketball/tournament/$tournamentId": {
+			id: "/basketball/tournament/$tournamentId";
+			path: "/tournament/$tournamentId";
+			fullPath: "/basketball/tournament/$tournamentId";
+			preLoaderRoute: typeof BasketballTournamentTournamentIdRouteImport;
+			parentRoute: typeof BasketballRoute;
+		};
+	}
 }
 
 interface BasketballRouteChildren {
-  BasketballIdRoute: typeof BasketballIdRoute
-  BasketballMatchesRoute: typeof BasketballMatchesRoute
-  BasketballIndexRoute: typeof BasketballIndexRoute
-  BasketballTournamentTournamentIdRoute: typeof BasketballTournamentTournamentIdRoute
+	BasketballIdRoute: typeof BasketballIdRoute;
+	BasketballMatchesRoute: typeof BasketballMatchesRoute;
+	BasketballIndexRoute: typeof BasketballIndexRoute;
+	BasketballTournamentTournamentIdRoute: typeof BasketballTournamentTournamentIdRoute;
 }
 
 const BasketballRouteChildren: BasketballRouteChildren = {
-  BasketballIdRoute: BasketballIdRoute,
-  BasketballMatchesRoute: BasketballMatchesRoute,
-  BasketballIndexRoute: BasketballIndexRoute,
-  BasketballTournamentTournamentIdRoute: BasketballTournamentTournamentIdRoute,
-}
+	BasketballIdRoute: BasketballIdRoute,
+	BasketballMatchesRoute: BasketballMatchesRoute,
+	BasketballIndexRoute: BasketballIndexRoute,
+	BasketballTournamentTournamentIdRoute: BasketballTournamentTournamentIdRoute,
+};
 
 const BasketballRouteWithChildren = BasketballRoute._addFileChildren(
-  BasketballRouteChildren,
-)
+	BasketballRouteChildren,
+);
 
 interface BoxingRouteChildren {
-  BoxingIndexRoute: typeof BoxingIndexRoute
+	BoxingIndexRoute: typeof BoxingIndexRoute;
 }
 
 const BoxingRouteChildren: BoxingRouteChildren = {
-  BoxingIndexRoute: BoxingIndexRoute,
-}
+	BoxingIndexRoute: BoxingIndexRoute,
+};
 
 const BoxingRouteWithChildren =
-  BoxingRoute._addFileChildren(BoxingRouteChildren)
+	BoxingRoute._addFileChildren(BoxingRouteChildren);
 
 interface KycRouteChildren {
-  KycVerifyRoute: typeof KycVerifyRoute
-  KycIndexRoute: typeof KycIndexRoute
+	KycVerifyRoute: typeof KycVerifyRoute;
+	KycIndexRoute: typeof KycIndexRoute;
 }
 
 const KycRouteChildren: KycRouteChildren = {
-  KycVerifyRoute: KycVerifyRoute,
-  KycIndexRoute: KycIndexRoute,
-}
+	KycVerifyRoute: KycVerifyRoute,
+	KycIndexRoute: KycIndexRoute,
+};
 
-const KycRouteWithChildren = KycRoute._addFileChildren(KycRouteChildren)
+const KycRouteWithChildren = KycRoute._addFileChildren(KycRouteChildren);
 
 interface NewsSlugRouteChildren {
-  NewsSlugOgRoute: typeof NewsSlugOgRoute
+	NewsSlugOgRoute: typeof NewsSlugOgRoute;
 }
 
 const NewsSlugRouteChildren: NewsSlugRouteChildren = {
-  NewsSlugOgRoute: NewsSlugOgRoute,
-}
+	NewsSlugOgRoute: NewsSlugOgRoute,
+};
 
 const NewsSlugRouteWithChildren = NewsSlugRoute._addFileChildren(
-  NewsSlugRouteChildren,
-)
+	NewsSlugRouteChildren,
+);
 
 interface NewsRouteChildren {
-  NewsSlugRoute: typeof NewsSlugRouteWithChildren
-  NewsIndexRoute: typeof NewsIndexRoute
+	NewsSlugRoute: typeof NewsSlugRouteWithChildren;
+	NewsIndexRoute: typeof NewsIndexRoute;
 }
 
 const NewsRouteChildren: NewsRouteChildren = {
-  NewsSlugRoute: NewsSlugRouteWithChildren,
-  NewsIndexRoute: NewsIndexRoute,
-}
+	NewsSlugRoute: NewsSlugRouteWithChildren,
+	NewsIndexRoute: NewsIndexRoute,
+};
 
-const NewsRouteWithChildren = NewsRoute._addFileChildren(NewsRouteChildren)
+const NewsRouteWithChildren = NewsRoute._addFileChildren(NewsRouteChildren);
 
 interface SportsbookRouteChildren {
-  SportsbookSplatRoute: typeof SportsbookSplatRoute
+	SportsbookSplatRoute: typeof SportsbookSplatRoute;
 }
 
 const SportsbookRouteChildren: SportsbookRouteChildren = {
-  SportsbookSplatRoute: SportsbookSplatRoute,
-}
+	SportsbookSplatRoute: SportsbookSplatRoute,
+};
 
 const SportsbookRouteWithChildren = SportsbookRoute._addFileChildren(
-  SportsbookRouteChildren,
-)
+	SportsbookRouteChildren,
+);
 
 interface TennisRouteChildren {
-  TennisIdRoute: typeof TennisIdRoute
-  TennisMatchesRoute: typeof TennisMatchesRoute
-  TennisIndexRoute: typeof TennisIndexRoute
-  TennisTournamentTournamentIdRoute: typeof TennisTournamentTournamentIdRoute
+	TennisIdRoute: typeof TennisIdRoute;
+	TennisMatchesRoute: typeof TennisMatchesRoute;
+	TennisIndexRoute: typeof TennisIndexRoute;
+	TennisTournamentTournamentIdRoute: typeof TennisTournamentTournamentIdRoute;
 }
 
 const TennisRouteChildren: TennisRouteChildren = {
-  TennisIdRoute: TennisIdRoute,
-  TennisMatchesRoute: TennisMatchesRoute,
-  TennisIndexRoute: TennisIndexRoute,
-  TennisTournamentTournamentIdRoute: TennisTournamentTournamentIdRoute,
-}
+	TennisIdRoute: TennisIdRoute,
+	TennisMatchesRoute: TennisMatchesRoute,
+	TennisIndexRoute: TennisIndexRoute,
+	TennisTournamentTournamentIdRoute: TennisTournamentTournamentIdRoute,
+};
 
 const TennisRouteWithChildren =
-  TennisRoute._addFileChildren(TennisRouteChildren)
+	TennisRoute._addFileChildren(TennisRouteChildren);
 
 interface UfcRouteChildren {
-  UfcIndexRoute: typeof UfcIndexRoute
+	UfcIndexRoute: typeof UfcIndexRoute;
 }
 
 const UfcRouteChildren: UfcRouteChildren = {
-  UfcIndexRoute: UfcIndexRoute,
-}
+	UfcIndexRoute: UfcIndexRoute,
+};
 
-const UfcRouteWithChildren = UfcRoute._addFileChildren(UfcRouteChildren)
+const UfcRouteWithChildren = UfcRoute._addFileChildren(UfcRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AccountRoute: AccountRoute,
-  BasketballRoute: BasketballRouteWithChildren,
-  BettingRoute: BettingRoute,
-  BoxingRoute: BoxingRouteWithChildren,
-  FaqRoute: FaqRoute,
-  FavoritesRoute: FavoritesRoute,
-  GamesRoute: GamesRoute,
-  KycRoute: KycRouteWithChildren,
-  NewsRoute: NewsRouteWithChildren,
-  PrivacyPolicyRoute: PrivacyPolicyRoute,
-  SportsbookRoute: SportsbookRouteWithChildren,
-  TennisRoute: TennisRouteWithChildren,
-  TermsRoute: TermsRoute,
-  UfcRoute: UfcRouteWithChildren,
-  WalletRoute: WalletRoute,
-  WalletTransactionStatusRoute: WalletTransactionStatusRoute,
-  AuthLayoutRoute: AuthLayoutRoute,
-  AuthCompleteProfileRoute: AuthCompleteProfileRoute,
-  AuthOtpRoute: AuthOtpRoute,
-  AuthPhoneSignInRoute: AuthPhoneSignInRoute,
-  AuthSignInRoute: AuthSignInRoute,
-  AuthSignUpRoute: AuthSignUpRoute,
-  AuthorsSlugRoute: AuthorsSlugRoute,
-  GameGameIdRoute: GameGameIdRoute,
-  IndexGameIdRoute: IndexGameIdRoute,
-  IndexMatchesRoute: IndexMatchesRoute,
-  IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,
-}
+	IndexRoute: IndexRoute,
+	AboutRoute: AboutRoute,
+	AccountRoute: AccountRoute,
+	BasketballRoute: BasketballRouteWithChildren,
+	BettingRoute: BettingRoute,
+	BoxingRoute: BoxingRouteWithChildren,
+	FaqsRoute: FaqsRoute,
+	FavoritesRoute: FavoritesRoute,
+	GamesRoute: GamesRoute,
+	KycRoute: KycRouteWithChildren,
+	NewsRoute: NewsRouteWithChildren,
+	PrivacyPolicyRoute: PrivacyPolicyRoute,
+	SportsbookRoute: SportsbookRouteWithChildren,
+	TennisRoute: TennisRouteWithChildren,
+	TermsRoute: TermsRoute,
+	UfcRoute: UfcRouteWithChildren,
+	WalletRoute: WalletRoute,
+	WalletTransactionStatusRoute: WalletTransactionStatusRoute,
+	AuthLayoutRoute: AuthLayoutRoute,
+	AuthCompleteProfileRoute: AuthCompleteProfileRoute,
+	AuthOtpRoute: AuthOtpRoute,
+	AuthPhoneSignInRoute: AuthPhoneSignInRoute,
+	AuthSignInRoute: AuthSignInRoute,
+	AuthSignUpRoute: AuthSignUpRoute,
+	AuthorsSlugRoute: AuthorsSlugRoute,
+	GameGameIdRoute: GameGameIdRoute,
+	IndexGameIdRoute: IndexGameIdRoute,
+	IndexMatchesRoute: IndexMatchesRoute,
+	IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,
+};
 export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+	._addFileChildren(rootRouteChildren)
+	._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
+import type { createStart } from "@tanstack/react-start";
+import type { getRouter } from "./router.tsx";
+
+declare module "@tanstack/react-start" {
+	interface Register {
+		ssr: true;
+		router: Awaited<ReturnType<typeof getRouter>>;
+	}
 }
