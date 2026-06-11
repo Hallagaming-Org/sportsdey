@@ -75,14 +75,6 @@ export default function DesktopFooter() {
 					<ul className="space-y-4 text-sm">
 						<li>
 							<Link
-								to="/index/matches"
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								Scores
-							</Link>
-						</li>
-						<li>
-							<Link
 								to="/"
 								search={{ sports: currentSport, league: undefined }}
 								className="text-[#A0A0A0] transition-colors hover:text-white"
@@ -103,7 +95,7 @@ export default function DesktopFooter() {
 						<li>
 							<Link
 								to="/news"
-								search={{ sports: currentSport, tab: "videos" }}
+								search={{ sports: currentSport }}
 								className="text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Videos
