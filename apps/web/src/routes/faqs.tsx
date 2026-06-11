@@ -96,7 +96,7 @@ function FAQs() {
             Can't find the answer you're looking for? Contact us directly on WhatsApp.
           </p>
           <a 
-            href="https://wa.me/2340000000000"
+            href="https://wa.link/25tnk8"
             target="_blank"
             rel="noopener noreferrer"
             className="bg-[#25D366] hover:bg-[#1EBE5C] text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center gap-2"
