@@ -29,7 +29,7 @@ const footerSocials = [
 		link: "https://Instagram.com/Sportsdey247",
 	},
 	{ icon: TelegramFooter, label: "Telegram", link: "https://t.me/sportsdey2" },
-	{ icon: Whatsapp, label: "WhatsApp", link: "https://t.me/sportsdey2" },
+	{ icon: Whatsapp, label: "WhatsApp", link: "https://wa.link/25tnk8" },
 	{
 		icon: DiscordFooter,
 		label: "Discord",
@@ -160,7 +160,7 @@ export default function DesktopFooter() {
 						</li>
 						<li>
 							<a
-								href="https://wa.me/2340000000000"
+								href="https://wa.link/25tnk8"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
