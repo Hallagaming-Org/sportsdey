@@ -162,7 +162,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},
 		{
 			id: "p2p",
-			label: "PVP",
+			label: "PvP",
 			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
 			isActive: isItemActive("p2p", false),
 			onClick: () => {
