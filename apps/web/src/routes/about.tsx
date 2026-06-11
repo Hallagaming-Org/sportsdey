@@ -11,15 +11,22 @@ function AboutUsPage() {
       <div className="w-full max-w-3xl flex flex-col items-center">
         <div className="w-full border pt-4 border-[#1A1A1A] rounded-2xl mb-2 text-[#A0A0A0]">
           <h1 className="text-3xl sm:text-4xl font-bold mb-3 text-left px-6">About Us</h1>
-          <p className="text-[#A0A0A0] mb-8 text-left text-sm sm:text-base px-6">
-            Learn more about SportsDey and our mission.
-          </p>
         </div>
 
         <div className="w-full bg-[#0B100E] border border-[#1A1A1A] rounded-2xl p-8 mb-10 text-[#A0A0A0] leading-relaxed">
           <p className="mb-4">
-            Welcome to SportsDey. We are committed to providing the best sports betting and entertainment experience.
-            (This is a placeholder for your About Us content. You can replace this text with your actual company information.)
+            SportsDey is a digital sports and entertainment platform designed
+            to be a one stop destination for sports fans, bettors, news lovers,
+            and gaming enthusiasts. Built by Sports lovers for sports lovers,
+            our robust ecosystem offers users access to News, Statistics,
+            Sportsbook, Casino, Prediction market, Binary Trading, and
+            Esports Tournaments via a unified interface. Sportsdey is owned
+            and operated by Halla Gaming Company Limited, a proudly
+            Nigerian gaming company licensed by the Cross River State
+            Lotteries and Gaming Agency under license No.
+            CRSLGA/11/2025/014. Our mission is to provide a safe, fun, and
+            rewarding experience aka “beta betting experience” for all eligible
+            Nigerians.
           </p>
         </div>
       </div>

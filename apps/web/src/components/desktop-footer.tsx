@@ -29,7 +29,7 @@ const footerSocials = [
 		link: "https://Instagram.com/Sportsdey247",
 	},
 	{ icon: TelegramFooter, label: "Telegram", link: "https://t.me/sportsdey2" },
-	{ icon: Whatsapp, label: "WhatsApp", link: "https://t.me/sportsdey2" },
+	{ icon: Whatsapp, label: "WhatsApp", link: "https://wa.link/25tnk8" },
 	{
 		icon: DiscordFooter,
 		label: "Discord",
@@ -134,6 +134,17 @@ export default function DesktopFooter() {
 								Binary Trading
 							</a>
 						</li>
+						<li>
+							<a
+								href="https://Tournament.sportsdey.com"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-[#A0A0A0] transition-colors hover:text-white block"
+							>
+								Esports Tournaments
+							</a>
+						</li>
+
 					</ul>
 				</div>
 
@@ -152,7 +163,7 @@ export default function DesktopFooter() {
 						</li>
 						<li>
 							<a
-								href="https://wa.me/2340000000000"
+								href="https://wa.link/25tnk8"
 								target="_blank"
 								rel="noopener noreferrer"
 								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
@@ -199,7 +210,7 @@ export default function DesktopFooter() {
 						onClick={() =>
 							window.open("https://play.google.com/store/apps", "_blank")
 						}
-						// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
+					// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
 					>
 						<GooglePlay size={20} color="white" variant="Bold" />
 						<div className="flex flex-col items-start">

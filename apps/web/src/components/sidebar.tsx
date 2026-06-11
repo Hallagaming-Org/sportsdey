@@ -12,6 +12,7 @@ import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import Video from "@/logos/Video";
 import { useActiveTab } from "./active-tab-context";
+import PVPIcon from "@/logos/PVPIcon";
 
 type MenuItem = {
 	id: string;
@@ -149,16 +150,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive("home", isHomeActive),
 			onClick: goToHome,
 		},
-		{
-			id: "p2p",
-			label: "P2P",
-			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
-			isActive: isItemActive("p2p", false),
-			onClick: () => {
-				setActiveOverride("p2p");
-				window.open("https://www.thndr.io/games", "_blank");
-			},
-		},
+
 		{
 			id: isMobile ? "scores" : "betting",
 			label: isMobile ? "Scores" : "Sportsbook",
@@ -167,6 +159,16 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				? location.pathname.includes("/matches")
 				: location.pathname.startsWith("/sportsbook")),
 			onClick: isMobile ? goToScores : goToSportsbook,
+		},
+		{
+			id: "p2p",
+			label: "PVP",
+			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
+			isActive: isItemActive("p2p", false),
+			onClick: () => {
+				setActiveOverride("p2p");
+				window.open("https://www.thndr.io/games", "_blank");
+			},
 		},
 		{
 			id: "casino",
