@@ -375,7 +375,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
-							<div className="w-full px-2 pt-2 pb-6">
+							<div className="w-full px-2 pt-2 pb-12">
 								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">
 									Social links
 								</h3>
@@ -396,7 +396,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 								{/* WhatsApp Contact Button */}
 								<a
-									href="https://wa.me/2340000000000" // Replace with actual number
+									href="https://wa.link/25tnk8"
 									target="_blank"
 									rel="noopener noreferrer"
 									className="mt-5 flex w-full bg-gray-200 items-center gap-4 rounded-lg p-3.5 transition-colors hover:bg-[#1E78FF]/10 dark:border-[#1E78FF]/30 dark:bg-[#1E78FF]/10 dark:hover:bg-[#1E78FF]/20"
