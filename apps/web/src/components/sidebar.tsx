@@ -151,7 +151,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},
 		{
 			id: "p2p",
-			label: "P2P",
+			label: "PVP",
 			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
 			isActive: isItemActive("p2p", false),
 			onClick: () => {
