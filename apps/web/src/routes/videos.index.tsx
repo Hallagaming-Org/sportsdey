@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
-import BannerCarousel from "@/components/BannerCarousel";
-import { NewsPage } from "@/components/news-page";
-import { getBanners } from "@/lib/banners-server";
+import { VideosTab } from "@/components/news-videos";
 import { cn } from "@/lib/utils";
 
 type CategoryFilter =
@@ -17,14 +15,12 @@ type CategoryFilter =
 	| "politics"
 	| "entertainment";
 
-export const Route = createFileRoute("/news/")({
-	loader: () => getBanners(),
+export const Route = createFileRoute("/videos/")({
 	component: RouteComponent,
 });
 
 function RouteComponent() {
 	const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
-	const banners = Route.useLoaderData() || [];
 
 	const categoryFilters = [
 		{ id: "all", label: "All" },
@@ -57,15 +53,7 @@ function RouteComponent() {
 				))}
 			</div>
 
-			{banners.length > 0 && (
-				<div className="mb-6 px-4 lg:container lg:mx-auto">
-					<div className="w-full overflow-hidden rounded-xl">
-						<BannerCarousel banners={banners} />
-					</div>
-				</div>
-			)}
-
-			<NewsPage category={categoryFilter} />
+			<VideosTab category={categoryFilter} />
 		</div>
 	);
 }

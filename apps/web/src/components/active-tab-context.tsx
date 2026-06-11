@@ -37,13 +37,10 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 
 		if (path.startsWith("/favorites")) {
 			setTab("favourites");
+		} else if (path.startsWith("/videos")) {
+			setTab("videos");
 		} else if (path.startsWith("/news")) {
-			// Check if there's a tab search param for news
-			if (tabParam === "videos") {
-				setTab("videos");
-			} else {
-				setTab("news");
-			}
+			setTab("news");
 		} else if (path.startsWith("/betting") || path.startsWith("/sportsbook")) {
 			setTab("betting");
 		} else if (path.startsWith("/games")) {

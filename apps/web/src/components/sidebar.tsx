@@ -96,7 +96,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		setTab("news");
 		navigate({
 			to: "/news",
-			search: { sports: currentSport || SPORTS.FOOTBALL, tab: "news" },
+			search: { sports: currentSport || SPORTS.FOOTBALL },
 		});
 	};
 
@@ -111,8 +111,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToVideos = () => {
 		setTab("videos");
 		navigate({
-			to: "/news",
-			search: { sports: currentSport || SPORTS.FOOTBALL, tab: "videos" },
+			to: "/videos",
+			search: { sports: currentSport || SPORTS.FOOTBALL },
 		});
 	};
 
@@ -198,7 +198,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Videos",
 			icon: Video,
 			isActive: isItemActive("videos",
-				location.pathname.startsWith("/news") && params.get("tab") === "videos"),
+				location.pathname.startsWith("/videos")),
 			onClick: goToVideos,
 		},
 		{
