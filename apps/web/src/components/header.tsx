@@ -375,7 +375,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
-							<div className="w-full px-2 pt-2 pb-6">
+							<div className="w-full px-2 pt-2 pb-12">
 								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">
 									Social links
 								</h3>
