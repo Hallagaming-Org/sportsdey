@@ -8,6 +8,10 @@ import { fetchWithTimeout, isTimeoutError } from "@/utils/fetch-with-timeout";
 import { jsonZodErrorFormatter } from "@/utils/zod";
 import { newsVideosQuery } from "@/validators";
 
+function getKvNamespace(env: any): any {
+	return env.sportsdey_ns || env.staging_kv || null;
+}
+
 const newsRoute = new OpenAPIHono<{ Bindings: Cloudflare.Env }>();
 
 newsRoute.openapi(
@@ -79,10 +83,17 @@ newsRoute.openapi(
 			}
 
 			const cacheKey = `news_videos_${query}_${pageToken || "first"}`;
-			const cachedData = (await c.env.sportsdey_ns.get(cacheKey, "json")) as {
-				data: any;
-				expiresAt: number;
-			} | null;
+			let cachedData = null;
+			if (getKvNamespace(c.env)) {
+				try {
+					cachedData = (await getKvNamespace(c.env)?.get(cacheKey, "json")) as {
+						data: any;
+						expiresAt: number;
+					} | null;
+				} catch (e) {
+					cachedData = null;
+				}
+			}
 
 			if (cachedData && Date.now() <= cachedData.expiresAt) {
 				return c.json(
@@ -150,13 +161,19 @@ newsRoute.openapi(
 				})),
 			};
 
-			await c.env.sportsdey_ns.put(
-				cacheKey,
-				JSON.stringify({
-					data: transformedData,
-					expiresAt: Date.now() + 10 * 60 * 1000, // Cache for 10 minutes
-				}),
-			);
+			if (getKvNamespace(c.env)) {
+				try {
+					await getKvNamespace(c.env)?.put(
+						cacheKey,
+						JSON.stringify({
+							data: transformedData,
+							expiresAt: Date.now() + 10 * 60 * 1000, // Cache for 10 minutes
+						}),
+					);
+				} catch (cacheErr) {
+					console.warn("Cache write failed:", cacheErr);
+				}
+			}
 
 			return c.json(
 				{
