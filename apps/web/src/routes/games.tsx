@@ -418,7 +418,7 @@ function GamesPage() {
 									<span className="capitalize">{cat.replace("-", " ")}</span>
 									<span
 										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
-											? "bg-white/20 text-white"
+											? "bg-[#040C01] text-white"
 											: "bg-[#1B2722] text-gray-300"
 											}`}
 									>
