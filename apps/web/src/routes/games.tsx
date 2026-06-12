@@ -57,11 +57,6 @@ type Game = {
 	updatedAt: number;
 };
 
-type GameResponse = {
-	success: boolean;
-	data: Game[];
-};
-
 type LaunchResponse = {
 	success: boolean;
 	data:
