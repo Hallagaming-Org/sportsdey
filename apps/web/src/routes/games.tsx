@@ -356,7 +356,7 @@ function GamesPage() {
 								<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 								<input
 									type="text"
-									placeholder="Search top providers or game names..."
+									placeholder="Search game names"
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
 									className="w-full pl-9 pr-4 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
