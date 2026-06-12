@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
@@ -402,11 +401,11 @@ function GamesPage() {
 												role="button"
 												tabIndex={0}
 											>
-												{loadingGame === game.code && (
+												{/* {loadingGame === game.code && (
 													<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 														<Loader2 className="h-10 w-10 animate-spin text-white" />
 													</div>
-												)}
+												)} */}
 
 												{display.icon ? (
 													<div
@@ -462,11 +461,11 @@ function GamesPage() {
 										role="button"
 										tabIndex={0}
 									>
-										{loadingGame === game.code && (
+										{/* {loadingGame === game.code && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
-										)}
+										)} */}
 
 										{display.icon ? (
 											<div
