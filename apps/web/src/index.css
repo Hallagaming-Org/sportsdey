@@ -140,6 +140,38 @@ body {
 	scrollbar-width: thin;
 }
 
+/* Better Custom Scrollbar */
+.better-scrollbar::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+.better-scrollbar::-webkit-scrollbar-track {
+	background: transparent;
+	border-radius: 10px;
+	margin: 0 4px;
+}
+.better-scrollbar::-webkit-scrollbar-thumb {
+	background: rgba(128, 128, 128, 0.3);
+	border-radius: 10px;
+}
+.better-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: rgba(128, 128, 128, 0.5);
+}
+.dark .better-scrollbar::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.15);
+}
+.dark .better-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: var(--accent); /* vibrant green hover for dark mode */
+}
+
+.better-scrollbar {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+}
+.dark .better-scrollbar {
+	scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar {
 	display: none;
