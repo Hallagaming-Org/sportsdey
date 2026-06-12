@@ -7,6 +7,7 @@ import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
+	envDir: "../../",
 	plugins: [
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
 		tsconfigPaths(),
@@ -21,6 +22,10 @@ export default defineConfig({
 			"Cross-Origin-Embedder-Policy": "require-corp",
 		},
 		proxy: {
+			"/auth": {
+				target: "http://localhost:3000",
+				changeOrigin: true,
+			},
 			"/api": {
 				target: "https://sportsdey.com",
 				changeOrigin: true,
