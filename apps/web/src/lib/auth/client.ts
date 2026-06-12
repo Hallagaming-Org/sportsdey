@@ -3,7 +3,7 @@ import { apiRequest } from "@/lib/api";
 
 export const authClient = createAuthClient({
 	baseURL: import.meta.env.DEV
-		? "http://localhost:3000/"
+		? "http://localhost:3001/"
 		: import.meta.env.VITE_SERVER_URL ||
 		  import.meta.env.VITE_API_URL ||
 		  "https://staging-api.sportsdey.com/",
