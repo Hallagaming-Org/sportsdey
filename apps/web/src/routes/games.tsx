@@ -353,14 +353,15 @@ function GamesPage() {
 
 						<div className="flex flex-wrap items-center gap-2">
 							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
-								<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+
 								<input
 									type="text"
 									placeholder="Search game names"
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
-									className="w-full pl-9 pr-4 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
+									className="w-full pl-4 pr-10 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
 								/>
+								<Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 							</div>
 
 							{selectedCategory === null && (
