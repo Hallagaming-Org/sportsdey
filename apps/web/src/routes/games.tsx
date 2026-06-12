@@ -170,6 +170,7 @@ function GamesPage() {
 	}
 
 	const handleGameClick = async (game: Game) => {
+		console.log(import.meta.env.VITE_SERVER_URL, " import")
 		setLoadingGame(game.code);
 		try {
 			const knownGame = KNOWN_GAMES[game.code];
@@ -293,52 +294,52 @@ function GamesPage() {
 					</h1>
 
 					<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
-					<button
-						onClick={() => setSelectedCategory(null)}
-						className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
-							? "border-[#1BAA04] bg-[#1BAA04] text-white"
-							: "border-[#1B2722] text-gray-300 hover:border-gray-500"
-							}`}
-					>
-						All
-						<span
-							className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
-								? "bg-[#040C01] text-white"
-								: "bg-[#1B2722] text-gray-300"
+						<button
+							onClick={() => setSelectedCategory(null)}
+							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
+								? "border-[#1BAA04] bg-[#1BAA04] text-white"
+								: "border-[#1B2722] text-gray-300 hover:border-gray-500"
 								}`}
 						>
-							{sortedGames.length.toLocaleString()}
-						</span>
-					</button>
-					{CATEGORIES.map((cat) => {
-						const count = categoryCounts[cat] ?? 0;
-						return (
-							<button
-								key={cat}
-								onClick={() =>
-									setSelectedCategory(
-										selectedCategory === cat ? null : cat,
-									)
-								}
-								className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${selectedCategory === cat
-									? "border-[#1BAA04] bg-[#1BAA04] text-white"
-									: count === 0
-										? "border-[#1B2722] text-gray-600 cursor-default"
-										: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+							All
+							<span
+								className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
+									? "bg-[#040C01] text-white"
+									: "bg-[#1B2722] text-gray-300"
 									}`}
 							>
-								{cat}
-								<span
-									className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
-										? "bg-white/20 text-white"
-										: "bg-[#1B2722] text-gray-300"
+								{sortedGames.length.toLocaleString()}
+							</span>
+						</button>
+						{CATEGORIES.map((cat) => {
+							const count = categoryCounts[cat] ?? 0;
+							return (
+								<button
+									key={cat}
+									onClick={() =>
+										setSelectedCategory(
+											selectedCategory === cat ? null : cat,
+										)
+									}
+									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${selectedCategory === cat
+										? "border-[#1BAA04] bg-[#1BAA04] text-white"
+										: count === 0
+											? "border-[#1B2722] text-gray-600 cursor-default"
+											: "border-[#1B2722] text-gray-300 hover:border-gray-500"
 										}`}
 								>
-									{count.toLocaleString()}
-								</span>
-							</button>
-						);
-					})}
+									{cat}
+									<span
+										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
+											? "bg-white/20 text-white"
+											: "bg-[#1B2722] text-gray-300"
+											}`}
+									>
+										{count.toLocaleString()}
+									</span>
+								</button>
+							);
+						})}
 					</div>
 				</div>
 
