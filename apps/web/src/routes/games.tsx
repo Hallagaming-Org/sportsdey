@@ -49,10 +49,10 @@ type GameResponse = {
 type LaunchResponse = {
 	success: boolean;
 	data:
-		| {
-				url?: string;
-		  }
-		| undefined;
+	| {
+		url?: string;
+	}
+	| undefined;
 	error?: string;
 };
 
@@ -226,7 +226,7 @@ function GamesPage() {
 			navigate({
 				to: "/game/$gameId",
 				params: { gameId: game.code },
-				state: { gameUrl },
+				state: { gameUrl } as any,
 			});
 		} catch (error) {
 			console.error("Failed to launch game:", error);
@@ -291,22 +291,20 @@ function GamesPage() {
 					All Games
 				</h1>
 
-				<div className="mb-8 flex flex-wrap gap-3">
+				<div className="mb-8 flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
 					<button
 						onClick={() => setSelectedCategory(null)}
-						className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
-							selectedCategory === null
-								? "border-[#1BAA04] bg-[#1BAA04] text-white"
-								: "border-[#1B2722] text-gray-300 hover:border-gray-500"
-						}`}
+						className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
+							? "border-[#1BAA04] bg-[#1BAA04] text-white"
+							: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+							}`}
 					>
 						All
 						<span
-							className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${
-								selectedCategory === null
-									? "bg-white/20 text-white"
-									: "bg-[#1B2722] text-gray-300"
-							}`}
+							className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
+								? "bg-[#040C01] text-white"
+								: "bg-[#1B2722] text-gray-300"
+								}`}
 						>
 							{sortedGames.length}
 						</span>
@@ -321,21 +319,19 @@ function GamesPage() {
 										selectedCategory === cat ? null : cat,
 									)
 								}
-								className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${
-									selectedCategory === cat
-										? "border-[#1BAA04] bg-[#1BAA04] text-white"
-										: count === 0
-											? "border-[#1B2722] text-gray-600 cursor-default"
-											: "border-[#1B2722] text-gray-300 hover:border-gray-500"
-								}`}
+								className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${selectedCategory === cat
+									? "border-[#1BAA04] bg-[#1BAA04] text-white"
+									: count === 0
+										? "border-[#1B2722] text-gray-600 cursor-default"
+										: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+									}`}
 							>
 								{cat}
 								<span
-									className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${
-										selectedCategory === cat
-											? "bg-white/20 text-white"
-											: "bg-[#1B2722] text-gray-300"
-									}`}
+									className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
+										? "bg-white/20 text-white"
+										: "bg-[#1B2722] text-gray-300"
+										}`}
 								>
 									{count}
 								</span>
