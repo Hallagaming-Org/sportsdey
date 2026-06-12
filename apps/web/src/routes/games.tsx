@@ -349,7 +349,7 @@ function GamesPage() {
 					</p>
 				) : (
 					<>
-						<div className="flex flex-col gap-4 lg:hidden">
+						<div className="flex flex-col gap-4 md:hidden">
 							{gameChunks.map((chunk, rowIndex) => (
 								<div
 									key={rowIndex}
@@ -414,7 +414,7 @@ function GamesPage() {
 							))}
 						</div>
 
-						<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] lg:gap-4">
+						<div className="hidden md:grid md:grid-cols-4 md:gap-4">
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
