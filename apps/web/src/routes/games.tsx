@@ -1,20 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { 
-	Loader2, 
-	Gamepad2,
-	Ticket,
-	Crown,
-	Rocket,
-	Dices,
-	Coins,
-	LayoutGrid,
-	CircleDot,
-	Hand,
-	Gem,
-	Layout,
-	LayoutList
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
@@ -45,19 +31,19 @@ const CATEGORIES = [
 	"table/card-games",
 ] as const;
 
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-	"arcade": Gamepad2,
-	"bingo": Ticket,
-	"classic": Crown,
-	"crash-games": Rocket,
-	"dice": Dices,
-	"jackpot": Coins,
-	"lottery": Ticket,
-	"others": LayoutGrid,
-	"roulette": CircleDot,
-	"scratch": Hand,
-	"slots": Gem,
-	"table/card-games": Layout,
+const CATEGORY_EMOJIS: Record<string, string> = {
+	"arcade": "🕹️",
+	"bingo": "🎱",
+	"classic": "👑",
+	"crash-games": "🚀",
+	"dice": "🎲",
+	"jackpot": "💰",
+	"lottery": "🎟️",
+	"others": "🧩",
+	"roulette": "🎡",
+	"scratch": "🎫",
+	"slots": "🎰",
+	"table/card-games": "🃏",
 };
 
 type Game = {
@@ -365,8 +351,7 @@ function GamesPage() {
 								: "border-[#1B2722] text-gray-300 hover:border-gray-500"
 								}`}
 						>
-							<LayoutList className="w-4 h-4" />
-							All
+							🎮 All
 							<span
 								className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
 									? "bg-[#040C01] text-white"
@@ -378,7 +363,7 @@ function GamesPage() {
 						</button>
 						{CATEGORIES.map((cat) => {
 							const count = categoryCounts[cat] ?? 0;
-							const Icon = CATEGORY_ICONS[cat];
+							const emoji = CATEGORY_EMOJIS[cat];
 							return (
 								<button
 									key={cat}
@@ -394,7 +379,7 @@ function GamesPage() {
 											: "border-[#1B2722] text-gray-300 hover:border-gray-500"
 										}`}
 								>
-									{Icon && <Icon className="w-4 h-4" />}
+									{emoji && <span>{emoji}</span>}
 									<span className="capitalize">{cat.replace("-", " ")}</span>
 									<span
 										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
