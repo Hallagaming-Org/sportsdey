@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search, Filter } from "lucide-react";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
@@ -137,6 +137,8 @@ function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [sortAsc, setSortAsc] = useState(false);
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
@@ -153,6 +155,9 @@ function GamesPage() {
 	});
 
 	const sortedGames = [...games].sort((a, b) => {
+		if (sortAsc && selectedCategory === null) {
+			return a.name.localeCompare(b.name);
+		}
 		const aIndex = PRIORITY_GAMES.indexOf(a.code);
 		const bIndex = PRIORITY_GAMES.indexOf(b.code);
 		if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
@@ -170,9 +175,15 @@ function GamesPage() {
 		{} as Record<string, number>,
 	);
 
-	const filteredGames = selectedCategory
-		? sortedGames.filter((game) => (game.category ?? "others") === selectedCategory)
-		: sortedGames;
+	const filteredGames = sortedGames.filter((game) => {
+		if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+			return false;
+		}
+		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+			return false;
+		}
+		return true;
+	});
 
 	const chunkSize = 3;
 	const gameChunks: Game[][] = [];
@@ -334,9 +345,38 @@ function GamesPage() {
 		<div className="min-h-screen dark:bg-[#121212]">
 			<div className="container mx-auto px-4 pb-8 relative">
 				<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
-					<h1 className="mb-6 font-bold text-2xl text-gray-900 dark:text-white">
-						All Games
-					</h1>
+					<div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+						<h1 className="font-bold text-2xl text-gray-900 dark:text-white">
+							Casino
+						</h1>
+
+						<div className="flex flex-wrap items-center gap-2">
+							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
+								<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+								<input 
+									type="text"
+									placeholder="Search top providers or game names..."
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									className="w-full pl-9 pr-4 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
+								/>
+							</div>
+							
+							{selectedCategory === null && (
+								<button 
+									onClick={() => setSortAsc(!sortAsc)}
+									className={`flex items-center shrink-0 gap-2 px-4 py-2 border rounded-full text-sm font-medium transition-colors ${
+										sortAsc 
+											? "bg-[#1BAA04] border-[#1BAA04] text-white" 
+											: "bg-[#1B2722] border-[#2a3a33] text-gray-300 hover:border-[#1BAA04]"
+									}`}
+								>
+									<Filter className="w-4 h-4" />
+									<span className="hidden sm:inline">A-Z</span>
+								</button>
+							)}
+						</div>
+					</div>
 
 					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
 						<button
