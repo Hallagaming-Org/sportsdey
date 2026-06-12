@@ -286,12 +286,13 @@ function GamesPage() {
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
-			<div className="container mx-auto px-4 py-8">
-				<h1 className="mb-6 font-bold text-2xl text-gray-900 dark:text-white">
-					All Games
-				</h1>
+			<div className="container mx-auto px-4 pb-8 relative">
+				<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
+					<h1 className="mb-6 font-bold text-2xl text-gray-900 dark:text-white">
+						All Games
+					</h1>
 
-				<div className="mb-8 flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+					<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
 					<button
 						onClick={() => setSelectedCategory(null)}
 						className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
@@ -338,6 +339,7 @@ function GamesPage() {
 							</button>
 						);
 					})}
+					</div>
 				</div>
 
 				{filteredGames.length === 0 ? (
