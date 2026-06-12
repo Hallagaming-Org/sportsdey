@@ -301,12 +301,12 @@ function GamesPage() {
 					>
 						All
 						<span
-							className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
+							className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
 								? "bg-[#040C01] text-white"
 								: "bg-[#1B2722] text-gray-300"
 								}`}
 						>
-							{sortedGames.length}
+							{sortedGames.length.toLocaleString()}
 						</span>
 					</button>
 					{CATEGORIES.map((cat) => {
@@ -328,12 +328,12 @@ function GamesPage() {
 							>
 								{cat}
 								<span
-									className={`flex h-7 w-7 px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
+									className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
 										? "bg-white/20 text-white"
 										: "bg-[#1B2722] text-gray-300"
 										}`}
 								>
-									{count}
+									{count.toLocaleString()}
 								</span>
 							</button>
 						);
