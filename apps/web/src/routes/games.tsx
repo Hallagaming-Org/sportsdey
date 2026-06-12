@@ -328,7 +328,7 @@ function GamesPage() {
 							>
 								{cat}
 								<span
-									className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
+									className={`flex h-7 w-7 px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
 										? "bg-white/20 text-white"
 										: "bg-[#1B2722] text-gray-300"
 										}`}
