@@ -357,8 +357,8 @@ function GamesPage() {
 										return (
 											<div
 												key={game.code}
-												className="relative flex h-[240px] flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
-												style={{ background: display.gradient, flex: "0 0 160px" }}
+												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-[17px] transition-transform hover:scale-[1.02]"
+												style={{ background: display.gradient, flex: "0 0 160px", height: "158px" }}
 												onClick={() => handleGameClick(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
@@ -386,7 +386,7 @@ function GamesPage() {
 														src={display.image}
 														alt={display.name}
 														loading="lazy"
-														className="absolute inset-0 h-full w-full object-contain p-2 transition-opacity"
+														className="absolute inset-0 h-full w-full object-cover transition-opacity"
 														style={{
 															opacity: loadingGame === game.code ? 0.35 : 1,
 														}}
@@ -403,20 +403,7 @@ function GamesPage() {
 														</span>
 													</div>
 												)}
-												<p
-													className="text-center font-normal text-[27px] text-white"
-													style={{ fontFamily: "Luckiest Guy" }}
-												>
-													{display.name}
-												</p>
-												{display.subtitle && (
-													<p
-														className="text-center text-gray-100 text-sm"
-														style={{ fontFamily: "Quicksand" }}
-													>
-														{display.subtitle}
-													</p>
-												)}
+
 											</div>
 										);
 									})}
@@ -424,13 +411,13 @@ function GamesPage() {
 							))}
 						</div>
 
-						<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] lg:gap-6">
+						<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(215px,1fr))] lg:gap-6">
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
 									<div
 										key={game.code}
-										className="relative flex h-[270px] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
+										className="relative flex aspect-[215/212] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-[17.2px] transition-transform hover:scale-[1.02]"
 										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
@@ -459,7 +446,7 @@ function GamesPage() {
 												src={display.image}
 												alt={display.name}
 												loading="lazy"
-												className="absolute inset-0 h-full w-full object-contain p-2 transition-opacity"
+												className="absolute inset-0 h-full w-full object-cover transition-opacity"
 												style={{
 													opacity: loadingGame === game.code ? 0.35 : 1,
 												}}
@@ -476,20 +463,7 @@ function GamesPage() {
 												</span>
 											</div>
 										)}
-										<p
-											className="text-center font-normal text-[27px] text-white"
-											style={{ fontFamily: "Luckiest Guy" }}
-										>
-											{display.name}
-										</p>
-										{display.subtitle && (
-											<p
-												className="text-center text-gray-100 text-sm"
-												style={{ fontFamily: "Quicksand" }}
-											>
-												{display.subtitle}
-											</p>
-										)}
+
 									</div>
 								);
 							})}
