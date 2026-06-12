@@ -160,6 +160,16 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				: location.pathname.startsWith("/sportsbook")),
 			onClick: isMobile ? goToScores : goToSportsbook,
 		},
+
+		{
+			id: "casino",
+			label: "Casino",
+			icon: Gamepad2,
+			isActive: isItemActive("casino",
+				location.pathname.startsWith("/games") ||
+				location.pathname.startsWith("/game/")),
+			onClick: goToCasino,
+		},
 		{
 			id: "p2p",
 			label: "PvP",
@@ -169,15 +179,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				setActiveOverride("p2p");
 				window.open("https://www.thndr.io/games", "_blank");
 			},
-		},
-		{
-			id: "casino",
-			label: "Casino",
-			icon: Gamepad2,
-			isActive: isItemActive("casino",
-				location.pathname.startsWith("/games") ||
-				location.pathname.startsWith("/game/")),
-			onClick: goToCasino,
 		},
 		{
 			id: "news",
