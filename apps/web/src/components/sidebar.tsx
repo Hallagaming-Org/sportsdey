@@ -191,7 +191,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					id: "pvp-esports",
 					label: "Esports Tournament",
 					isActive: false,
-					onClick: () => window.open("https://tournament.sportsdey.com", "_blank"),
+					onClick: () => window.open("https://tournaments.sportsdey.com/", "_blank"),
 				}
 			]
 		},
