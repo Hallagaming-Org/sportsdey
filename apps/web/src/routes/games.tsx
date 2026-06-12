@@ -338,7 +338,7 @@ function GamesPage() {
 						All Games
 					</h1>
 
-					<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+					<div className="flex overflow-x-auto gap-3 scrollbar-hide">
 						<button
 							onClick={() => setSelectedCategory(null)}
 							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
@@ -461,7 +461,7 @@ function GamesPage() {
 							))}
 						</div>
 
-						<div className="hidden md:grid md:grid-cols-4 md:gap-4">
+						<div className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4">
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
