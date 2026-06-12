@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Gift, Home, Newspaper, Repeat, Trophy } from "lucide-react";
+import { Gamepad2, Gift, Home, Newspaper, Trophy, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
@@ -19,8 +19,9 @@ type MenuItem = {
 	label: string;
 	icon: any;
 	isActive: boolean;
-	onClick: () => void;
+	onClick?: () => void;
 	disabled?: boolean;
+	subItems?: { id: string; label: string; onClick: () => void; isActive: boolean }[];
 };
 
 type SidebarProps = {
@@ -38,6 +39,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
+	const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
 	useEffect(() => {
 		setActiveOverride(null);
@@ -173,12 +175,25 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "p2p",
 			label: "PvP",
-			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
-			isActive: isItemActive("p2p", false),
-			onClick: () => {
-				setActiveOverride("p2p");
-				window.open("https://www.thndr.io/games", "_blank");
-			},
+			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} color={isItemActive("p2p", false) || expandedItems["p2p"] ? "#FFFFFF" : "#8C8F8F"} />,
+			isActive: isItemActive("p2p", false) || expandedItems["p2p"],
+			subItems: [
+				{
+					id: "pvp-casino",
+					label: "Casino",
+					isActive: false,
+					onClick: () => {
+						setActiveOverride("p2p");
+						window.open("https://www.thndr.io/games", "_blank");
+					}
+				},
+				{
+					id: "pvp-esports",
+					label: "Esports Tournament",
+					isActive: false,
+					onClick: () => showComingSoon("Esports Tournament"),
+				}
+			]
 		},
 		{
 			id: "news",
@@ -290,45 +305,77 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					{menuItems.map((item, idx) => {
 						const Icon = item.icon;
 						const isLast = idx === menuItems.length - 1;
+						const isExpanded = expandedItems[item.id];
 						return (
-							<button
-								key={item.id}
-								onClick={() => {
-									item.onClick();
-									onItemClick?.();
-								}}
-								type="button"
-								disabled={item.disabled}
-								className={cn(
-									"flex w-full cursor-pointer items-center gap-3 text-left font-semibold text-sm transition-all",
-									isMobile ? "px-2 py-4" : "rounded-xl px-4 py-3",
-									isMobile &&
-									!isLast &&
-									"border-b border-gray-300 dark:border-[#2F3033]",
-									!isMobile &&
-									item.isActive &&
-									"bg-accent text-white shadow-md shadow-accent/15",
-									!isMobile &&
-									!item.isActive &&
-									"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
-									isMobile && item.isActive && "text-accent",
-									isMobile &&
-									!item.isActive &&
-									"text-gray-900 dark:text-[#8C8F8F]",
-									item.disabled &&
-									"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
-								)}
-							>
-								<Icon
+							<div key={item.id} className="flex flex-col">
+								<button
+									onClick={() => {
+										if (item.subItems) {
+											setExpandedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+										} else {
+											item.onClick?.();
+											onItemClick?.();
+										}
+									}}
+									type="button"
+									disabled={item.disabled}
 									className={cn(
-										"h-4 w-4 shrink-0",
+										"flex w-full cursor-pointer items-center justify-between text-left font-semibold text-sm transition-all",
+										isMobile ? "px-2 py-4" : "rounded-xl px-4 py-3",
+										isMobile &&
+										!isLast &&
+										"border-b border-gray-300 dark:border-[#2F3033]",
+										!isMobile &&
+										item.isActive &&
+										"bg-accent text-white shadow-md shadow-accent/15",
+										!isMobile &&
+										!item.isActive &&
+										"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
+										isMobile && item.isActive && "text-accent",
 										isMobile &&
 										!item.isActive &&
-										"text-gray-500 dark:text-[#8C8F8F]",
+										"text-gray-900 dark:text-[#8C8F8F]",
+										item.disabled &&
+										"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
 									)}
-								/>
-								<span>{item.label}</span>
-							</button>
+								>
+									<div className="flex items-center gap-3">
+										<Icon
+											className={cn(
+												"h-4 w-4 shrink-0",
+												isMobile &&
+												!item.isActive &&
+												"text-gray-500 dark:text-[#8C8F8F]",
+											)}
+										/>
+										<span>{item.label}</span>
+									</div>
+									{item.subItems && (
+										<ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
+									)}
+								</button>
+								{item.subItems && isExpanded && (
+									<div className="flex flex-col gap-1 pl-11 pr-4 py-2">
+										{item.subItems.map(sub => (
+											<button
+												key={sub.id}
+												onClick={() => {
+													sub.onClick();
+													if (!isMobile) onItemClick?.();
+												}}
+												className={cn(
+													"text-left text-sm py-2 px-3 rounded-lg transition-colors",
+													sub.isActive
+														? "text-accent font-semibold bg-accent/10"
+														: "text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-card/45"
+												)}
+											>
+												{sub.label}
+											</button>
+										))}
+									</div>
+								)}
+							</div>
 						);
 					})}
 				</nav>
