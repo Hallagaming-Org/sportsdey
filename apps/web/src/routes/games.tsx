@@ -11,6 +11,7 @@ import PlinkoLogo from "../logos/plinko.svg?react";
 import SlotsLogo from "../logos/slots.svg?react";
 import SolitaireLogo from "../logos/solitaire.svg?react";
 import TwentyOneLogo from "../logos/twentyone.svg?react";
+import FilerAToZ from "@/logos/FilerAToZ";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
@@ -353,7 +354,7 @@ function GamesPage() {
 						<div className="flex flex-wrap items-center gap-2">
 							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
 								<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-								<input 
+								<input
 									type="text"
 									placeholder="Search top providers or game names..."
 									value={searchQuery}
@@ -361,18 +362,16 @@ function GamesPage() {
 									className="w-full pl-9 pr-4 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
 								/>
 							</div>
-							
+
 							{selectedCategory === null && (
-								<button 
+								<button
 									onClick={() => setSortAsc(!sortAsc)}
-									className={`flex items-center shrink-0 gap-2 px-4 py-2 border rounded-full text-sm font-medium transition-colors ${
-										sortAsc 
-											? "bg-[#1BAA04] border-[#1BAA04] text-white" 
-											: "bg-[#1B2722] border-[#2a3a33] text-gray-300 hover:border-[#1BAA04]"
-									}`}
+									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer${sortAsc
+										? ""
+										: ""
+										}`}
 								>
-									<Filter className="w-4 h-4" />
-									<span className="hidden sm:inline">A-Z</span>
+									<FilerAToZ />
 								</button>
 							)}
 						</div>
