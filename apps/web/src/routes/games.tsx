@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import BlackjackLogo from "../logos/blackjack.svg?react";
@@ -267,8 +268,42 @@ function GamesPage() {
 
 	if (isSessionLoading || isLoading) {
 		return (
-			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<Loader2 className="h-10 w-10 animate-spin dark:text-white text-primary" />
+			<div className="min-h-screen dark:bg-[#121212]">
+				<div className="container mx-auto px-4 pb-8 relative">
+					<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
+						<Skeleton className="mb-6 h-8 w-40 bg-gray-200 dark:bg-[#1B2722]" />
+						<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+							{Array.from({ length: 8 }).map((_, i) => (
+								<Skeleton
+									key={i}
+									className="h-9 w-24 shrink-0 rounded-2xl bg-gray-200 dark:bg-[#1B2722]"
+								/>
+							))}
+						</div>
+					</div>
+
+					<div className="flex flex-col gap-4 md:hidden">
+						{Array.from({ length: 4 }).map((_, row) => (
+							<div key={row} className="flex overflow-x-auto gap-2 scrollbar-hide">
+								{Array.from({ length: 4 }).map((_, col) => (
+									<Skeleton
+										key={col}
+										className="h-[110px] w-[110px] flex-none rounded-xl bg-gray-200 dark:bg-[#1B2722]"
+									/>
+								))}
+							</div>
+						))}
+					</div>
+
+					<div className="hidden md:grid md:grid-cols-4 md:gap-4">
+						{Array.from({ length: 16 }).map((_, i) => (
+							<Skeleton
+								key={i}
+								className="aspect-square w-full rounded-2xl bg-gray-200 dark:bg-[#1B2722]"
+							/>
+						))}
+					</div>
+				</div>
 			</div>
 		);
 	}
