@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import BlackjackLogo from "../logos/blackjack.svg?react";
@@ -259,7 +259,7 @@ function GamesPage() {
 			name: game.name,
 			subtitle: "Play now",
 			icon: undefined,
-			image: game.imageUrl || "",
+			image: game.imageUrl || "/lagos-rush.png",
 			gradient: DEFAULT_GRADIENT,
 		};
 	};
@@ -357,8 +357,8 @@ function GamesPage() {
 										return (
 											<div
 												key={game.code}
-												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-[17px] transition-transform hover:scale-[1.02]"
-												style={{ background: display.gradient, flex: "0 0 160px", height: "158px" }}
+												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-transform hover:scale-[1.02]"
+												style={{ background: display.gradient, flex: "0 0 110px", height: "110px" }}
 												onClick={() => handleGameClick(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
@@ -411,13 +411,13 @@ function GamesPage() {
 							))}
 						</div>
 
-						<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(215px,1fr))] lg:gap-6">
+						<div className="hidden lg:grid lg:grid-cols-[repeat(auto-fill,minmax(140px,1fr))] lg:gap-4">
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
 									<div
 										key={game.code}
-										className="relative flex aspect-[215/212] w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-[17.2px] transition-transform hover:scale-[1.02]"
+										className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-transform hover:scale-[1.02]"
 										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
