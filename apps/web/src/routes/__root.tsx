@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { useEffect } from "react";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -81,6 +82,15 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
+	
+	useEffect(() => {
+		window.scrollTo(0, 0);
+		const mains = document.querySelectorAll("main");
+		mains.forEach((main) => {
+			main.scrollTo(0, 0);
+		});
+	}, [location.pathname]);
+
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
 	const sidebarAllowedRouteIds = new Set([
