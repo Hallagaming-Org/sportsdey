@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
 import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,6 +141,21 @@ function GamesPage() {
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortAsc, setSortAsc] = useState(false);
+
+	const containerVariants: Variants = {
+		hidden: { opacity: 0 },
+		show: {
+			opacity: 1,
+			transition: {
+				staggerChildren: 0.05,
+			},
+		},
+	};
+
+	const itemVariants: Variants = {
+		hidden: { opacity: 0, y: 20 },
+		show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
+	};
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
@@ -438,15 +454,19 @@ function GamesPage() {
 					<>
 						<div className="flex flex-col gap-4 md:hidden">
 							{gameChunks.map((chunk, rowIndex) => (
-								<div
+								<motion.div
 									key={rowIndex}
+									variants={containerVariants}
+									initial="hidden"
+									animate="show"
 									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
 										return (
-											<div
+											<motion.div
 												key={game.code}
+												variants={itemVariants}
 												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-transform hover:scale-[1.02]"
 												style={{ background: display.gradient, flex: "0 0 110px", height: "110px" }}
 												onClick={() => handleGameClick(game)}
@@ -494,19 +514,25 @@ function GamesPage() {
 													</div>
 												)}
 
-											</div>
+											</motion.div>
 										);
 									})}
-								</div>
+								</motion.div>
 							))}
 						</div>
 
-						<div className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4">
+						<motion.div 
+							variants={containerVariants}
+							initial="hidden"
+							animate="show"
+							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
+						>
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
-									<div
+									<motion.div
 										key={game.code}
+										variants={itemVariants}
 										className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-transform hover:scale-[1.02]"
 										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
@@ -554,10 +580,10 @@ function GamesPage() {
 											</div>
 										)}
 
-									</div>
+									</motion.div>
 								);
 							})}
-						</div>
+						</motion.div>
 					</>
 				)}
 			</div>
