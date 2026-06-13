@@ -381,7 +381,7 @@ function GamesPage() {
 					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
 						<button
 							onClick={() => setSelectedCategory(null)}
-							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
+							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${selectedCategory === null
 								? "border-[#1BAA04] bg-[#1BAA04] text-white"
 								: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
 								}`}
