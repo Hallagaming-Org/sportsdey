@@ -1,75 +1,10 @@
-export const CATEGORY_CHANNELS: Record<string, string[]> = {
-  football: [
-    "Sky Sports Football",
-    "TNT Sports",
-    "Premier League",
-    "ESPN FC",
-    "433",
-    "CBS Sports Golazo",
-    "Serie A",
-    "LaLiga",
-    "Bundesliga",
-    "UEFA",
-  ],
-  basketball: [
-    "House of Highlights",
-    "NBA",
-    "Ballislife",
-    "FreeDawkins",
-    "ESPN NBA",
-    "Bleacher Report",
-  ],
-  tennis: [
-    "ATP Tour",
-    "WTA",
-    "Tennis TV",
-    "Wimbledon",
-    "Roland-Garros",
-    "US Open Tennis Championships",
-    "Australian Open TV",
-  ],
-  boxing: [
-    "Top Rank Boxing",
-    "Matchroom Boxing",
-    "DAZN Boxing",
-    "Premier Boxing Champions",
-    "Queensberry Promotions",
-    "Golden Boy Boxing",
-  ],
-  ufc: [
-    "UFC",
-    "MMA Fighting",
-    "TNT Sports UFC",
-    "ONE Championship",
-    "Bellator MMA",
-    "PFL MMA",
-    "MMA Junkie",
-  ],
-  mma: [
-    "UFC",
-    "MMA Fighting",
-    "TNT Sports UFC",
-    "ONE Championship",
-    "Bellator MMA",
-    "PFL MMA",
-    "MMA Junkie",
-  ],
-  all: [
-    "House of Highlights",
-    "NBA",
-    "Premier League",
-    "TNT Sports",
-    "Tennis TV",
-    "ATP Tour",
-    "DAZN Boxing",
-    "Top Rank Boxing",
-    "UFC",
-    "ONE Championship",
-  ],
+export const CATEGORY_CHANNEL_IDS: Record<string, string> = {
+  football: "UC6c1z7bA__85CIWZ_jpCK-Q",
+  basketball: "UCqQo7ewe87aYAe7ub5UqXMw",
+  tennis: "UCY_5h5zaSwN7Or4kIJDYNXA",
+  boxing: "UCurvRE5fGcdUgCYWgh-BDsg",
+  racing: "UCB_qr75-ydFVKSF9Dmo6izg",
+  "mma/ufc": "UCVLbBhP_sEeXojkBNCbRjPg",
+  ufc: "UCVLbBhP_sEeXojkBNCbRjPg",
+  mma: "UCVLbBhP_sEeXojkBNCbRjPg",
 };
-
-export function buildVideoQuery(category: string): string {
-  const channels = CATEGORY_CHANNELS[category];
-  if (!channels) return category;
-  return `${channels.join(" ")} ${category}`;
-}

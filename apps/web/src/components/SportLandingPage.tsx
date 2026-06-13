@@ -12,6 +12,7 @@ import type { BannerData } from "@/lib/banners-server";
 import type { NewsListItem } from "@/lib/news-server";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
@@ -29,6 +30,7 @@ export default function SportLandingPage({
 
 	// Map sport to video query string
 	const videoQuery = sport === "ufc" ? "ufc mma" : sport;
+	const channelId = CATEGORY_CHANNEL_IDS[sport];
 
 	// Load news
 	const { data: newsData, isLoading: isNewsLoading } =
@@ -38,7 +40,7 @@ export default function SportLandingPage({
 
 	// Load video highlights
 	const { data: videoData, isLoading: isVideosLoading } =
-		useNewsVideos(videoQuery);
+		useNewsVideos(`${videoQuery} match highlights, live matches, news`, channelId);
 	const allVideos = videoData?.pages.flatMap((page) => page.videos) || [];
 	const displayVideos = allVideos.slice(0, 4);
 
