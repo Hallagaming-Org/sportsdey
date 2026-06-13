@@ -183,7 +183,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					label: "Casino",
 					isActive: false,
 					onClick: () => {
-						setActiveOverride("p2p");
 						window.open("https://www.thndr.io/games", "_blank");
 					}
 				},
