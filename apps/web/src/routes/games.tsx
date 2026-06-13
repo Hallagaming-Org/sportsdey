@@ -222,6 +222,10 @@ function GamesPage() {
 	}
 
 	const handleGameClick = async (game: Game) => {
+		if (!session?.user) {
+			navigate({ to: "/auth/sign-in" });
+			return;
+		}
 		console.log(import.meta.env.VITE_SERVER_URL, " import")
 		setLoadingGame(game.code);
 		try {
@@ -367,9 +371,6 @@ function GamesPage() {
 		);
 	}
 
-	if (!isSessionLoading && !session?.user) {
-		return <Navigate to="/auth/sign-in" />;
-	}
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
