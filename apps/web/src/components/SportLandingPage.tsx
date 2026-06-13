@@ -82,7 +82,7 @@ export default function SportLandingPage({
 			<PopularAndCasinoSection />
 
 			{/* Trending News Section */}
-			<div className="space-y-4 px-4 sm:px-6">
+			<div className="space-y-4">
 				<div className="flex items-center justify-between">
 					<h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
 						Trending News
