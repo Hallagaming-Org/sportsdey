@@ -35,7 +35,7 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 		const params = new URLSearchParams(searchStr);
 		const tabParam = params.get("tab");
 
-		if (path.startsWith("/favorites")) {
+		if (path.startsWith("/favorites") || path.startsWith("/wallet")) {
 			setTab("favourites");
 		} else if (path.startsWith("/videos")) {
 			setTab("videos");
