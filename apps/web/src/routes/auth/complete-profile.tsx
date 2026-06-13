@@ -148,7 +148,7 @@ function CompleteProfilePage() {
 			</button>
 
 			<div className="mt-6 text-center">
-				<Link to="/" className="text-sm text-[#1e2421] underline">
+				<Link to="/" search={{} as any} className="text-sm text-[#1e2421] underline">
 					Skip for now
 				</Link>
 			</div>
