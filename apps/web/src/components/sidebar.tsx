@@ -43,6 +43,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	useEffect(() => {
 		setActiveOverride(null);
+		setExpandedItems({});
 	}, [location.pathname, location.search]);
 
 	const isItemActive = (id: string, defaultActive: boolean) => {
@@ -175,7 +176,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "p2p",
 			label: "PvP",
-			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} color={isItemActive("p2p", false) || expandedItems["p2p"] ? "#FFFFFF" : "#8C8F8F"} />,
+			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} />,
 			isActive: isItemActive("p2p", false) || expandedItems["p2p"],
 			subItems: [
 				{
