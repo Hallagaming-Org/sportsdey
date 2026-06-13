@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/api";
 import type { BasketballVideosData } from "@/types/api";
 import { VideoCard } from "./VideoCard";
 import { VideoModal } from "./VideoModal";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 
 interface VideosTabProps {
 	homeTeam: string;
@@ -26,13 +27,15 @@ function VideoCardSkeleton() {
 
 export function VideosTab({ homeTeam, awayTeam }: VideosTabProps) {
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+	const channelId = CATEGORY_CHANNEL_IDS.basketball;
 	const searchQuery = `${homeTeam} Vs ${awayTeam}`;
+	const channelParam = channelId ? `&channelId=${channelId}` : "";
 
 	const { data: videosData, isLoading } = useQuery({
-		queryKey: ["basketball", "videos", searchQuery],
+		queryKey: ["basketball", "videos", searchQuery, channelId],
 		queryFn: () =>
 			apiRequest<BasketballVideosData>(
-				`basketball/videos?query=${encodeURIComponent(searchQuery)}`,
+				`basketball/videos?query=${encodeURIComponent(searchQuery)}${channelParam}`,
 			),
 		enabled: !!homeTeam && !!awayTeam,
 	});

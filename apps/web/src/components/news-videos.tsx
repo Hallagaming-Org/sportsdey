@@ -4,9 +4,11 @@ import { useNewsVideos } from "@/hooks/use-news-videos";
 import { VideoCard } from "./basketball-section/VideoCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoModal } from "./basketball-section/VideoModal";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 
 export function VideosTab({ category }: { category: string }) {
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+	const channelId = CATEGORY_CHANNEL_IDS[category];
 	const query =
 		category === "all"
 			? "football basketball tennis boxing match highlights live matches news"
@@ -20,7 +22,7 @@ export function VideosTab({ category }: { category: string }) {
 		hasNextPage,
 		isFetchingNextPage,
 		isError,
-	} = useNewsVideos(query);
+	} = useNewsVideos(query, channelId);
 
 	const observerTarget = useRef<HTMLDivElement>(null);
 
