@@ -180,7 +180,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			subItems: [
 				{
 					id: "pvp-casino",
-					label: "Casino",
+					label: "PvP Games",
 					isActive: false,
 					onClick: () => {
 						window.open("https://www.thndr.io/games", "_blank");
