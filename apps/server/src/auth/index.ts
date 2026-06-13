@@ -91,7 +91,7 @@ export const createAuth = (env: CloudflareBindings) => {
 		advanced: {
 			crossSubDomainCookies: {
 				enabled: true,
-				// domain: "sportsdey.com",
+				domain: ".sportsdey.com",
 			},
 			cookiePrefix: "ba",
 			cookieOptions: {
