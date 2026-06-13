@@ -176,7 +176,7 @@ function AccountPage() {
 						</div>
 
 						{/* Profile photo - centered circle */}
-						<div className="mb-10 mt-6 flex justify-center">
+						<div className="mb-3 mt-6 flex justify-center">
 							<div className="relative">
 								{profileImage ? (
 									<img
@@ -194,6 +194,11 @@ function AccountPage() {
 									<Camera className="h-4 w-4 text-gray-600 dark:text-[#8C8F8F]" />
 								</div>
 							</div>
+						</div>
+						<div className="mb-10 flex justify-center">
+							<p className="text-[10px] md:text-sm text-gray-500 dark:text-[#8C8F8F]">
+								user id: {session?.user?.id || ""}
+							</p>
 						</div>
 
 						{/* Form fields */}
