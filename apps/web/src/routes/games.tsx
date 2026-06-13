@@ -407,7 +407,7 @@ function GamesPage() {
 											selectedCategory === cat ? null : cat,
 										)
 									}
-									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${selectedCategory === cat
+									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${selectedCategory === cat
 										? "border-[#1BAA04] bg-[#1BAA04] text-white"
 										: count === 0
 											? "border-[#1B2722] text-gray-600 cursor-default"
