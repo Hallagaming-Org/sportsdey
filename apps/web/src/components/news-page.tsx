@@ -7,11 +7,25 @@ import { useNewsData } from "@/hooks/use-news-data";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import type { NewsListItem } from "@/lib/news-server";
 import { formatRelativeTime } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButton } from "./ShareButton";
 
 export const NewsPage = ({ category }: { category: string }) => {
-	const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+	const { data, isLoading, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
 		useNewsData(category);
+
+	const containerVariants: Variants = {
+		hidden: { opacity: 0 },
+		show: {
+			opacity: 1,
+			transition: { staggerChildren: 0.15 },
+		},
+	};
+
+	const itemVariants: Variants = {
+		hidden: { opacity: 0, y: 20 },
+		show: { opacity: 1, y: 0, transition: { type: "tween", ease: "easeOut", duration: 0.4 } },
+	};
 
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -36,24 +50,24 @@ export const NewsPage = ({ category }: { category: string }) => {
 	// Flatten all pages into a single array
 	const allNews = data?.pages.flat() || [];
 
-	const containerVariants: Variants = {
-		hidden: { opacity: 0 },
-		show: {
-			opacity: 1,
-			transition: { staggerChildren: 0.15 },
-		},
-	};
 
-	const itemVariants: Variants = {
-		hidden: { opacity: 0, x: -50 },
-		show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 20 } },
-	};
 
-	if (isLoading) {
+	if (isLoading || (isFetching && !isFetchingNextPage)) {
 		return (
-			<div className="flex flex-col items-center justify-center space-y-2 py-8">
-				<Loader2 className="animate-spin" width={24} height={24} />
-				<p className="text-gray-500 text-sm">Loading news...</p>
+			<div className="grid grid-cols-1 gap-4 px-4 py-4 md:grid-cols-2 lg:grid-cols-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<div
+						key={`news-skel-${i}`}
+						className="flex w-full flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-0 dark:bg-card"
+					>
+						<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
+							<Skeleton className="absolute top-0 left-0 h-full w-full rounded-lg" />
+						</div>
+						<Skeleton className="h-4 w-3/4 mt-2" />
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-1/2" />
+					</div>
+				))}
 			</div>
 		);
 	}
