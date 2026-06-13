@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { motion, type Variants } from "framer-motion";
 import { useNewsData } from "@/hooks/use-news-data";
 import { useNewsVideos } from "@/hooks/use-news-videos";
 import BannerCarousel from "@/components/BannerCarousel";
@@ -23,6 +24,19 @@ export default function SportLandingPage({
 	banners = [],
 }: SportLandingPageProps) {
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
+
+	const containerVariants: Variants = {
+		hidden: { opacity: 0 },
+		show: {
+			opacity: 1,
+			transition: { staggerChildren: 0.15 },
+		},
+	};
+
+	const itemVariants: Variants = {
+		hidden: { opacity: 0, y: 20 },
+		show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 150, damping: 18 } },
+	};
 
 	// Map sport to Sanity news category filter
 	const newsCategory = sport === "ufc" ? "mma/ufc" : sport;
@@ -117,45 +131,51 @@ export default function SportLandingPage({
 						No news stories available for this sport.
 					</div>
 				) : (
-					<div className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6">
+					<motion.div
+						variants={containerVariants}
+						initial="hidden"
+						animate="show"
+						className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6"
+					>
 						{displayNews.map((news: NewsListItem) => {
 							const tag = news.category || sport;
 							return (
-								<Link
-									to="/news/$slug"
-									params={{ slug: news.slug?.current ?? "" }}
-									key={news._id}
-									className="group flex cursor-pointer snap-start min-w-[65%] flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
-								>
-									<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
-										{news.image ? (
-											<ImageWithSkeleton
-												src={news.image.card}
-												alt={`${news.title}'s poster`}
-												wrapperClassName="absolute inset-0"
-												className="absolute top-0 left-0 h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
-											/>
-										) : (
-											<div className="absolute top-0 left-0 h-full w-full bg-gray-100 dark:bg-gray-800" />
-										)}
-										<span
-											className={`absolute bottom-3 left-3 px-2 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider z-10 ${getTagStyle(tag)}`}
-										>
-											{tag}
-										</span>
-									</div>
-									<div className="flex flex-col flex-1 space-y-2 pt-2">
-										<p className="mb-2 line-clamp-2 font-bold text-sm text-gray-800 dark:text-white leading-snug group-hover:text-accent transition-colors">
-											{news.title}
-										</p>
-										<p className="text-[11px] text-gray-400 dark:text-gray-500 mt-auto">
-											{formatRelativeTime(news.publishedAt)}
-										</p>
-									</div>
-								</Link>
+								<motion.div key={news._id} variants={itemVariants} className="flex h-full snap-start min-w-[65%] lg:w-auto lg:min-w-0 lg:snap-none">
+									<Link
+										to="/news/$slug"
+										params={{ slug: news.slug?.current ?? "" }}
+										className="group flex flex-1 cursor-pointer flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card"
+									>
+										<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
+											{news.image ? (
+												<ImageWithSkeleton
+													src={news.image.card}
+													alt={`${news.title}'s poster`}
+													wrapperClassName="absolute inset-0"
+													className="absolute top-0 left-0 h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+												/>
+											) : (
+												<div className="absolute top-0 left-0 h-full w-full bg-gray-100 dark:bg-gray-800" />
+											)}
+											<span
+												className={`absolute bottom-3 left-3 px-2 py-0.5 rounded font-extrabold text-[9px] uppercase tracking-wider z-10 ${getTagStyle(tag)}`}
+											>
+												{tag}
+											</span>
+										</div>
+										<div className="flex flex-col flex-1 space-y-2 pt-2">
+											<p className="mb-2 line-clamp-2 font-bold text-sm text-gray-800 dark:text-white leading-snug group-hover:text-accent transition-colors">
+												{news.title}
+											</p>
+											<p className="text-[11px] text-gray-400 dark:text-gray-500 mt-auto">
+												{formatRelativeTime(news.publishedAt)}
+											</p>
+										</div>
+									</Link>
+								</motion.div>
 							);
 						})}
-					</div>
+					</motion.div>
 				)}
 			</div>
 
@@ -194,17 +214,23 @@ export default function SportLandingPage({
 						No match highlights available for this sport.
 					</div>
 				) : (
-					<div className="no-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6">
+					<motion.div
+						variants={containerVariants}
+						initial="hidden"
+						animate="show"
+						className="no-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6"
+					>
 						{displayVideos.map((video) => {
 							const score = parseScore(video.title);
 							const timeAgo = formatDistanceToNow(new Date(video.publishedAt), {
 								addSuffix: true,
 							});
 							return (
-								<div
+								<motion.div
 									key={video.videoId}
+									variants={itemVariants}
 									onClick={() => setSelectedVideoId(video.videoId)}
-									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none cursor-pointer"
 								>
 									<div className="relative h-36 w-full overflow-hidden bg-gray-900 sm:aspect-video">
 										<img
@@ -231,10 +257,10 @@ export default function SportLandingPage({
 											{timeAgo}
 										</p>
 									</div>
-								</div>
+								</motion.div>
 							);
 						})}
-					</div>
+					</motion.div>
 				)}
 			</div>
 
