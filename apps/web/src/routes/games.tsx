@@ -367,7 +367,7 @@ function GamesPage() {
 							{selectedCategory === null && (
 								<button
 									onClick={() => setSortAsc(!sortAsc)}
-									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer${sortAsc
+									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer ${sortAsc
 										? ""
 										: ""
 										}`}
