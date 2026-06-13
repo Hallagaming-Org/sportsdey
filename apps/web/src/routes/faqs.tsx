@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Search, Plus, Minus } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import { useState } from 'react';
 import * as Accordion from '@radix-ui/react-accordion';
+import { motion, type Variants } from 'framer-motion';
 import { faqs } from '../data/faqs';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +18,19 @@ function FAQs() {
     faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (typeof faq.answer === 'string' && faq.answer.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.2 }
+    }
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, x: -50 },
+    show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 20 } }
+  };
 
   return (
     <div className="min-h-screen bg-[#000606] text-white py-12 px-4 flex flex-col items-center">
@@ -40,48 +54,60 @@ function FAQs() {
         <Accordion.Root
           type="single"
           collapsible
-          className="w-full space-y-4"
           value={activeItem}
           onValueChange={setActiveItem}
+          asChild
         >
-          {filteredFaqs.map((faq, index) => {
-            const value = `item-${index}`;
-            const isActive = activeItem === value;
-            return (
-              <Accordion.Item
-                key={value}
-                value={value}
-                className={cn(
-                  "rounded-lg border px-5 py-2 transition-colors cursor-pointer",
-                  isActive
-                    ? "border-[#00FF00] bg-[#000606]"
-                    : "border-[#1A1A1A] bg-transparent"
-                )}
-              >
-                <Accordion.Header className="flex">
-                  <Accordion.Trigger className="flex flex-1 items-center justify-between outline-none group text-left py-4">
-                    <span className={cn(
-                      "font-medium text-sm sm:text-base pr-4",
-                      isActive ? "text-[#00FF00]" : "text-white"
-                    )}>
-                      {faq.question}
-                    </span>
-                    <span className={cn(
-                      "flex-shrink-0 transition-colors",
-                      isActive ? "text-[#00FF00]" : "text-[#6E6E6E]"
-                    )}>
-                      {isActive ? <Minus className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                    </span>
-                  </Accordion.Trigger>
-                </Accordion.Header>
-                <Accordion.Content className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-                  <div className="pt-2 pb-4 text-[#A0A0A0] leading-relaxed">
-                    {faq.answer}
-                  </div>
-                </Accordion.Content>
-              </Accordion.Item>
-            );
-          })}
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="w-full space-y-4"
+          >
+            {filteredFaqs.map((faq, index) => {
+              const value = `item-${index}`;
+              const isActive = activeItem === value;
+              return (
+                <Accordion.Item
+                  key={value}
+                  value={value}
+                  asChild
+                >
+                  <motion.div
+                    variants={itemVariants}
+                    className={cn(
+                      "rounded-lg border px-5 py-2 transition-colors cursor-pointer",
+                      isActive
+                        ? "border-[#00FF00] bg-[#000606]"
+                        : "border-[#1A1A1A] bg-transparent"
+                    )}
+                  >
+                    <Accordion.Header className="flex">
+                      <Accordion.Trigger className="flex flex-1 items-center justify-between outline-none group text-left py-4">
+                        <span className={cn(
+                          "font-medium text-sm sm:text-base pr-4",
+                          isActive ? "text-[#00FF00]" : "text-white"
+                        )}>
+                          {faq.question}
+                        </span>
+                        <span className={cn(
+                          "flex-shrink-0 transition-colors",
+                          isActive ? "text-[#00FF00]" : "text-[#6E6E6E]"
+                        )}>
+                          {isActive ? <Minus className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                        </span>
+                      </Accordion.Trigger>
+                    </Accordion.Header>
+                    <Accordion.Content className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                      <div className="pt-2 pb-4 text-[#A0A0A0] leading-relaxed">
+                        {faq.answer}
+                      </div>
+                    </Accordion.Content>
+                  </motion.div>
+                </Accordion.Item>
+              );
+            })}
+          </motion.div>
         </Accordion.Root>
 
         {filteredFaqs.length === 0 && (

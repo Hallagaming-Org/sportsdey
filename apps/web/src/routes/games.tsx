@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { motion, type Variants } from "framer-motion";
+import { Loader2, Search } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -10,6 +12,7 @@ import PlinkoLogo from "../logos/plinko.svg?react";
 import SlotsLogo from "../logos/slots.svg?react";
 import SolitaireLogo from "../logos/solitaire.svg?react";
 import TwentyOneLogo from "../logos/twentyone.svg?react";
+import FilerAToZ from "@/logos/FilerAToZ";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
@@ -30,6 +33,21 @@ const CATEGORIES = [
 	"table/card-games",
 ] as const;
 
+const CATEGORY_EMOJIS: Record<string, string> = {
+	"arcade": "🕹️",
+	"bingo": "🎱",
+	"classic": "👑",
+	"crash-games": "🚀",
+	"dice": "🎲",
+	"jackpot": "💰",
+	"lottery": "🎟️",
+	"others": "🧩",
+	"roulette": "🎡",
+	"scratch": "🎫",
+	"slots": "🎰",
+	"table/card-games": "🃏",
+};
+
 type Game = {
 	id: string;
 	name: string;
@@ -39,11 +57,6 @@ type Game = {
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
-};
-
-type GameResponse = {
-	success: boolean;
-	data: Game[];
 };
 
 type LaunchResponse = {
@@ -126,6 +139,36 @@ function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [sortAsc, setSortAsc] = useState(false);
+
+	useEffect(() => {
+		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		const mains = document.querySelectorAll("main");
+		mains.forEach((main) => {
+			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		});
+	}, [selectedCategory]);
+
+	const containerVariants: Variants = {
+		hidden: { opacity: 0 },
+		show: {
+			opacity: 1,
+			transition: {
+				staggerChildren: 0.04,
+			},
+		},
+	};
+
+	const itemVariants: Variants = {
+		hidden: { opacity: 0, y: 20, scale: 0.95 },
+		show: {
+			opacity: 1,
+			y: 0,
+			scale: 1,
+			transition: { type: "tween", ease: "easeOut", duration: 0.4 }
+		},
+	};
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
@@ -142,6 +185,9 @@ function GamesPage() {
 	});
 
 	const sortedGames = [...games].sort((a, b) => {
+		if (sortAsc && selectedCategory === null) {
+			return a.name.localeCompare(b.name);
+		}
 		const aIndex = PRIORITY_GAMES.indexOf(a.code);
 		const bIndex = PRIORITY_GAMES.indexOf(b.code);
 		if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
@@ -159,9 +205,15 @@ function GamesPage() {
 		{} as Record<string, number>,
 	);
 
-	const filteredGames = selectedCategory
-		? sortedGames.filter((game) => (game.category ?? "others") === selectedCategory)
-		: sortedGames;
+	const filteredGames = sortedGames.filter((game) => {
+		if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+			return false;
+		}
+		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+			return false;
+		}
+		return true;
+	});
 
 	const chunkSize = 3;
 	const gameChunks: Game[][] = [];
@@ -323,19 +375,47 @@ function GamesPage() {
 		<div className="min-h-screen dark:bg-[#121212]">
 			<div className="container mx-auto px-4 pb-8 relative">
 				<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
-					<h1 className="mb-6 font-bold text-2xl text-gray-900 dark:text-white">
-						All Games
-					</h1>
+					<div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+						<h1 className="font-bold text-2xl text-gray-900 dark:text-white">
+							Casino
+						</h1>
 
-					<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+						<div className="flex flex-wrap items-center gap-2">
+							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
+
+								<input
+									type="text"
+									placeholder="Search games"
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									className="w-full pl-4 pr-10 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
+								/>
+								<Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+							</div>
+
+							{selectedCategory === null && (
+								<button
+									onClick={() => setSortAsc(!sortAsc)}
+									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer ${sortAsc
+										? ""
+										: ""
+										}`}
+								>
+									<FilerAToZ />
+								</button>
+							)}
+						</div>
+					</div>
+
+					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
 						<button
 							onClick={() => setSelectedCategory(null)}
-							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
+							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${selectedCategory === null
 								? "border-[#1BAA04] bg-[#1BAA04] text-white"
-								: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+								: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
 								}`}
 						>
-							All
+							🎮 All
 							<span
 								className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === null
 									? "bg-[#040C01] text-white"
@@ -347,6 +427,7 @@ function GamesPage() {
 						</button>
 						{CATEGORIES.map((cat) => {
 							const count = categoryCounts[cat] ?? 0;
+							const emoji = CATEGORY_EMOJIS[cat];
 							return (
 								<button
 									key={cat}
@@ -355,17 +436,18 @@ function GamesPage() {
 											selectedCategory === cat ? null : cat,
 										)
 									}
-									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${selectedCategory === cat
+									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${selectedCategory === cat
 										? "border-[#1BAA04] bg-[#1BAA04] text-white"
 										: count === 0
 											? "border-[#1B2722] text-gray-600 cursor-default"
-											: "border-[#1B2722] text-gray-300 hover:border-gray-500"
+											: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
 										}`}
 								>
-									{cat}
+									{emoji && <span>{emoji}</span>}
+									<span className="capitalize">{cat.replace("-", " ")}</span>
 									<span
 										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
-											? "bg-white/20 text-white"
+											? "bg-[#040C01] text-white"
 											: "bg-[#1B2722] text-gray-300"
 											}`}
 									>
@@ -385,15 +467,19 @@ function GamesPage() {
 					<>
 						<div className="flex flex-col gap-4 md:hidden">
 							{gameChunks.map((chunk, rowIndex) => (
-								<div
+								<motion.div
 									key={rowIndex}
+									variants={containerVariants}
+									initial="hidden"
+									animate="show"
 									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
 										return (
-											<div
+											<motion.div
 												key={game.code}
+												variants={itemVariants}
 												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-transform hover:scale-[1.02]"
 												style={{ background: display.gradient, flex: "0 0 110px", height: "110px" }}
 												onClick={() => handleGameClick(game)}
@@ -441,19 +527,25 @@ function GamesPage() {
 													</div>
 												)}
 
-											</div>
+											</motion.div>
 										);
 									})}
-								</div>
+								</motion.div>
 							))}
 						</div>
 
-						<div className="hidden md:grid md:grid-cols-4 md:gap-4">
+						<motion.div
+							variants={containerVariants}
+							initial="hidden"
+							animate="show"
+							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
+						>
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
-									<div
+									<motion.div
 										key={game.code}
+										variants={itemVariants}
 										className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-transform hover:scale-[1.02]"
 										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
@@ -501,10 +593,10 @@ function GamesPage() {
 											</div>
 										)}
 
-									</div>
+									</motion.div>
 								);
 							})}
-						</div>
+						</motion.div>
 					</>
 				)}
 			</div>

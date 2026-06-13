@@ -1,16 +1,31 @@
 import { PortableText } from "@portabletext/react";
 import { Link } from "@tanstack/react-router";
+import { motion, type Variants } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useNewsData } from "@/hooks/use-news-data";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import type { NewsListItem } from "@/lib/news-server";
 import { formatRelativeTime } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ShareButton } from "./ShareButton";
 
 export const NewsPage = ({ category }: { category: string }) => {
-	const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+	const { data, isLoading, isFetching, fetchNextPage, hasNextPage, isFetchingNextPage } =
 		useNewsData(category);
+
+	const containerVariants: Variants = {
+		hidden: { opacity: 0 },
+		show: {
+			opacity: 1,
+			transition: { staggerChildren: 0.15 },
+		},
+	};
+
+	const itemVariants: Variants = {
+		hidden: { opacity: 0, y: 20 },
+		show: { opacity: 1, y: 0, transition: { type: "tween", ease: "easeOut", duration: 0.4 } },
+	};
 
 	const loadMoreRef = useRef<HTMLDivElement>(null);
 
@@ -35,11 +50,24 @@ export const NewsPage = ({ category }: { category: string }) => {
 	// Flatten all pages into a single array
 	const allNews = data?.pages.flat() || [];
 
-	if (isLoading) {
+
+
+	if (isLoading || (isFetching && !isFetchingNextPage)) {
 		return (
-			<div className="flex flex-col items-center justify-center space-y-2 py-8">
-				<Loader2 className="animate-spin" width={24} height={24} />
-				<p className="text-gray-500 text-sm">Loading news...</p>
+			<div className="grid grid-cols-1 gap-4 px-4 py-4 md:grid-cols-2 lg:grid-cols-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<div
+						key={`news-skel-${i}`}
+						className="flex w-full flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-0 dark:bg-card"
+					>
+						<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
+							<Skeleton className="absolute top-0 left-0 h-full w-full rounded-lg" />
+						</div>
+						<Skeleton className="h-4 w-3/4 mt-2" />
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-1/2" />
+					</div>
+				))}
 			</div>
 		);
 	}
@@ -55,14 +83,21 @@ export const NewsPage = ({ category }: { category: string }) => {
 					Latest News
 				</p>
 			)}
-			<div className="grid grid-cols-1 gap-4 px-4 py-2 md:grid-cols-2 lg:grid-cols-3">
-				{allNews.map((news: NewsListItem) => (
-					<Link
-						to="/news/$slug"
-						params={{ slug: news.slug?.current }}
-						key={news._id}
-						className="flex cursor-pointer flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-0 dark:bg-card"
-					>
+			<motion.div 
+				variants={containerVariants}
+				initial="hidden"
+				animate="show"
+				className="grid grid-cols-1 gap-4 px-4 py-2 md:grid-cols-2 lg:grid-cols-3"
+			>
+				{allNews.map((news: NewsListItem | undefined) => {
+					if (!news) return null;
+					return (
+					<motion.div key={news._id || Math.random().toString()} variants={itemVariants} className="flex h-full">
+						<Link
+							to="/news/$slug"
+							params={{ slug: news.slug?.current || "unknown" }}
+							className="flex w-full cursor-pointer flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-0 dark:bg-card"
+						>
 						<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
 							{news.image ? (
 								<ImageWithSkeleton
@@ -75,23 +110,24 @@ export const NewsPage = ({ category }: { category: string }) => {
 								<div className="absolute top-0 left-0 h-full w-full bg-gray-100" />
 							)}
 						</div>
-						<p className="mb-2 line-clamp-2 font-bold text-sm">{news.title}</p>
+						<p className="mb-2 line-clamp-2 font-bold text-sm">{news.title || "News Article"}</p>
 						<div className="line-clamp-3 text-gray-600 text-sm dark:text-gray-400">
-							<PortableText value={news.body} />
+							<PortableText value={news.body as any} />
 						</div>
 						<div className="mt-auto flex items-center justify-between">
 							<p className="text-[10px] text-gray-400">
-								{formatRelativeTime(news.publishedAt)}
+								{news.publishedAt ? formatRelativeTime(news.publishedAt) : "Recently"}
 							</p>
 							<ShareButton
-								url={`${window.location.origin}/news/${news.slug?.current}`}
-								title={news.title}
+								url={`${window.location.origin}/news/${news.slug?.current || ""}`}
+								title={news.title || ""}
 								className="h-8 w-8"
 							/>
 						</div>
-					</Link>
-				))}
-			</div>
+						</Link>
+					</motion.div>
+				)})}
+			</motion.div>
 
 			{/* Load more trigger */}
 			<div ref={loadMoreRef} className="py-4">
