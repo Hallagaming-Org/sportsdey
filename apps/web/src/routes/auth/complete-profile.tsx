@@ -66,7 +66,7 @@ function CompleteProfilePage() {
 				}
 			}
 
-			navigate({ to: "/" });
+			navigate({ to: "/", search: {} as any });
 		} catch (err) {
 			setError(
 				err instanceof Error
