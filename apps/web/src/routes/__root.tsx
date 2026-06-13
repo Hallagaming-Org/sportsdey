@@ -142,6 +142,13 @@ function RootDocument() {
 				<html lang="en" className="dark">
 					<head>
 						<script
+							id="name-polyfill"
+							key="name-polyfill"
+							dangerouslySetInnerHTML={{
+								__html: `if (typeof window !== "undefined") { window.__name = function(func, value) { return Object.defineProperty(func, "name", { value: value, configurable: true }); }; }`,
+							}}
+						/>
+						<script
 							id="gtm-script"
 							key="gtm-script"
 							dangerouslySetInnerHTML={{
