@@ -29,13 +29,13 @@ export default function SportLandingPage({
 		hidden: { opacity: 0 },
 		show: {
 			opacity: 1,
-			transition: { staggerChildren: 0.15 },
+			transition: { staggerChildren: 0.20 },
 		},
 	};
 
 	const itemVariants: Variants = {
-		hidden: { opacity: 0, y: 20 },
-		show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 150, damping: 18 } },
+		hidden: { opacity: 0, x: -50 },
+		show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 20 } },
 	};
 
 	// Map sport to Sanity news category filter
