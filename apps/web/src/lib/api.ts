@@ -1,6 +1,6 @@
 // const resolveApiBaseUrl = () => import.meta.env.DEV ? "http://localhost:3000/" : (import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/");
 
-const resolveApiBaseUrl = () => process.env.VITE_API_URL || "https://staging-api.sportsdey.com/"
+const resolveApiBaseUrl = () => import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/"
 const API_BASE_URL = resolveApiBaseUrl();
 // const API_BASE_URL = "/api/";
 
@@ -49,12 +49,12 @@ export async function apiRequest<T>(
 	const timeoutId = setTimeout(() => controller.abort(), 10000);
 
 	const config: RequestInit = {
+		...options,
 		headers: {
 			"Content-Type": "application/json",
 			...options.headers,
 		},
 		signal: controller.signal,
-		...options,
 	};
 
 	try {
