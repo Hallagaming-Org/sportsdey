@@ -44,16 +44,22 @@ export async function apiRequest<T>(
 ): Promise<T> {
 	const url = `${API_BASE_URL}${endpoint}`;
 
+	const controller = new AbortController();
+	// Add a 10-second timeout to prevent the worker from hanging indefinitely
+	const timeoutId = setTimeout(() => controller.abort(), 10000);
+
 	const config: RequestInit = {
 		headers: {
 			"Content-Type": "application/json",
 			...options.headers,
 		},
+		signal: controller.signal,
 		...options,
 	};
 
 	try {
 		const response = await fetch(url, config);
+		clearTimeout(timeoutId);
 
 		if (!response.ok) {
 			const data = (await response.json()) as ApiErrorResponse;
@@ -77,10 +83,11 @@ export async function apiRequest<T>(
 		const json = (await response.json()) as ApiSuccessResponse<T>;
 		return json.data;
 	} catch (error) {
+		clearTimeout(timeoutId);
 		// Network errors (offline, timeout, etc.)
-		if (error instanceof TypeError || error instanceof DOMException) {
+		if (error instanceof TypeError || error instanceof DOMException || (error as Error).name === "AbortError") {
 			throw new ApiError(
-				"Network error. Please check your connection and try again.",
+				"Network error or timeout. Please check your connection and try again.",
 				undefined,
 				undefined,
 				true,
