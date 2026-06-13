@@ -79,7 +79,8 @@ export default function SportLandingPage({
 	};
 
 	// Parse scores from highlight titles
-	const parseScore = (title: string) => {
+	const parseScore = (title?: string) => {
+		if (!title) return null;
 		const scoreMatch = title.match(/(\d+)\s*[-–]\s*(\d+)/);
 		return scoreMatch ? `${scoreMatch[1]}-${scoreMatch[2]}` : null;
 	};
@@ -137,13 +138,14 @@ export default function SportLandingPage({
 						animate="show"
 						className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6"
 					>
-						{displayNews.map((news: NewsListItem) => {
+						{displayNews.map((news: NewsListItem | undefined) => {
+							if (!news) return null;
 							const tag = news.category || sport;
 							return (
 								<motion.div key={news._id} variants={itemVariants} className="flex h-full snap-start min-w-[65%] lg:w-auto lg:min-w-0 lg:snap-none">
 									<Link
 										to="/news/$slug"
-										params={{ slug: news.slug?.current ?? "" }}
+										params={{ slug: news.slug?.current || "unknown" }}
 										className="group flex flex-1 cursor-pointer flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card"
 									>
 										<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
@@ -165,10 +167,10 @@ export default function SportLandingPage({
 										</div>
 										<div className="flex flex-col flex-1 space-y-2 pt-2">
 											<p className="mb-2 line-clamp-2 font-bold text-sm text-gray-800 dark:text-white leading-snug group-hover:text-accent transition-colors">
-												{news.title}
+												{news.title || "News Article"}
 											</p>
 											<p className="text-[11px] text-gray-400 dark:text-gray-500 mt-auto">
-												{formatRelativeTime(news.publishedAt)}
+												{news.publishedAt ? formatRelativeTime(news.publishedAt) : "Recently"}
 											</p>
 										</div>
 									</Link>
@@ -221,13 +223,14 @@ export default function SportLandingPage({
 						className="no-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-x-auto pb-2 pr-1 snap-x snap-mandatory lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:snap-none lg:gap-6"
 					>
 						{displayVideos.map((video) => {
+							if (!video) return null;
 							const score = parseScore(video.title);
-							const timeAgo = formatDistanceToNow(new Date(video.publishedAt), {
+							const timeAgo = video.publishedAt ? formatDistanceToNow(new Date(video.publishedAt), {
 								addSuffix: true,
-							});
+							}) : "recently";
 							return (
 								<motion.div
-									key={video.videoId}
+									key={video.videoId || Math.random().toString()}
 									variants={itemVariants}
 									onClick={() => setSelectedVideoId(video.videoId)}
 									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none cursor-pointer"
