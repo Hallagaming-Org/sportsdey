@@ -89,7 +89,7 @@ export default function SportLandingPage({
 					</h2>
 					<Link
 						to="/news"
-						search={{ sports: sport, tab: "news" }}
+						search={{ sports: sport, tab: "news" } as any}
 						className="text-sm font-bold text-accent hover:underline flex items-center gap-1"
 					>
 						View all &gt;
@@ -167,7 +167,7 @@ export default function SportLandingPage({
 					</h2>
 					<Link
 						to="/news"
-						search={{ sports: sport, tab: "videos" }}
+						search={{ sports: sport, tab: "videos" } as any}
 						className="text-sm font-bold text-accent hover:underline flex items-center gap-1"
 					>
 						View all &gt;
