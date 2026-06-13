@@ -155,14 +155,19 @@ function GamesPage() {
 		show: {
 			opacity: 1,
 			transition: {
-				staggerChildren: 0.05,
+				staggerChildren: 0.04,
 			},
 		},
 	};
 
 	const itemVariants: Variants = {
-		hidden: { opacity: 0, x: -50 },
-		show: { opacity: 1, x: 0, transition: { type: "spring", stiffness: 100, damping: 20 } },
+		hidden: { opacity: 0, y: 20, scale: 0.95 },
+		show: { 
+			opacity: 1, 
+			y: 0, 
+			scale: 1, 
+			transition: { type: "tween", ease: "easeOut", duration: 0.4 } 
+		},
 	};
 
 	const { data: session, isPending: isSessionLoading } = useSession();
