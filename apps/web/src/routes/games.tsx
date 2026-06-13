@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -141,6 +141,14 @@ function GamesPage() {
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortAsc, setSortAsc] = useState(false);
+
+	useEffect(() => {
+		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		const mains = document.querySelectorAll("main");
+		mains.forEach((main) => {
+			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		});
+	}, [selectedCategory]);
 
 	const containerVariants: Variants = {
 		hidden: { opacity: 0 },
@@ -521,7 +529,7 @@ function GamesPage() {
 							))}
 						</div>
 
-						<motion.div 
+						<motion.div
 							variants={containerVariants}
 							initial="hidden"
 							animate="show"
