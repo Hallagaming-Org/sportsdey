@@ -84,10 +84,10 @@ function RootDocument() {
 	const matches = useMatches();
 	
 	useEffect(() => {
-		window.scrollTo(0, 0);
+		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		const mains = document.querySelectorAll("main");
 		mains.forEach((main) => {
-			main.scrollTo(0, 0);
+			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		});
 	}, [location.pathname]);
 
