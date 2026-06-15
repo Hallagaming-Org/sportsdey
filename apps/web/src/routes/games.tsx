@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
 import { useState, useEffect } from "react";
