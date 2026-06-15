@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { Loader2, Search, Filter } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { motion, type Variants } from "framer-motion";
+import { Loader2, Search } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/games")({
 });
 
 const CATEGORIES = [
+	"popular",
 	"arcade",
 	"bingo",
 	"classic",
@@ -33,6 +35,7 @@ const CATEGORIES = [
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
+	"popular": "🔥",
 	"arcade": "🕹️",
 	"bingo": "🎱",
 	"classic": "👑",
@@ -134,12 +137,48 @@ const DEFAULT_GRADIENT =
 
 const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
 
+const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+
+const isPopularGame = (game: Game) => {
+	return POPULAR_GAME_NAMES.some((name) =>
+		game.name.toLowerCase().includes(name.toLowerCase()),
+	);
+};
+
 function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortAsc, setSortAsc] = useState(false);
+
+	useEffect(() => {
+		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		const mains = document.querySelectorAll("main");
+		mains.forEach((main) => {
+			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		});
+	}, [selectedCategory]);
+
+	const containerVariants: Variants = {
+		hidden: { opacity: 0 },
+		show: {
+			opacity: 1,
+			transition: {
+				staggerChildren: 0.04,
+			},
+		},
+	};
+
+	const itemVariants: Variants = {
+		hidden: { opacity: 0, y: 20, scale: 0.95 },
+		show: {
+			opacity: 1,
+			y: 0,
+			scale: 1,
+			transition: { type: "tween", ease: "easeOut", duration: 0.4 }
+		},
+	};
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
@@ -171,13 +210,18 @@ function GamesPage() {
 		(acc, game) => {
 			const cat = game.category ?? "others";
 			acc[cat] = (acc[cat] ?? 0) + 1;
+			if (isPopularGame(game)) {
+				acc["popular"] = (acc["popular"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
-		if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+		if (selectedCategory === "popular") {
+			if (!isPopularGame(game)) return false;
+		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
 		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -193,6 +237,10 @@ function GamesPage() {
 	}
 
 	const handleGameClick = async (game: Game) => {
+		if (!session?.user) {
+			navigate({ to: "/auth/sign-in" });
+			return;
+		}
 		console.log(import.meta.env.VITE_SERVER_URL, " import")
 		setLoadingGame(game.code);
 		try {
@@ -338,9 +386,6 @@ function GamesPage() {
 		);
 	}
 
-	if (!isSessionLoading && !session?.user) {
-		return <Navigate to="/auth/sign-in" />;
-	}
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
@@ -356,7 +401,7 @@ function GamesPage() {
 
 								<input
 									type="text"
-									placeholder="Search game names"
+									placeholder="Search games"
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
 									className="w-full pl-4 pr-10 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
@@ -367,7 +412,7 @@ function GamesPage() {
 							{selectedCategory === null && (
 								<button
 									onClick={() => setSortAsc(!sortAsc)}
-									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer${sortAsc
+									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer ${sortAsc
 										? ""
 										: ""
 										}`}
@@ -381,7 +426,7 @@ function GamesPage() {
 					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
 						<button
 							onClick={() => setSelectedCategory(null)}
-							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${selectedCategory === null
+							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${selectedCategory === null
 								? "border-[#1BAA04] bg-[#1BAA04] text-white"
 								: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
 								}`}
@@ -407,7 +452,7 @@ function GamesPage() {
 											selectedCategory === cat ? null : cat,
 										)
 									}
-									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${selectedCategory === cat
+									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${selectedCategory === cat
 										? "border-[#1BAA04] bg-[#1BAA04] text-white"
 										: count === 0
 											? "border-[#1B2722] text-gray-600 cursor-default"
@@ -438,15 +483,19 @@ function GamesPage() {
 					<>
 						<div className="flex flex-col gap-4 md:hidden">
 							{gameChunks.map((chunk, rowIndex) => (
-								<div
+								<motion.div
 									key={rowIndex}
+									variants={containerVariants}
+									initial="hidden"
+									animate="show"
 									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
 										return (
-											<div
+											<motion.div
 												key={game.code}
+												variants={itemVariants}
 												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-transform hover:scale-[1.02]"
 												style={{ background: display.gradient, flex: "0 0 110px", height: "110px" }}
 												onClick={() => handleGameClick(game)}
@@ -494,19 +543,25 @@ function GamesPage() {
 													</div>
 												)}
 
-											</div>
+											</motion.div>
 										);
 									})}
-								</div>
+								</motion.div>
 							))}
 						</div>
 
-						<div className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4">
+						<motion.div
+							variants={containerVariants}
+							initial="hidden"
+							animate="show"
+							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
+						>
 							{filteredGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
-									<div
+									<motion.div
 										key={game.code}
+										variants={itemVariants}
 										className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-transform hover:scale-[1.02]"
 										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
@@ -554,10 +609,10 @@ function GamesPage() {
 											</div>
 										)}
 
-									</div>
+									</motion.div>
 								);
 							})}
-						</div>
+						</motion.div>
 					</>
 				)}
 			</div>
