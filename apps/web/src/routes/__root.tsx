@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { useEffect } from "react";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -81,6 +82,15 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
+	
+	useEffect(() => {
+		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		const mains = document.querySelectorAll("main");
+		mains.forEach((main) => {
+			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		});
+	}, [location.pathname]);
+
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
 	const sidebarAllowedRouteIds = new Set([
@@ -131,6 +141,13 @@ function RootDocument() {
 			<ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
 				<html lang="en" className="dark">
 					<head>
+						<script
+							id="name-polyfill"
+							key="name-polyfill"
+							dangerouslySetInnerHTML={{
+								__html: `if (typeof window !== "undefined") { window.__name = function(func, value) { return Object.defineProperty(func, "name", { value: value, configurable: true }); }; }`,
+							}}
+						/>
 						<script
 							id="gtm-script"
 							key="gtm-script"

@@ -1,6 +1,6 @@
-// const resolveApiBaseUrl = () => import.meta.env.DEV ? "http://localhost:3000/" : (import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/");
+const resolveApiBaseUrl = () => import.meta.env.DEV ? "http://localhost:3000/" : (import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/");
 
-const resolveApiBaseUrl = () => process.env.VITE_API_URL || "https://staging-api.sportsdey.com/"
+// const resolveApiBaseUrl = () => import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/"
 const API_BASE_URL = resolveApiBaseUrl();
 // const API_BASE_URL = "/api/";
 
@@ -44,19 +44,32 @@ export async function apiRequest<T>(
 ): Promise<T> {
 	const url = `${API_BASE_URL}${endpoint}`;
 
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), 10000);
+
 	const config: RequestInit = {
+		...options,
 		headers: {
 			"Content-Type": "application/json",
 			...options.headers,
 		},
-		...options,
+		signal: controller.signal,
 	};
 
 	try {
 		const response = await fetch(url, config);
+		clearTimeout(timeoutId);
 
 		if (!response.ok) {
-			const data = (await response.json()) as ApiErrorResponse;
+			let data: ApiErrorResponse;
+			try {
+				data = (await response.json()) as ApiErrorResponse;
+			} catch (jsonError) {
+				data = {
+					error: `Unexpected server response (${response.status} ${response.statusText})`,
+					details: [] as any,
+				};
+			}
 
 			// User-friendly error messages based on status code
 			let userMessage = data.error || "An error occurred";
@@ -77,10 +90,15 @@ export async function apiRequest<T>(
 		const json = (await response.json()) as ApiSuccessResponse<T>;
 		return json.data;
 	} catch (error) {
+		clearTimeout(timeoutId);
 		// Network errors (offline, timeout, etc.)
-		if (error instanceof TypeError || error instanceof DOMException) {
+		if (
+			error instanceof TypeError ||
+			error instanceof DOMException ||
+			(error instanceof Error && error.name === "AbortError")
+		) {
 			throw new ApiError(
-				"Network error. Please check your connection and try again.",
+				"Network error or timeout. Please check your connection and try again.",
 				undefined,
 				undefined,
 				true,

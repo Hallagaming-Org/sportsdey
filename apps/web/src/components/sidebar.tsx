@@ -43,6 +43,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	useEffect(() => {
 		setActiveOverride(null);
+		setExpandedItems({});
 	}, [location.pathname, location.search]);
 
 	const isItemActive = (id: string, defaultActive: boolean) => {
@@ -175,23 +176,22 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "p2p",
 			label: "PvP",
-			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} color={isItemActive("p2p", false) || expandedItems["p2p"] ? "#FFFFFF" : "#8C8F8F"} />,
+			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} />,
 			isActive: isItemActive("p2p", false) || expandedItems["p2p"],
 			subItems: [
 				{
 					id: "pvp-casino",
-					label: "Casino",
+					label: "PvP Games",
 					isActive: false,
 					onClick: () => {
-						setActiveOverride("p2p");
 						window.open("https://www.thndr.io/games", "_blank");
 					}
 				},
 				{
 					id: "pvp-esports",
-					label: "Esports Tournament",
+					label: "Esports Tournaments",
 					isActive: false,
-					onClick: () => window.open("https://tournament.sportsdey.com", "_blank"),
+					onClick: () => window.open("https://tournaments.sportsdey.com/", "_blank"),
 				}
 			]
 		},
