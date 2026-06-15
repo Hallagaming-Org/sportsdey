@@ -35,7 +35,7 @@ function RouteComponent() {
 		{ id: "boxing", label: "Boxing" },
 		{ id: "mma/ufc", label: "MMA/UFC" },
 		{ id: "politics", label: "Politics" },
-		{ id: "entertainment", label: "Entertainment" }
+		{ id: "entertainment", label: "Entertainment" },
 	] as const;
 
 	return (

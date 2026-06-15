@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import BlackjackLogo from "../logos/blackjack.svg?react";
@@ -28,6 +28,7 @@ const CATEGORIES = [
 	"scratch",
 	"slots",
 	"table/card-games",
+	"popular/hot-casino",
 ] as const;
 
 type Game = {
@@ -120,7 +121,18 @@ const KNOWN_GAMES: Record<
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
-const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
+const PRIORITY_GAMES = [
+	"solitaire",
+	"blocks",
+	"twentyone",
+	"blackjack",
+	"slots",
+	"plinko",
+	"XCAPEHB",
+	"EAGLEHB",
+	"LUCKYRISEHB",
+	"LAGOSRUSH",
+];
 
 function GamesPage() {
 	const navigate = useNavigate();
@@ -160,7 +172,9 @@ function GamesPage() {
 	);
 
 	const filteredGames = selectedCategory
-		? sortedGames.filter((game) => (game.category ?? "others") === selectedCategory)
+		? sortedGames.filter(
+				(game) => (game.category ?? "others") === selectedCategory,
+			)
 		: sortedGames;
 
 	const chunkSize = 3;
@@ -267,7 +281,7 @@ function GamesPage() {
 	if (isSessionLoading || isLoading) {
 		return (
 			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<Loader2 className="h-10 w-10 animate-spin dark:text-white text-primary" />
+				<Loader2 className="h-10 w-10 animate-spin text-primary dark:text-white" />
 			</div>
 		);
 	}
@@ -294,7 +308,7 @@ function GamesPage() {
 				<div className="mb-8 flex flex-wrap gap-3">
 					<button
 						onClick={() => setSelectedCategory(null)}
-						className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
+						className={`flex items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm transition-colors ${
 							selectedCategory === null
 								? "border-[#1BAA04] bg-[#1BAA04] text-white"
 								: "border-[#1B2722] text-gray-300 hover:border-gray-500"
@@ -317,15 +331,13 @@ function GamesPage() {
 							<button
 								key={cat}
 								onClick={() =>
-									setSelectedCategory(
-										selectedCategory === cat ? null : cat,
-									)
+									setSelectedCategory(selectedCategory === cat ? null : cat)
 								}
-								className={`flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors ${
+								className={`flex items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm capitalize transition-colors ${
 									selectedCategory === cat
 										? "border-[#1BAA04] bg-[#1BAA04] text-white"
 										: count === 0
-											? "border-[#1B2722] text-gray-600 cursor-default"
+											? "cursor-default border-[#1B2722] text-gray-600"
 											: "border-[#1B2722] text-gray-300 hover:border-gray-500"
 								}`}
 							>
@@ -354,15 +366,18 @@ function GamesPage() {
 							{gameChunks.map((chunk, rowIndex) => (
 								<div
 									key={rowIndex}
-									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
+									className="scrollbar-hide flex snap-x snap-mandatory gap-2 overflow-x-auto"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
 										return (
 											<div
 												key={game.code}
-												className="relative flex h-[240px] flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
-												style={{ background: display.gradient, flex: "0 0 160px" }}
+												className="relative flex h-[240px] flex-none cursor-pointer snap-start flex-col items-center justify-end overflow-hidden rounded-lg border border-gray-200 p-3"
+												style={{
+													background: display.gradient,
+													flex: "0 0 160px",
+												}}
 												onClick={() => handleGameClick(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
@@ -402,7 +417,7 @@ function GamesPage() {
 															opacity: loadingGame === game.code ? 0.35 : 1,
 														}}
 													>
-														<span className="text-4xl font-bold text-white/50">
+														<span className="font-bold text-4xl text-white/50">
 															{display.name.charAt(0)}
 														</span>
 													</div>
@@ -475,7 +490,7 @@ function GamesPage() {
 													opacity: loadingGame === game.code ? 0.35 : 1,
 												}}
 											>
-												<span className="text-4xl font-bold text-white/50">
+												<span className="font-bold text-4xl text-white/50">
 													{display.name.charAt(0)}
 												</span>
 											</div>

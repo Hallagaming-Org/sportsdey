@@ -152,7 +152,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "p2p",
 			label: "P2P",
-			icon: ({ className }: { className?: string }) => <Repeat className={className} size="32" color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"} />,
+			icon: ({ className }: { className?: string }) => (
+				<Repeat
+					className={className}
+					size="32"
+					color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"}
+				/>
+			),
 			isActive: isItemActive("p2p", false),
 			onClick: () => {
 				setActiveOverride("p2p");
@@ -163,26 +169,33 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: isMobile ? "scores" : "betting",
 			label: isMobile ? "Scores" : "Sportsbook",
 			icon: isMobile ? Soccer : SportsIcon,
-			isActive: isItemActive(isMobile ? "scores" : "betting", isMobile
-				? location.pathname.includes("/matches")
-				: location.pathname.startsWith("/sportsbook")),
+			isActive: isItemActive(
+				isMobile ? "scores" : "betting",
+				isMobile
+					? location.pathname.includes("/matches")
+					: location.pathname.startsWith("/sportsbook"),
+			),
 			onClick: isMobile ? goToScores : goToSportsbook,
 		},
 		{
 			id: "casino",
 			label: "Casino",
 			icon: Gamepad2,
-			isActive: isItemActive("casino",
+			isActive: isItemActive(
+				"casino",
 				location.pathname.startsWith("/games") ||
-				location.pathname.startsWith("/game/")),
+					location.pathname.startsWith("/game/"),
+			),
 			onClick: goToCasino,
 		},
 		{
 			id: "news",
 			label: "News",
 			icon: Newspaper,
-			isActive: isItemActive("news",
-				location.pathname.startsWith("/news") && params.get("tab") !== "videos"),
+			isActive: isItemActive(
+				"news",
+				location.pathname.startsWith("/news") && params.get("tab") !== "videos",
+			),
 			onClick: goToNews,
 		},
 		{
@@ -197,8 +210,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "videos",
 			label: "Videos",
 			icon: Video,
-			isActive: isItemActive("videos",
-				location.pathname.startsWith("/videos")),
+			isActive: isItemActive("videos", location.pathname.startsWith("/videos")),
 			onClick: goToVideos,
 		},
 		{
@@ -266,7 +278,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				// 	"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
 				// 	"_blank",
 				// ),
-				console.log("clicked")
+				console.log("clicked"),
 		},
 	];
 
@@ -277,7 +289,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				className={cn(
 					"w-full transition-colors",
 					!isMobile &&
-					"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
+						"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
 				)}
 			>
 				<nav
@@ -300,28 +312,28 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 									"flex w-full cursor-pointer items-center gap-3 text-left font-semibold text-sm transition-all",
 									isMobile ? "px-2 py-4" : "rounded-xl px-4 py-3",
 									isMobile &&
-									!isLast &&
-									"border-b border-gray-300 dark:border-[#2F3033]",
+										!isLast &&
+										"border-gray-300 border-b dark:border-[#2F3033]",
 									!isMobile &&
-									item.isActive &&
-									"bg-accent text-white shadow-md shadow-accent/15",
+										item.isActive &&
+										"bg-accent text-white shadow-accent/15 shadow-md",
 									!isMobile &&
-									!item.isActive &&
-									"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
+										!item.isActive &&
+										"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
 									isMobile && item.isActive && "text-accent",
 									isMobile &&
-									!item.isActive &&
-									"text-gray-900 dark:text-[#8C8F8F]",
+										!item.isActive &&
+										"text-gray-900 dark:text-[#8C8F8F]",
 									item.disabled &&
-									"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
+										"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
 								)}
 							>
 								<Icon
 									className={cn(
 										"h-4 w-4 shrink-0",
 										isMobile &&
-										!item.isActive &&
-										"text-gray-500 dark:text-[#8C8F8F]",
+											!item.isActive &&
+											"text-gray-500 dark:text-[#8C8F8F]",
 									)}
 								/>
 								<span>{item.label}</span>

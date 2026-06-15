@@ -1,4 +1,4 @@
-import { getSanityImageUrlBuilder, type CloudflareBindings } from "./sanity";
+import { type CloudflareBindings, getSanityImageUrlBuilder } from "./sanity";
 
 export type ImageSizes = {
 	url: string;
@@ -14,9 +14,7 @@ export function toImageSizes(
 ): ImageSizes | null {
 	if (!source) return null;
 	const builder = getSanityImageUrlBuilder(env);
-	const img = builder.image(
-		source as Parameters<typeof builder.image>[0],
-	);
+	const img = builder.image(source as Parameters<typeof builder.image>[0]);
 	return {
 		url: img.url(),
 		thumb: img.width(200).height(200).url(),

@@ -1,14 +1,14 @@
-import React, { type ReactNode, useRef } from "react";
 import {
-	ChevronDown,
 	Check,
-	FileUp,
+	ChevronDown,
 	FileIcon,
+	FileUp,
 	LockKeyhole,
 	ShieldCheck,
 	UserRound,
 	X,
 } from "lucide-react";
+import React, { type ReactNode, useRef } from "react";
 
 export function KycShell({ children }: { children: ReactNode }) {
 	return (
@@ -40,7 +40,11 @@ export function KycHeader({ compact = false }: { compact?: boolean }) {
 	);
 }
 
-export function KycSecurityIllustration({ className = "" }: { className?: string }) {
+export function KycSecurityIllustration({
+	className = "",
+}: {
+	className?: string;
+}) {
 	return (
 		<div className={`relative h-32 w-40 ${className}`} aria-hidden="true">
 			<div className="absolute right-8 bottom-2 h-20 w-24 -rotate-6 rounded-xl border border-[#7D7D7D] bg-gradient-to-br from-[#F3F3F3] via-[#BDBDBD] to-[#6E6E6E] shadow-lg">
@@ -86,7 +90,7 @@ export function KycInputField({
 				value={value}
 				onChange={(e) => onChange?.(e.target.value)}
 				placeholder={placeholder}
-				className="w-full rounded-lg bg-[#F7F7F7] px-4 py-4 text-sm text-primary shadow-sm placeholder:text-[#6B7280] outline-none dark:bg-[#2A2A2A] dark:text-white dark:placeholder:text-white/50"
+				className="w-full rounded-lg bg-[#F7F7F7] px-4 py-4 text-primary text-sm shadow-sm outline-none placeholder:text-[#6B7280] dark:bg-[#2A2A2A] dark:text-white dark:placeholder:text-white/50"
 			/>
 		</div>
 	);
@@ -128,9 +132,11 @@ export function KycSelectField({
 				onClick={() => setIsOpen(!isOpen)}
 				className="flex w-full items-center justify-between rounded-lg bg-[#F7F7F7] px-4 py-4 text-left text-sm shadow-sm dark:bg-[#2A2A2A] dark:text-white"
 			>
-				<span className={value ? "text-primary dark:text-white" : "text-[#6B7280]"}>
+				<span
+					className={value ? "text-primary dark:text-white" : "text-[#6B7280]"}
+				>
 					{value
-						? options?.find((o) => o.value === value)?.label ?? value
+						? (options?.find((o) => o.value === value)?.label ?? value)
 						: placeholder}
 				</span>
 				<ChevronDown className="h-5 w-5 text-[#6B7280] dark:text-white/70" />
@@ -209,15 +215,15 @@ export function KycUploadBox({
 									className="max-h-32 rounded-lg object-contain"
 								/>
 							)}
-							<span className="mt-2 text-xs text-[#8C8C8C]">Uploaded</span>
+							<span className="mt-2 text-[#8C8C8C] text-xs">Uploaded</span>
 						</div>
 					) : (
-						<span className="text-sm text-[#8C8C8C]">{fileName}</span>
+						<span className="text-[#8C8C8C] text-sm">{fileName}</span>
 					)}
 					<button
 						type="button"
 						onClick={handleRemove}
-						className="absolute right-2 top-2 rounded-full bg-gray-200 p-1 hover:bg-gray-300 dark:bg-gray-700"
+						className="absolute top-2 right-2 rounded-full bg-gray-200 p-1 hover:bg-gray-300 dark:bg-gray-700"
 					>
 						<X className="h-4 w-4" />
 					</button>
@@ -230,7 +236,9 @@ export function KycUploadBox({
 				>
 					<span className="flex w-full max-w-[340px] flex-col items-center justify-center rounded-xl border border-[#BDBDBD] border-dashed px-6 py-5 text-center">
 						<FileUp className="mb-3 h-5 w-5 text-[#8C8C8C]" />
-						<span className="text-[#8C8C8C] text-sm">Choose an Image/Video</span>
+						<span className="text-[#8C8C8C] text-sm">
+							Choose an Image/Video
+						</span>
 						<span className="mt-1 text-[#B0B0B0] text-xs">
 							Upload supports: JPG, PDF, PNG.
 						</span>

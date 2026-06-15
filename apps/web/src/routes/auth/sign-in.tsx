@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { Phone } from "lucide-react";
+import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/auth/sign-in")({
@@ -12,7 +12,7 @@ export default function SignInPage() {
 	const callbackURL = import.meta.env.DEV
 		? "http://localhost:3001"
 		: import.meta.env.VITE_PUBLIC_URL ||
-		  (typeof window !== "undefined"
+			(typeof window !== "undefined"
 				? window.location.origin
 				: "https://sportsdey.com");
 	const [isLoading, setIsLoading] = useState(false);

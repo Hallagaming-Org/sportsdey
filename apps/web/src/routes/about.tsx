@@ -1,28 +1,31 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/about')({
-  component: AboutUsPage,
+export const Route = createFileRoute("/about")({
+	component: AboutUsPage,
 });
 
 function AboutUsPage() {
+	return (
+		<div className="flex min-h-screen flex-col items-center bg-[#000606] px-4 text-white">
+			<div className="flex w-full max-w-3xl flex-col items-center">
+				<div className="mb-2 w-full rounded-2xl border border-[#1A1A1A] pt-4 text-[#A0A0A0]">
+					<h1 className="mb-3 px-6 text-left font-bold text-3xl sm:text-4xl">
+						About Us
+					</h1>
+					<p className="mb-8 px-6 text-left text-[#A0A0A0] text-sm sm:text-base">
+						Learn more about SportsDey and our mission.
+					</p>
+				</div>
 
-  return (
-    <div className="min-h-screen bg-[#000606] text-white px-4 flex flex-col items-center">
-      <div className="w-full max-w-3xl flex flex-col items-center">
-        <div className="w-full border pt-4 border-[#1A1A1A] rounded-2xl mb-2 text-[#A0A0A0]">
-          <h1 className="text-3xl sm:text-4xl font-bold mb-3 text-left px-6">About Us</h1>
-          <p className="text-[#A0A0A0] mb-8 text-left text-sm sm:text-base px-6">
-            Learn more about SportsDey and our mission.
-          </p>
-        </div>
-
-        <div className="w-full bg-[#0B100E] border border-[#1A1A1A] rounded-2xl p-8 mb-10 text-[#A0A0A0] leading-relaxed">
-          <p className="mb-4">
-            Welcome to SportsDey. We are committed to providing the best sports betting and entertainment experience.
-            (This is a placeholder for your About Us content. You can replace this text with your actual company information.)
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+				<div className="mb-10 w-full rounded-2xl border border-[#1A1A1A] bg-[#0B100E] p-8 text-[#A0A0A0] leading-relaxed">
+					<p className="mb-4">
+						Welcome to SportsDey. We are committed to providing the best sports
+						betting and entertainment experience. (This is a placeholder for
+						your About Us content. You can replace this text with your actual
+						company information.)
+					</p>
+				</div>
+			</div>
+		</div>
+	);
 }

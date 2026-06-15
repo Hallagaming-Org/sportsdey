@@ -1,4 +1,9 @@
-const resolveApiBaseUrl = () => import.meta.env.DEV ? "http://localhost:3000/" : (import.meta.env.VITE_SERVER_URL || import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/");
+const resolveApiBaseUrl = () =>
+	import.meta.env.DEV
+		? "http://localhost:3000/"
+		: import.meta.env.VITE_SERVER_URL ||
+			import.meta.env.VITE_API_URL ||
+			"https://staging-api.sportsdey.com/";
 
 const API_BASE_URL = resolveApiBaseUrl();
 // const API_BASE_URL = "/api/";

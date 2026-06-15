@@ -41,29 +41,29 @@ export default function DesktopFooter() {
 	const currentSport = useCurrentSport();
 
 	return (
-		<footer className="w-full border-t border-[#1B2722] bg-[#000606] px-4 py-12 lg:px-[104px] text-white transition-colors">
+		<footer className="w-full border-[#1B2722] border-t bg-[#000606] px-4 py-12 text-white transition-colors lg:px-[104px]">
 			<div className="mb-12 grid grid-cols-1 gap-8 md:grid-cols-5 lg:grid-cols-6">
 				<div className="space-y-4 md:col-span-2 lg:col-span-2">
 					<div className="flex items-center gap-3">
 						<img
 							src="/sportsdey-logo.png"
-							className="h-8 hidden dark:block"
+							className="hidden h-8 dark:block"
 							alt="SportsDey Logo"
 						/>
-						<NewSportsdeyLogo className="h-8 w-auto dark:hidden text-white" />
-						<div className="flex h-6 items-center rounded-full bg-[#1A1A1A] px-3 text-[10px] font-medium text-gray-300">
+						<NewSportsdeyLogo className="h-8 w-auto text-white dark:hidden" />
+						<div className="flex h-6 items-center rounded-full bg-[#1A1A1A] px-3 font-medium text-[10px] text-gray-300">
 							EN <span className="ml-1 text-[8px]">▼</span>
 						</div>
 					</div>
-					<p className="max-w-xs text-sm leading-relaxed text-[#A0A0A0]">
+					<p className="max-w-xs text-[#A0A0A0] text-sm leading-relaxed">
 						Your #1 Sports Hub for News, Scores, Tips & More.
 					</p>
 
 					<div className="mt-6 flex items-start gap-3">
-						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#FF0606] text-[10px] font-bold text-[#FF0606]">
+						<div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#FF0606] font-bold text-[#FF0606] text-[10px]">
 							18+
 						</div>
-						<p className="max-w-[250px] text-xs leading-relaxed text-[#A0A0A0]">
+						<p className="max-w-[250px] text-[#A0A0A0] text-xs leading-relaxed">
 							All Players must be 18 or older to register or play. Please Gamble
 							responsibly
 						</p>
@@ -127,7 +127,7 @@ export default function DesktopFooter() {
 							<Link
 								to="/betting"
 								search={{ type: "jackpots" } as any}
-								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer"
+								className="cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Prediction Market
 							</Link>
@@ -137,7 +137,7 @@ export default function DesktopFooter() {
 								href="https://binary.sportsdey.com/sportsdayApi/connectSportsDay"
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
+								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Binary Trading
 							</a>
@@ -149,11 +149,11 @@ export default function DesktopFooter() {
 					<h3 className="mb-6 font-bold text-base text-white">
 						About SportsDey
 					</h3>
-					<ul className="space-y-4 text-sm mb-8">
+					<ul className="mb-8 space-y-4 text-sm">
 						<li>
 							<Link
 								to="/about"
-								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
+								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								About Us
 							</Link>
@@ -163,7 +163,7 @@ export default function DesktopFooter() {
 								href="https://wa.me/2340000000000"
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
+								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Contact Us
 							</a>
@@ -171,7 +171,7 @@ export default function DesktopFooter() {
 						<li>
 							<Link
 								to="/terms"
-								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
+								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Terms and Conditions
 							</Link>
@@ -179,7 +179,7 @@ export default function DesktopFooter() {
 						<li>
 							<Link
 								to="/privacy-policy"
-								className="text-[#A0A0A0] transition-colors hover:text-white cursor-pointer block"
+								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								Privacy Policy
 							</Link>
@@ -187,23 +187,23 @@ export default function DesktopFooter() {
 					</ul>
 				</div>
 
-				<div className="flex flex-row lg:flex-col items-center lg:items-start gap-3">
+				<div className="flex flex-row items-center gap-3 lg:flex-col lg:items-start">
 					<button
-						className="flex w-[150px] items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
+						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() => window.open("https://apps.apple.com", "_blank")}
 					>
 						<Apple size={20} color="white" variant="Bold" />
 						<div className="flex flex-col items-start">
-							<span className="text-[9px] leading-tight text-gray-400">
+							<span className="text-[9px] text-gray-400 leading-tight">
 								Download on
 							</span>
-							<span className="text-sm font-semibold leading-tight text-white">
+							<span className="font-semibold text-sm text-white leading-tight">
 								App store
 							</span>
 						</div>
 					</button>
 					<button
-						className="flex w-[150px] items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5 cursor-pointer"
+						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() =>
 							window.open("https://play.google.com/store/apps", "_blank")
 						}
@@ -211,10 +211,10 @@ export default function DesktopFooter() {
 					>
 						<GooglePlay size={20} color="white" variant="Bold" />
 						<div className="flex flex-col items-start">
-							<span className="text-[9px] leading-tight text-gray-400">
+							<span className="text-[9px] text-gray-400 leading-tight">
 								Get it on
 							</span>
-							<span className="text-sm font-semibold leading-tight text-white">
+							<span className="font-semibold text-sm text-white leading-tight">
 								Google Play
 							</span>
 						</div>
@@ -222,9 +222,9 @@ export default function DesktopFooter() {
 				</div>
 			</div>
 
-			<div className="border-t border-[#1B2722] pt-8">
+			<div className="border-[#1B2722] border-t pt-8">
 				<div className="mb-8 flex flex-col items-center justify-between gap-6 sm:flex-row">
-					<p className="text-xs text-[#A0A0A0]">
+					<p className="text-[#A0A0A0] text-xs">
 						© 2026 Sportsdey, All Right Reserved.
 					</p>
 					<div className="flex items-center gap-3">
@@ -234,7 +234,7 @@ export default function DesktopFooter() {
 								href={link}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="group flex items-center justify-center transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+								className="group flex cursor-pointer items-center justify-center transition-all duration-300 hover:-translate-y-1"
 								aria-label={label}
 							>
 								<Icon className="h-7 w-7 text-black transition-colors" />
@@ -243,7 +243,7 @@ export default function DesktopFooter() {
 					</div>
 				</div>
 
-				<div className="mb-8 space-y-6 text-center text-[10px] text-[#A0A0A0] sm:text-xs">
+				<div className="mb-8 space-y-6 text-center text-[#A0A0A0] text-[10px] sm:text-xs">
 					<p className="mx-auto max-w-4xl leading-relaxed">
 						This Website and the "Sportsdey" trademark are owned and operated by
 						Halla Gaming Limited, a company established in Nigeria with
@@ -265,7 +265,7 @@ export default function DesktopFooter() {
 					].map((provider) => (
 						<div
 							key={provider.name}
-							className="flex w-[116.98px] h-[58px] items-center justify-center rounded"
+							className="flex h-[58px] w-[116.98px] items-center justify-center rounded"
 						>
 							<img
 								src={provider.logo}

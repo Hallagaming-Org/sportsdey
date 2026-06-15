@@ -345,12 +345,13 @@ export function BillPaymentModal({
 						>
 							{isVending
 								? "Processing..."
-								: `Pay ₦${selectedProduct.isAmountFixed === 1
-									? (selectedProduct.fixedAmount ??
-										selectedProduct.amount ??
-										Number(amount))
-									: Number(amount)
-								}`}
+								: `Pay ₦${
+										selectedProduct.isAmountFixed === 1
+											? (selectedProduct.fixedAmount ??
+												selectedProduct.amount ??
+												Number(amount))
+											: Number(amount)
+									}`}
 						</button>
 					</div>
 				)}

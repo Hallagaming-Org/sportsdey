@@ -1,16 +1,18 @@
 import { z } from "@hono/zod-openapi";
 
-export const tennisScheduleParam = z.object({
-	date: z
-		.string()
-		.regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-		.openapi({
-			param: { name: "date", in: "path" },
-			description:
-				"Date for which to fetch tennis schedule in YYYY-MM-DD format",
-			example: "2025-11-20",
-		}),
-}).openapi("TennisScheduleParam");
+export const tennisScheduleParam = z
+	.object({
+		date: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
+			.openapi({
+				param: { name: "date", in: "path" },
+				description:
+					"Date for which to fetch tennis schedule in YYYY-MM-DD format",
+				example: "2025-11-20",
+			}),
+	})
+	.openapi("TennisScheduleParam");
 
 export const tennisScheduleQuery = z.object({
 	language: z

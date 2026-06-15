@@ -1,6 +1,6 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import RightSidebar from "@/components/RightSidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function MatchesSkeleton() {
 	return (
@@ -30,20 +30,23 @@ export function MatchesSkeleton() {
 							</div>
 							<div className="divide-y divide-gray-100 dark:divide-gray-800">
 								{[1, 2].map((j) => (
-									<div key={j} className="flex items-center justify-between p-4">
-										<div className="space-y-3 flex-1">
+									<div
+										key={j}
+										className="flex items-center justify-between p-4"
+									>
+										<div className="flex-1 space-y-3">
 											<div className="flex items-center gap-3">
 												<Skeleton className="h-5 w-5 rounded-full" />
 												<Skeleton className="h-4 w-32" />
-												<Skeleton className="h-4 w-6 ml-auto mr-8" />
+												<Skeleton className="mr-8 ml-auto h-4 w-6" />
 											</div>
 											<div className="flex items-center gap-3">
 												<Skeleton className="h-5 w-5 rounded-full" />
 												<Skeleton className="h-4 w-40" />
-												<Skeleton className="h-4 w-6 ml-auto mr-8" />
+												<Skeleton className="mr-8 ml-auto h-4 w-6" />
 											</div>
 										</div>
-										<div className="flex flex-col items-end gap-2 pl-4 border-l border-gray-100 dark:border-gray-800">
+										<div className="flex flex-col items-end gap-2 border-gray-100 border-l pl-4 dark:border-gray-800">
 											<Skeleton className="h-4 w-12" />
 											<Skeleton className="h-4 w-8" />
 										</div>
@@ -53,7 +56,7 @@ export function MatchesSkeleton() {
 						</div>
 					))}
 				</div>
-				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:block lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)]">
 					<RightSidebar />
 				</div>
 			</div>

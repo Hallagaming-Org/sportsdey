@@ -1,14 +1,10 @@
 import crypto from "node:crypto";
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { z } from "@hono/zod-openapi";
-import {
-	getSessionToken,
-	validateAdminSession,
-} from "@/auth/admin";
-import { requirePermission } from "@/middleware/admin-permissions";
+import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
+import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema } from "@/schemas";
 import {
 	CreateUserNotificationSchema,
@@ -22,19 +18,18 @@ import { jsonZodErrorFormatter } from "@/utils/zod";
 
 const notificationsRoute = new OpenAPIHono<{ Bindings: Cloudflare.Env }>();
 
-const GetNotificationsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number (default: 1)", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({
+const GetNotificationsQuerySchema = z
+	.object({
+		page: z
+			.string()
+			.optional()
+			.openapi({ description: "Page number (default: 1)", example: "1" }),
+		limit: z.string().optional().openapi({
 			description: "Items per page (default: 10, max: 100)",
 			example: "10",
 		}),
-}).openapi("GetNotificationsQuery");
+	})
+	.openapi("GetNotificationsQuery");
 
 const getNotificationsRoute = createRoute({
 	method: "get",
@@ -223,7 +218,8 @@ const sendNotificationRoute = createRoute({
 	path: "/send",
 	tags: ["Notifications"],
 	summary: "Send notification to user (admin only)",
-	description: "Send a notification to a specific user (admin/super_admin only)",
+	description:
+		"Send a notification to a specific user (admin/super_admin only)",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -314,9 +310,15 @@ notificationsRoute.openapi(sendNotificationRoute, async (c) => {
 		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "send_notifications")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "send_notifications")
+	) {
 		return c.json(
-			{ success: false as const, error: "Forbidden - send_notifications permission required" },
+			{
+				success: false as const,
+				error: "Forbidden - send_notifications permission required",
+			},
 			403,
 		);
 	}

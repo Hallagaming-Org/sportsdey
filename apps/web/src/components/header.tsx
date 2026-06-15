@@ -82,9 +82,9 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 	return (
 		<div className="z-30 w-full pb-4 lg:pb-0">
-			<div className="w-full bg-white dark:bg-[#121212] text-foreground lg:bg-black dark:lg:bg-black">
-				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 sm:px-2 py-2 lg:hidden">
-					<div className="flex items-center gap-1.5 shrink-0">
+			<div className="w-full bg-white text-foreground lg:bg-black dark:bg-[#121212] dark:lg:bg-black">
+				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 py-2 sm:px-2 lg:hidden">
+					<div className="flex shrink-0 items-center gap-1.5">
 						<button
 							type="button"
 							onClick={() => setOpen(!open)}
@@ -92,7 +92,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							aria-expanded={open}
 							aria-controls="mobile-menu"
 							aria-label={open ? "Close main menu" : "Open main menu"}
-							className="flex items-center justify-center shrink-0"
+							className="flex shrink-0 items-center justify-center"
 						>
 							<MenuBar />
 						</button>
@@ -106,23 +106,23 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						>
 							<img
 								src="/sportsdey-logo.png"
-								className="h-7 sm:h-8 w-auto hidden dark:block"
+								className="hidden h-7 w-auto sm:h-8 dark:block"
 								alt="sportsdey's logo"
 							/>
-							<NewSportsdeyLogo className="h-7 sm:h-8 w-auto block dark:hidden" />
+							<NewSportsdeyLogo className="block h-7 w-auto sm:h-8 dark:hidden" />
 						</Link>
 					</div>
 
-					<div className="flex items-center gap-1.5 shrink-0">
+					<div className="flex shrink-0 items-center gap-1.5">
 						{!!session?.user && (
-							<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 dark:border-gray-700 bg-[#F8F8F8] dark:bg-[#202120] p-0.5">
+							<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] p-0.5 dark:border-gray-700 dark:bg-[#202120]">
 								<div
 									className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
 									aria-label="Wallet balance"
 								>
 									<NigerianFlag />
 									<span
-										className="truncate font-semibold tracking-tight text-[#4b5563] dark:text-gray-300 transition-all"
+										className="truncate font-semibold text-[#4b5563] tracking-tight transition-all dark:text-gray-300"
 										style={{
 											fontSize:
 												mobileBalance.length > 15
@@ -154,11 +154,11 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 						<button
 							type="button"
-							className="relative flex h-8 w-8 shrink-0 text-black dark:text-white items-center justify-center rounded-full border border-transparent bg-transparent"
+							className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-black dark:text-white"
 							aria-label="Notifications"
 						>
 							<NotificationIcon />
-							<span className="absolute top-0 right-0.5 h-3 w-3 rounded-full bg-emerald-400 text-[#070711] flex items-center justify-center font-bold text-[6px]">
+							<span className="absolute top-0 right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-400 font-bold text-[#070711] text-[6px]">
 								{"1"}
 							</span>
 						</button>
@@ -192,7 +192,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 					{!shouldHideSportsNav && (
 						<nav
 							aria-label="Sports navigation"
-							className="hidden lg:flex lg:items-center lg:gap-6 font-bold text-sm"
+							className="hidden font-bold text-sm lg:flex lg:items-center lg:gap-6"
 						>
 							<Link
 								to="/index/matches"
@@ -200,7 +200,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									"flex items-center gap-2 px-1 transition-colors",
 									location.pathname.includes("matches")
 										? "border-accent border-b-2 pb-1 text-accent"
-										: "text-secondary hover:text-white pb-1.5",
+										: "pb-1.5 text-secondary hover:text-white",
 								)}
 							>
 								Scores
@@ -211,7 +211,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									"flex items-center gap-2 px-1 transition-colors",
 									location.pathname.includes("favorites")
 										? "border-accent border-b-2 pb-1 text-accent"
-										: "text-secondary hover:text-white pb-1.5",
+										: "pb-1.5 text-secondary hover:text-white",
 								)}
 							>
 								Favorites
@@ -247,13 +247,13 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && !!session?.user && (
-							<div className="flex border border-[#F2EEFB] h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] bg-[#04100B] py-[7px] px-[6px] dark:bg-[#04100B] dark:border-[#F2EEFB]">
+							<div className="flex h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] border border-[#F2EEFB] bg-[#04100B] px-[6px] py-[7px] dark:border-[#F2EEFB] dark:bg-[#04100B]">
 								<div
 									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
 									aria-label="Wallet balance"
 								>
 									<NigerianFlag />
-									<span className="truncate font-semibold tracking-tight text-white transition-all text-xs xl:text-sm">
+									<span className="truncate font-semibold text-white text-xs tracking-tight transition-all xl:text-sm">
 										{mobileBalance}
 									</span>
 								</div>
@@ -267,7 +267,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 										})
 									}
 									aria-label="Add funds"
-									className="flex h-6 px-2 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-accent font-semibold text-[11px] text-white transition-colors hover:bg-[#00d600]"
+									className="flex h-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-accent px-2 font-semibold text-[11px] text-white transition-colors hover:bg-[#00d600]"
 								>
 									Deposit
 								</button>
@@ -353,10 +353,10 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						<div className="flex min-w-0 justify-between p-4">
 							<img
 								src="/sportsdey-logo.png"
-								className="h-10 hidden dark:block"
+								className="hidden h-10 dark:block"
 								alt="sportsdey's logo"
 							/>
-							<NewSportsdeyLogo className="h-10 w-auto block dark:hidden" />
+							<NewSportsdeyLogo className="block h-10 w-auto dark:hidden" />
 							<button
 								ref={closeButtonRef}
 								type="button"
@@ -372,7 +372,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							</button>
 						</div>
 
-						<div className="h-[calc(100vh-80px)] overflow-y-auto px-4 pb-8 space-y-6 pt-4">
+						<div className="h-[calc(100vh-80px)] space-y-6 overflow-y-auto px-4 pt-4 pb-8">
 							<Sidebar onItemClick={() => setOpen(false)} isMobile />
 
 							<div className="w-full px-2 pt-2 pb-6">
@@ -399,15 +399,13 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									href="https://wa.me/2340000000000" // Replace with actual number
 									target="_blank"
 									rel="noopener noreferrer"
-									className="mt-5 flex w-full bg-gray-200 items-center gap-4 rounded-lg p-3.5 transition-colors hover:bg-[#1E78FF]/10 dark:border-[#1E78FF]/30 dark:bg-[#1E78FF]/10 dark:hover:bg-[#1E78FF]/20"
+									className="mt-5 flex w-full items-center gap-4 rounded-lg bg-gray-200 p-3.5 transition-colors hover:bg-[#1E78FF]/10 dark:border-[#1E78FF]/30 dark:bg-[#1E78FF]/10 dark:hover:bg-[#1E78FF]/20"
 								>
 									<Whatsapp className="h-8 w-8 shrink-0" />
-									<span className="font-medium text-xs text-gray-900 dark:text-gray-200">
+									<span className="font-medium text-gray-900 text-xs dark:text-gray-200">
 										Contact us on Whatsapp <br /> for support.
 									</span>
 								</a>
-
-
 							</div>
 						</div>
 					</aside>

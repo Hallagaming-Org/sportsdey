@@ -476,8 +476,6 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		.from(schema.user)
 		.leftJoin(schema.wallet, eq(schema.wallet.userId, schema.user.id));
 
-
-
 	if (status && status !== "all") {
 		const statusCondition = and(eq(schema.user.verificationStatus, status));
 		baseQuery = baseQuery.where(statusCondition) as typeof baseQuery;

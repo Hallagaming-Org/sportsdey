@@ -16,10 +16,7 @@ export const commentType = defineType({
 			title: "Email",
 			type: "string",
 			description: "Used for moderation only; not displayed publicly.",
-			validation: (rule) =>
-				rule
-					.email()
-					.optional(),
+			validation: (rule) => rule.email().optional(),
 		}),
 		defineField({
 			name: "userId",

@@ -1,10 +1,12 @@
 import { PortableText } from "@portabletext/react";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import BannerCarousel from "@/components/BannerCarousel";
 import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { ShareButton } from "@/components/ShareButton";
+import { useSession } from "@/lib/auth/client";
 import type { BannerData } from "@/lib/banners-server";
 import { getBanners } from "@/lib/banners-server";
 import type { Comment, NewsDetail } from "@/lib/news-server";
@@ -14,8 +16,6 @@ import {
 	getNewsBySlug,
 } from "@/lib/news-server";
 import { formatRelativeTime } from "@/lib/utils";
-import { ShareButton } from "@/components/ShareButton";
-import { useSession } from "@/lib/auth/client";
 
 type NewsItem = NewsDetail;
 type NewsComment = Comment;
@@ -44,7 +44,8 @@ export const Route = createFileRoute("/news/$slug")({
 		const data = loaderData?.news as NewsItem | null;
 		const title = data?.title || "News | SportsDey";
 		const description = getDescription(data?.body);
-		const image = data?.image?.og ?? `${siteUrl}/news/${data?.slug?.current}/og`;
+		const image =
+			data?.image?.og ?? `${siteUrl}/news/${data?.slug?.current}/og`;
 
 		return {
 			meta: [
@@ -98,7 +99,11 @@ export const Route = createFileRoute("/news/$slug")({
 });
 
 function RouteComponent() {
-	const { news, banners, comments: initialComments } = Route.useLoaderData() as {
+	const {
+		news,
+		banners,
+		comments: initialComments,
+	} = Route.useLoaderData() as {
 		news: NewsItem | null;
 		banners: BannerData[];
 		comments: NewsComment[];
@@ -106,7 +111,9 @@ function RouteComponent() {
 	const navigate = useNavigate();
 	const { data: session } = useSession();
 	const newsId = news?._id ?? "";
-	const [comments, setComments] = useState<NewsComment[]>(initialComments || []);
+	const [comments, setComments] = useState<NewsComment[]>(
+		initialComments || [],
+	);
 	const [commentText, setCommentText] = useState("");
 	const [commentError, setCommentError] = useState("");
 	const commentMutation = useMutation({
@@ -139,7 +146,7 @@ function RouteComponent() {
 				</div>
 			)}
 
-			<div className="mx-auto w-full max-w-5xl rounded-xl bg-white p-4 sm:p-6 shadow-sm dark:bg-card dark:border dark:border-white/5">
+			<div className="mx-auto w-full max-w-5xl rounded-xl bg-white p-4 shadow-sm sm:p-6 dark:border dark:border-white/5 dark:bg-card">
 				<Link
 					to="/news"
 					className="mb-6 inline-flex items-center gap-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
@@ -159,7 +166,7 @@ function RouteComponent() {
 					)}
 				</div>
 				<h1 className="mb-4 font-bold text-3xl">{news.title}</h1>
-				<div className="flex items-center justify-between mb-8">
+				<div className="mb-8 flex items-center justify-between">
 					<p className="text-gray-400 text-sm">
 						{formatRelativeTime(news.publishedAt)}
 					</p>
@@ -220,10 +227,10 @@ function RouteComponent() {
 				</div>
 				<section className="mt-10 space-y-4 rounded-xl border border-gray-200 p-4 dark:border-white/10">
 					<div className="flex items-center justify-between">
-						<h2 className="font-semibold text-lg text-gray-900 dark:text-white">
+						<h2 className="font-semibold text-gray-900 text-lg dark:text-white">
 							Comments
 						</h2>
-						<span className="text-sm text-gray-500">
+						<span className="text-gray-500 text-sm">
 							{comments.length} {comments.length === 1 ? "comment" : "comments"}
 						</span>
 					</div>
@@ -249,8 +256,8 @@ function RouteComponent() {
 						}}
 					>
 						{session?.user ? (
-							<div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-200">
-								<div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+							<div className="flex items-center gap-3 text-gray-700 text-sm dark:text-gray-200">
+								<div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
 									{(session.user.name || session.user.email || "U")
 										.slice(0, 2)
 										.toUpperCase()}
@@ -259,11 +266,11 @@ function RouteComponent() {
 									<p className="font-medium leading-none">
 										{session.user.name || "SportsDey user"}
 									</p>
-									<p className="text-xs text-gray-500">{session.user.email}</p>
+									<p className="text-gray-500 text-xs">{session.user.email}</p>
 								</div>
 							</div>
 						) : (
-							<div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+							<div className="flex items-center gap-2 text-gray-700 text-sm dark:text-gray-200">
 								<span>You need to be signed in to comment.</span>
 								<button
 									type="button"
@@ -276,7 +283,7 @@ function RouteComponent() {
 						)}
 
 						<label className="flex flex-col gap-2">
-							<span className="text-sm font-medium text-gray-800 dark:text-white">
+							<span className="font-medium text-gray-800 text-sm dark:text-white">
 								Add your comment
 							</span>
 							<textarea
@@ -292,13 +299,13 @@ function RouteComponent() {
 							/>
 						</label>
 						{commentError && (
-							<p className="text-sm text-red-500">{commentError}</p>
+							<p className="text-red-500 text-sm">{commentError}</p>
 						)}
 						<div className="flex justify-end">
 							<button
 								type="submit"
 								disabled={!session?.user || commentMutation.isPending}
-								className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition enabled:hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+								className="rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white transition enabled:hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
 							>
 								{commentMutation.isPending ? "Posting..." : "Post comment"}
 							</button>
@@ -307,24 +314,24 @@ function RouteComponent() {
 
 					<div className="divide-y divide-gray-200 dark:divide-white/10">
 						{comments.length === 0 ? (
-							<p className="py-4 text-sm text-gray-600 dark:text-gray-300">
+							<p className="py-4 text-gray-600 text-sm dark:text-gray-300">
 								No comments yet. Be the first to share your thoughts.
 							</p>
 						) : (
 							comments.map((comment) => (
 								<div key={comment._id} className="space-y-1 py-4">
-									<div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-										<div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+									<div className="flex items-center gap-2 text-gray-700 text-sm dark:text-gray-200">
+										<div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
 											{comment.name.slice(0, 2).toUpperCase()}
 										</div>
 										<div>
 											<p className="font-medium leading-none">{comment.name}</p>
-											<p className="text-xs text-gray-500">
+											<p className="text-gray-500 text-xs">
 												{formatRelativeTime(comment.createdAt)}
 											</p>
 										</div>
 									</div>
-									<p className="text-sm leading-relaxed text-gray-800 dark:text-gray-100">
+									<p className="text-gray-800 text-sm leading-relaxed dark:text-gray-100">
 										{comment.message}
 									</p>
 								</div>

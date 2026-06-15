@@ -1,4 +1,4 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import z from "zod";
 
 const searchSchema = z.object({
@@ -29,18 +29,18 @@ function WalletTransactionStatusPage() {
 					title: `${txType === "withdraw" ? "Withdrawal" : "Deposit"} successful`,
 					description: "Your transaction was completed successfully.",
 					textColor: "text-[#14804A]",
-			  }
+				}
 			: normalizedStatus === "failed"
 				? {
 						title: `${txType === "withdraw" ? "Withdrawal" : "Deposit"} failed`,
 						description: "This transaction failed. Please try again.",
 						textColor: "text-[#D13030]",
-				  }
+					}
 				: {
 						title: `${txType === "withdraw" ? "Withdrawal" : "Deposit"} pending`,
 						description: "Your transaction is still being processed.",
 						textColor: "text-[#B26A00]",
-				  };
+					};
 
 	return (
 		<div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-4 py-10">
@@ -67,7 +67,9 @@ function WalletTransactionStatusPage() {
 				<h1 className={`font-semibold text-3xl ${statusConfig.textColor}`}>
 					{statusConfig.title}
 				</h1>
-				<p className="mt-3 text-[#6E6E6E] text-sm">{statusConfig.description}</p>
+				<p className="mt-3 text-[#6E6E6E] text-sm">
+					{statusConfig.description}
+				</p>
 				{search.reference && (
 					<p className="mt-2 text-[#6E6E6E] text-xs">
 						Reference: {search.reference}

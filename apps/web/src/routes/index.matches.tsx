@@ -4,8 +4,10 @@ import { useMemo } from "react";
 import BannerCarousel from "@/components/BannerCarousel";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MatchesSkeleton } from "@/components/MatchesSkeleton";
 import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import RightSidebar from "@/components/RightSidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentFilter } from "@/hooks/use-current-filter";
 import { useFootballSchedule } from "@/hooks/use-fooball-schedule";
 import { useApiError } from "@/hooks/useApiError";
@@ -15,9 +17,6 @@ import FixtureFilterHeaders from "@/shared/FixtureFilterHeaders";
 import SportAccordionCard from "@/shared/SportAccordionCard";
 import type { RootState } from "@/store";
 import { useAppSelector } from "@/store/hook";
-import { Skeleton } from "@/components/ui/skeleton";
-
-import { MatchesSkeleton } from "@/components/MatchesSkeleton";
 
 export const Route = createFileRoute("/index/matches")({
 	loader: () => getBanners(),
@@ -120,7 +119,7 @@ const getCountryInfo = (name: string): { country: string; flag?: string } => {
 		indian: "in",
 		"super league": "gr",
 		ligue: "fr",
-	}
+	};
 
 	for (const key in mapping) {
 		if (lower.includes(key)) {
@@ -167,11 +166,11 @@ const getCountryInfo = (name: string): { country: string; flag?: string } => {
 				sk: "Slovakia",
 				il: "Israel",
 				in: "India",
-			}
+			};
 			return {
 				country: names[code] || name,
 				flag: `https://flagcdn.com/w40/${code}.png`,
-			}
+			};
 		}
 	}
 
@@ -183,11 +182,11 @@ function RouteComponent() {
 
 	const selectedDateString = useAppSelector(
 		(state: RootState) => state.date.selectedDate,
-	)
+	);
 	const selectedDate = new Date(selectedDateString);
 	const { currentFilter } = useCurrentFilter();
 
-	const formattedDate = `${selectedDate.getDate().toString().padStart(2, `0`)}/${(selectedDate.getMonth() + 1).toString().padStart(2, `0`)}/${selectedDate.getFullYear()}`;
+	const formattedDate = `${selectedDate.getDate().toString().padStart(2, "0")}/${(selectedDate.getMonth() + 1).toString().padStart(2, "0")}/${selectedDate.getFullYear()}`;
 
 	const {
 		data: scheduleData,
@@ -211,11 +210,11 @@ function RouteComponent() {
 		for (const comp of scheduleData.competitions) {
 			for (const match of comp.matches) {
 				if (match.match_status === "closed") {
-					finished++
+					finished++;
 				} else if (match.match_status === "SCH") {
-					upcoming++
+					upcoming++;
 				} else {
-					live++
+					live++;
 				}
 			}
 		}
@@ -230,7 +229,7 @@ function RouteComponent() {
 			.map((comp) => {
 				const { country, flag } = getCountryInfo(
 					comp.category?.name || comp.competition.name,
-				)
+				);
 
 				const filteredMatches = comp.matches
 					.filter((match) => {
@@ -242,8 +241,8 @@ function RouteComponent() {
 						if (currentFilter === "live")
 							return (
 								match.match_status !== "closed" && match.match_status !== "SCH"
-							)
-						return false
+							);
+						return false;
 					})
 					.map((match) => {
 						const formatTime = (dateStr?: string) => {
@@ -269,7 +268,7 @@ function RouteComponent() {
 							time: formatTime(match.start_time) || match.start_time,
 							clock: match.clock?.toString(),
 						};
-					})
+					});
 
 				if (filteredMatches.length === 0) return null;
 
@@ -280,7 +279,7 @@ function RouteComponent() {
 					flag,
 					imageUrl: comp.competition.imageUrl || undefined,
 					matches: filteredMatches,
-				}
+				};
 			})
 			.filter(Boolean) as {
 			id: string;
@@ -289,7 +288,7 @@ function RouteComponent() {
 			flag?: string;
 			imageUrl?: string;
 			matches: any[];
-		}[]
+		}[];
 	}, [scheduleData, currentFilter]);
 
 	if (isError) {
@@ -306,7 +305,7 @@ function RouteComponent() {
 					isNetworkError={isNetworkError}
 				/>
 			</div>
-		)
+		);
 	}
 
 	if (isLoading) {
@@ -324,7 +323,7 @@ function RouteComponent() {
 					{banners.length > 0 && <BannerCarousel banners={banners} />}
 					{filteredCompetitions.length === 0 ? (
 						<EmptyState
-							title={`No ${currentFilter === `all` ? `` : currentFilter} football matches`}
+							title={`No ${currentFilter === "all" ? "" : currentFilter} football matches`}
 							description="We couldn't find any matches matching your criteria for this date."
 						/>
 					) : (
@@ -345,10 +344,10 @@ function RouteComponent() {
 						))
 					)}
 				</div>
-				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:block lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)]">
 					<RightSidebar />
 				</div>
 			</div>
 		</div>
-	)
+	);
 }
