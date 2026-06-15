@@ -451,6 +451,12 @@ slotegratorRoute.post("/", async (c) => {
 				status: "success",
 				paymentMethod: "slotegrator games",
 				balance: newBalance,
+				metadata: JSON.stringify({
+					game: "slotegrator",
+					gameId: gameUuid,
+					sessionId,
+					action: "bet",
+				}),
 			})
 			.returning();
 
@@ -573,6 +579,12 @@ slotegratorRoute.post("/", async (c) => {
 				status: "success",
 				paymentMethod: "slotegrator games",
 				balance: newBalance,
+				metadata: JSON.stringify({
+					game: "slotegrator",
+					gameId: gameUuid,
+					sessionId,
+					action: "win",
+				}),
 			})
 			.returning();
 
@@ -771,6 +783,13 @@ slotegratorRoute.post("/", async (c) => {
 				status: "success",
 				paymentMethod: "slotegrator games",
 				balance: newBalance,
+				metadata: JSON.stringify({
+					game: "slotegrator",
+					gameId: gameUuid,
+					sessionId,
+					action: "settlement",
+					originalTransactionId: betTransactionId,
+				}),
 			})
 			.returning();
 
@@ -961,6 +980,7 @@ slotegratorRoute.post("/", async (c) => {
 				status: "success",
 				paymentMethod: "slotegrator games",
 				balance: currentBalance,
+				metadata: JSON.stringify({ game: "slotegrator", action: "reset" }),
 			})
 			.returning();
 
