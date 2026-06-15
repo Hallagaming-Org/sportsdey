@@ -145,6 +145,10 @@ const isPopularGame = (game: Game) => {
 	);
 };
 
+const isThundrGame = (code: string) => {
+	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
+};
+
 function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
@@ -543,6 +547,23 @@ function GamesPage() {
 													</div>
 												)}
 
+												{isThundrGame(game.code) && (
+													<div className="relative z-[1] w-full text-center pb-2">
+														<p
+															className="truncate font-normal text-sm text-white"
+															style={{ fontFamily: "Luckiest Guy" }}
+														>
+															{display.name}
+														</p>
+														{/* <p
+															className="truncate text-[9px] text-gray-100"
+															style={{ fontFamily: "Quicksand" }}
+														>
+															{display.subtitle}
+														</p> */}
+													</div>
+												)}
+
 											</motion.div>
 										);
 									})}
@@ -606,6 +627,23 @@ function GamesPage() {
 												<span className="text-4xl font-bold text-white/50">
 													{display.name.charAt(0)}
 												</span>
+											</div>
+										)}
+
+										{isThundrGame(game.code) && (
+											<div className="relative z-[1] w-full text-center pb-3">
+												<p
+													className="truncate font-normal text-base text-white"
+													style={{ fontFamily: "Luckiest Guy" }}
+												>
+													{display.name}
+												</p>
+												{/* <p
+													className="truncate text-[11px] text-gray-100"
+													style={{ fontFamily: "Quicksand" }}
+												>
+													{display.subtitle}
+												</p> */}
 											</div>
 										)}
 
