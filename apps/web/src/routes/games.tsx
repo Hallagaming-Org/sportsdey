@@ -19,6 +19,7 @@ export const Route = createFileRoute("/games")({
 });
 
 const CATEGORIES = [
+	"popular",
 	"arcade",
 	"bingo",
 	"classic",
@@ -34,6 +35,7 @@ const CATEGORIES = [
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
+	"popular": "🔥",
 	"arcade": "🕹️",
 	"bingo": "🎱",
 	"classic": "👑",
@@ -135,6 +137,14 @@ const DEFAULT_GRADIENT =
 
 const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
 
+const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+
+const isPopularGame = (game: Game) => {
+	return POPULAR_GAME_NAMES.some((name) =>
+		game.name.toLowerCase().includes(name.toLowerCase()),
+	);
+};
+
 function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
@@ -162,11 +172,11 @@ function GamesPage() {
 
 	const itemVariants: Variants = {
 		hidden: { opacity: 0, y: 20, scale: 0.95 },
-		show: { 
-			opacity: 1, 
-			y: 0, 
-			scale: 1, 
-			transition: { type: "tween", ease: "easeOut", duration: 0.4 } 
+		show: {
+			opacity: 1,
+			y: 0,
+			scale: 1,
+			transition: { type: "tween", ease: "easeOut", duration: 0.4 }
 		},
 	};
 
@@ -200,13 +210,18 @@ function GamesPage() {
 		(acc, game) => {
 			const cat = game.category ?? "others";
 			acc[cat] = (acc[cat] ?? 0) + 1;
+			if (isPopularGame(game)) {
+				acc["popular"] = (acc["popular"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
-		if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+		if (selectedCategory === "popular") {
+			if (!isPopularGame(game)) return false;
+		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
 		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {
