@@ -67,14 +67,36 @@ const KNOWN_GAMES: Record<
 	slots: {
 		subtitle: "slot machine",
 		icon: SlotsLogo,
-		gradient: "linear-gradient(to bottom, #7b1fa2, #9c27b0, #ba68c2)",
+		gradient: "linear-gradient(to bottom, #7b1fa2, #9c27b0, #ba68c8)",
 	},
 	plinko: {
 		subtitle: "lucky drop",
 		icon: PlinkoLogo,
 		gradient: "linear-gradient(to bottom, #00897b, #26a69a, #4db6ac)",
 	},
+	XCAPEHB: {
+		subtitle: "fulfilling games",
+		image: "/xcape-thumbnail-16x9.jpg",
+		gradient: "linear-gradient(to bottom, #1fe0c8, #7a5cff, #c43cff)",
+	},
+	EAGLEHB: {
+		subtitle: "fulfilling games",
+		image: "/eagle-thumbnail-16x9.jpg",
+		gradient: "linear-gradient(to bottom, #d9f27c, #8bbf4f, #5f9e7a)",
+	},
+	LUCKYRISEHB: {
+		subtitle: "fulfilling games",
+		image: "/luckyrise-thumbnail-16x9.png",
+		gradient: "linear-gradient(to bottom, #0E0E2B, #1f3a5f, #d4a017)",
+	},
+	LAGOSRUSH: {
+		subtitle: "fulfilling games",
+		image: "/lagos-rush.png",
+		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
+	},
 };
+
+const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
 
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
@@ -354,7 +376,16 @@ function HotCasinoPanel() {
 		},
 	});
 
-	const hotGames = games.slice(0, HOT_CASINO_LIMIT);
+	const sortedGames = [...games].sort((a, b) => {
+		const aIndex = PRIORITY_GAMES.indexOf(a.code);
+		const bIndex = PRIORITY_GAMES.indexOf(b.code);
+		if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+		if (aIndex !== -1) return -1;
+		if (bIndex !== -1) return 1;
+		return a.name.localeCompare(b.name);
+	});
+
+	const hotGames = sortedGames.slice(0, HOT_CASINO_LIMIT);
 
 	const handleGameClick = useCallback(
 		async (game: Game) => {
@@ -444,7 +475,7 @@ function HotCasinoPanel() {
 					name: game.name,
 					subtitle: known?.subtitle ?? "Play now",
 					Icon: known?.icon,
-					image: known?.image ?? game.imageUrl ?? "",
+					image: known?.image ?? game.imageUrl ?? "/lagos-rush.png",
 					gradient: known?.gradient ?? DEFAULT_GRADIENT,
 				};
 				const isLoadingThis = loadingCode === game.code;
@@ -454,7 +485,7 @@ function HotCasinoPanel() {
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
-						className="group relative flex h-44 min-w-[55%] snap-start flex-col items-center justify-end overflow-hidden rounded-xl p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 lg:min-w-0 lg:snap-none"
+						className="group relative flex aspect-square w-full h-44 min-w-[55%] snap-start flex-col items-center justify-end overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 lg:min-w-0 lg:snap-none lg:h-auto"
 						style={{ background: display.gradient }}
 					>
 						{isLoadingThis && (
@@ -474,30 +505,17 @@ function HotCasinoPanel() {
 								src={display.image}
 								alt={display.name}
 								loading="lazy"
-								className="absolute inset-0 h-full w-full object-contain p-2"
+								className="absolute inset-0 h-full w-full object-cover transition-opacity"
 								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
 							/>
 						) : (
-							<div className="absolute inset-0 flex items-center justify-center">
-								<span className="font-bold text-3xl text-white/50">
+							<div className="absolute inset-0 flex items-center justify-center"
+								style={{ opacity: isLoadingThis ? 0.35 : 1 }}>
+								<span className="font-bold text-4xl text-white/50">
 									{display.name.charAt(0)}
 								</span>
 							</div>
 						)}
-						<div className="relative z-[1] w-full text-center">
-							<p
-								className="truncate font-normal text-base text-white"
-								style={{ fontFamily: "Luckiest Guy" }}
-							>
-								{display.name}
-							</p>
-							<p
-								className="truncate text-[11px] text-gray-100"
-								style={{ fontFamily: "Quicksand" }}
-							>
-								{display.subtitle}
-							</p>
-						</div>
 					</button>
 				);
 			})}

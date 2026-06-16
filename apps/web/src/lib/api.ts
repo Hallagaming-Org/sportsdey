@@ -45,7 +45,6 @@ export async function apiRequest<T>(
 	const url = `${API_BASE_URL}${endpoint}`;
 
 	const controller = new AbortController();
-	// Add a 10-second timeout to prevent the worker from hanging indefinitely
 	const timeoutId = setTimeout(() => controller.abort(), 10000);
 
 	const config: RequestInit = {

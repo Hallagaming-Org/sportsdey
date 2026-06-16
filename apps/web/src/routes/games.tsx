@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/games")({
 });
 
 const CATEGORIES = [
+	"popular",
 	"arcade",
 	"bingo",
 	"classic",
@@ -34,6 +35,7 @@ const CATEGORIES = [
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
+	"popular": "🔥",
 	"arcade": "🕹️",
 	"bingo": "🎱",
 	"classic": "👑",
@@ -135,6 +137,18 @@ const DEFAULT_GRADIENT =
 
 const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
 
+const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+
+const isPopularGame = (game: Game) => {
+	return POPULAR_GAME_NAMES.some((name) =>
+		game.name.toLowerCase().includes(name.toLowerCase()),
+	);
+};
+
+const isThundrGame = (code: string) => {
+	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
+};
+
 function GamesPage() {
 	const navigate = useNavigate();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
@@ -162,11 +176,11 @@ function GamesPage() {
 
 	const itemVariants: Variants = {
 		hidden: { opacity: 0, y: 20, scale: 0.95 },
-		show: { 
-			opacity: 1, 
-			y: 0, 
-			scale: 1, 
-			transition: { type: "tween", ease: "easeOut", duration: 0.4 } 
+		show: {
+			opacity: 1,
+			y: 0,
+			scale: 1,
+			transition: { type: "tween", ease: "easeOut", duration: 0.4 }
 		},
 	};
 
@@ -200,13 +214,18 @@ function GamesPage() {
 		(acc, game) => {
 			const cat = game.category ?? "others";
 			acc[cat] = (acc[cat] ?? 0) + 1;
+			if (isPopularGame(game)) {
+				acc["popular"] = (acc["popular"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
-		if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+		if (selectedCategory === "popular") {
+			if (!isPopularGame(game)) return false;
+		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
 		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -222,6 +241,10 @@ function GamesPage() {
 	}
 
 	const handleGameClick = async (game: Game) => {
+		if (!session?.user) {
+			navigate({ to: "/auth/sign-in" });
+			return;
+		}
 		console.log(import.meta.env.VITE_SERVER_URL, " import")
 		setLoadingGame(game.code);
 		try {
@@ -367,9 +390,6 @@ function GamesPage() {
 		);
 	}
 
-	if (!isSessionLoading && !session?.user) {
-		return <Navigate to="/auth/sign-in" />;
-	}
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
@@ -527,6 +547,23 @@ function GamesPage() {
 													</div>
 												)}
 
+												{isThundrGame(game.code) && (
+													<div className="relative z-[1] w-full text-center pb-2">
+														<p
+															className="truncate font-normal text-sm text-white"
+															style={{ fontFamily: "Luckiest Guy" }}
+														>
+															{display.name}
+														</p>
+														{/* <p
+															className="truncate text-[9px] text-gray-100"
+															style={{ fontFamily: "Quicksand" }}
+														>
+															{display.subtitle}
+														</p> */}
+													</div>
+												)}
+
 											</motion.div>
 										);
 									})}
@@ -590,6 +627,23 @@ function GamesPage() {
 												<span className="text-4xl font-bold text-white/50">
 													{display.name.charAt(0)}
 												</span>
+											</div>
+										)}
+
+										{isThundrGame(game.code) && (
+											<div className="relative z-[1] w-full text-center pb-3">
+												<p
+													className="truncate font-normal text-base text-white"
+													style={{ fontFamily: "Luckiest Guy" }}
+												>
+													{display.name}
+												</p>
+												{/* <p
+													className="truncate text-[11px] text-gray-100"
+													style={{ fontFamily: "Quicksand" }}
+												>
+													{display.subtitle}
+												</p> */}
 											</div>
 										)}
 
