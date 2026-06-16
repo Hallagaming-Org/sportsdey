@@ -2,7 +2,9 @@
 	"name": "sportsdey-server",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-06-15",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"mtls_certificates": [
 		{
 			"binding": "DATABET_CERT",
@@ -25,8 +27,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "staging-db",
-			"database_id": "dc69f144-8a25-4033-8cf1-3a7d218f5933",
+			"database_name": "sportsdey_db",
+			"database_id": "d091e50e-e19f-40dc-ad77-e7050c7bbbad",
 			"remote": false,
 			"migrations_dir": "./src/db/migrations"
 		}
@@ -62,7 +64,9 @@
 					"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
 				}
 			],
-			"routes": ["staging-api.sportsdey.com"],
+			"routes": [
+				"staging-api.sportsdey.com"
+			],
 			"vars": {
 				"NODE_ENV": "staging"
 				// "CORS_ORIGIN": "https://staging.sportsdey.com",
@@ -71,7 +75,9 @@
 		},
 		"production": {
 			"name": "sportsdey-prod",
-			"routes": ["api.sportsdey.com"],
+			"routes": [
+				"api.sportsdey.com"
+			],
 			"d1_databases": [
 				{
 					"binding": "DB",
@@ -108,7 +114,19 @@
 				// Example: "CORS_ORIGIN": "https://your-domain.com"
 			}
 		}
-	}
+	},
+	"kv_namespaces": [
+		{
+			"binding": "sportsdey_ns",
+			"id": "7720322efb504b96a392d8acfe37ad4b"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "PRODUCTION_BUCKET",
+			"bucket_name": "sportsdey-prod"
+		}
+	]
 	// "kv_namespaces": [
 	// 	{
 	// 		"binding": "staging-kv",
