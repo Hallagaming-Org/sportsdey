@@ -113,6 +113,7 @@ const GAME_TYPES = [
 	"Jackpot",
 	"Lottery",
 	"Roulette",
+	"Popular/Hot Casino",
 ] as const;
 
 function normalizeName(name: string): string {
@@ -127,7 +128,13 @@ function parseCasinoGamesFile(filePath: string): Map<string, string> {
 
 	for (const line of lines) {
 		const trimmed = line.trimEnd();
-		if (!trimmed || trimmed.startsWith("CASINO") || trimmed.startsWith("=") || trimmed.startsWith("GAME TITLE") || trimmed.startsWith("-")) {
+		if (
+			!trimmed ||
+			trimmed.startsWith("CASINO") ||
+			trimmed.startsWith("=") ||
+			trimmed.startsWith("GAME TITLE") ||
+			trimmed.startsWith("-")
+		) {
 			continue;
 		}
 
@@ -222,7 +229,6 @@ async function fetchGames(
 
 	const data = (await response.json()) as GamesApiResponse;
 
-	
 	return data;
 }
 
@@ -303,7 +309,10 @@ async function main() {
 		: new Map<string, string>();
 
 	for (const game of allGames) {
-		(game as GameItem & { category: string | null }).category = getCategory(game.name, categoryMap);
+		(game as GameItem & { category: string | null }).category = getCategory(
+			game.name,
+			categoryMap,
+		);
 	}
 
 	const newGames = allGames.filter(
@@ -431,7 +440,9 @@ async function main() {
 						else resolve(stdout);
 					});
 				});
-				console.log(`Backfill batch ${batchNum}: ${cases.length} games updated`);
+				console.log(
+					`Backfill batch ${batchNum}: ${cases.length} games updated`,
+				);
 			} catch (err) {
 				console.error(`Backfill batch ${batchNum} failed:`, err);
 			}

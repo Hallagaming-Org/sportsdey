@@ -11,19 +11,19 @@ export function WalletInfo() {
 					NGN 9,999,999.00 in one transaction.
 				</li>
 				<li>
-					Any card details you choose to save are encrypted. We do not store your
-					CVV. We will also ask you to input your Sportsdey PIN any time you want to
-					use your card after it has been successfully used for the first time and
-					saved.
+					Any card details you choose to save are encrypted. We do not store
+					your CVV. We will also ask you to input your Sportsdey PIN any time
+					you want to use your card after it has been successfully used for the
+					first time and saved.
 				</li>
 				<li>
 					We do not share your payment information. It is used for transaction
 					verification only.
 				</li>
 				<li>
-					If you have any issues, please contact customer service. Using too many
-					cards or bank accounts for deposits may cause the deposit to be blocked
-					and your account restricted.
+					If you have any issues, please contact customer service. Using too
+					many cards or bank accounts for deposits may cause the deposit to be
+					blocked and your account restricted.
 				</li>
 				<li>Deposit is free, there are no transaction fees.</li>
 			</ol>

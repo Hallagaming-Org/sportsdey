@@ -2,7 +2,10 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 export interface ImageWithSkeletonProps
-	extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "onLoad" | "onError"> {
+	extends Omit<
+		React.ImgHTMLAttributes<HTMLImageElement>,
+		"onLoad" | "onError"
+	> {
 	wrapperClassName?: string;
 	skeletonClassName?: string;
 }
@@ -19,9 +22,7 @@ function ImageWithSkeleton({
 	const [errored, setErrored] = useState(false);
 
 	return (
-		<span
-			className={cn("relative block overflow-hidden", wrapperClassName)}
-		>
+		<span className={cn("relative block overflow-hidden", wrapperClassName)}>
 			{!loaded && !errored && (
 				<span
 					aria-hidden

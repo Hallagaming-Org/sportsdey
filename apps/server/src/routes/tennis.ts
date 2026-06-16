@@ -361,7 +361,6 @@ tennisRoute.openapi(
 				);
 			}
 
-
 			const transformedData = transformTennisData(
 				apiData,
 				`tournament_${tournamentId}`,

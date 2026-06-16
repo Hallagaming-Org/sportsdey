@@ -55,7 +55,8 @@ const faqItems = [
 	{
 		value: "8",
 		question: "How many selections can I add to my betslip?",
-		answer: "The maximum number of selections you can add to your betslip is 50.",
+		answer:
+			"The maximum number of selections you can add to your betslip is 50.",
 	},
 	{
 		value: "9",
@@ -100,7 +101,8 @@ const faqItems = [
 	},
 	{
 		value: "16",
-		question: "Can I open another account? I am always losing on my current account.",
+		question:
+			"Can I open another account? I am always losing on my current account.",
 		answer:
 			"No, you cannot open multiple accounts. It's one account per player. Reach out to our Customer Support team so we can review your account and advise you accordingly.",
 	},
@@ -163,7 +165,7 @@ const faqItems = [
 function FaqPage() {
 	return (
 		<div className="container mx-auto px-4 py-8 lg:px-[104px] lg:py-12">
-			<h1 className="mb-2 text-3xl font-bold">Frequently Asked Questions</h1>
+			<h1 className="mb-2 font-bold text-3xl">Frequently Asked Questions</h1>
 			<p className="mb-8 text-muted-foreground">
 				Find answers to common questions about SportsDey.
 			</p>
@@ -171,7 +173,7 @@ function FaqPage() {
 				{faqItems.map((item) => (
 					<AccordionItem key={item.value} value={item.value}>
 						<AccordionTrigger isCollapsible>{item.question}</AccordionTrigger>
-						<AccordionContent className="text-muted-foreground leading-relaxed whitespace-pre-line">
+						<AccordionContent className="whitespace-pre-line text-muted-foreground leading-relaxed">
 							{item.answer}
 						</AccordionContent>
 					</AccordionItem>

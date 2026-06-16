@@ -36,6 +36,8 @@ type WalletTransaction = {
 	type: string;
 	reference: string;
 	status: string;
+	paymentMethod?: string | null;
+	metadata?: Record<string, unknown> | null;
 	createdAt?: string | null;
 };
 
@@ -153,32 +155,35 @@ function WalletPage() {
 
 	return (
 		<>
-
 			{isInitialPageLoading ? (
 				<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 					<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
 				</div>
 			) : (
 				<>
-					<div className="flex flex-col lg:grid lg:grid-cols-5 gap-4 mb-6">
-						<div className="lg:col-span-3 space-y-4">
-							<div className="h-fit self-start rounded-2xl p-[20px] shadow-sm border border-[#1B2722] bg-[#04100B]">
+					<div className="mb-6 flex flex-col gap-4 lg:grid lg:grid-cols-5">
+						<div className="space-y-4 lg:col-span-3">
+							<div className="h-fit self-start rounded-2xl border border-[#1B2722] bg-[#04100B] p-[20px] shadow-sm">
 								<div className="flex items-center justify-between">
 									<p className="font-semibold text-[30px] text-primary dark:text-white">
 										Wallet
 									</p>
-									<div className="flex h-[40px] w-[60px] items-center rounded-lg justify-center border border-[#1B2722] bg-[#04100B]">
-										<WalletIcon width={18} height={18} className="block text-[#6C7073]" />
+									<div className="flex h-[40px] w-[60px] items-center justify-center rounded-lg border border-[#1B2722] bg-[#04100B]">
+										<WalletIcon
+											width={18}
+											height={18}
+											className="block text-[#6C7073]"
+										/>
 									</div>
 								</div>
 							</div>
-							<div className="w-full min-h-40 rounded-2xl bg-[#000606] p-6 shadow-sm border border-[#1B2722]">
+							<div className="min-h-40 w-full rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm">
 								<p className="text-[14px] text-primary dark:text-white">
 									Wallet Balance
 								</p>
 								{walletData?.id && !isWalletSectionLoading && (
 									<div className="mt-2 flex items-center gap-2">
-										<span className="text-[12px] text-[#6C7073] font-mono truncate max-w-[200px]">
+										<span className="max-w-[200px] truncate font-mono text-[#6C7073] text-[12px]">
 											ID: {walletData.id}
 										</span>
 										<button
@@ -186,7 +191,7 @@ function WalletPage() {
 											onClick={() => {
 												navigator.clipboard.writeText(walletData.id);
 											}}
-											className="cursor-pointer text-[#6C7073] hover:text-white transition-colors"
+											className="cursor-pointer text-[#6C7073] transition-colors hover:text-white"
 											aria-label="Copy wallet ID"
 										>
 											<Copy className="h-3.5 w-3.5" />
@@ -198,7 +203,7 @@ function WalletPage() {
 										{isWalletSectionLoading ? (
 											<Skeleton className="h-[50px] w-[150px]" />
 										) : showBalance ? (
-											<span className="leading-none space-x-2">
+											<span className="space-x-2 leading-none">
 												<span className="relative -top-2 align-super text-[24px]">
 													₦
 												</span>
@@ -234,7 +239,7 @@ function WalletPage() {
 											setDepositError("");
 											setIsDepositModalOpen(true);
 										}}
-										className="w-full cursor-pointer rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white border border-[#1B2722] text-sm"
+										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
 									>
 										Deposit
 									</button>
@@ -243,7 +248,7 @@ function WalletPage() {
 										onClick={() => {
 											setIsTransferModalOpen(true);
 										}}
-										className="w-full cursor-pointer border border-[#1B2722] rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white text-sm"
+										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
 									>
 										Transfer funds
 									</button>
@@ -252,14 +257,14 @@ function WalletPage() {
 										onClick={() => {
 											setIsWithdrawModalOpen(true);
 										}}
-										className="w-full cursor-pointer border border-[#1B2722] rounded-lg bg-[#04100B] px-4 py-2 font-medium text-white text-sm"
+										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
 									>
 										Withdraw
 									</button>
 								</div>
 							</div>
 						</div>
-						<div className="lg:col-span-2 min-h-40 rounded-2xl bg-[#000606] p-6 shadow-sm border border-[#1B2722]">
+						<div className="min-h-40 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm lg:col-span-2">
 							<p className="border-[#1B2722] border-b pb-3 font-semibold text-base text-primary dark:text-white">
 								Quick Access
 							</p>
@@ -274,10 +279,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
+										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
 									>
 										<AirtimeIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
+										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
 											Airtime
 										</span>
 									</button>
@@ -292,10 +297,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
+										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
 									>
 										<InternetIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
+										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
 											Internet
 										</span>
 									</button>
@@ -310,10 +315,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
+										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
 									>
 										<CableTvIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
+										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
 											Cable TV
 										</span>
 									</button>
@@ -328,10 +333,10 @@ function WalletPage() {
 											});
 											setIsBillPaymentOpen(true);
 										}}
-										className="flex w-full h-full border border-[#1B2722] bg-[#04100B] cursor-pointer flex-col lg:flex-row items-center justify-center lg:justify-start gap-2 lg:gap-3 rounded-lg p-2 lg:p-3"
+										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
 									>
 										<ElectricityIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] sm:text-xs lg:text-sm text-white">
+										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
 											Electricity
 										</span>
 									</button>

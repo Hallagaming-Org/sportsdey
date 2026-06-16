@@ -497,6 +497,12 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 			status: "success",
 			paymentMethod: "lucky games",
 			balance: newBalanceKobo,
+			metadata: JSON.stringify({
+				game,
+				sessionToken: session_token,
+				providerTxId: provider_tx_id,
+				action: "bet",
+			}),
 		})
 		.returning();
 
@@ -657,6 +663,12 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 			status: "success",
 			paymentMethod: "lucky games",
 			balance: newBalanceKobo,
+			metadata: JSON.stringify({
+				game,
+				sessionToken: session_token,
+				providerTxId: provider_tx_id,
+				action: "win",
+			}),
 		})
 		.returning();
 
@@ -818,6 +830,12 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 			status: "success",
 			paymentMethod: "lucky games",
 			balance: newBalanceKobo,
+			metadata: JSON.stringify({
+				game,
+				sessionToken: session_token,
+				providerTxId: provider_tx_id,
+				action: "rollback",
+			}),
 		})
 		.returning();
 

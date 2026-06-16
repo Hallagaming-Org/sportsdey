@@ -6,18 +6,20 @@ import { motion, type Variants } from 'framer-motion';
 import { faqs } from '../data/faqs';
 import { cn } from '@/lib/utils';
 
-export const Route = createFileRoute('/faqs')({
-  component: FAQs,
+export const Route = createFileRoute("/faqs")({
+	component: FAQs,
 });
 
 function FAQs() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeItem, setActiveItem] = useState<string | undefined>(undefined);
+	const [searchQuery, setSearchQuery] = useState("");
+	const [activeItem, setActiveItem] = useState<string | undefined>(undefined);
 
-  const filteredFaqs = faqs.filter(faq =>
-    faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (typeof faq.answer === 'string' && faq.answer.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+	const filteredFaqs = faqs.filter(
+		(faq) =>
+			faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			(typeof faq.answer === "string" &&
+				faq.answer.toLowerCase().includes(searchQuery.toLowerCase())),
+	);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -40,7 +42,7 @@ function FAQs() {
           Get quick answers to questions you may have.
         </p>
 
-        {/* <div className="relative w-full mb-10">
+				{/* <div className="relative w-full mb-10">
           <input
             type="text"
             placeholder="Search..."

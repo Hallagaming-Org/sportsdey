@@ -54,7 +54,7 @@ body {
 }
 
 .dark {
-	--background: #040C01;
+	--background: #040c01;
 	--foreground: #ffffff;
 	--card: #202120;
 	--card-foreground: #ffffff;
@@ -239,11 +239,16 @@ body {
 }
 
 .app-download-banner {
-	background-image: linear-gradient(to right, #C21807, #B21807, #800000);
+	background-image: linear-gradient(to right, #c21807, #b21807, #800000);
 }
 
 .dark .app-download-banner {
-	background-image: linear-gradient(to right, #04100B, #072D08, #072D08) !important;
+	background-image: linear-gradient(
+		to right,
+		#04100b,
+		#072d08,
+		#072d08
+	) !important;
 }
 
 .swiper-pagination-bullet {

@@ -1,10 +1,10 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNewsVideos } from "@/hooks/use-news-videos";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 import { VideoCard } from "./basketball-section/VideoCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoModal } from "./basketball-section/VideoModal";
-import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 
 export function VideosTab({ category }: { category: string }) {
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
@@ -12,8 +12,9 @@ export function VideosTab({ category }: { category: string }) {
 	const query =
 		category === "all"
 			? "football basketball tennis boxing match highlights live matches news"
-			: category === "politics" || category === "entertainment" ? `${category} news around the world especially Nigeria`
-			: `${category} match highlights live matches news`;
+			: category === "politics" || category === "entertainment"
+				? `${category} news around the world especially Nigeria`
+				: `${category} match highlights live matches news`;
 	const {
 		data,
 		isLoading,

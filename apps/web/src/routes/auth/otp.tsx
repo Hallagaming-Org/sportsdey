@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 import z from "zod";
 import { verifyPhoneOtp } from "@/lib/auth/client";
 
@@ -37,7 +37,10 @@ function OtpPage() {
 		}
 	};
 
-	const handleKeyDown = (index: number, event: KeyboardEvent<HTMLInputElement>) => {
+	const handleKeyDown = (
+		index: number,
+		event: KeyboardEvent<HTMLInputElement>,
+	) => {
 		if (event.key === "Backspace" && !otpDigits[index] && index > 0) {
 			inputsRef.current[index - 1]?.focus();
 		}
@@ -81,7 +84,9 @@ function OtpPage() {
 				<div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-sm">
 					<Mail className="h-8 w-8 text-[#17b000]" />
 				</div>
-				<h1 className="mt-6 font-bold text-2xl text-[#0a0f0d]">Enter OTP Code</h1>
+				<h1 className="mt-6 font-bold text-2xl text-[#0a0f0d]">
+					Enter OTP Code
+				</h1>
 				<p className="mt-3 text-[#1f2522] text-base">
 					A code has been sent to {phone || "+234 803 123 4567"}
 				</p>
@@ -99,32 +104,32 @@ function OtpPage() {
 							value={digit}
 							onChange={(event) => handleInput(index, event.target.value)}
 							onKeyDown={(event) => handleKeyDown(index, event)}
-							className="h-8 w-8 rounded-2xl border border-[#acacac] bg-[#efefef] text-center text-base text-[#0f1513] shadow-sm outline-none focus:border-[#17b000] lg:h-9 lg:w-9 lg:text-base"
+							className="h-8 w-8 rounded-2xl border border-[#acacac] bg-[#efefef] text-center text-[#0f1513] text-base shadow-sm outline-none focus:border-[#17b000] lg:h-9 lg:w-9 lg:text-base"
 						/>
 					))}
 				</div>
 
-			{error ? (
-				<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-sm text-red-700">
-					{error}
+				{error ? (
+					<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-red-700 text-sm">
+						{error}
+					</div>
+				) : null}
+
+				<button
+					type="button"
+					onClick={handleVerify}
+					disabled={!canVerify || isLoading}
+					className="mt-4 w-full rounded-2xl bg-[#17b000] py-1.5 font-medium text-sm text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					{isLoading ? "Verifying..." : "Verify"}
+				</button>
+
+				<div className="mx-auto mt-10 flex w-full max-w-[420px] items-center gap-3 text-[#2a302d] text-sm">
+					<div className="h-px flex-1 bg-[#b7b7b7]" />
+					<span>Resend code in 0:{String(secondsLeft).padStart(2, "0")}</span>
+					<div className="h-px flex-1 bg-[#b7b7b7]" />
 				</div>
-			) : null}
-
-			<button
-				type="button"
-				onClick={handleVerify}
-				disabled={!canVerify || isLoading}
-				className="mt-4 w-full rounded-2xl bg-[#17b000] py-1.5 font-medium text-sm text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
-			>
-				{isLoading ? "Verifying..." : "Verify"}
-			</button>
-
-			<div className="mx-auto mt-10 flex w-full max-w-[420px] items-center gap-3 text-[#2a302d] text-sm">
-				<div className="h-px flex-1 bg-[#b7b7b7]" />
-				<span>Resend code in 0:{String(secondsLeft).padStart(2, "0")}</span>
-				<div className="h-px flex-1 bg-[#b7b7b7]" />
 			</div>
 		</div>
-	</div>
-);
+	);
 }

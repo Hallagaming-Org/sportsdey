@@ -637,6 +637,10 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				status: "pending",
 				paymentMethod: "card",
 				balance: currentBalance,
+				metadata: JSON.stringify({
+					source: "card",
+					paystackReference: paystackResult.reference,
+				}),
 			})
 			.returning();
 
@@ -762,7 +766,13 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 					"card",
 					"paystack",
 					"bank transfer",
+					"bank_transfer",
 					"wallet_transfer",
+					"sportsbook",
+					"thndr games",
+					"lucky games",
+					"lagos rush",
+					"slotegrator games",
 				]),
 			),
 		)
@@ -777,6 +787,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 			recipientWalletId: undefined,
 			recipientName: undefined,
 		}),
+		metadata: tx.metadata ? JSON.parse(tx.metadata) : undefined,
 	}));
 
 	return c.json(
@@ -1517,6 +1528,12 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 				status: transfer.status === "success" ? "success" : "pending",
 				paymentMethod: "paystack",
 				balance: wallet.balance - amount * 100,
+				metadata: JSON.stringify({
+					destinationBank: accountName,
+					accountNumber: accountNumber?.slice(-4)
+						? `****${accountNumber.slice(-4)}`
+						: undefined,
+				}),
 			})
 			.returning();
 
@@ -1694,6 +1711,11 @@ walletRoute.openapi(transferRoute, async (c) => {
 				balance: senderWallet.balance - amount * 100,
 				recipientWalletId,
 				recipientName,
+				metadata: JSON.stringify({
+					transferType: "outgoing",
+					recipientName,
+					recipientWalletId,
+				}),
 			})
 			.returning();
 
@@ -1717,6 +1739,11 @@ walletRoute.openapi(transferRoute, async (c) => {
 				balance: recipientWallet.balance + amount * 100,
 				recipientWalletId,
 				recipientName,
+				metadata: JSON.stringify({
+					transferType: "incoming",
+					senderName: user.name || "Unknown",
+					senderWalletId: senderWallet.id,
+				}),
 			})
 			.returning();
 
@@ -1924,6 +1951,10 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 				status: "completed",
 				paymentMethod: "wallet_transfer",
 				balance: normalWallet.balance - amount * 100,
+				metadata: JSON.stringify({
+					transferType: "to_game_wallet",
+					gameWalletId: gameWallet.id,
+				}),
 			})
 			.returning();
 

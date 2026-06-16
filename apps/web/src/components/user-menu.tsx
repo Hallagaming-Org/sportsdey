@@ -2,13 +2,13 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
 	Bell,
 	Clock3,
+	FileText,
 	LogOut,
 	Settings,
 	Star,
 	User,
 	UserRound,
 	Wallet,
-	FileText,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
@@ -95,14 +95,14 @@ export function UserMenu() {
 							{initials}
 						</div>
 					)}
-					<span className="text-secondary dark:text-white text-xs font-extrabold hidden md:inline">
+					<span className="hidden font-extrabold text-secondary text-xs md:inline dark:text-white">
 						Hi {displayName.split(" ")[0]}
 					</span>
 					<svg
 						viewBox="0 0 20 20"
 						aria-hidden="true"
 						className={cn(
-							"h-4 w-4 fill-current text-secondary dark:text-white transition-transform",
+							"h-4 w-4 fill-current text-secondary transition-transform dark:text-white",
 							isOpen ? "rotate-180" : "rotate-0",
 						)}
 					>
@@ -118,7 +118,7 @@ export function UserMenu() {
 							onClick={() => setIsOpen(false)}
 							aria-label="Close user menu"
 						/>
-						<div className="absolute top-full right-8 md:right-0 z-50 mt-2 w-52 md:w-64 rounded-2xl bg-[#020D02] p-3 shadow-lg">
+						<div className="absolute top-full right-8 z-50 mt-2 w-52 rounded-2xl bg-[#020D02] p-3 shadow-lg md:right-0 md:w-64">
 							<nav aria-label="User menu options">
 								<ul className="space-y-3">
 									{userMenuItems.map(({ label, icon: Icon, path }) => (
@@ -144,7 +144,7 @@ export function UserMenu() {
 											<span className="flex h-7 w-7 shrink-0 items-center justify-center text-[#FF484B]">
 												<LogOut width={20} height={20} className="block" />
 											</span>
-											<span className="font-medium text-base text-[#FF484B]">
+											<span className="font-medium text-[#FF484B] text-base">
 												Log out
 											</span>
 										</button>
@@ -162,7 +162,7 @@ export function UserMenu() {
 		<Link
 			to="/auth/sign-in"
 			aria-label="Sign In"
-			className="flex items-center justify-center h-7 w-7 rounded-full bg-gray-200 dark:bg-gray-700 transition-colors hover:bg-gray-300 dark:hover:bg-gray-600 shrink-0"
+			className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
 		>
 			<User className="h-4 w-4 text-gray-600 dark:text-gray-300" />
 		</Link>

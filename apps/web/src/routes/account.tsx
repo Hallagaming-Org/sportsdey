@@ -148,12 +148,12 @@ function AccountPage() {
 			<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
 				<div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-[#2F3033] dark:bg-[#0D0D0D]">
 					{/* Header section */}
-					<div className="flex items-center justify-between border-b border-gray-100 p-6 dark:border-[#2F3033]">
+					<div className="flex items-center justify-between border-gray-100 border-b p-6 dark:border-[#2F3033]">
 						<div>
-							<h2 className="text-xl font-bold text-gray-900 dark:text-white">
+							<h2 className="font-bold text-gray-900 text-xl dark:text-white">
 								Account Information
 							</h2>
-							<p className="text-sm text-gray-500 dark:text-[#8C8F8F]">
+							<p className="text-gray-500 text-sm dark:text-[#8C8F8F]">
 								Edit your information details
 							</p>
 						</div>
@@ -164,7 +164,7 @@ function AccountPage() {
 
 					<div className="relative p-6 pb-8">
 						{/* Edit profile link - top right */}
-						<div className="absolute right-6 top-6 mb-4 flex justify-end">
+						<div className="absolute top-6 right-6 mb-4 flex justify-end">
 							<button
 								type="button"
 								onClick={() => setIsEditing((prev) => !prev)}
@@ -208,7 +208,7 @@ function AccountPage() {
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.fullName}
-										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
 									>
 										Full name:
 									</label>
@@ -220,7 +220,7 @@ function AccountPage() {
 											updateField("fullName", event.target.value)
 										}
 										disabled={!isEditing}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
@@ -228,7 +228,7 @@ function AccountPage() {
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.email}
-										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
 									>
 										Email address:
 									</label>
@@ -238,7 +238,7 @@ function AccountPage() {
 											type="email"
 											value={formState.email}
 											disabled={true}
-											className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 										/>
 										{/* <button
 											type="button"
@@ -255,7 +255,7 @@ function AccountPage() {
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.country}
-										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
 									>
 										Country:
 									</label>
@@ -267,7 +267,7 @@ function AccountPage() {
 											updateField("country", event.target.value)
 										}
 										disabled={!isEditing}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
@@ -275,7 +275,7 @@ function AccountPage() {
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.mobileNumbers}
-										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
 									>
 										Mobile number:
 									</label>
@@ -287,7 +287,7 @@ function AccountPage() {
 											updateField("mobileNumbers", event.target.value)
 										}
 										disabled={!isEditing}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
@@ -295,7 +295,7 @@ function AccountPage() {
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 									<label
 										htmlFor={inputIds.referralId}
-										className="shrink-0 font-medium text-sm text-gray-900 sm:w-48 dark:text-white"
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
 									>
 										Referral ID:
 									</label>
@@ -307,7 +307,7 @@ function AccountPage() {
 											updateField("referralId", event.target.value)
 										}
 										disabled={true}
-										className="flex-1 rounded-lg border-none bg-[#F4F4F4] py-2 px-4 h-[42px] text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 							</div>

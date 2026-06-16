@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 import type { BasketballVideosData } from "@/types/api";
 import { VideoCard } from "./VideoCard";
 import { VideoModal } from "./VideoModal";
-import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 
 interface VideosTabProps {
 	homeTeam: string;

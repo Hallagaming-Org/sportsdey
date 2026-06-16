@@ -32,6 +32,7 @@ const CATEGORIES = [
 	"scratch",
 	"slots",
 	"table/card-games",
+	"popular/hot-casino",
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
@@ -135,7 +136,18 @@ const KNOWN_GAMES: Record<
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
-const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
+const PRIORITY_GAMES = [
+	"solitaire",
+	"blocks",
+	"twentyone",
+	"blackjack",
+	"slots",
+	"plinko",
+	"XCAPEHB",
+	"EAGLEHB",
+	"LUCKYRISEHB",
+	"LAGOSRUSH",
+];
 
 const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
 
@@ -541,7 +553,7 @@ function GamesPage() {
 															opacity: loadingGame === game.code ? 0.35 : 1,
 														}}
 													>
-														<span className="text-4xl font-bold text-white/50">
+														<span className="font-bold text-4xl text-white/50">
 															{display.name.charAt(0)}
 														</span>
 													</div>
@@ -624,7 +636,7 @@ function GamesPage() {
 													opacity: loadingGame === game.code ? 0.35 : 1,
 												}}
 											>
-												<span className="text-4xl font-bold text-white/50">
+												<span className="font-bold text-4xl text-white/50">
 													{display.name.charAt(0)}
 												</span>
 											</div>
