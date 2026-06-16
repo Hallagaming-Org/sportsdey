@@ -2,8 +2,8 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
 import { parseQueryDateRange } from "@/utils";
+import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
 import type { CloudflareBindings } from "../types";
 
 const cmsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -324,10 +324,11 @@ cmsRoute.openapi(
 				}
 			}
 
-			const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
-				fromDate,
-				toDate,
-			}) as { fromDate?: number; toDate?: number };
+			const { fromDate: fromBoundary, toDate: toBoundary } =
+				parseQueryDateRange({
+					fromDate,
+					toDate,
+				}) as { fromDate?: number; toDate?: number };
 
 			const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
@@ -483,10 +484,11 @@ cmsRoute.openapi(
 
 			const { search, type, sortBy, page, fromDate, toDate } =
 				c.req.valid("query");
-			const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
-				fromDate,
-				toDate,
-			}) as { fromDate?: number; toDate?: number };
+			const { fromDate: fromBoundary, toDate: toBoundary } =
+				parseQueryDateRange({
+					fromDate,
+					toDate,
+				}) as { fromDate?: number; toDate?: number };
 			const client = getSanityClient(c.env);
 
 			const pageSize = 10;

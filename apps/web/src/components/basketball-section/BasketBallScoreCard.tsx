@@ -11,7 +11,9 @@ const BasketBallScoreCard = ({
 		<div className="w-full overflow-hidden rounded-xl border-0 bg-white dark:bg-card">
 			<div className="flex w-full items-center justify-between border-gray-200 border-b px-4 py-2 dark:border-[#5A5F63]">
 				<div className="w-full">
-					<span className="font-semibold text-primary text-sm dark:text-white">Scoring</span>
+					<span className="font-semibold text-primary text-sm dark:text-white">
+						Scoring
+					</span>
 				</div>
 				<div className="flex gap-x-4">
 					{quarters.map((q) => (
@@ -22,7 +24,7 @@ const BasketBallScoreCard = ({
 							{q.label}
 						</span>
 					))}
-					<span className="w-8 text-center font-semibold dark:text-white text-primary text-xs md:w-10 lg:w-14">
+					<span className="w-8 text-center font-semibold text-primary text-xs md:w-10 lg:w-14 dark:text-white">
 						T
 					</span>
 				</div>
@@ -38,7 +40,7 @@ const BasketBallScoreCard = ({
 					{team1.quarterScores.map((score, idx) => (
 						<span
 							key={idx}
-							className="w-4 text-center text-primary dark:text-white text-xs md:w-10 lg:w-14"
+							className="w-4 text-center text-primary text-xs md:w-10 lg:w-14 dark:text-white"
 						>
 							{score}
 						</span>
@@ -53,13 +55,15 @@ const BasketBallScoreCard = ({
 
 			<div className="flex items-center justify-between bg-white px-4 py-3 text-[11px] dark:bg-card">
 				<div className="flex items-center gap-3">
-					<span className="font-medium text-primary dark:text-white">{team2.name}</span>
+					<span className="font-medium text-primary dark:text-white">
+						{team2.name}
+					</span>
 				</div>
 				<div className="flex gap-4">
 					{team2.quarterScores.map((score, idx) => (
 						<span
 							key={idx}
-							className="w-4 text-center text-primary dark:text-white text-xs md:w-10 lg:w-14"
+							className="w-4 text-center text-primary text-xs md:w-10 lg:w-14 dark:text-white"
 						>
 							{score}
 						</span>

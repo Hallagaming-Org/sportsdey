@@ -14,17 +14,19 @@ const GAMES = [
 	{ name: "Blackjack", code: "blackjack", category: "others" },
 	{ name: "Slots", code: "slots", category: "others" },
 	{ name: "Plinko", code: "plinko", category: "others" },
-	{ name: "Xcape", code: "XCAPEHB", category: "others" },
+	{ name: "Xcape", code: "XCAPEHB", category: "popular/hot-casino" },
 	{ name: "Eagle", code: "EAGLEHB", category: "others" },
 	{ name: "Lucky Rise", code: "LUCKYRISEHB", category: "others" },
-	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "others" },
+	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "popular/hot-casino" },
 ];
 
 function escape(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) {
 		return "NULL";
 	}
-	return typeof value === "number" ? value.toString() : `'${String(value).replace(/'/g, "''")}'`;
+	return typeof value === "number"
+		? value.toString()
+		: `'${String(value).replace(/'/g, "''")}'`;
 }
 
 function main() {
@@ -44,7 +46,9 @@ function main() {
 
 	console.log(`\nSQL ready to execute on remote ${env} database`);
 	console.log("Please run this command manually:");
-	console.log(`npx wrangler d1 execute ${dbName} --command "${sql.replace(/"/g, '\\"')}" --remote`);
+	console.log(
+		`npx wrangler d1 execute ${dbName} --command "${sql.replace(/"/g, '\\"')}" --remote`,
+	);
 }
 
 main();

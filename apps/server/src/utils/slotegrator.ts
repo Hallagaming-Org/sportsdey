@@ -29,7 +29,7 @@ export async function verifySlotitegrationSignature(
 	console.log("All headers present, continuing...");
 
 	const now = Math.floor(Date.now() / 1000);
-	const requestTime = parseInt(timestamp, 10);
+	const requestTime = Number.parseInt(timestamp, 10);
 	if (Number.isNaN(requestTime) || Math.abs(now - requestTime) > 30) {
 		console.log("FAIL: Request timestamp expired", { now, requestTime });
 		return { valid: false, error: "Request timestamp expired" };

@@ -209,14 +209,14 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 											<main className="no-scrollbar flex-1 overflow-y-auto">
 												<div
 													className={cn(
-														"grid py-4 md:gap-8 mx-4 lg:mx-[104px]",
+														"mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
 														shouldShowSidebar
 															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
 															: "lg:grid-cols-1",
 													)}
 												>
 													{shouldShowSidebar && (
-														<aside className="no-scrollbar hidden pr-4 lg:block lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pb-6">
+														<aside className="no-scrollbar hidden pr-4 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6">
 															<Sidebar />
 														</aside>
 													)}

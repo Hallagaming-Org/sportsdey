@@ -95,7 +95,7 @@ export const createAuth = (env: CloudflareBindings) => {
 			},
 			cookiePrefix: "ba",
 			cookieOptions: {
-				sameSite: "lax",
+				sameSite: env.NODE_ENV === "development" ? "lax" : "none",
 				secure: env.NODE_ENV !== "development",
 				path: "/",
 			},

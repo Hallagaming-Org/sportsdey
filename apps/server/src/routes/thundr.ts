@@ -146,7 +146,7 @@ thundrRoute.openapi(playGameRoute, async (c) => {
 
 	const launchUrl = url.toString();
 
-return c.json(
+	return c.json(
 		{
 			success: true,
 			data: {
@@ -341,19 +341,31 @@ thundrRoute.post("/transactions", async (c) => {
 			return c.json({ success: false, error: "Failed to update wallet" }, 500);
 		}
 
-		const [walletTxn] = await db.insert(schema.walletTransaction).values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: session.userId,
-			amount: txAmountKobo,
-			type: "debit",
-			reference: null,
-			status: "success",
-			paymentMethod: "thndr games",
-			balance: newBalanceKobo,
-		}).returning();
+		const [walletTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: session.userId,
+				amount: txAmountKobo,
+				type: "debit",
+				reference: null,
+				status: "success",
+				paymentMethod: "thndr games",
+				balance: newBalanceKobo,
+				metadata: JSON.stringify({
+					game: "thundr",
+					roundId: tx.roundId,
+					gameId: tx.gameId,
+					action: "bet",
+				}),
+			})
+			.returning();
 
 		if (!walletTxn?.id) {
-			return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+			return c.json(
+				{ success: false, error: "Failed to record wallet transaction" },
+				500,
+			);
 		}
 	} else if (tx.type === "WIN" || tx.type === "DRAW") {
 		txAmountKobo = tx.amount;
@@ -368,19 +380,31 @@ thundrRoute.post("/transactions", async (c) => {
 			return c.json({ success: false, error: "Failed to update wallet" }, 500);
 		}
 
-		const [walletTxn] = await db.insert(schema.walletTransaction).values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: session.userId,
-			amount: txAmountKobo,
-			type: "credit",
-			reference: null,
-			status: "success",
-			paymentMethod: "thndr games",
-			balance: newBalanceKobo,
-		}).returning();
+		const [walletTxn] = await db
+			.insert(schema.walletTransaction)
+			.values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: session.userId,
+				amount: txAmountKobo,
+				type: "credit",
+				reference: null,
+				status: "success",
+				paymentMethod: "thndr games",
+				balance: newBalanceKobo,
+				metadata: JSON.stringify({
+					game: "thundr",
+					roundId: tx.roundId,
+					gameId: tx.gameId,
+					action: "win",
+				}),
+			})
+			.returning();
 
 		if (!walletTxn?.id) {
-			return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+			return c.json(
+				{ success: false, error: "Failed to record wallet transaction" },
+				500,
+			);
 		}
 	} else if (tx.type === "ROLLBACK") {
 		const [originalTx] = await db
@@ -401,22 +425,36 @@ thundrRoute.post("/transactions", async (c) => {
 				.returning();
 
 			if (!updatedWallet?.id) {
-				return c.json({ success: false, error: "Failed to update wallet" }, 500);
+				return c.json(
+					{ success: false, error: "Failed to update wallet" },
+					500,
+				);
 			}
 
-			const [walletTxn] = await db.insert(schema.walletTransaction).values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: session.userId,
-				amount: txAmountKobo,
-				type: "refund",
-				reference: null,
-				status: "success",
-				paymentMethod: "thndr games",
-				balance: newBalanceKobo,
-			}).returning();
+			const [walletTxn] = await db
+				.insert(schema.walletTransaction)
+				.values({
+					id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+					userId: session.userId,
+					amount: txAmountKobo,
+					type: "refund",
+					reference: null,
+					status: "success",
+					paymentMethod: "thndr games",
+					balance: newBalanceKobo,
+					metadata: JSON.stringify({
+						game: "thundr",
+						originalTransactionId: tx.originalTransactionId,
+						action: "rollback",
+					}),
+				})
+				.returning();
 
 			if (!walletTxn?.id) {
-				return c.json({ success: false, error: "Failed to record wallet transaction" }, 500);
+				return c.json(
+					{ success: false, error: "Failed to record wallet transaction" },
+					500,
+				);
 			}
 		}
 	}
@@ -438,7 +476,10 @@ thundrRoute.post("/transactions", async (c) => {
 		.returning();
 
 	if (!thundrTxn?.id) {
-		return c.json({ success: false, error: "Failed to record transaction" }, 500);
+		return c.json(
+			{ success: false, error: "Failed to record transaction" },
+			500,
+		);
 	}
 
 	return c.json(

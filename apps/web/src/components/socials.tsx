@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
+import { useEffect, useRef } from "react";
+import DiscordIcon from "@/logos/DiscordIcon";
 import Facebook from "@/logos/facebook.svg?react";
 import Instagram from "@/logos/instagram.svg?react";
 import Telegram from "@/logos/telegram.svg?react";
 import X from "@/logos/x.svg?react";
-import DiscordIcon from "@/logos/DiscordIcon";
 
 export const socials = [
 	{
@@ -39,9 +39,8 @@ const Socials = () => {
 
 	const widgetRef = useRef<HTMLDivElement | null>(null);
 
-
-	const currentTheme = theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
-
+	const currentTheme =
+		theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
 
 	useEffect(() => {
 		const SCRIPT_SRC = "https://www.livecoinwatch.com/static/lcw-widget.js";
@@ -80,11 +79,10 @@ const Socials = () => {
 	return (
 		<div className="flex w-full justify-center">
 			<div className="relative block w-full overflow-hidden border border-[#F2EEFB]/10 bg-white dark:bg-[#04100B]">
-				<div ref={widgetRef} className="flex w-full h-14" />
+				<div ref={widgetRef} className="flex h-14 w-full" />
 			</div>
 		</div>
 	);
-}
-	;
+};
 
 export default Socials;

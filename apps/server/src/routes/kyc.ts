@@ -1,11 +1,10 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, eq, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
-import { z } from "@hono/zod-openapi";
+import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
-import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import type { CloudflareBindings } from "../types";
 
@@ -22,81 +21,125 @@ const IDENTIFICATION_TYPES = [
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-const KycDocumentSchema = z.object({
-	id: z.string().openapi({ description: "Document ID" }),
-	url: z.string().openapi({ description: "Document URL" }),
-}).openapi("KycDocument");
+const KycDocumentSchema = z
+	.object({
+		id: z.string().openapi({ description: "Document ID" }),
+		url: z.string().openapi({ description: "Document URL" }),
+	})
+	.openapi("KycDocument");
 
-const KycResponseSchema = z.object({
-	id: z.string().openapi({ description: "KYC ID" }),
-	status: z.enum(["not_verified", "pending_review", "approved", "rejected"]).openapi({ description: "KYC status" }),
-	fullName: z.string().openapi({ description: "Full name" }),
-	identificationType: z.enum(IDENTIFICATION_TYPES).openapi({ description: "Identification type" }),
-	submittedAt: z.string().openapi({ description: "Submitted at" }),
-	rejectionReason: z.string().nullable().openapi({ description: "Rejection reason" }),
-	documents: z.object({
-		front: KycDocumentSchema.nullable().openapi({ description: "Front document" }),
-		back: KycDocumentSchema.nullable().openapi({ description: "Back document" }),
-	}).openapi({ description: "Documents" }),
-}).openapi("KycResponse");
+const KycResponseSchema = z
+	.object({
+		id: z.string().openapi({ description: "KYC ID" }),
+		status: z
+			.enum(["not_verified", "pending_review", "approved", "rejected"])
+			.openapi({ description: "KYC status" }),
+		fullName: z.string().openapi({ description: "Full name" }),
+		identificationType: z
+			.enum(IDENTIFICATION_TYPES)
+			.openapi({ description: "Identification type" }),
+		submittedAt: z.string().openapi({ description: "Submitted at" }),
+		rejectionReason: z
+			.string()
+			.nullable()
+			.openapi({ description: "Rejection reason" }),
+		documents: z
+			.object({
+				front: KycDocumentSchema.nullable().openapi({
+					description: "Front document",
+				}),
+				back: KycDocumentSchema.nullable().openapi({
+					description: "Back document",
+				}),
+			})
+			.openapi({ description: "Documents" }),
+	})
+	.openapi("KycResponse");
 
-const KycSubmitResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: KycResponseSchema.openapi({ description: "KYC data" }),
-}).openapi("KycSubmitResponse");
+const KycSubmitResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: KycResponseSchema.openapi({ description: "KYC data" }),
+	})
+	.openapi("KycSubmitResponse");
 
-const KycGetResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: KycResponseSchema.nullable().openapi({ description: "KYC data" }),
-}).openapi("KycGetResponse");
+const KycGetResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: KycResponseSchema.nullable().openapi({ description: "KYC data" }),
+	})
+	.openapi("KycGetResponse");
 
-const KycErrorSchema = z.object({
-	success: z.literal(false).openapi({ description: "Success status" }),
-	error: z.string().openapi({ description: "Error message" }),
-}).openapi("KycError");
+const KycErrorSchema = z
+	.object({
+		success: z.literal(false).openapi({ description: "Success status" }),
+		error: z.string().openapi({ description: "Error message" }),
+	})
+	.openapi("KycError");
 
-const IdentificationTypeEnum = z.enum(IDENTIFICATION_TYPES).openapi("IdentificationTypeEnum");
+const IdentificationTypeEnum = z
+	.enum(IDENTIFICATION_TYPES)
+	.openapi("IdentificationTypeEnum");
 
-const KycAdminStatusEnum = z.enum([
-	"not_verified",
-	"pending_review",
-	"approved",
-	"rejected",
-]).openapi("KycAdminStatusEnum");
+const KycAdminStatusEnum = z
+	.enum(["not_verified", "pending_review", "approved", "rejected"])
+	.openapi("KycAdminStatusEnum");
 
-const KycAdminListItemSchema = z.object({
-	id: z.string().openapi({ description: "KYC ID" }),
-	playername: z.string().openapi({ description: "Player name" }),
-	form_of_identification: IdentificationTypeEnum.openapi({ description: "Identification type" }),
-	size: z.object({
-		front: z.number().openapi({ description: "Front size" }),
-		back: z.number().openapi({ description: "Back size" }),
-	}).openapi({ description: "Size" }),
-	uploaded_at: z.string().openapi({ description: "Uploaded at" }),
-	type: z.object({
-		front: z.string().openapi({ description: "Front type" }),
-		back: z.string().openapi({ description: "Back type" }),
-	}).openapi({ description: "Type" }),
-	status: KycAdminStatusEnum.openapi({ description: "Status" }),
-}).openapi("KycAdminListItem");
+const KycAdminListItemSchema = z
+	.object({
+		id: z.string().openapi({ description: "KYC ID" }),
+		playername: z.string().openapi({ description: "Player name" }),
+		form_of_identification: IdentificationTypeEnum.openapi({
+			description: "Identification type",
+		}),
+		size: z
+			.object({
+				front: z.number().openapi({ description: "Front size" }),
+				back: z.number().openapi({ description: "Back size" }),
+			})
+			.openapi({ description: "Size" }),
+		uploaded_at: z.string().openapi({ description: "Uploaded at" }),
+		type: z
+			.object({
+				front: z.string().openapi({ description: "Front type" }),
+				back: z.string().openapi({ description: "Back type" }),
+			})
+			.openapi({ description: "Type" }),
+		status: KycAdminStatusEnum.openapi({ description: "Status" }),
+	})
+	.openapi("KycAdminListItem");
 
-const KycAdminListResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: z.object({
-		records: z.array(KycAdminListItemSchema).openapi({ description: "KYC records" }),
-		page: z.number().openapi({ description: "Page" }),
-		limit: z.number().openapi({ description: "Limit" }),
-		total: z.number().openapi({ description: "Total" }),
-	}).openapi({ description: "Response data" }),
-}).openapi("KycAdminListResponse");
+const KycAdminListResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: z
+			.object({
+				records: z
+					.array(KycAdminListItemSchema)
+					.openapi({ description: "KYC records" }),
+				page: z.number().openapi({ description: "Page" }),
+				limit: z.number().openapi({ description: "Limit" }),
+				total: z.number().openapi({ description: "Total" }),
+			})
+			.openapi({ description: "Response data" }),
+	})
+	.openapi("KycAdminListResponse");
 
-const KycDocumentResponseSchema = z.object({
-	success: z.literal(true).openapi({ description: "Success status" }),
-	data: z.object({
-		frontDocument: KycDocumentSchema.nullable().openapi({ description: "Front document" }),
-		backDocument: KycDocumentSchema.nullable().openapi({ description: "Back document" }),
-	}).openapi({ description: "Documents" }),
-}).openapi("KycDocumentResponse");
+const KycDocumentResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: z
+			.object({
+				frontDocument: KycDocumentSchema.nullable().openapi({
+					description: "Front document",
+				}),
+				backDocument: KycDocumentSchema.nullable().openapi({
+					description: "Back document",
+				}),
+			})
+			.openapi({ description: "Documents" }),
+	})
+	.openapi("KycDocumentResponse");
 
 async function uploadFileToR2(
 	bucket: R2Bucket,
@@ -599,7 +642,7 @@ kycRoute.openapi(getAllKycRoute, async (c) => {
 	}
 
 	const session = await validateAdminSession(c.env, token);
-if (!session) {
+	if (!session) {
 		return c.json(
 			{ success: false as const, error: "Forbidden - admin only" },
 			403,
@@ -616,9 +659,15 @@ if (!session) {
 		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "view_kyc_document")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_kyc_document")
+	) {
 		return c.json(
-			{ success: false as const, error: "Forbidden - view_kyc_document permission required" },
+			{
+				success: false as const,
+				error: "Forbidden - view_kyc_document permission required",
+			},
 			403,
 		);
 	}
@@ -801,7 +850,7 @@ kycRoute.openapi(getKycByUserIdRoute, async (c) => {
 		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 	}
 
-const session = await validateAdminSession(c.env, token);
+	const session = await validateAdminSession(c.env, token);
 	if (!session) {
 		return c.json(
 			{ success: false as const, error: "Forbidden - admin only" },
@@ -819,9 +868,15 @@ const session = await validateAdminSession(c.env, token);
 		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "view_kyc_document")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_kyc_document")
+	) {
 		return c.json(
-			{ success: false as const, error: "Forbidden - view_kyc_document permission required" },
+			{
+				success: false as const,
+				error: "Forbidden - view_kyc_document permission required",
+			},
 			403,
 		);
 	}
@@ -837,10 +892,7 @@ const session = await validateAdminSession(c.env, token);
 		.limit(1);
 
 	if (!kycRecord) {
-		return c.json(
-			{ success: false as const, error: "KYC not found" },
-			404,
-		);
+		return c.json({ success: false as const, error: "KYC not found" }, 404);
 	}
 
 	let frontDocument: { id: string; url: string } | null = null;

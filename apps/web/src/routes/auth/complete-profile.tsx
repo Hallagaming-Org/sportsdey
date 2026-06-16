@@ -1,9 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { CalendarDays, ChevronDown, Mail, User } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useSession, changeEmail } from "@/lib/auth/client";
-import { apiRequest } from "@/lib/api";
 import z from "zod";
+import { apiRequest } from "@/lib/api";
+import { changeEmail, useSession } from "@/lib/auth/client";
 
 const profileSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -36,7 +36,9 @@ function CompleteProfilePage() {
 		/^phone_\d+@sportsdey\.local$/.test(value.trim());
 
 	const canProceed =
-		fullName.trim().length > 1 && email.trim().length > 5 && dob.trim().length > 0;
+		fullName.trim().length > 1 &&
+		email.trim().length > 5 &&
+		dob.trim().length > 0;
 
 	const handleSubmit = async () => {
 		if (!canProceed) return;
@@ -81,7 +83,7 @@ function CompleteProfilePage() {
 	if (isSessionLoading) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<p className="text-xl text-[#1e2421]">Loading your profile...</p>
+				<p className="text-[#1e2421] text-xl">Loading your profile...</p>
 			</div>
 		);
 	}
@@ -93,8 +95,12 @@ function CompleteProfilePage() {
 					<div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-sm">
 						<User className="h-8 w-8 text-[#0d8f7c]" />
 					</div>
-					<h1 className="mt-4 font-bold text-2xl text-[#0a0f0d]">Complete Your Profile</h1>
-					<p className="mt-2 text-[#202622] text-base">Tell us a bit about yourself</p>
+					<h1 className="mt-4 font-bold text-2xl text-[#0a0f0d]">
+						Complete Your Profile
+					</h1>
+					<p className="mt-2 text-[#202622] text-base">
+						Tell us a bit about yourself
+					</p>
 				</div>
 
 				<div className="space-y-5">
@@ -105,7 +111,7 @@ function CompleteProfilePage() {
 							value={fullName}
 							onChange={(event) => setFullName(event.target.value)}
 							placeholder="Full name"
-							className="w-full bg-transparent text-sm text-[#666] outline-none placeholder:text-[#8d8d8d]"
+							className="w-full bg-transparent text-[#666] text-sm outline-none placeholder:text-[#8d8d8d]"
 						/>
 					</label>
 
@@ -116,7 +122,7 @@ function CompleteProfilePage() {
 							value={email}
 							onChange={(event) => setEmail(event.target.value)}
 							placeholder="Email Address"
-							className="w-full bg-transparent text-sm text-[#666] outline-none placeholder:text-[#8d8d8d]"
+							className="w-full bg-transparent text-[#666] text-sm outline-none placeholder:text-[#8d8d8d]"
 						/>
 					</label>
 
@@ -127,32 +133,32 @@ function CompleteProfilePage() {
 							value={dob}
 							onChange={(event) => setDob(event.target.value)}
 							placeholder="DD/MM/YYYY"
-							className="w-full bg-transparent text-sm text-[#666] outline-none placeholder:text-[#8d8d8d]"
+							className="w-full bg-transparent text-[#666] text-sm outline-none placeholder:text-[#8d8d8d]"
 						/>
 						<ChevronDown className="h-5 w-5 text-[#b6b6b6]" />
 					</label>
 				</div>
-			{error ? (
-				<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-sm text-red-700">
-					{error}
+				{error ? (
+					<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-red-700 text-sm">
+						{error}
+					</div>
+				) : null}
+
+				<button
+					type="button"
+					onClick={handleSubmit}
+					disabled={!canProceed || isSubmitting}
+					className="mt-4 w-full rounded-2xl bg-[#17b000] py-1.5 font-medium text-sm text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					{isSubmitting ? "Saving..." : "Next"}
+				</button>
+
+				<div className="mt-6 text-center">
+					<Link to="/" className="text-[#1e2421] text-sm underline">
+						Skip for now
+					</Link>
 				</div>
-			) : null}
-
-			<button
-				type="button"
-				onClick={handleSubmit}
-				disabled={!canProceed || isSubmitting}
-				className="mt-4 w-full rounded-2xl bg-[#17b000] py-1.5 font-medium text-sm text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
-			>
-				{isSubmitting ? "Saving..." : "Next"}
-			</button>
-
-			<div className="mt-6 text-center">
-				<Link to="/" search={{} as any} className="text-sm text-[#1e2421] underline">
-					Skip for now
-				</Link>
-			</div>
 		</div>
-	</div>
-);
+		</div>
+	);
 }

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MatchesSkeleton } from "@/components/MatchesSkeleton";
 import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import { useApiError } from "@/hooks/useApiError";
 import { apiRequest } from "@/lib/api";
@@ -13,8 +14,6 @@ import type { RootState } from "@/store";
 import { useAppSelector } from "@/store/hook";
 import type { TennisScheduleData } from "@/types/api";
 import type { MatchCardProps, SetScore } from "@/types/sport";
-
-import { MatchesSkeleton } from "@/components/MatchesSkeleton";
 
 export const Route = createFileRoute("/tennis/matches")({
 	pendingComponent: MatchesSkeleton,
@@ -53,9 +52,7 @@ function RouteComponent() {
 	} = useQuery({
 		queryKey: ["tennis", "schedule", formattedDate],
 		queryFn: () =>
-			apiRequest<TennisScheduleData>(
-				`tennis/schedule/${formattedDate}`,
-			),
+			apiRequest<TennisScheduleData>(`tennis/schedule/${formattedDate}`),
 	});
 
 	const { isNetworkError } = useApiError({ error, isError, refetch });
@@ -166,9 +163,7 @@ function RouteComponent() {
 			<div className="mb-32 space-y-4 pb-10 lg:mb-0">
 				<ErrorState
 					message={
-						isNetworkError
-							? "Network Error"
-							: "Failed to load tennis schedule"
+						isNetworkError ? "Network Error" : "Failed to load tennis schedule"
 					}
 					description={
 						isNetworkError

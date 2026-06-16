@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -76,7 +76,10 @@ const GameListResponseSchema = z
 
 const GameListQuerySchema = z
 	.object({
-		category: z.string().optional().openapi({ description: "Filter by game category" }),
+		category: z
+			.string()
+			.optional()
+			.openapi({ description: "Filter by game category" }),
 	})
 	.openapi("GameListQuery");
 
@@ -108,9 +111,14 @@ gamesRoute.openapi(
 		if (category) {
 			conditions.push(eq(schema.game.category, category));
 		}
-		const games = conditions.length > 0
-			? await db.select().from(schema.game).where(and(...conditions)).orderBy(schema.game.name)
-			: await db.select().from(schema.game).orderBy(schema.game.name);
+		const games =
+			conditions.length > 0
+				? await db
+						.select()
+						.from(schema.game)
+						.where(and(...conditions))
+						.orderBy(schema.game.name)
+				: await db.select().from(schema.game).orderBy(schema.game.name);
 		return c.json({ success: true as const, data: games }, 200);
 	},
 );
@@ -257,7 +265,10 @@ gamesRoute.openapi(
 			.returning();
 
 		if (!inserted || inserted.length === 0) {
-			return c.json({ success: false as const, error: "Failed to create game" }, 500);
+			return c.json(
+				{ success: false as const, error: "Failed to create game" },
+				500,
+			);
 		}
 
 		return c.json({ success: true as const, data: inserted }, 201);

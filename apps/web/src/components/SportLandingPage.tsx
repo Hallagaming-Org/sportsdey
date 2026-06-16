@@ -1,18 +1,19 @@
-import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { useNewsData } from "@/hooks/use-news-data";
 import { useNewsVideos } from "@/hooks/use-news-videos";
+import { Play } from "lucide-react";
+import { useState } from "react";
 import BannerCarousel from "@/components/BannerCarousel";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import PopularAndCasinoSection from "@/components/PopularAndCasinoSection";
-import { formatRelativeTime } from "@/lib/utils";
-import { Play } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BannerData } from "@/lib/banners-server";
 import type { NewsListItem } from "@/lib/news-server";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
+import { formatRelativeTime } from "@/lib/utils";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
+import { formatDistanceToNow } from "date-fns";
 
 interface SportLandingPageProps {
 	sport: "football" | "basketball" | "tennis" | "boxing" | "ufc";
@@ -43,6 +44,7 @@ export default function SportLandingPage({
 
 	// Map sport to video query string
 	const videoQuery = sport === "ufc" ? "ufc mma" : sport;
+	const channelId = CATEGORY_CHANNEL_IDS[sport];
 
 	// Load news
 	const { data: newsData, isLoading: isNewsLoading } =
@@ -51,8 +53,10 @@ export default function SportLandingPage({
 	const displayNews = allNews.slice(0, 4);
 
 	// Load video highlights
-	const { data: videoData, isLoading: isVideosLoading } =
-		useNewsVideos(videoQuery);
+	const { data: videoData, isLoading: isVideosLoading } = useNewsVideos(
+		`${videoQuery} match highlights, live matches, news`,
+		channelId,
+	);
 	const allVideos = videoData?.pages.flatMap((page) => page.videos) || [];
 	const displayVideos = allVideos.slice(0, 4);
 
@@ -87,11 +91,7 @@ export default function SportLandingPage({
 
 	return (
 		<div className="w-full space-y-8 pb-12 transition-all">
-			{banners.length > 0 && (
-
-				<BannerCarousel banners={banners} />
-
-			)}
+			{banners.length > 0 && <BannerCarousel banners={banners} />}
 
 			{/* Popular Matches & Hot Casino */}
 			<PopularAndCasinoSection />
@@ -99,7 +99,7 @@ export default function SportLandingPage({
 			{/* Trending News Section */}
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
-					<h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
+					<h2 className="font-bold text-gray-800 text-xl md:text-2xl dark:text-white">
 						Trending News
 					</h2>
 					<Link
@@ -112,14 +112,14 @@ export default function SportLandingPage({
 				</div>
 
 				{isNewsLoading ? (
-					<div className="custom-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-hidden pb-2 pr-1 lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:gap-6">
+					<div className="custom-scrollbar grid auto-cols-[minmax(200px,55%)] grid-flow-col gap-3 overflow-hidden pr-1 pb-2 lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-4 lg:gap-6 lg:overflow-visible lg:pr-0 lg:pb-0">
 						{Array.from({ length: 4 }).map((_, i) => (
 							<div
 								key={`news-skel-${i}`}
-								className="flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+								className="flex min-w-[55%] snap-start flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm lg:w-auto lg:min-w-0 lg:snap-none dark:border-0 dark:bg-card"
 							>
-								<Skeleton className="h-36 w-full sm:aspect-video rounded-none" />
-								<div className="flex flex-1 flex-col p-4 space-y-3">
+								<Skeleton className="h-36 w-full rounded-none sm:aspect-video" />
+								<div className="flex flex-1 flex-col space-y-3 p-4">
 									<Skeleton className="h-4 w-full" />
 									<Skeleton className="h-4 w-3/4" />
 									<Skeleton className="mt-auto h-3 w-1/2" />
@@ -128,7 +128,7 @@ export default function SportLandingPage({
 						))}
 					</div>
 				) : displayNews.length === 0 ? (
-					<div className="text-center py-12 bg-white dark:bg-card rounded-2xl border border-gray-100 dark:border-0 shadow-sm text-gray-500">
+					<div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-500 shadow-sm dark:border-0 dark:bg-card">
 						No news stories available for this sport.
 					</div>
 				) : (
@@ -184,7 +184,7 @@ export default function SportLandingPage({
 			{/* Match Highlights Section */}
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
-					<h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white">
+					<h2 className="font-bold text-gray-800 text-xl md:text-2xl dark:text-white">
 						Match Highlights
 					</h2>
 					<Link
@@ -197,14 +197,14 @@ export default function SportLandingPage({
 				</div>
 
 				{isVideosLoading ? (
-					<div className="no-scrollbar grid grid-flow-col auto-cols-[minmax(200px,55%)] gap-3 overflow-hidden pb-2 pr-1 lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible lg:pb-0 lg:pr-0 lg:gap-6">
+					<div className="no-scrollbar grid auto-cols-[minmax(200px,55%)] grid-flow-col gap-3 overflow-hidden pr-1 pb-2 lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-4 lg:gap-6 lg:overflow-visible lg:pr-0 lg:pb-0">
 						{Array.from({ length: 4 }).map((_, i) => (
 							<div
 								key={`video-skel-${i}`}
-								className="flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none"
+								className="flex min-w-[55%] snap-start flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm lg:w-auto lg:min-w-0 lg:snap-none dark:border-0 dark:bg-card"
 							>
-								<Skeleton className="h-36 w-full sm:aspect-video rounded-none" />
-								<div className="p-3 space-y-2">
+								<Skeleton className="h-36 w-full rounded-none sm:aspect-video" />
+								<div className="space-y-2 p-3">
 									<Skeleton className="h-4 w-full" />
 									<Skeleton className="h-4 w-2/3" />
 								</div>
@@ -212,7 +212,7 @@ export default function SportLandingPage({
 						))}
 					</div>
 				) : displayVideos.length === 0 ? (
-					<div className="text-center py-12 bg-white dark:bg-card rounded-2xl border border-gray-100 dark:border-0 shadow-sm text-gray-500">
+					<div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-500 shadow-sm dark:border-0 dark:bg-card">
 						No match highlights available for this sport.
 					</div>
 				) : (
@@ -239,7 +239,7 @@ export default function SportLandingPage({
 										<img
 											src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
 											alt={video.title}
-											className="h-full w-full object-cover opacity-85 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300"
+											className="h-full w-full object-cover opacity-85 transition-all duration-300 group-hover:scale-105 group-hover:opacity-100"
 										/>
 										<div className="absolute inset-0 flex items-center justify-center">
 											<div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white shadow-lg transition-transform duration-300 group-hover:scale-110">
@@ -247,16 +247,16 @@ export default function SportLandingPage({
 											</div>
 										</div>
 										{score && (
-											<span className="absolute top-3 right-3 bg-red-600 text-white font-extrabold text-[10px] px-2 py-0.5 rounded shadow">
+											<span className="absolute top-3 right-3 rounded bg-red-600 px-2 py-0.5 font-extrabold text-[10px] text-white shadow">
 												{score}
 											</span>
 										)}
 									</div>
-									<div className="p-3 md:p-4 flex flex-col flex-1 space-y-2">
-										<h3 className="font-extrabold text-sm text-gray-800 dark:text-white line-clamp-2 leading-snug group-hover:text-accent transition-colors">
+									<div className="flex flex-1 flex-col space-y-2 p-3 md:p-4">
+										<h3 className="line-clamp-2 font-extrabold text-gray-800 text-sm leading-snug transition-colors group-hover:text-accent dark:text-white">
 											{video.title}
 										</h3>
-										<p className="text-[11px] text-gray-400 dark:text-gray-500 mt-auto">
+										<p className="mt-auto text-[11px] text-gray-400 dark:text-gray-500">
 											{timeAgo}
 										</p>
 									</div>
