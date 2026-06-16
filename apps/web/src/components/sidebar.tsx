@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Gift, Home, Newspaper, Trophy, ChevronDown } from "lucide-react";
+import { Gamepad2, Gift, Home, Newspaper, Repeat, Trophy, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
