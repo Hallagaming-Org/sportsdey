@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -32,7 +32,6 @@ const CATEGORIES = [
 	"scratch",
 	"slots",
 	"table/card-games",
-	"popular/hot-casino",
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
@@ -151,6 +150,8 @@ const PRIORITY_GAMES = [
 
 const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
 
+const PAGE_SIZE = 24;
+
 const isPopularGame = (game: Game) => {
 	return POPULAR_GAME_NAMES.some((name) =>
 		game.name.toLowerCase().includes(name.toLowerCase()),
@@ -167,14 +168,20 @@ function GamesPage() {
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortAsc, setSortAsc] = useState(false);
+	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
 	useEffect(() => {
+		setDisplayCount(PAGE_SIZE);
 		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		const mains = document.querySelectorAll("main");
 		mains.forEach((main) => {
 			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		});
 	}, [selectedCategory]);
+
+	useEffect(() => {
+		setDisplayCount(PAGE_SIZE);
+	}, [searchQuery, sortAsc]);
 
 	const containerVariants: Variants = {
 		hidden: { opacity: 0 },
@@ -246,11 +253,29 @@ function GamesPage() {
 		return true;
 	});
 
+	const displayGames = filteredGames.slice(0, displayCount);
 	const chunkSize = 3;
 	const gameChunks: Game[][] = [];
-	for (let i = 0; i < filteredGames.length; i += chunkSize) {
-		gameChunks.push(filteredGames.slice(i, i + chunkSize));
+	for (let i = 0; i < displayGames.length; i += chunkSize) {
+		gameChunks.push(displayGames.slice(i, i + chunkSize));
 	}
+
+	const loadMoreRef = useRef<HTMLDivElement>(null);
+	const hasMore = displayGames.length < filteredGames.length;
+
+	useEffect(() => {
+		if (!loadMoreRef.current) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting) {
+					setDisplayCount((prev) => prev + PAGE_SIZE);
+				}
+			},
+			{ threshold: 0.1, rootMargin: "200px" },
+		);
+		observer.observe(loadMoreRef.current);
+		return () => observer.disconnect();
+	}, [hasMore]);
 
 	const handleGameClick = async (game: Game) => {
 		if (!session?.user) {
@@ -589,7 +614,7 @@ function GamesPage() {
 							animate="show"
 							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
 						>
-							{filteredGames.map((game) => {
+							{displayGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
 									<motion.div
@@ -663,6 +688,12 @@ function GamesPage() {
 								);
 							})}
 						</motion.div>
+
+						{hasMore && (
+							<div ref={loadMoreRef} className="flex items-center justify-center py-6">
+								<Loader2 className="h-6 w-6 animate-spin text-[#1BAA04]" />
+							</div>
+						)}
 					</>
 				)}
 			</div>
