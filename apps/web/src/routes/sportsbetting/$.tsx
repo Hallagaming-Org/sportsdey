@@ -14,7 +14,7 @@ import {
 	SPORTSBOOK_CONTAINER_ID,
 } from "@/lib/sportsbook";
 
-export const Route = createFileRoute("/sportsbook/$")({
+export const Route = createFileRoute("/sportsbetting/$")({
 	component: SportsbookPage,
 });
 

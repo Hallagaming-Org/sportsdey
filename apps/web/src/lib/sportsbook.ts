@@ -192,7 +192,7 @@ export function buildAppInitOptions(
 ): AppInitOptions {
 	return {
 		url: {
-			basename: "/sportsbook",
+			basename: "/sportsbetting",
 		},
 		token,
 		rootElement: SPORTSBOOK_CONTAINER_ID,
@@ -250,7 +250,7 @@ export function buildWidgetInitOptions(
 ): AppInitOptions {
 	return {
 		url: {
-			basename: "/sportsbook",
+			basename: "/sportsbetting",
 		},
 		token,
 		rootElement: SPORTSBOOK_CONTAINER_ID,

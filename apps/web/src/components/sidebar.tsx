@@ -91,7 +91,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToSportsbook = () => {
 		setTab("betting");
 		navigate({
-			to: "/sportsbook",
+			to: "/sportsbetting",
 			search: { sports: currentSport } as any,
 		});
 	};
@@ -171,13 +171,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},
 		{
 			id: isMobile ? "scores" : "betting",
-			label: isMobile ? "Scores" : "Sportsbook",
+			label: isMobile ? "Scores" : "Sports Betting",
 			icon: isMobile ? Soccer : SportsIcon,
 			isActive: isItemActive(
 				isMobile ? "scores" : "betting",
 				isMobile
 					? location.pathname.includes("/matches")
-					: location.pathname.startsWith("/sportsbook"),
+					: location.pathname.startsWith("/sportsbetting"),
 			),
 			onClick: isMobile ? goToScores : goToSportsbook,
 		},
@@ -204,7 +204,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					label: "PvP Games",
 					isActive: false,
 					onClick: () => {
-						window.open("https://www.thndr.io/games", "_blank");
+						setTab("games");
+						navigate({ to: "/games", search: { category: "pvp" } });
 					}
 				},
 				{
