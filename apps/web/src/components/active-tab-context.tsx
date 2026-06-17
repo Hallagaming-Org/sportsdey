@@ -41,7 +41,7 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 			setTab("videos");
 		} else if (path.startsWith("/news")) {
 			setTab("news");
-		} else if (path.startsWith("/betting") || path.startsWith("/sportsbook")) {
+		} else if (path.startsWith("/betting") || path.startsWith("/sportsbetting")) {
 			setTab("betting");
 		} else if (path.startsWith("/games")) {
 			setTab("games");

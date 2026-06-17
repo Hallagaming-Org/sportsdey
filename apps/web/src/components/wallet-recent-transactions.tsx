@@ -304,7 +304,7 @@ export function WalletRecentTransactions({
 	transactions,
 	isLoading,
 }: WalletRecentTransactionsProps) {
-	const mappedTransactions = (transactions || []).map((tx) => {
+	const mappedTransactions = (transactions || []).slice(0, 10).map((tx) => {
 		const { title, iconType, statusText, statusColor } =
 			getTransactionDetails(tx);
 		const dateString = formatDateMMMdyyyy(tx.createdAt);
@@ -326,7 +326,7 @@ export function WalletRecentTransactions({
 				Recent Transactions
 			</p>
 			<div
-				className={`mt-2 flex max-h-[355px] min-h-[355px] flex-col overflow-y-auto rounded-[24px] border border-[#1C1C1E] bg-[#000000] px-6 py-2 shadow-sm ${hasNoTransactions ? "justify-center" : ""}`}
+				className={`better-scrollbar mt-2 flex max-h-[355px] min-h-[355px] flex-col overflow-y-auto rounded-[24px] border border-[#1C1C1E] bg-[#000000] px-6 py-2 shadow-sm ${hasNoTransactions ? "justify-center" : ""}`}
 			>
 				<div
 					className={

@@ -17,7 +17,7 @@ const bottomBarItems: {
 	icon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }>;
 }[] = [
 	{ id: 1, item: "scores", label: "Home", icon: Home },
-	{ id: 2, item: "betting", label: "Sportsbook", icon: Sports },
+	{ id: 2, item: "betting", label: "Sportsbetting", icon: Sports },
 	{ id: 3, item: "games", label: "Casino", icon: Games },
 	{ id: 4, item: "news", label: "News", icon: News },
 	{ id: 5, item: "favourites", label: "Wallet", icon: WalletIcon },
@@ -51,7 +51,7 @@ const Footer = () => {
 
 									if (item === "betting") {
 										router.navigate({
-											to: "/sportsbook",
+											to: "/sportsbetting",
 											search: { sports: currentSport } as any,
 										});
 									}

@@ -16,6 +16,9 @@ import FilerAToZ from "@/logos/FilerAToZ";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
+	validateSearch: (search: Record<string, unknown>) => ({
+		category: (search.category as string) || undefined,
+	}),
 });
 
 const CATEGORIES = [
@@ -28,6 +31,7 @@ const CATEGORIES = [
 	"jackpot",
 	"lottery",
 	"others",
+	"pvp",
 	"roulette",
 	"scratch",
 	"slots",
@@ -44,6 +48,7 @@ const CATEGORY_EMOJIS: Record<string, string> = {
 	"jackpot": "💰",
 	"lottery": "🎟️",
 	"others": "🧩",
+	"pvp": "⚔️",
 	"roulette": "🎡",
 	"scratch": "🎫",
 	"slots": "🎰",
@@ -164,11 +169,18 @@ const isThundrGame = (code: string) => {
 
 function GamesPage() {
 	const navigate = useNavigate();
+	const { category } = Route.useSearch();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortAsc, setSortAsc] = useState(false);
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+
+	useEffect(() => {
+		if (category) {
+			setSelectedCategory(category);
+		}
+	}, [category]);
 
 	useEffect(() => {
 		setDisplayCount(PAGE_SIZE);
@@ -236,6 +248,9 @@ function GamesPage() {
 			if (isPopularGame(game)) {
 				acc["popular"] = (acc["popular"] ?? 0) + 1;
 			}
+			if (isThundrGame(game.code)) {
+				acc["pvp"] = (acc["pvp"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
@@ -244,6 +259,8 @@ function GamesPage() {
 	const filteredGames = sortedGames.filter((game) => {
 		if (selectedCategory === "popular") {
 			if (!isPopularGame(game)) return false;
+		} else if (selectedCategory === "pvp") {
+			if (!isThundrGame(game.code)) return false;
 		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
@@ -501,7 +518,7 @@ function GamesPage() {
 										}`}
 								>
 									{emoji && <span>{emoji}</span>}
-									<span className="capitalize">{cat.replace("-", " ")}</span>
+									<span className="capitalize">{cat === "pvp" ? "PVP" : cat.replace("-", " ")}</span>
 									<span
 										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
 											? "bg-[#040C01] text-white"
