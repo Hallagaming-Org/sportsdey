@@ -20,34 +20,36 @@ export const Route = createFileRoute("/games")({
 
 const CATEGORIES = [
 	"popular",
-	"arcade",
-	"bingo",
-	"classic",
 	"crash-games",
+	"pvp",
+	"slots",
+	"table/card-games",
+	"arcade",
+	"classic",
+	"bingo",
 	"dice",
 	"jackpot",
 	"lottery",
 	"others",
 	"roulette",
 	"scratch",
-	"slots",
-	"table/card-games",
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
 	"popular": "🔥",
-	"arcade": "🕹️",
-	"bingo": "🎱",
-	"classic": "👑",
 	"crash-games": "🚀",
+	"pvp": "⚔️",
+	"slots": "🎰",
+	"table/card-games": "🃏",
+	"arcade": "🕹️",
+	"classic": "👑",
+	"bingo": "🎱",
 	"dice": "🎲",
 	"jackpot": "💰",
 	"lottery": "🎟️",
 	"others": "🧩",
 	"roulette": "🎡",
 	"scratch": "🎫",
-	"slots": "🎰",
-	"table/card-games": "🃏",
 };
 
 type Game = {
@@ -493,8 +495,8 @@ function GamesPage() {
 											selectedCategory === cat ? null : cat,
 										)
 									}
-									className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${selectedCategory === cat
-										? "border-[#1BAA04] bg-[#1BAA04] text-white"
+									className={`flex items-center shrink-0 gap-2 text-white rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${selectedCategory === cat
+										? "border-[#1BAA04] bg-[#1BAA04]"
 										: count === 0
 											? "border-[#1B2722] text-gray-600 cursor-default"
 											: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
@@ -503,8 +505,8 @@ function GamesPage() {
 									{emoji && <span>{emoji}</span>}
 									<span className="capitalize">{cat.replace("-", " ")}</span>
 									<span
-										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
-											? "bg-[#040C01] text-white"
+										className={`flex h-7 min-w-[28px] text-white px-2 items-center justify-center rounded-full text-[11px] ${selectedCategory === cat
+											? "bg-[#040C01]"
 											: "bg-[#1B2722] text-gray-300"
 											}`}
 									>
