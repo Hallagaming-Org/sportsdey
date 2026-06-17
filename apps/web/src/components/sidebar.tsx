@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Gift, Home, Newspaper, Repeat, Trophy, ChevronDown } from "lucide-react";
+import { Gamepad2, Gift, Home, Newspaper, Trophy, ChevronDown } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
@@ -154,22 +154,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToHome,
 		},
 		{
-			id: "p2p",
-			label: "P2P",
-			icon: ({ className }: { className?: string }) => (
-				<Repeat
-					className={className}
-					size="32"
-					color={isItemActive("p2p", false) ? "#FFFFFF" : "#8C8F8F"}
-				/>
-			),
-			isActive: isItemActive("p2p", false),
-			onClick: () => {
-				setActiveOverride("p2p");
-				window.open("https://www.thndr.io/games", "_blank");
-			},
-		},
-		{
 			id: isMobile ? "scores" : "betting",
 			label: isMobile ? "Scores" : "Sportsbook",
 			icon: isMobile ? Soccer : SportsIcon,
@@ -189,7 +173,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive(
 				"casino",
 				location.pathname.startsWith("/games") ||
-					location.pathname.startsWith("/game/"),
+				location.pathname.startsWith("/game/"),
 			),
 			onClick: goToCasino,
 		},
@@ -316,7 +300,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				className={cn(
 					"w-full transition-colors",
 					!isMobile &&
-						"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
+					"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
 				)}
 			>
 				<nav
