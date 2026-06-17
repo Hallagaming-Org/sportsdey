@@ -238,6 +238,9 @@ function GamesPage() {
 			if (isPopularGame(game)) {
 				acc["popular"] = (acc["popular"] ?? 0) + 1;
 			}
+			if (isThundrGame(game.code)) {
+				acc["pvp"] = (acc["pvp"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
@@ -246,6 +249,8 @@ function GamesPage() {
 	const filteredGames = sortedGames.filter((game) => {
 		if (selectedCategory === "popular") {
 			if (!isPopularGame(game)) return false;
+		} else if (selectedCategory === "pvp") {
+			if (!isThundrGame(game.code) && (game.category ?? "others") !== "pvp") return false;
 		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
