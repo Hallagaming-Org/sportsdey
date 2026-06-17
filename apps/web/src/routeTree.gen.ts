@@ -15,7 +15,7 @@ import { Route as VideosRouteImport } from './routes/videos'
 import { Route as UfcRouteImport } from './routes/ufc'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TennisRouteImport } from './routes/tennis'
-import { Route as SportsbookRouteImport } from './routes/sportsbook'
+import { Route as SportsbettingRouteImport } from './routes/sportsbetting'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
@@ -38,7 +38,7 @@ import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
 import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
 import { Route as TennisMatchesRouteImport } from './routes/tennis.matches'
 import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
-import { Route as SportsbookSplatRouteImport } from './routes/sportsbook/$'
+import { Route as SportsbettingSplatRouteImport } from './routes/sportsbetting/$'
 import { Route as NewsSlugRouteImport } from './routes/news.$slug'
 import { Route as KycVerifyRouteImport } from './routes/kyc.verify'
 import { Route as IndexMatchesRouteImport } from './routes/index.matches'
@@ -88,9 +88,9 @@ const TennisRoute = TennisRouteImport.update({
   path: '/tennis',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SportsbookRoute = SportsbookRouteImport.update({
-  id: '/sportsbook',
-  path: '/sportsbook',
+const SportsbettingRoute = SportsbettingRouteImport.update({
+  id: '/sportsbetting',
+  path: '/sportsbetting',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -203,10 +203,10 @@ const TennisIdRoute = TennisIdRouteImport.update({
   path: '/$Id',
   getParentRoute: () => TennisRoute,
 } as any)
-const SportsbookSplatRoute = SportsbookSplatRouteImport.update({
+const SportsbettingSplatRoute = SportsbettingSplatRouteImport.update({
   id: '/$',
   path: '/$',
-  getParentRoute: () => SportsbookRoute,
+  getParentRoute: () => SportsbettingRoute,
 } as any)
 const NewsSlugRoute = NewsSlugRouteImport.update({
   id: '/$slug',
@@ -316,7 +316,7 @@ export interface FileRoutesByFullPath {
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
-  '/sportsbook': typeof SportsbookRouteWithChildren
+  '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
   '/terms': typeof TermsRoute
   '/ufc': typeof UfcRouteWithChildren
@@ -337,7 +337,7 @@ export interface FileRoutesByFullPath {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
-  '/sportsbook/$': typeof SportsbookSplatRoute
+  '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
   '/basketball/': typeof BasketballIndexRoute
@@ -362,7 +362,7 @@ export interface FileRoutesByTo {
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
-  '/sportsbook': typeof SportsbookRouteWithChildren
+  '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/terms': typeof TermsRoute
   '/wallet': typeof WalletRoute
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
@@ -380,7 +380,7 @@ export interface FileRoutesByTo {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
-  '/sportsbook/$': typeof SportsbookSplatRoute
+  '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
   '/basketball': typeof BasketballIndexRoute
@@ -410,7 +410,7 @@ export interface FileRoutesById {
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
-  '/sportsbook': typeof SportsbookRouteWithChildren
+  '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
   '/terms': typeof TermsRoute
   '/ufc': typeof UfcRouteWithChildren
@@ -431,7 +431,7 @@ export interface FileRoutesById {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
-  '/sportsbook/$': typeof SportsbookSplatRoute
+  '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
   '/basketball/': typeof BasketballIndexRoute
@@ -462,7 +462,7 @@ export interface FileRouteTypes {
     | '/kyc'
     | '/news'
     | '/privacy-policy'
-    | '/sportsbook'
+    | '/sportsbetting'
     | '/tennis'
     | '/terms'
     | '/ufc'
@@ -483,7 +483,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
-    | '/sportsbook/$'
+    | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
     | '/basketball/'
@@ -508,7 +508,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/games'
     | '/privacy-policy'
-    | '/sportsbook'
+    | '/sportsbetting'
     | '/terms'
     | '/wallet'
     | '/wallet-transaction-status'
@@ -526,7 +526,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
-    | '/sportsbook/$'
+    | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
     | '/basketball'
@@ -555,7 +555,7 @@ export interface FileRouteTypes {
     | '/kyc'
     | '/news'
     | '/privacy-policy'
-    | '/sportsbook'
+    | '/sportsbetting'
     | '/tennis'
     | '/terms'
     | '/ufc'
@@ -576,7 +576,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
-    | '/sportsbook/$'
+    | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
     | '/basketball/'
@@ -606,7 +606,7 @@ export interface RootRouteChildren {
   KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
-  SportsbookRoute: typeof SportsbookRouteWithChildren
+  SportsbettingRoute: typeof SportsbettingRouteWithChildren
   TennisRoute: typeof TennisRouteWithChildren
   TermsRoute: typeof TermsRoute
   UfcRoute: typeof UfcRouteWithChildren
@@ -670,11 +670,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TennisRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/sportsbook': {
-      id: '/sportsbook'
-      path: '/sportsbook'
-      fullPath: '/sportsbook'
-      preLoaderRoute: typeof SportsbookRouteImport
+    '/sportsbetting': {
+      id: '/sportsbetting'
+      path: '/sportsbetting'
+      fullPath: '/sportsbetting'
+      preLoaderRoute: typeof SportsbettingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy-policy': {
@@ -831,12 +831,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TennisIdRouteImport
       parentRoute: typeof TennisRoute
     }
-    '/sportsbook/$': {
-      id: '/sportsbook/$'
+    '/sportsbetting/$': {
+      id: '/sportsbetting/$'
       path: '/$'
-      fullPath: '/sportsbook/$'
-      preLoaderRoute: typeof SportsbookSplatRouteImport
-      parentRoute: typeof SportsbookRoute
+      fullPath: '/sportsbetting/$'
+      preLoaderRoute: typeof SportsbettingSplatRouteImport
+      parentRoute: typeof SportsbettingRoute
     }
     '/news/$slug': {
       id: '/news/$slug'
@@ -1032,16 +1032,16 @@ const NewsRouteChildren: NewsRouteChildren = {
 
 const NewsRouteWithChildren = NewsRoute._addFileChildren(NewsRouteChildren)
 
-interface SportsbookRouteChildren {
-  SportsbookSplatRoute: typeof SportsbookSplatRoute
+interface SportsbettingRouteChildren {
+  SportsbettingSplatRoute: typeof SportsbettingSplatRoute
 }
 
-const SportsbookRouteChildren: SportsbookRouteChildren = {
-  SportsbookSplatRoute: SportsbookSplatRoute,
+const SportsbettingRouteChildren: SportsbettingRouteChildren = {
+  SportsbettingSplatRoute: SportsbettingSplatRoute,
 }
 
-const SportsbookRouteWithChildren = SportsbookRoute._addFileChildren(
-  SportsbookRouteChildren,
+const SportsbettingRouteWithChildren = SportsbettingRoute._addFileChildren(
+  SportsbettingRouteChildren,
 )
 
 interface TennisRouteChildren {
@@ -1096,7 +1096,7 @@ const rootRouteChildren: RootRouteChildren = {
   KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
-  SportsbookRoute: SportsbookRouteWithChildren,
+  SportsbettingRoute: SportsbettingRouteWithChildren,
   TennisRoute: TennisRouteWithChildren,
   TermsRoute: TermsRoute,
   UfcRoute: UfcRouteWithChildren,
