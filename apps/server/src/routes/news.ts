@@ -62,7 +62,7 @@ newsRoute.openapi(
 	}),
 	async (c) => {
 		try {
-			const { query, pageToken } = c.req.valid("query");
+			const { query, pageToken, channelId } = c.req.valid("query");
 			const apiKey = c.env?.YOUTUBE_API_KEY;
 
 			if (!apiKey) {
@@ -108,6 +108,9 @@ newsRoute.openapi(
 			let apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&order=date&key=${apiKey}&maxResults=10`;
 			if (pageToken) {
 				apiUrl += `&pageToken=${pageToken}`;
+			}
+			if (channelId) {
+				apiUrl += `&channelId=${channelId}`;
 			}
 
 			let response: Response;

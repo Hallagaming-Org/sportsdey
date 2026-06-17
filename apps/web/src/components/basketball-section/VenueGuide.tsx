@@ -5,7 +5,9 @@ const VenueGuide = ({ venueName }: { venueName: string }) => {
 				<p className="font-semibold text-primary text-xs md:text-sm dark:text-white">
 					Venue Guide
 				</p>
-				<p className="text-[#040C01] text-[10px] dark:text-white">{venueName}</p>
+				<p className="text-[#040C01] text-[10px] dark:text-white">
+					{venueName}
+				</p>
 			</div>
 		</div>
 	);

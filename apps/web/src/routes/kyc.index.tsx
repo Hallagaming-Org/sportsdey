@@ -1,10 +1,5 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import {
-	ChevronRight,
-	Loader2,
-	Shield,
-	ArrowRight,
-} from "lucide-react";
+import { ArrowRight, ChevronRight, Loader2, Shield } from "lucide-react";
 import {
 	KycCheckIcon,
 	KycHeader,
@@ -46,40 +41,43 @@ function StatusCard({
 
 	const config = isApproved
 		? {
-			title: "Identity Verified",
-			description: "Your identity has been successfully verified.",
-			iconBg: "bg-[#14804A]",
-			pingBg: "bg-[#CCF3DD]",
-			textColor: "text-[#14804A]",
-			icon: "✓",
-			animation: "ping",
-		}
+				title: "Identity Verified",
+				description: "Your identity has been successfully verified.",
+				iconBg: "bg-[#14804A]",
+				pingBg: "bg-[#CCF3DD]",
+				textColor: "text-[#14804A]",
+				icon: "✓",
+				animation: "ping",
+			}
 		: isPending
 			? {
-				title: "Under Review",
-				description: "Your documents are being reviewed. This usually takes 1-2 business days.",
-				iconBg: "bg-[#B26A00]",
-				pingBg: "bg-[#F2CF93]",
-				textColor: "text-[#B26A00]",
-				icon: "",
-				animation: "spinner",
-			}
+					title: "Under Review",
+					description:
+						"Your documents are being reviewed. This usually takes 1-2 business days.",
+					iconBg: "bg-[#B26A00]",
+					pingBg: "bg-[#F2CF93]",
+					textColor: "text-[#B26A00]",
+					icon: "",
+					animation: "spinner",
+				}
 			: {
-				title: "Verification Failed",
-				description: rejectionReason || "We couldn't verify your documents. Please try again.",
-				iconBg: "bg-[#D13030]",
-				pingBg: "bg-[#FADBD8]",
-				textColor: "text-[#D13030]",
-				icon: "×",
-				animation: "pulse",
-			};
+					title: "Verification Failed",
+					description:
+						rejectionReason ||
+						"We couldn't verify your documents. Please try again.",
+					iconBg: "bg-[#D13030]",
+					pingBg: "bg-[#FADBD8]",
+					textColor: "text-[#D13030]",
+					icon: "×",
+					animation: "pulse",
+				};
 
 	const date = submittedAt
 		? new Date(submittedAt).toLocaleDateString("en-US", {
-			month: "short",
-			day: "numeric",
-			year: "numeric",
-		})
+				month: "short",
+				day: "numeric",
+				year: "numeric",
+			})
 		: null;
 
 	return (
@@ -87,19 +85,29 @@ function StatusCard({
 			<div className="mb-6 flex justify-center">
 				{isApproved && (
 					<div className="relative flex h-24 w-24 items-center justify-center">
-						<div className={`absolute h-24 w-24 animate-ping rounded-full ${config.pingBg}`} />
-						<div className={`relative flex h-20 w-20 items-center justify-center rounded-full ${config.iconBg} text-4xl text-white`}>
+						<div
+							className={`absolute h-24 w-24 animate-ping rounded-full ${config.pingBg}`}
+						/>
+						<div
+							className={`relative flex h-20 w-20 items-center justify-center rounded-full ${config.iconBg} text-4xl text-white`}
+						>
 							{config.icon}
 						</div>
 					</div>
 				)}
 				{isRejected && (
-					<div className={`flex h-20 w-20 animate-pulse items-center justify-center rounded-full ${config.iconBg} text-4xl text-white`}>
+					<div
+						className={`flex h-20 w-20 animate-pulse items-center justify-center rounded-full ${config.iconBg} text-4xl text-white`}
+					>
 						{config.icon}
 					</div>
 				)}
 				{isPending && (
-					<div className={`h-20 w-20 animate-spin rounded-full border-4 border-[#F2CF93] border-t-[#B26A00]`} />
+					<div
+						className={
+							"h-20 w-20 animate-spin rounded-full border-4 border-[#F2CF93] border-t-[#B26A00]"
+						}
+					/>
 				)}
 			</div>
 
@@ -108,9 +116,7 @@ function StatusCard({
 			</h1>
 			<p className="mt-3 text-[#6E6E6E] text-sm">{config.description}</p>
 			{date && (
-				<p className="mt-2 text-[#6E6A00] text-xs">
-					Submitted on {date}
-				</p>
+				<p className="mt-2 text-[#6E6A00] text-xs">Submitted on {date}</p>
 			)}
 
 			{status !== "approved" && (
@@ -126,7 +132,7 @@ function StatusCard({
 			)}
 
 			{status === "approved" && (
-				<div className="mt-6 flex items-center justify-center gap-2 rounded-full bg-[#CCF3DD] px-4 py-2 text-sm text-[#14804A] dark:bg-[#14804A]/20">
+				<div className="mt-6 flex items-center justify-center gap-2 rounded-full bg-[#CCF3DD] px-4 py-2 text-[#14804A] text-sm dark:bg-[#14804A]/20">
 					<Shield className="h-4 w-4" />
 					<span className="font-medium">Verified</span>
 				</div>
@@ -138,7 +144,7 @@ function StatusCard({
 function KycLanding() {
 	return (
 		<>
-			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
+			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm sm:p-8 dark:border-[#1B2722] dark:bg-[#000606]">
 				<div className="grid items-center gap-8 lg:grid-cols-[1fr_260px]">
 					<div>
 						<h2 className="font-semibold text-[30px] text-primary leading-tight dark:text-white">
@@ -171,7 +177,6 @@ function KycLanding() {
 					<ChevronRight className="h-5 w-5" />
 				</Link>
 			</div>
-
 		</>
 	);
 }
@@ -179,7 +184,7 @@ function KycLanding() {
 function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 	return (
 		<>
-			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
+			<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm sm:p-8 dark:border-[#1B2722] dark:bg-[#000606]">
 				<div className="mb-6 flex items-center justify-between">
 					<h2 className="font-semibold text-[30px] text-primary leading-tight dark:text-white">
 						Identity Verification
@@ -195,10 +200,14 @@ function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 				{kycData.documents.front && kycData.status !== "pending_review" && (
 					<div className="mt-6 grid gap-4 sm:grid-cols-2">
 						<div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-							<p className="mb-2 text-sm font-medium text-gray-500">Front Document</p>
+							<p className="mb-2 font-medium text-gray-500 text-sm">
+								Front Document
+							</p>
 							{kycData.documents.front.url.endsWith(".pdf") ? (
-								<div className="flex items-center gap-2 text-sm text-primary dark:text-white">
-									<span className="truncate">{kycData.documents.front.id}.pdf</span>
+								<div className="flex items-center gap-2 text-primary text-sm dark:text-white">
+									<span className="truncate">
+										{kycData.documents.front.id}.pdf
+									</span>
 								</div>
 							) : (
 								<img
@@ -210,10 +219,14 @@ function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 						</div>
 						{kycData.documents.back && (
 							<div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-								<p className="mb-2 text-sm font-medium text-gray-500">Back Document</p>
+								<p className="mb-2 font-medium text-gray-500 text-sm">
+									Back Document
+								</p>
 								{kycData.documents.back.url.endsWith(".pdf") ? (
-									<div className="flex items-center gap-2 text-sm text-primary dark:text-white">
-										<span className="truncate">{kycData.documents.back.id}.pdf</span>
+									<div className="flex items-center gap-2 text-primary text-sm dark:text-white">
+										<span className="truncate">
+											{kycData.documents.back.id}.pdf
+										</span>
 									</div>
 								) : (
 									<img
@@ -227,7 +240,6 @@ function KycWithStatus({ kycData }: { kycData: KycInfo }) {
 					</div>
 				)}
 			</div>
-
 		</>
 	);
 }

@@ -82,14 +82,20 @@ export async function getNews(params: {
 }
 
 export async function getNewsById(id: string): Promise<NewsDetail | null> {
-	return apiRequest<NewsDetail | null>(`cms/public/news/by-id/${encodeURIComponent(id)}`);
+	return apiRequest<NewsDetail | null>(
+		`cms/public/news/by-id/${encodeURIComponent(id)}`,
+	);
 }
 
 export async function getNewsBySlug(slug: string): Promise<NewsDetail | null> {
-	return apiRequest<NewsDetail | null>(`cms/public/news/by-slug/${encodeURIComponent(slug)}`);
+	return apiRequest<NewsDetail | null>(
+		`cms/public/news/by-slug/${encodeURIComponent(slug)}`,
+	);
 }
 
-export async function getAuthorBySlug(slug: string): Promise<AuthorDetail | null> {
+export async function getAuthorBySlug(
+	slug: string,
+): Promise<AuthorDetail | null> {
 	return apiRequest<AuthorDetail | null>(
 		`cms/public/authors/by-slug/${encodeURIComponent(slug)}`,
 	);

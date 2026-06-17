@@ -8,9 +8,11 @@ export const Route = createFileRoute("/auth/sign-up")({
 
 export default function SignUpPage() {
 	const callbackURL = import.meta.env.DEV
-		? (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001")
+		? typeof window !== "undefined"
+			? window.location.origin
+			: "http://localhost:3001"
 		: import.meta.env.VITE_PUBLIC_URL ||
-		  (typeof window !== "undefined"
+			(typeof window !== "undefined"
 				? window.location.origin
 				: "http://localhost:3001");
 	const [isLoading, setIsLoading] = useState(false);
@@ -118,4 +120,3 @@ export default function SignUpPage() {
 		</div>
 	);
 }
-

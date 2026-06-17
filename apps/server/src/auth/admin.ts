@@ -6,9 +6,10 @@ import { type AdminRole, admin, adminSession } from "@/db/schema/admin";
 import type { AdminPermission } from "@/permissions";
 import type { CloudflareBindings } from "../../worker-configuration";
 
-export function parseUserAgent(
-	userAgent?: string,
-): { browser: string; deviceName: string } {
+export function parseUserAgent(userAgent?: string): {
+	browser: string;
+	deviceName: string;
+} {
 	if (!userAgent) {
 		return { browser: "Unknown", deviceName: "Unknown Device" };
 	}
@@ -39,7 +40,11 @@ export function parseUserAgent(
 	} else if (ua.includes("android")) {
 		const match = ua.match(/android ([\d.]+)/);
 		os = match ? `Android ${match[1]}` : "Android";
-	} else if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ios")) {
+	} else if (
+		ua.includes("iphone") ||
+		ua.includes("ipad") ||
+		ua.includes("ios")
+	) {
 		const match = ua.match(/os (\d+[._]\d+)/);
 		os = match ? `iOS ${match[1].replace(/_/g, ".")}` : "iOS";
 	}
@@ -126,7 +131,11 @@ export async function createAdminSession(
 export async function validateAdminSession(
 	bindings: CloudflareBindings,
 	token: string,
-): Promise<{ adminId: string; role: AdminRole; permissions: string | null } | null> {
+): Promise<{
+	adminId: string;
+	role: AdminRole;
+	permissions: string | null;
+} | null> {
 	const database = getDb(bindings);
 	const result = await database
 		.select({
@@ -152,14 +161,21 @@ export async function validateAdminSession(
 	}
 
 	const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-	if (!result.updatedAt || result.updatedAt.getTime() < fiveMinutesAgo.getTime()) {
+	if (
+		!result.updatedAt ||
+		result.updatedAt.getTime() < fiveMinutesAgo.getTime()
+	) {
 		await database
 			.update(adminSession)
 			.set({ lastActiveAt: new Date() })
 			.where(eq(adminSession.token, result.token));
 	}
 
-	return { adminId: result.adminId, role: result.role as AdminRole, permissions: result.permissions };
+	return {
+		adminId: result.adminId,
+		role: result.role as AdminRole,
+		permissions: result.permissions,
+	};
 }
 
 export async function deleteAdminSession(
@@ -210,7 +226,9 @@ export async function deleteAdminSessionById(
 	const database = getDb(bindings);
 	const result = await database
 		.delete(adminSession)
-		.where(and(eq(adminSession.id, sessionId), eq(adminSession.adminId, adminId)))
+		.where(
+			and(eq(adminSession.id, sessionId), eq(adminSession.adminId, adminId)),
+		)
 		.run();
 
 	return result.changes > 0;
@@ -428,7 +446,9 @@ export async function listAdmins(bindings: CloudflareBindings): Promise<
 	return result;
 }
 
-export function parsePermissions(permissionsStr: string | null): AdminPermission[] {
+export function parsePermissions(
+	permissionsStr: string | null,
+): AdminPermission[] {
 	if (!permissionsStr) {
 		return [];
 	}
@@ -481,12 +501,8 @@ export const getSessionToken = (headers: Headers): string | undefined => {
 	return undefined;
 };
 
-export const setSessionCookie = (
-	token: string,
-	env?: string,
-): string => {
-	const isProdOrStaging =
-		!env || env === "staging" || env === "production";
+export const setSessionCookie = (token: string, env?: string): string => {
+	const isProdOrStaging = !env || env === "staging" || env === "production";
 	const secureFlag = isProdOrStaging ? "; Secure" : "";
 	return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
 };

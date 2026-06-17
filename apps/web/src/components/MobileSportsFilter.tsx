@@ -11,24 +11,26 @@ export function MobileSportsFilter() {
 	const currentPath = location.pathname;
 
 	return (
-		<div className="w-full overflow-x-auto no-scrollbar border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-[#121212] sticky top-0 z-20">
-			<nav className="flex items-center px-4 py-3 gap-6">
+		<div className="no-scrollbar sticky top-0 z-20 w-full overflow-x-auto border-gray-100 border-b bg-white dark:border-gray-800 dark:bg-[#121212]">
+			<nav className="flex items-center gap-6 px-4 py-3">
 				{sports.map((sport) => {
-					const isActive = currentPath === sport.route || currentPath.startsWith(sport.route + "/");
+					const isActive =
+						currentPath === sport.route ||
+						currentPath.startsWith(sport.route + "/");
 					return (
 						<Link
 							key={sport.id}
 							to={sport.route}
 							className={cn(
-								"whitespace-nowrap font-medium text-sm transition-colors relative pb-1",
+								"relative whitespace-nowrap pb-1 font-medium text-sm transition-colors",
 								isActive
-									? "text-accent font-bold"
-									: "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+									? "font-bold text-accent"
+									: "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white",
 							)}
 						>
 							{sport.label}
 							{isActive && (
-								<div className="absolute -bottom-[13px] left-0 right-0 h-0.5 bg-accent rounded-t-full" />
+								<div className="absolute right-0 -bottom-[13px] left-0 h-0.5 rounded-t-full bg-accent" />
 							)}
 						</Link>
 					);

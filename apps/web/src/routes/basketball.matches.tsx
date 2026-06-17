@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-	createFileRoute,
-} from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo } from "react";
 import BannerCarousel from "@/components/BannerCarousel";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { MatchesSkeleton } from "@/components/MatchesSkeleton";
 import { MobileSportsFilter } from "@/components/MobileSportsFilter";
 import RightSidebar from "@/components/RightSidebar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentFilter } from "@/hooks/use-current-filter";
 import { useApiError } from "@/hooks/useApiError";
 import { apiRequest } from "@/lib/api";
@@ -19,11 +19,8 @@ import FixtureFilterHeaders from "@/shared/FixtureFilterHeaders";
 import ImportantUpdate from "@/shared/ImportantUpdate";
 import type { RootState } from "@/store";
 import { useAppSelector } from "@/store/hook";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { BasketballScheduleData } from "@/types/api";
 import type { League } from "@/types/basketball";
-
-import { MatchesSkeleton } from "@/components/MatchesSkeleton";
 
 export const Route = createFileRoute("/basketball/matches")({
 	loader: () => getBanners(),
@@ -43,43 +40,98 @@ const getCountryCode = (name: string): string => {
 	const lowerName = name.toLowerCase();
 
 	const mapping: Record<string, string> = {
-		usa: "us", nba: "us", ncaa: "us", america: "us",
-		australia: "au", australian: "au",
-		argentina: "ar", lnb: "ar",
-		italy: "it", italian: "it",
-		spain: "es", spanish: "es", acb: "es",
-		germany: "de", german: "de", bbl: "de",
-		france: "fr", french: "fr",
-		greece: "gr", greek: "gr",
-		turkey: "tr", turkish: "tr", tbsl: "tr",
-		lithuania: "lt", lithuanian: "lt", lkl: "lt",
-		china: "cn", chinese: "cn", cba: "cn",
-		poland: "pl", polish: "pl",
-		"south korea": "kr", korea: "kr", korean: "kr", kbl: "kr",
-		brazil: "br", brazilian: "br", nbb: "br",
-		israel: "il", israeli: "il",
-		slovenia: "si", slovenian: "si",
-		bulgaria: "bg", bulgarian: "bg",
-		serbia: "rs", serbian: "rs",
-		croatia: "hr", croatian: "hr",
-		russia: "ru", russian: "ru", vtb: "ru",
-		japan: "jp", japanese: "jp", "b.league": "jp",
-		philippines: "ph", philippine: "ph", pba: "ph",
-		mexico: "mx", mexican: "mx", lnbp: "mx",
-		"puerto rico": "pr", bsn: "pr",
-		venezuela: "ve", lpb: "ve",
-		canada: "ca", canadian: "ca", cebl: "ca",
-		"great britain": "gb", british: "gb",
-		belgium: "be", belgian: "be", bnxt: "be",
-		netherlands: "nl", dutch: "nl",
-		finland: "fi", finnish: "fi", korisliiga: "fi",
-		sweden: "se", swedish: "se", basketligan: "se",
-		"czech republic": "cz", czech: "cz",
-		hungary: "hu", hungarian: "hu",
-		romania: "ro", romanian: "ro",
-		portugal: "pt", portuguese: "pt",
-		euroleague: "eu", eurocup: "eu",
-		england: "gb-eng", english: "gb-eng",
+		usa: "us",
+		nba: "us",
+		ncaa: "us",
+		america: "us",
+		australia: "au",
+		australian: "au",
+		argentina: "ar",
+		lnb: "ar",
+		italy: "it",
+		italian: "it",
+		spain: "es",
+		spanish: "es",
+		acb: "es",
+		germany: "de",
+		german: "de",
+		bbl: "de",
+		france: "fr",
+		french: "fr",
+		greece: "gr",
+		greek: "gr",
+		turkey: "tr",
+		turkish: "tr",
+		tbsl: "tr",
+		lithuania: "lt",
+		lithuanian: "lt",
+		lkl: "lt",
+		china: "cn",
+		chinese: "cn",
+		cba: "cn",
+		poland: "pl",
+		polish: "pl",
+		"south korea": "kr",
+		korea: "kr",
+		korean: "kr",
+		kbl: "kr",
+		brazil: "br",
+		brazilian: "br",
+		nbb: "br",
+		israel: "il",
+		israeli: "il",
+		slovenia: "si",
+		slovenian: "si",
+		bulgaria: "bg",
+		bulgarian: "bg",
+		serbia: "rs",
+		serbian: "rs",
+		croatia: "hr",
+		croatian: "hr",
+		russia: "ru",
+		russian: "ru",
+		vtb: "ru",
+		japan: "jp",
+		japanese: "jp",
+		"b.league": "jp",
+		philippines: "ph",
+		philippine: "ph",
+		pba: "ph",
+		mexico: "mx",
+		mexican: "mx",
+		lnbp: "mx",
+		"puerto rico": "pr",
+		bsn: "pr",
+		venezuela: "ve",
+		lpb: "ve",
+		canada: "ca",
+		canadian: "ca",
+		cebl: "ca",
+		"great britain": "gb",
+		british: "gb",
+		belgium: "be",
+		belgian: "be",
+		bnxt: "be",
+		netherlands: "nl",
+		dutch: "nl",
+		finland: "fi",
+		finnish: "fi",
+		korisliiga: "fi",
+		sweden: "se",
+		swedish: "se",
+		basketligan: "se",
+		"czech republic": "cz",
+		czech: "cz",
+		hungary: "hu",
+		hungarian: "hu",
+		romania: "ro",
+		romanian: "ro",
+		portugal: "pt",
+		portuguese: "pt",
+		euroleague: "eu",
+		eurocup: "eu",
+		england: "gb-eng",
+		english: "gb-eng",
 	};
 
 	for (const key in mapping) {
@@ -89,7 +141,9 @@ const getCountryCode = (name: string): string => {
 	return "";
 };
 
-const getCompetitionInfo = (name: string): { country: string; flag: string } => {
+const getCompetitionInfo = (
+	name: string,
+): { country: string; flag: string } => {
 	const code = getCountryCode(name);
 
 	let countryDisplay = "International";
@@ -173,8 +227,9 @@ function RouteComponent() {
 		if (!scheduleData?.competitions) return [];
 
 		const filteredCompetitions = scheduleData.competitions.map((comp) => {
-			const { country: derivedCountry, flag: derivedFlag } =
-				getCompetitionInfo(comp.name);
+			const { country: derivedCountry, flag: derivedFlag } = getCompetitionInfo(
+				comp.name,
+			);
 
 			const mappedMatches = comp.games.map((game) => {
 				const formatTime = (dateStr?: string) => {
@@ -209,7 +264,9 @@ function RouteComponent() {
 					status:
 						game.status === "closed" ? "FT" : game.clock ? "Live" : game.status,
 					time:
-						game.clock || formatTime(game.scheduledTime || game.time) || "00:00",
+						game.clock ||
+						formatTime(game.scheduledTime || game.time) ||
+						"00:00",
 					clock: game.clock,
 					isLive,
 					isFinished,
@@ -314,7 +371,7 @@ function RouteComponent() {
 						))}
 					<ImportantUpdate />
 				</div>
-				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:block lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+				<div className="no-scrollbar hidden h-full overflow-y-auto pb-20 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)]">
 					<RightSidebar />
 				</div>
 			</div>

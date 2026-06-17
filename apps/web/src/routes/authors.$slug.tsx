@@ -77,18 +77,18 @@ function RouteComponent() {
 			)}
 			<div className="w-full rounded-xl bg-white p-6 shadow-sm dark:bg-card">
 				<div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start">
-				<div className="h-40 w-40 shrink-0 overflow-hidden rounded-full">
-					{author.image ? (
-						<ImageWithSkeleton
-							src={author.image.hero}
-							alt={author.name}
-							wrapperClassName="h-40 w-40 rounded-full"
-							className="h-full w-full object-cover"
-						/>
-					) : (
-						<div className="h-full w-full bg-gray-200" />
-					)}
-				</div>
+					<div className="h-40 w-40 shrink-0 overflow-hidden rounded-full">
+						{author.image ? (
+							<ImageWithSkeleton
+								src={author.image.hero}
+								alt={author.name}
+								wrapperClassName="h-40 w-40 rounded-full"
+								className="h-full w-full object-cover"
+							/>
+						) : (
+							<div className="h-full w-full bg-gray-200" />
+						)}
+					</div>
 					<div className="flex-1 text-center lg:text-left">
 						<h1 className="mb-2 font-bold text-3xl">{author.name}</h1>
 						{author.bio && (

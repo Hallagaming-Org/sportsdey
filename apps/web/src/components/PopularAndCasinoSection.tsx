@@ -211,7 +211,7 @@ export default function PopularAndCasinoSection() {
 							type="button"
 							onClick={() => setActiveTab(tab.id)}
 							className={cn(
-								"rounded-full px-4 py-2 cursor-pointer font-semibold text-sm transition-colors",
+								"cursor-pointer rounded-full px-4 py-2 font-semibold text-sm transition-colors",
 								"focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background",
 								isActive
 									? "bg-accent text-accent-foreground shadow-sm"
@@ -346,7 +346,7 @@ function PopularMatchesPanel({
 		<div ref={containerRef} className="relative min-h-[200px]">
 			<div id={SPORTSBOOK_CONTAINER_ID} className="hidden" />
 			{showSkeleton && (
-				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 dark:bg-card/80 sm:p-2">
+				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 sm:p-2 dark:bg-card/80">
 					{Array.from({ length: 3 }).map((_, i) => (
 						<Skeleton key={i} className="h-20 w-full rounded-xl" />
 					))}

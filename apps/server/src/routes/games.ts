@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -76,7 +76,23 @@ const GameListResponseSchema = z
 
 const GameListQuerySchema = z
 	.object({
-		category: z.string().optional().openapi({ description: "Filter by game category" }),
+		category: z
+			.string()
+			.optional()
+			.openapi({ description: "Filter by game category" }),
+		offset: z
+			.coerce.number()
+			.int()
+			.min(0)
+			.optional()
+			.openapi({ description: "Offset for pagination" }),
+		limit: z
+			.coerce.number()
+			.int()
+			.min(1)
+			.max(100)
+			.optional()
+			.openapi({ description: "Limit for pagination" }),
 	})
 	.openapi("GameListQuery");
 
@@ -102,15 +118,19 @@ gamesRoute.openapi(
 		tags: ["Games"],
 	}),
 	async (c) => {
-		const { category } = c.req.valid("query");
+		const { category, offset, limit } = c.req.valid("query");
 		const db = drizzle(c.env.DB, { schema });
-		const conditions = [];
+		let query: any = db.select().from(schema.game).orderBy(schema.game.name);
 		if (category) {
-			conditions.push(eq(schema.game.category, category));
+			query = query.where(eq(schema.game.category, category));
 		}
-		const games = conditions.length > 0
-			? await db.select().from(schema.game).where(and(...conditions)).orderBy(schema.game.name)
-			: await db.select().from(schema.game).orderBy(schema.game.name);
+		if (offset !== undefined) {
+			query = query.offset(offset);
+		}
+		if (limit !== undefined) {
+			query = query.limit(limit);
+		}
+		const games = await query;
 		return c.json({ success: true as const, data: games }, 200);
 	},
 );
@@ -257,7 +277,10 @@ gamesRoute.openapi(
 			.returning();
 
 		if (!inserted || inserted.length === 0) {
-			return c.json({ success: false as const, error: "Failed to create game" }, 500);
+			return c.json(
+				{ success: false as const, error: "Failed to create game" },
+				500,
+			);
 		}
 
 		return c.json({ success: true as const, data: inserted }, 201);

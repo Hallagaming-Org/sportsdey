@@ -32,7 +32,9 @@ function PhoneSignInPage() {
 		const normalizedLength = phoneNumber.replace(/\D/g, "").length;
 		return (
 			acceptedTerms &&
-			(normalizedLength === 10 || normalizedLength === 11 || normalizedLength === 13)
+			(normalizedLength === 10 ||
+				normalizedLength === 11 ||
+				normalizedLength === 13)
 		);
 	}, [phoneNumber, acceptedTerms]);
 
@@ -74,14 +76,18 @@ function PhoneSignInPage() {
 					<h1 className="font-bold text-2xl text-[#0a0f0d] leading-tight">
 						Log in to your account
 					</h1>
-					<p className="mt-3 text-[#232a27] text-base">It's fun, easy, and enjoyable.</p>
+					<p className="mt-3 text-[#232a27] text-base">
+						It's fun, easy, and enjoyable.
+					</p>
 				</div>
 
 				<div className="rounded-2xl border border-[#dbdbdb] bg-[#f5f5f5] p-3">
 					<div className="flex items-center">
 						<div className="flex items-center gap-3 pr-4">
 							<span className="text-base">🇳🇬</span>
-							<span className="font-semibold text-[#6f7471] text-base">+234</span>
+							<span className="font-semibold text-[#6f7471] text-base">
+								+234
+							</span>
 						</div>
 						<div className="h-14 w-px bg-[#bcbcbc]" />
 						<input
@@ -107,7 +113,10 @@ function PhoneSignInPage() {
 							Terms & Conditions
 						</Link>{" "}
 						and{" "}
-						<Link to="/privacy-policy" className="font-medium text-[#18b100] underline">
+						<Link
+							to="/privacy-policy"
+							className="font-medium text-[#18b100] underline"
+						>
 							Privacy policy
 						</Link>
 						.
@@ -115,7 +124,7 @@ function PhoneSignInPage() {
 				</label>
 
 				{error ? (
-					<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-sm text-red-700">
+					<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-red-700 text-sm">
 						{error}
 					</div>
 				) : null}

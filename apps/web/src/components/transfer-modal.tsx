@@ -1,9 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 
 type TransferResponse = {
 	transactionId: string;
@@ -31,10 +31,7 @@ export function TransferModal({
 	const [transferSuccess, setTransferSuccess] = useState("");
 
 	const transferMutation = useMutation({
-		mutationFn: (payload: {
-			recipientWalletId: string;
-			amount: number;
-		}) =>
+		mutationFn: (payload: { recipientWalletId: string; amount: number }) =>
 			apiRequest<TransferResponse>("wallet/transfer", {
 				method: "POST",
 				credentials: "include",
@@ -114,15 +111,12 @@ export function TransferModal({
 
 				{transferSuccess ? (
 					<div className="mt-6 text-center">
-						<p className="text-[#14804A] text-sm font-medium">
+						<p className="font-medium text-[#14804A] text-sm">
 							{transferSuccess}
 						</p>
 					</div>
 				) : (
-					<form
-						className="mt-4 space-y-4"
-						onSubmit={handleTransferSubmit}
-					>
+					<form className="mt-4 space-y-4" onSubmit={handleTransferSubmit}>
 						<div>
 							<label className="mb-2 block font-medium text-primary text-sm dark:text-white">
 								Recipient Wallet ID
@@ -130,9 +124,7 @@ export function TransferModal({
 							<Input
 								type="text"
 								value={recipientWalletId}
-								onChange={(event) =>
-									setRecipientWalletId(event.target.value)
-								}
+								onChange={(event) => setRecipientWalletId(event.target.value)}
 								placeholder="Enter recipient's wallet ID"
 							/>
 						</div>
@@ -146,9 +138,7 @@ export function TransferModal({
 								min={MIN_TRANSFER_AMOUNT}
 								step="0.01"
 								value={transferAmount}
-								onChange={(event) =>
-									setTransferAmount(event.target.value)
-								}
+								onChange={(event) => setTransferAmount(event.target.value)}
 								placeholder="Enter amount"
 							/>
 							<p className="mt-2 text-[#6E6E6E] text-xs">
@@ -165,9 +155,7 @@ export function TransferModal({
 							disabled={transferMutation.isPending}
 							className="w-full cursor-pointer rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
 						>
-							{transferMutation.isPending
-								? "Processing..."
-								: "Transfer"}
+							{transferMutation.isPending ? "Processing..." : "Transfer"}
 						</button>
 					</form>
 				)}

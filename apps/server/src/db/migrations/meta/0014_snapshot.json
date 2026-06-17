@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "55584b31-05e6-46e8-9fa0-5ccc720395a0",
-  "prevId": "9d9ac4a8-fa75-4497-b8c0-e61e6038b800",
+  "id": "307ff351-c6d8-48fa-97b0-c58dce2da535",
+  "prevId": "d8b0abd4-d2c9-4ce3-8a9e-a2ab02530ba7",
   "tables": {
     "account": {
       "name": "account",
@@ -2027,6 +2027,27 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'card'"
+        },
+        "recipient_wallet_id": {
+          "name": "recipient_wallet_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "recipient_name": {
+          "name": "recipient_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",

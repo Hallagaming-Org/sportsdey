@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { type FormEvent, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 
 type BankOption = {
 	name: string;
@@ -205,7 +205,9 @@ export function WithdrawModal({
 						/>
 					</div>
 
-					{withdrawError && <p className="text-[#D13030] text-sm">{withdrawError}</p>}
+					{withdrawError && (
+						<p className="text-[#D13030] text-sm">{withdrawError}</p>
+					)}
 
 					<button
 						type="submit"

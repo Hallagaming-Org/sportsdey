@@ -1,13 +1,13 @@
-import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import {
-	Loader2,
-	Shield,
-	RefreshCw,
-	ArrowRight,
 	AlertCircle,
 	ArrowLeft,
+	ArrowRight,
+	Loader2,
+	RefreshCw,
+	Shield,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
 	KycHeader,
 	KycInputField,
@@ -18,9 +18,9 @@ import {
 import { useSession } from "@/lib/auth/client";
 import {
 	getKycStatus,
-	submitKyc,
 	type IdentificationType,
 	type KycInfo,
+	submitKyc,
 } from "@/lib/kyc";
 
 const IDENTIFICATION_OPTIONS = [
@@ -58,37 +58,41 @@ function KycStatusDisplay({
 
 	const config = isApproved
 		? {
-			title: "Identity Verified",
-			description: "Your identity has been successfully verified. You now have full access to all platform features.",
-			iconBg: "bg-[#14804A]",
-			pingBg: "bg-[#CCF3DD]",
-			textColor: "text-[#14804A]",
-			icon: "✓",
-		}
+				title: "Identity Verified",
+				description:
+					"Your identity has been successfully verified. You now have full access to all platform features.",
+				iconBg: "bg-[#14804A]",
+				pingBg: "bg-[#CCF3DD]",
+				textColor: "text-[#14804A]",
+				icon: "✓",
+			}
 		: isPending
 			? {
-				title: "Under Review",
-				description: "Your documents are being reviewed. This usually takes 1-2 business days.",
-				iconBg: "bg-[#B26A00]",
-				pingBg: "bg-[#F2CF93]",
-				textColor: "text-[#B26A00]",
-				icon: "",
-			}
+					title: "Under Review",
+					description:
+						"Your documents are being reviewed. This usually takes 1-2 business days.",
+					iconBg: "bg-[#B26A00]",
+					pingBg: "bg-[#F2CF93]",
+					textColor: "text-[#B26A00]",
+					icon: "",
+				}
 			: {
-				title: "Verification Failed",
-				description: rejectionReason || "We couldn't verify your documents. Please review the requirements and try again.",
-				iconBg: "bg-[#D13030]",
-				pingBg: "bg-[#FADBD8]",
-				textColor: "text-[#D13030]",
-				icon: "×",
-			};
+					title: "Verification Failed",
+					description:
+						rejectionReason ||
+						"We couldn't verify your documents. Please review the requirements and try again.",
+					iconBg: "bg-[#D13030]",
+					pingBg: "bg-[#FADBD8]",
+					textColor: "text-[#D13030]",
+					icon: "×",
+				};
 
 	const date = submittedAt
 		? new Date(submittedAt).toLocaleDateString("en-US", {
-			month: "long",
-			day: "numeric",
-			year: "numeric",
-		})
+				month: "long",
+				day: "numeric",
+				year: "numeric",
+			})
 		: null;
 
 	return (
@@ -96,8 +100,12 @@ function KycStatusDisplay({
 			<div className="mb-6 flex justify-center">
 				{isApproved && (
 					<div className="relative flex h-24 w-24 items-center justify-center">
-						<div className={`absolute h-24 w-24 animate-ping rounded-full ${config.pingBg}`} />
-						<div className={`relative flex h-20 w-20 items-center justify-center rounded-full ${config.iconBg} text-4xl text-white`}>
+						<div
+							className={`absolute h-24 w-24 animate-ping rounded-full ${config.pingBg}`}
+						/>
+						<div
+							className={`relative flex h-20 w-20 items-center justify-center rounded-full ${config.iconBg} text-4xl text-white`}
+						>
 							{config.icon}
 						</div>
 					</div>
@@ -117,13 +125,11 @@ function KycStatusDisplay({
 			</h1>
 			<p className="mt-3 text-[#6E6E6E] text-sm">{config.description}</p>
 			{date && (
-				<p className="mt-2 text-[#B26A00] text-xs">
-					Submitted on {date}
-				</p>
+				<p className="mt-2 text-[#B26A00] text-xs">Submitted on {date}</p>
 			)}
 
 			{isApproved && (
-				<div className="mt-6 flex items-center justify-center gap-2 rounded-full bg-[#CCF3DD] px-4 py-2 text-sm text-[#14804A] dark:bg-[#14804A]/20">
+				<div className="mt-6 flex items-center justify-center gap-2 rounded-full bg-[#CCF3DD] px-4 py-2 text-[#14804A] text-sm dark:bg-[#14804A]/20">
 					<Shield className="h-4 w-4" />
 					<span className="font-medium">KYC Completed</span>
 				</div>
@@ -170,20 +176,20 @@ function KycForm({
 	handleSubmit: () => void;
 }) {
 	return (
-		<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm dark:border-[#1B2722] dark:bg-[#000606] sm:p-8">
+		<div className="rounded-2xl border border-transparent bg-white p-6 shadow-sm sm:p-8 dark:border-[#1B2722] dark:bg-[#000606]">
 			<div className="mb-6 flex items-center gap-3">
 				<div>
-					<h2 className="text-xl font-semibold text-primary dark:text-white">
+					<h2 className="font-semibold text-primary text-xl dark:text-white">
 						Verify Your Identity
 					</h2>
-					<p className="text-sm text-[#8C8C8C]">
+					<p className="text-[#8C8C8C] text-sm">
 						Complete the steps below to get verified
 					</p>
 				</div>
 			</div>
 
 			{error && (
-				<div className="mb-6 flex items-center gap-2 rounded-lg border border-red/20 bg-red/5 p-4 text-sm text-red-600 dark:bg-red-900/20">
+				<div className="mb-6 flex items-center gap-2 rounded-lg border border-red/20 bg-red/5 p-4 text-red-600 text-sm dark:bg-red-900/20">
 					<AlertCircle className="h-4 w-4 flex-shrink-0" />
 					{error}
 				</div>
@@ -228,9 +234,16 @@ function KycForm({
 
 			<button
 				type="button"
-				disabled={isSubmitting || !fullName || fullName.length < 2 || !identificationType || !frontDocument || !backDocument}
+				disabled={
+					isSubmitting ||
+					!fullName ||
+					fullName.length < 2 ||
+					!identificationType ||
+					!frontDocument ||
+					!backDocument
+				}
 				onClick={handleSubmit}
-				className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1BAA04] px-4 py-4 font-medium text-white transition-all hover:bg-primary/90 disabled:bg-[#232323] disabled:cursor-not-allowed"
+				className="mt-8 flex w-full items-center justify-center gap-2 rounded-lg bg-[#1BAA04] px-4 py-4 font-medium text-white transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-[#232323]"
 			>
 				{isSubmitting ? (
 					<>
@@ -245,9 +258,9 @@ function KycForm({
 				)}
 			</button>
 
-			<p className="mt-4 text-center text-xs text-[#8C8C8C]">
-				We use secure government services to verify your identity. Your data
-				is encrypted and protected.
+			<p className="mt-4 text-center text-[#8C8C8C] text-xs">
+				We use secure government services to verify your identity. Your data is
+				encrypted and protected.
 			</p>
 		</div>
 	);
@@ -284,7 +297,8 @@ function KycVerifyPage() {
 	}
 
 	const hasSubmitted = kycData && kycData.status !== "not_verified";
-	const canAccessForm = kycData?.status === "rejected" || kycData?.status === "not_verified";
+	const canAccessForm =
+		kycData?.status === "rejected" || kycData?.status === "not_verified";
 
 	if (hasSubmitted && !canAccessForm) {
 		return <Navigate to="/kyc" />;
@@ -303,7 +317,7 @@ function KycVerifyPage() {
 				<button
 					type="button"
 					onClick={() => setShowForm(true)}
-					className="mt-4 flex items-center justify-center gap-2 text-sm text-[#8C8C8C] hover:text-primary"
+					className="mt-4 flex items-center justify-center gap-2 text-[#8C8C8C] text-sm hover:text-primary"
 				>
 					<RefreshCw className="h-4 w-4" />
 					<span>Submit new documents</span>
@@ -359,7 +373,7 @@ function KycVerifyPage() {
 				<button
 					type="button"
 					onClick={() => setShowForm(false)}
-					className="mb-4 flex items-center gap-2 text-sm text-[#8C8C8C] hover:text-primary"
+					className="mb-4 flex items-center gap-2 text-[#8C8C8C] text-sm hover:text-primary"
 				>
 					<ArrowRight className="h-4 w-4 rotate-180" />
 					<span>Back to status</span>

@@ -13,9 +13,17 @@ const resolveApiBaseUrl = () => {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
-export type KycStatus = "not_verified" | "pending_review" | "approved" | "rejected";
+export type KycStatus =
+	| "not_verified"
+	| "pending_review"
+	| "approved"
+	| "rejected";
 
-export type IdentificationType = "nin" | "drivers_license" | "passport" | "voters_card";
+export type IdentificationType =
+	| "nin"
+	| "drivers_license"
+	| "passport"
+	| "voters_card";
 
 export interface KycDocument {
 	id: string;
@@ -63,7 +71,10 @@ export async function getKycStatus(): Promise<KycInfo | null> {
 
 	if (!response.ok) {
 		const data = (await response.json()) as { error?: string };
-		throw new KycError(data.error || "Failed to get KYC status", response.status);
+		throw new KycError(
+			data.error || "Failed to get KYC status",
+			response.status,
+		);
 	}
 
 	const json = (await response.json()) as { data: KycInfo | null };

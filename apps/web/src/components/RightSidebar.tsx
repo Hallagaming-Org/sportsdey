@@ -2,17 +2,21 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, ChevronRight, Loader2, Play } from "lucide-react";
 import { useState } from "react";
 import { VideoModal } from "@/components/basketball-section/VideoModal";
+import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { useNewsData } from "@/hooks/use-news-data";
 import { useNewsVideos } from "@/hooks/use-news-videos";
-import { ImageWithSkeleton } from "@/components/ImageWithSkeleton";
 import { formatRelativeTime } from "@/lib/utils";
+import { CATEGORY_CHANNEL_IDS } from "@/lib/video-channels";
 import { ShareButton } from "./ShareButton";
 
 const RightSidebar = () => {
 	const sport = useCurrentSport() || "football";
 	const { data: newsData, isLoading: isNewsLoading } = useNewsData(sport);
-	const { data: videoData, isLoading: isVideoLoading } = useNewsVideos(sport);
+	const { data: videoData, isLoading: isVideoLoading } = useNewsVideos(
+		`${sport} match highlights, live matches, news`,
+		CATEGORY_CHANNEL_IDS[sport],
+	);
 	const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
 	const navigate = useNavigate();
 

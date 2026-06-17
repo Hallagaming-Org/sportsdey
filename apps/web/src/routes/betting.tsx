@@ -35,14 +35,14 @@ function RouteComponent() {
 
 			if (event.data?.type === "SET_LOBBY_WIDGET_HEIGHT") {
 				const iframe = document.getElementById(
-					"bettingWidget"
+					"bettingWidget",
 				) as HTMLIFrameElement | null;
 
 				if (iframe && event.data.height) {
 					iframe.style.height = `${event.data.height}px`;
 				}
 			}
-		}
+		};
 
 		window.addEventListener("message", handleMessage);
 

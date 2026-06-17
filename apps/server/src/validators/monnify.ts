@@ -66,7 +66,13 @@ export const requeryTransactionQuery = z
 
 export const historyQuery = z
 	.object({
-		limit: z.number().min(1).max(50).default(20).optional().openapi({ description: "Limit", example: 20 }),
+		limit: z
+			.number()
+			.min(1)
+			.max(50)
+			.default(20)
+			.optional()
+			.openapi({ description: "Limit", example: 20 }),
 		serviceCategory: z
 			.enum(["airtime", "data", "electricity", "cable_tv"])
 			.optional()

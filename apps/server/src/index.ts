@@ -3,8 +3,8 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { createAuth } from "./auth";
-import adminCmsRoute from "./routes/admin-cms";
 import adminRoute from "./routes/admin";
+import adminCmsRoute from "./routes/admin-cms";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
 import type { CloudflareBindings } from "./types";
@@ -128,6 +128,8 @@ app.use("*", async (c, next) => {
 	const user = sessionResult?.user ?? null;
 	c.set("session", session);
 	c.set("user", user);
+	console.log("session", session);
+	console.log("user", user);
 	await next();
 });
 

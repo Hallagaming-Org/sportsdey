@@ -105,7 +105,10 @@ casinoRoute.openapi(playGameRoute, async (c) => {
 		.returning();
 
 	if (!launchToken?.token) {
-		return c.json({ success: false, error: "Failed to create launch token" }, 500);
+		return c.json(
+			{ success: false, error: "Failed to create launch token" },
+			500,
+		);
 	}
 
 	const baseUrl =

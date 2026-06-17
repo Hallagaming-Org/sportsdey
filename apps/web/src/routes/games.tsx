@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/games")({
 });
 
 const CATEGORIES = [
+	"popular",
 	"arcade",
 	"bingo",
 	"classic",
@@ -34,6 +35,7 @@ const CATEGORIES = [
 ] as const;
 
 const CATEGORY_EMOJIS: Record<string, string> = {
+	"popular": "🔥",
 	"arcade": "🕹️",
 	"bingo": "🎱",
 	"classic": "👑",
@@ -133,7 +135,32 @@ const KNOWN_GAMES: Record<
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
-const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
+const PRIORITY_GAMES = [
+	"solitaire",
+	"blocks",
+	"twentyone",
+	"blackjack",
+	"slots",
+	"plinko",
+	"XCAPEHB",
+	"EAGLEHB",
+	"LUCKYRISEHB",
+	"LAGOSRUSH",
+];
+
+const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+
+const PAGE_SIZE = 24;
+
+const isPopularGame = (game: Game) => {
+	return POPULAR_GAME_NAMES.some((name) =>
+		game.name.toLowerCase().includes(name.toLowerCase()),
+	);
+};
+
+const isThundrGame = (code: string) => {
+	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
+};
 
 function GamesPage() {
 	const navigate = useNavigate();
@@ -141,14 +168,20 @@ function GamesPage() {
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [sortAsc, setSortAsc] = useState(false);
+	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
 	useEffect(() => {
+		setDisplayCount(PAGE_SIZE);
 		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		const mains = document.querySelectorAll("main");
 		mains.forEach((main) => {
 			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		});
 	}, [selectedCategory]);
+
+	useEffect(() => {
+		setDisplayCount(PAGE_SIZE);
+	}, [searchQuery, sortAsc]);
 
 	const containerVariants: Variants = {
 		hidden: { opacity: 0 },
@@ -200,13 +233,18 @@ function GamesPage() {
 		(acc, game) => {
 			const cat = game.category ?? "others";
 			acc[cat] = (acc[cat] ?? 0) + 1;
+			if (isPopularGame(game)) {
+				acc["popular"] = (acc["popular"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
-		if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+		if (selectedCategory === "popular") {
+			if (!isPopularGame(game)) return false;
+		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
 		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {
@@ -215,13 +253,35 @@ function GamesPage() {
 		return true;
 	});
 
+	const displayGames = filteredGames.slice(0, displayCount);
 	const chunkSize = 3;
 	const gameChunks: Game[][] = [];
-	for (let i = 0; i < filteredGames.length; i += chunkSize) {
-		gameChunks.push(filteredGames.slice(i, i + chunkSize));
+	for (let i = 0; i < displayGames.length; i += chunkSize) {
+		gameChunks.push(displayGames.slice(i, i + chunkSize));
 	}
 
+	const loadMoreRef = useRef<HTMLDivElement>(null);
+	const hasMore = displayGames.length < filteredGames.length;
+
+	useEffect(() => {
+		if (!loadMoreRef.current) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting) {
+					setDisplayCount((prev) => prev + PAGE_SIZE);
+				}
+			},
+			{ threshold: 0.1, rootMargin: "200px" },
+		);
+		observer.observe(loadMoreRef.current);
+		return () => observer.disconnect();
+	}, [hasMore]);
+
 	const handleGameClick = async (game: Game) => {
+		if (!session?.user) {
+			navigate({ to: "/auth/sign-in" });
+			return;
+		}
 		console.log(import.meta.env.VITE_SERVER_URL, " import")
 		setLoadingGame(game.code);
 		try {
@@ -367,9 +427,6 @@ function GamesPage() {
 		);
 	}
 
-	if (!isSessionLoading && !session?.user) {
-		return <Navigate to="/auth/sign-in" />;
-	}
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
@@ -521,9 +578,26 @@ function GamesPage() {
 															opacity: loadingGame === game.code ? 0.35 : 1,
 														}}
 													>
-														<span className="text-4xl font-bold text-white/50">
+														<span className="font-bold text-4xl text-white/50">
 															{display.name.charAt(0)}
 														</span>
+													</div>
+												)}
+
+												{isThundrGame(game.code) && (
+													<div className="relative z-[1] w-full text-center pb-2">
+														<p
+															className="truncate font-normal text-sm text-white"
+															style={{ fontFamily: "Luckiest Guy" }}
+														>
+															{display.name}
+														</p>
+														{/* <p
+															className="truncate text-[9px] text-gray-100"
+															style={{ fontFamily: "Quicksand" }}
+														>
+															{display.subtitle}
+														</p> */}
 													</div>
 												)}
 
@@ -540,7 +614,7 @@ function GamesPage() {
 							animate="show"
 							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
 						>
-							{filteredGames.map((game) => {
+							{displayGames.map((game) => {
 								const display = getGameDisplay(game);
 								return (
 									<motion.div
@@ -587,9 +661,26 @@ function GamesPage() {
 													opacity: loadingGame === game.code ? 0.35 : 1,
 												}}
 											>
-												<span className="text-4xl font-bold text-white/50">
+												<span className="font-bold text-4xl text-white/50">
 													{display.name.charAt(0)}
 												</span>
+											</div>
+										)}
+
+										{isThundrGame(game.code) && (
+											<div className="relative z-[1] w-full text-center pb-3">
+												<p
+													className="truncate font-normal text-base text-white"
+													style={{ fontFamily: "Luckiest Guy" }}
+												>
+													{display.name}
+												</p>
+												{/* <p
+													className="truncate text-[11px] text-gray-100"
+													style={{ fontFamily: "Quicksand" }}
+												>
+													{display.subtitle}
+												</p> */}
 											</div>
 										)}
 
@@ -597,6 +688,12 @@ function GamesPage() {
 								);
 							})}
 						</motion.div>
+
+						{hasMore && (
+							<div ref={loadMoreRef} className="flex items-center justify-center py-6">
+								<Loader2 className="h-6 w-6 animate-spin text-[#1BAA04]" />
+							</div>
+						)}
 					</>
 				)}
 			</div>
