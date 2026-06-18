@@ -16,7 +16,7 @@ import FilerAToZ from "@/logos/FilerAToZ";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
-	validateSearch: (search: Record<string, unknown>) => ({
+	validateSearch: (search: Record<string, unknown>): { category?: string } => ({
 		category: (search.category as string) || undefined,
 	}),
 });
@@ -52,7 +52,6 @@ const CATEGORY_EMOJIS: Record<string, string> = {
 	"jackpot": "💰",
 	"lottery": "🎟️",
 	"others": "🧩",
-	"pvp": "⚔️",
 	"roulette": "🎡",
 	"scratch": "🎫",
 };
