@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import basketballRoute from "./basketball";
 import casinoRoute from "./casino";
+import hashcodexRoute from "./hashcodex";
 import casinoProviderRoute from "./casino-provider";
 import cmsRoute from "./cms";
 import filesRoute from "./files";
@@ -40,6 +41,7 @@ routes.route("/account", casinoProviderRoute);
 routes.route("/bills", monnifyRoute);
 routes.route("/files", filesRoute);
 routes.route("/games", gamesRoute);
+routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
 
