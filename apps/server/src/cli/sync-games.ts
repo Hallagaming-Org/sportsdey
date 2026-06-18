@@ -370,7 +370,7 @@ async function main() {
 
 		try {
 			await new Promise((resolve, reject) => {
-				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`;
+				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env staging`;
 				exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
 					try {
 						fs.unlinkSync(tempFile);
