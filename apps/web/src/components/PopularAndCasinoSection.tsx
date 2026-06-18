@@ -460,11 +460,11 @@ function HotCasinoPanel() {
 
 	if (isLoading) {
 		return (
-			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
+			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
 				{Array.from({ length: 6 }).map((_, i) => (
 					<Skeleton
 						key={`casino-skel-${i}`}
-						className="h-[110px] w-full rounded-xl lg:aspect-square lg:h-auto lg:rounded-2xl"
+						className="h-[110px] w-full rounded-xl"
 					/>
 				))}
 			</div>
@@ -480,7 +480,7 @@ function HotCasinoPanel() {
 	}
 
 	return (
-		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
+		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
 			{hotGames.map((game) => {
 				const known = KNOWN_GAMES[game.code];
 				const display = {
@@ -497,7 +497,7 @@ function HotCasinoPanel() {
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
-						className="group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 lg:aspect-square lg:h-auto lg:rounded-2xl"
+						className="group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
 						style={{ background: display.gradient }}
 					>
 						{isLoadingThis && (
