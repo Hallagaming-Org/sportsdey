@@ -372,7 +372,7 @@ function HotCasinoPanel() {
 		queryKey: ["games"],
 		queryFn: async () => {
 			const all = await apiRequest<Game[]>("games");
-			return all.filter((game) => game.enabled);
+			return all.filter((game) => game.enabled && game.category === "popular");
 		},
 	});
 
