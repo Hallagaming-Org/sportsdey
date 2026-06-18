@@ -2,9 +2,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { SuccessModal } from "@/components/success-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
-import SuccessIndicator from "@/logos/SuccessIndicator.png";
 
 type BankOption = {
 	name: string;
@@ -92,6 +92,7 @@ export function WithdrawModal({
 
 	const handleWithdrawSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
+
 		const amount = Number(withdrawAmount);
 
 		if (!Number.isFinite(amount) || amount < MIN_WITHDRAW_AMOUNT) {
@@ -125,37 +126,12 @@ export function WithdrawModal({
 
 	if (isSuccess) {
 		return (
-			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-[2px]">
-				<div className="relative w-full max-w-[360px] rounded-3xl bg-white p-8 shadow-xl text-center border border-gray-100 dark:bg-[#0B100E] dark:border-[#1E201F]">
-					<button
-						type="button"
-						onClick={handleClose}
-						aria-label="Close"
-						className="absolute top-4 right-4 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-gray-200 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:border-[#2A2D2C] dark:text-[#8C8F8F] dark:hover:bg-white/10 dark:hover:text-white"
-					>
-						<X className="h-4 w-4" />
-					</button>
-
-					<div className="flex flex-col items-center pt-6 pb-2">
-						<div className="mb-6 relative flex items-center justify-center">
-							<img src={SuccessIndicator} alt="Success" className="h-[88px] w-[88px]" />
-						</div>
-
-						<h2 className="mb-3 font-bold text-[28px] tracking-tight text-primary dark:text-white">Success!</h2>
-						<p className="mb-8 font-medium text-secondary dark:text-[#8C8F8F] text-[15px] leading-relaxed px-2">
-							Your withdrawal has been processed and you will be credited shortly.
-						</p>
-
-						<button
-							type="button"
-							onClick={handleClose}
-							className="w-full cursor-pointer rounded-full bg-[#00D600] py-4 font-bold text-[17px] text-white transition-opacity hover:opacity-90"
-						>
-							Done
-						</button>
-					</div>
-				</div>
-			</div>
+			<SuccessModal
+				isOpen={isSuccess}
+				onClose={handleClose}
+				title="Success!"
+				message="Your withdrawal has been processed and you will be credited shortly."
+			/>
 		);
 	}
 
