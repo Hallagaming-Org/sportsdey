@@ -1,7 +1,6 @@
-import { ChevronLeft, Copy, Info } from "lucide-react";
+import { Copy, Info, X } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
-import { toBlob } from "html-to-image";
-import { LOGO_BASE64 } from "@/logos/logoBase64";
+import { toPng } from "html-to-image";
 
 export type ReceiptDetail = {
 	label: string;
@@ -22,15 +21,12 @@ export type TransactionReceiptProps = {
 
 function WatermarkBackground() {
 	return (
-		<div className="absolute inset-0 z-0 overflow-hidden opacity-5 pointer-events-none">
-			<div className="w-[150%] h-[150%] -translate-x-[25%] -translate-y-[25%] -rotate-45 flex flex-wrap gap-8 items-center justify-center pt-20">
-				{Array.from({ length: 40 }).map((_, i) => (
-					<img
-						key={i}
-						src={LOGO_BASE64}
-						alt=""
-						className="w-32 h-auto opacity-40 grayscale"
-					/>
+		<div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-5">
+			<div className="w-[150%] h-[150%] -translate-x-[25%] -translate-y-[25%] -rotate-45 flex flex-wrap items-center justify-center pt-20">
+				{Array.from({ length: 150 }).map((_, i) => (
+					<div key={i} className="px-6 py-4 font-black text-2xl tracking-widest text-white whitespace-nowrap">
+						SPORTSDEY
+					</div>
 				))}
 			</div>
 		</div>
@@ -53,7 +49,6 @@ export function TransactionReceipt({
 	};
 
 	const handleShare = async () => {
-		// If custom onShare is provided, use it instead (useful for previews)
 		if (onShare) {
 			onShare();
 			return;
@@ -65,28 +60,26 @@ export function TransactionReceipt({
 			setIsSharing(true);
 
 			// Wait a brief moment for any pending renders
-			await new Promise((resolve) => setTimeout(resolve, 100));
+			await new Promise((resolve) => setTimeout(resolve, 150));
 
-			const blob = await toBlob(receiptRef.current, {
+			const dataUrl = await toPng(receiptRef.current, {
 				quality: 1,
 				pixelRatio: 2,
 				backgroundColor: '#04100B',
 				style: {
-					fontFamily: 'Inter, sans-serif' // Provide a fallback if fonts don't load immediately in the cloned DOM
+					fontFamily: 'Inter, sans-serif'
 				},
-				cacheBust: true, // Prevents html-to-image caching issues
+				cacheBust: true,
 			});
 
-			if (!blob) throw new Error("Failed to generate image blob");
+			if (!dataUrl) throw new Error("Failed to generate image");
 
-			const url = URL.createObjectURL(blob);
 			const link = document.createElement('a');
-			link.href = url;
+			link.href = dataUrl;
 			link.download = "sportsdey-receipt.png";
 			document.body.appendChild(link);
 			link.click();
 			document.body.removeChild(link);
-			URL.revokeObjectURL(url);
 		} catch (error) {
 			console.error("Error sharing receipt:", error);
 			alert("Unable to generate and share receipt. Please try again.");
@@ -97,7 +90,6 @@ export function TransactionReceipt({
 
 	if (!details || details.length === 0) return null;
 
-	// Extract amount to show prominently in the watermark receipt
 	const amountDetail = details.find(d => d.label.toLowerCase() === 'amount');
 	const transactionTypeDetail = details.find(d => d.label.toLowerCase() === 'transaction type');
 
@@ -118,7 +110,12 @@ export function TransactionReceipt({
 					<div className="relative z-10 flex flex-col h-full">
 						{/* Header */}
 						<div className="flex items-start justify-between mb-10">
-							<img src={LOGO_BASE64} alt="Sportsdey" className="h-8 w-auto" />
+							<div className="flex items-center gap-1">
+								<div className="flex items-center justify-center bg-[#00D600] rounded-sm w-7 h-7">
+									<span className="font-black text-white text-xs italic">SD</span>
+								</div>
+								<span className="font-black text-xl italic tracking-tight">SportsDey</span>
+							</div>
 							<div className="text-right">
 								<p className="text-sm font-medium text-white">Transaction Receipt</p>
 							</div>
@@ -182,8 +179,8 @@ export function TransactionReceipt({
 			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-[2px]">
 				<div className="relative mx-auto flex w-full max-w-md flex-col rounded-3xl border border-gray-600 bg-[#000606] text-white shadow-xl overflow-hidden max-h-[90vh]">
 					<div className="flex items-center px-4 py-6">
-						<button type="button" onClick={onBack} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#6C7073] text-[#6C7073] transition-colors hover:bg-white/10">
-							<ChevronLeft className="h-4 w-4" />
+						<button type="button" onClick={onBack} className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-full border border-[#6C7073] text-[#6C7073] transition-colors hover:bg-white/10">
+							<X className="h-4 w-4" />
 						</button>
 						<h1 className="flex-1 text-center font-semibold text-lg">{title}</h1>
 						<div className="w-8" />
