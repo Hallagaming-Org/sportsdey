@@ -205,7 +205,7 @@ export function WithdrawModal({
 									event.target.value.replace(/\D/g, "").slice(0, 10),
 								)
 							}
-							placeholder="0123456789"
+							placeholder="e.g. 0123456789"
 						/>
 					</div>
 
@@ -217,7 +217,7 @@ export function WithdrawModal({
 							type="text"
 							value={withdrawAccountName}
 							onChange={(event) => setWithdrawAccountName(event.target.value)}
-							placeholder="John Doe"
+							placeholder="e.g. John Doe"
 						/>
 					</div>
 
