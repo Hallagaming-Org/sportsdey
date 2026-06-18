@@ -14,10 +14,10 @@ const GAMES = [
 	{ name: "Blackjack", code: "blackjack", category: "others" },
 	{ name: "Slots", code: "slots", category: "others" },
 	{ name: "Plinko", code: "plinko", category: "others" },
-	{ name: "Xcape", code: "XCAPEHB", category: "popular/hot-casino" },
+	{ name: "Xcape", code: "XCAPEHB", category: "popular" },
 	{ name: "Eagle", code: "EAGLEHB", category: "others" },
 	{ name: "Lucky Rise", code: "LUCKYRISEHB", category: "others" },
-	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "popular/hot-casino" },
+	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "popular" },
 ];
 
 function escape(value: string | number | null | undefined): string {
