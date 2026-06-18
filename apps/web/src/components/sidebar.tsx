@@ -173,7 +173,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive(
 				"casino",
 				(location.pathname.startsWith("/games") ||
-				location.pathname.startsWith("/game/")) && params.get("category") !== "pvp",
+					location.pathname.startsWith("/game/")) && params.get("category") !== "pvp",
 			),
 			onClick: goToCasino,
 		},
@@ -286,11 +286,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: LiveSupport,
 			isActive: false,
 			onClick: () =>
-				// window.open(
-				// 	"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
-				// 	"_blank",
-				// ),
-				console.log("clicked"),
+				window.open(
+					"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
+					"_blank",
+				),
 		},
 	];
 
