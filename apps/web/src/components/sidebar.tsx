@@ -85,7 +85,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToCasino = () => {
 		setTab("games");
-		navigate({ to: "/games" });
+		navigate({ to: "/games", search: { category: undefined } });
 	};
 
 	const goToSportsbook = () => {
