@@ -94,8 +94,6 @@ export function TransactionReceipt({
 						</div>
 					</div>
 				</div>
-
-				{/* Bottom Action Area */}
 				<div className="p-6">
 					<button
 						type="button"
