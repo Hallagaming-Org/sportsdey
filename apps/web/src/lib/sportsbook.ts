@@ -54,11 +54,22 @@ export type ToggleWidgetBetslipPayload = {
 	widgetType: "static" | "island";
 };
 
+export type RedirectDestination = "login" | "logout" | "betting-page";
+
+export type RedirectPayload = {
+	destination: RedirectDestination;
+	link?: string;
+};
+
 export type BettingAPI = {
-	subscribe: (
+	subscribe(
 		event: "toggle-widget-betslip",
 		callback: (payload: ToggleWidgetBetslipPayload) => void,
-	) => void;
+	): void;
+	subscribe(
+		event: "redirect",
+		callback: (payload: RedirectPayload) => void,
+	): void;
 };
 
 export type BaseWidgetStyle = {

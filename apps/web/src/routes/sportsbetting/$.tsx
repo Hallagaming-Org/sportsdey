@@ -1,10 +1,10 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
 import { Button } from "@/components/ui/button";
 import { ApiError, apiRequest } from "@/lib/api";
-import { useSession } from "@/lib/auth/client";
+import { signOut, useSession } from "@/lib/auth/client";
 import {
 	buildAppInitOptions,
 	dispatchBettingInit,
@@ -30,6 +30,7 @@ export function SportsbookPage() {
 	const [isLoading, setIsLoading] = useState(true);
 	const initializedTokenRef = useRef<string | null>(null);
 	const previousThemeRef = useRef<boolean | null>(null);
+	const navigate = useNavigate();
 
 	useEffect(() => {
 		const isDarkMode = document.documentElement.classList.contains("dark");
@@ -115,6 +116,30 @@ export function SportsbookPage() {
 					buildAppInitOptions(token, isDarkTheme),
 					(bettingAPI) => {
 						dispatchBettingInit(bettingAPI);
+						bettingAPI.subscribe("redirect", ({ destination, link }) => {
+							switch (destination) {
+								case "login": {
+									navigate({ to: "/auth/sign-in" });
+									break;
+								}
+								case "logout": {
+									signOut().then(() => {
+										navigate({ to: "/auth/sign-in" });
+									});
+									break;
+								}
+								case "betting-page": {
+									navigate({
+										to: "/sportsbetting/$",
+										params: { _splat: link ?? "" },
+									});
+									break;
+								}
+								default: {
+									break;
+								}
+							}
+						});
 					},
 				);
 				initializedTokenRef.current = token;

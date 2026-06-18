@@ -2,7 +2,7 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { createAuth } from "./auth";
+import { createAuth, createHashCookie, getCookiePrefix } from "./auth";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
 import cmsRoute from "./routes/cms";
@@ -94,18 +94,38 @@ app.use(
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
-	const path = c.req.path;
-	console.log(
-		Object.fromEntries(
-			[...c.req.raw.headers.entries()].filter(([k]) =>
-				["authorization", "content-type", "origin", "accept"].includes(
-					k.toLowerCase(),
-				),
-			),
-		),
-	);
 	const auth = getAuth(c.env);
-	return auth.handler(c.req.raw);
+	const response = await auth.handler(c.req.raw);
+
+	const prefix = getCookiePrefix(c.env.NODE_ENV);
+	const cookieName = `${prefix}.session_token`;
+	const setCookies: string[] = [];
+	response.headers.forEach((value, key) => {
+		if (key.toLowerCase() === "set-cookie") {
+			setCookies.push(value);
+		}
+	});
+
+	const tokenCookie = setCookies.find((c) => c.startsWith(`${cookieName}=`));
+	if (tokenCookie) {
+		const match = tokenCookie.match(/=([^;]+)/);
+		if (match) {
+			const token = match[1];
+			if (token) {
+				const hashCookie = createHashCookie(token, c.env.NODE_ENV);
+				response.headers.append("Set-Cookie", hashCookie);
+			} else {
+				const secure = c.env.NODE_ENV !== "development";
+				const secureFlag = secure ? "; Secure" : "";
+				response.headers.append(
+					"Set-Cookie",
+					`${prefix}.session_token_hash=; Path=/; HttpOnly; SameSite=None${secureFlag}; Domain=.sportsdey.com; Max-Age=0`,
+				);
+			}
+		}
+	}
+
+	return response;
 });
 
 app.use("*", async (c, next) => {
