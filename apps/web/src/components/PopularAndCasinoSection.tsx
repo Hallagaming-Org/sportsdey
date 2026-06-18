@@ -101,7 +101,7 @@ const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots"
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
-const HOT_CASINO_LIMIT = 6;
+const HOT_CASINO_LIMIT = 12;
 
 const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
 
@@ -461,7 +461,7 @@ function HotCasinoPanel() {
 	if (isLoading) {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
-				{Array.from({ length: 6 }).map((_, i) => (
+				{Array.from({ length: 10 }).map((_, i) => (
 					<Skeleton
 						key={`casino-skel-${i}`}
 						className="h-[110px] w-full rounded-xl"
