@@ -55,6 +55,10 @@ const CreateCmsContentSchema = z.object({
 	authorName: z.string().min(1).openapi({ description: "Author full name" }),
 });
 
+const UpdateCmsContentSchema = CreateCmsContentSchema.partial().openapi(
+	"UpdateCmsContent",
+);
+
 const CmsContentResponseSchema = z.object({
 	_id: z.string(),
 	title: z.string(),
@@ -155,6 +159,7 @@ cmsRoute.openapi(
 		summary: "List available CMS authors",
 		description:
 			"Fetch all available authors that can be assigned to CMS content. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		responses: {
 			200: {
 				content: {
@@ -419,6 +424,7 @@ cmsRoute.openapi(
 		summary: "List all CMS content",
 		description:
 			"List all CMS content including drafts. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			query: CmsContentQuerySchema,
 		},
@@ -725,6 +731,7 @@ cmsRoute.openapi(
 		path: "/content",
 		summary: "Create CMS content",
 		description: "Create new CMS content. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			body: {
 				content: {
@@ -950,10 +957,344 @@ cmsRoute.openapi(
 
 cmsRoute.openapi(
 	createRoute({
+		method: "put",
+		path: "/content/{id}",
+		summary: "Update CMS content",
+		description:
+			"Update an existing CMS content item by Sanity ID. Requires admin authentication. Send any subset of the create fields to patch only those values.",
+		security: [{ BearerAuth: [] }],
+		request: {
+			params: z.object({
+				id: z.string().openapi({ description: "Sanity content ID" }),
+			}),
+			body: {
+				content: {
+					"application/json": {
+						schema: UpdateCmsContentSchema,
+					},
+				},
+			},
+		},
+		responses: {
+			200: {
+				content: {
+					"application/json": {
+						schema: successResponseSchema(
+							z.object({
+								_id: z.string(),
+								title: z.string(),
+								status: z.enum(["pending", "verified"]),
+							}),
+						),
+					},
+				},
+				description: "Successfully updated content",
+			},
+			400: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Bad request",
+			},
+			401: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Unauthorized",
+			},
+			403: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Forbidden - admin only",
+			},
+			404: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Content not found",
+			},
+		},
+		tags: ["CMS"],
+	}),
+	async (c) => {
+		try {
+			const token = getSessionToken(c.req.raw.headers);
+			const session = await validateAdminSession(c.env, token || "");
+
+			if (
+				!session ||
+				(session.role !== "admin" && session.role !== "super_admin")
+			) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Forbidden - admin only",
+						details: null,
+					},
+					403,
+				);
+			}
+
+			if (
+				session.role !== "super_admin" &&
+				!requirePermission(session, "post_upload_content")
+			) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Forbidden - post_upload_content permission required",
+					},
+					403,
+				);
+			}
+
+			const { id } = c.req.valid("param");
+			const body = c.req.valid("json");
+
+			if (!id || !id.trim()) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Bad request",
+						details: [
+							{
+								field: "id",
+								message: "Content ID is required",
+								code: "invalid_param",
+							},
+						],
+					},
+					400,
+				);
+			}
+
+			const hasUpdate =
+				body.title !== undefined ||
+				body.message !== undefined ||
+				body.contentType !== undefined ||
+				body.bannerImage !== undefined ||
+				body.authorName !== undefined;
+
+			if (!hasUpdate) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Bad request",
+						details: [
+							{
+								field: "body",
+								message:
+									"Provide at least one field to update the CMS content",
+								code: "invalid_body",
+							},
+						],
+					},
+					400,
+				);
+			}
+
+			const client = getSanityServerClient(c.env);
+			const existingDoc = await client.fetch<{
+				_id: string;
+				title: string;
+				category?: string;
+				publishedAt: string;
+				image?: unknown;
+				author?: { _id?: string; name?: string };
+			} | null>(
+				`*[_type == "news" && _id == $id][0]{
+					_id,
+					title,
+					category,
+					publishedAt,
+					image,
+					"author": author->{_id, name}
+				}`,
+				{ id },
+			);
+
+			if (!existingDoc) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Content not found",
+						details: [
+							{
+								field: "id",
+								message: "No content found with the provided ID",
+								code: "not_found",
+							},
+						],
+					},
+					404,
+				);
+			}
+
+			const patch: Record<string, unknown> = {};
+			const unsetFields: string[] = [];
+
+			if (body.title !== undefined) {
+				patch.title = body.title;
+				patch.slug = {
+					_type: "slug",
+					current: slugify(body.title),
+				};
+			}
+
+			if (body.message !== undefined) {
+				patch.body = [
+					{
+						_type: "block",
+						children: [
+							{
+								_type: "span",
+								text: body.message,
+							},
+						],
+					},
+				];
+			}
+
+			if (body.contentType !== undefined) {
+				patch.category = body.contentType;
+			}
+
+			if (body.authorName !== undefined) {
+				const author = await client.fetch<{ _id: string; name: string } | null>(
+					`*[_type == "author" && (name == $authorName || slug.current == $slugifiedName)][0]{
+						_id,
+						name
+					}`,
+					{
+						authorName: body.authorName,
+						slugifiedName: slugify(body.authorName),
+					},
+				);
+
+				if (!author) {
+					return c.json(
+						{
+							success: false as const,
+							error: "Author not found",
+							details: [
+								{
+									field: "authorName",
+									message: "Author with the provided name does not exist",
+									code: "not_found",
+								},
+							],
+						},
+						400,
+					);
+				}
+
+				patch.author = {
+					_type: "reference",
+					_ref: author._id,
+				};
+			}
+
+			if (body.bannerImage !== undefined) {
+				if (body.bannerImage === null) {
+					unsetFields.push("image");
+				} else {
+					try {
+						const base64Data = body.bannerImage.replace(
+							/^data:image\/\w+;base64,/,
+							"",
+						);
+						const buffer = Buffer.from(base64Data, "base64");
+						const asset = await client.assets.upload("image", buffer, {
+							filename: `${slugify(body.title ?? existingDoc.title)}.jpg`,
+						});
+						patch.image = {
+							_type: "image",
+							asset: {
+								_type: "reference",
+								_ref: asset._id,
+							},
+						};
+					} catch (imageError) {
+						console.error("Error uploading image:", imageError);
+					}
+				}
+			}
+
+			if (Object.keys(patch).length === 0 && unsetFields.length === 0) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Bad request",
+						details: [
+							{
+								field: "body",
+								message:
+									"Unable to apply the requested update. Try changing at least one field.",
+								code: "invalid_body",
+							},
+						],
+					},
+					400,
+				);
+			}
+
+			const patchRequest = client.patch(id);
+			if (Object.keys(patch).length > 0) {
+				patchRequest.set(patch);
+			}
+			if (unsetFields.length > 0) {
+				patchRequest.unset(unsetFields);
+			}
+
+			await patchRequest.commit();
+
+			return c.json(
+				{
+					success: true as const,
+					data: {
+						_id: id,
+						title: (body.title ?? existingDoc.title) as string,
+						status: isDraft(id) ? ("pending" as const) : ("verified" as const),
+					},
+				},
+				200,
+			);
+		} catch (error) {
+			console.error("Error updating CMS content:", error);
+			return c.json(
+				{
+					success: false as const,
+					error: "Internal server error",
+					details: [
+						{
+							field: "server",
+							message: "An unexpected error occurred while updating content",
+							code: "internal_error",
+						},
+					],
+				},
+				500,
+			);
+		}
+	},
+);
+
+cmsRoute.openapi(
+	createRoute({
 		method: "delete",
 		path: "/content/{id}",
 		summary: "Delete CMS content",
 		description: "Delete CMS content by ID. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			params: z.object({
 				id: z.string().openapi({ description: "Content ID to delete" }),
