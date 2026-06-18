@@ -1,7 +1,7 @@
 import { ChevronLeft, Copy, Info } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { toBlob } from "html-to-image";
-import NewSportsdeyLogoUrl from "@/logos/NewSportsdeyLogo.svg?url";
+import { LOGO_BASE64 } from "@/logos/logoBase64";
 
 export type ReceiptDetail = {
 	label: string;
@@ -27,7 +27,7 @@ function WatermarkBackground() {
 				{Array.from({ length: 40 }).map((_, i) => (
 					<img
 						key={i}
-						src={NewSportsdeyLogoUrl}
+						src={LOGO_BASE64}
 						alt=""
 						className="w-32 h-auto opacity-40 grayscale"
 					/>
@@ -73,7 +73,8 @@ export function TransactionReceipt({
 				backgroundColor: '#04100B',
 				style: {
 					fontFamily: 'Inter, sans-serif' // Provide a fallback if fonts don't load immediately in the cloned DOM
-				}
+				},
+				cacheBust: true, // Prevents html-to-image caching issues
 			});
 
 			if (!blob) throw new Error("Failed to generate image blob");
@@ -117,7 +118,7 @@ export function TransactionReceipt({
 					<div className="relative z-10 flex flex-col h-full">
 						{/* Header */}
 						<div className="flex items-start justify-between mb-10">
-							<img src={NewSportsdeyLogoUrl} alt="Sportsdey" className="h-8 w-auto" />
+							<img src={LOGO_BASE64} alt="Sportsdey" className="h-8 w-auto" />
 							<div className="text-right">
 								<p className="text-sm font-medium text-white">Transaction Receipt</p>
 							</div>
