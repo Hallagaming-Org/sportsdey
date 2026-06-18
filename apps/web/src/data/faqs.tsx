@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+
 export type FAQ = {
 	question: string;
 	answer: React.ReactNode;
@@ -31,8 +33,14 @@ export const faqs: FAQ[] = [
 	},
 	{
 		question: "Where can I find Sportsdey's Terms & Conditions?",
-		answer:
-			"You can find our Terms and Conditions at the bottom of the website (footer) or check here: sportsdey.com",
+		answer: (
+			<span>
+				Click here to find our terms and conditions {" "}
+				<Link to="/terms" className="text-accent underline hover:text-accent/80">
+					Terms and Conditions
+				</Link>
+			</span>
+		),
 	},
 	{
 		question: "What is the maximum payout?",

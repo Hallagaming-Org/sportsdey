@@ -85,7 +85,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToCasino = () => {
 		setTab("games");
-		navigate({ to: "/games" });
+		navigate({ to: "/games", search: { category: undefined } });
 	};
 
 	const goToSportsbook = () => {
@@ -172,8 +172,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Gamepad2,
 			isActive: isItemActive(
 				"casino",
-				location.pathname.startsWith("/games") ||
-				location.pathname.startsWith("/game/"),
+				(location.pathname.startsWith("/games") ||
+					location.pathname.startsWith("/game/")) && params.get("category") !== "pvp",
 			),
 			onClick: goToCasino,
 		},
@@ -181,12 +181,12 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "p2p",
 			label: "PvP",
 			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} />,
-			isActive: isItemActive("p2p", false) || expandedItems["p2p"],
+			isActive: isItemActive("p2p", location.pathname.startsWith("/games") && params.get("category") === "pvp") || expandedItems["p2p"],
 			subItems: [
 				{
 					id: "pvp-casino",
 					label: "PvP Games",
-					isActive: false,
+					isActive: location.pathname.startsWith("/games") && params.get("category") === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({ to: "/games", search: { category: "pvp" } });
@@ -286,11 +286,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: LiveSupport,
 			isActive: false,
 			onClick: () =>
-				// window.open(
-				// 	"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
-				// 	"_blank",
-				// ),
-				console.log("clicked"),
+				window.open(
+					"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
+					"_blank",
+				),
 		},
 	];
 

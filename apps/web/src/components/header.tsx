@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
-import { ChevronDown, Plus, Undo2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { apiRequest } from "@/lib/api";
@@ -17,20 +17,22 @@ import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
 
-type HeaderProps = {
-	hideSportsNav?: boolean;
-};
+// type HeaderProps = {
+// 	hideSportsNav?: boolean;
+// };
 
-export default function Header({ hideSportsNav = false }: HeaderProps) {
+export default function Header(
+	//{ hideSportsNav = false }: HeaderProps//
+) {
 	const isStaging =
 		import.meta.env.MODE === "staging" ||
 		import.meta.env.VITE_ENVIRONMENT === "staging";
 	const showPreviewUI = isStaging || import.meta.env.DEV;
 	const location = useLocation();
 	const isAuthRoute = location.pathname.startsWith("/auth");
-	const shouldHideSportsNav = hideSportsNav || isAuthRoute;
+	// const shouldHideSportsNav = hideSportsNav || isAuthRoute;
 	const currentSport = useCurrentSport();
-	const { data: session } = useSession();
+	const { data: session, isPending: isSessionLoading } = useSession();
 	// const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
@@ -189,7 +191,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						</div>
 					</div>
 
-					{!shouldHideSportsNav && (
+					{/* {!shouldHideSportsNav && (
 						<nav
 							aria-label="Sports navigation"
 							className="hidden font-bold text-sm lg:flex lg:items-center lg:gap-6"
@@ -217,7 +219,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								Favorites
 							</Link>
 
-							{/* Legacy Sports Nav - Commented out as requested
+					
 							{links.map((l) => {
 								const isActive = (currentSport || SPORTS.FOOTBALL) === l.sport;
 								const Icon = l.icon as React.FC<any>;
@@ -241,9 +243,9 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									</Link>
 								);
 							})}
-							*/}
+							
 						</nav>
-					)}
+					)} */}
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && !!session?.user && (
@@ -311,7 +313,23 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 							</svg>
 						</button>
 
-						{!isAuthRoute && showPreviewUI && <UserMenu />}
+						{!isAuthRoute && showPreviewUI && (
+							isSessionLoading ? (
+								<div className="h-8 w-24 animate-pulse rounded-full bg-white/10" />
+							) : session?.user ? (
+								<UserMenu />
+							) : (
+								<div className="flex justify-center gap-x-2">
+									<Link to="/auth/sign-in" className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
+										Log in
+									</Link>
+									<Link to="/auth/sign-up" className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
+										Open an account
+										<ChevronRight className="h-3.5 w-3.5" />
+									</Link>
+								</div>
+							)
+						)}
 						{isAuthRoute && (
 							<button
 								type="button"

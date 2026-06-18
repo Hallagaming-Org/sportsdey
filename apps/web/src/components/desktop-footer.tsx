@@ -190,7 +190,7 @@ export default function DesktopFooter() {
 					</ul>
 				</div>
 
-				<div className="flex flex-row items-center gap-3 lg:flex-col lg:items-start">
+				<div className="flex w-full flex-row items-center justify-center gap-3 md:flex-col lg:items-start">
 					<button
 						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() => window.open("https://apps.apple.com", "_blank")}
@@ -268,7 +268,7 @@ export default function DesktopFooter() {
 					].map((provider) => (
 						<div
 							key={provider.name}
-							className="flex h-[58px] w-[116.98px] items-center justify-center rounded"
+							className="flex h-[40px] w-[80px] md:h-[58px] md:w-[116.98px] items-center justify-center rounded"
 						>
 							<img
 								src={provider.logo}

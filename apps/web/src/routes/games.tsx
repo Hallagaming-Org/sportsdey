@@ -16,7 +16,7 @@ import FilerAToZ from "@/logos/FilerAToZ";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
-	validateSearch: (search: Record<string, unknown>) => ({
+	validateSearch: (search: Record<string, unknown>): { category?: string } => ({
 		category: (search.category as string) || undefined,
 	}),
 });
@@ -34,7 +34,6 @@ const CATEGORIES = [
 	"jackpot",
 	"lottery",
 	"others",
-	"pvp",
 	"roulette",
 	"scratch",
 ] as const;
@@ -52,7 +51,6 @@ const CATEGORY_EMOJIS: Record<string, string> = {
 	"jackpot": "💰",
 	"lottery": "🎟️",
 	"others": "🧩",
-	"pvp": "⚔️",
 	"roulette": "🎡",
 	"scratch": "🎫",
 };
@@ -179,9 +177,7 @@ function GamesPage() {
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
 	useEffect(() => {
-		if (category) {
-			setSelectedCategory(category);
-		}
+		setSelectedCategory(category || null);
 	}, [category]);
 
 	useEffect(() => {

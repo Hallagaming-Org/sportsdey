@@ -101,7 +101,19 @@ const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots"
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
-const HOT_CASINO_LIMIT = 6;
+const HOT_CASINO_LIMIT = 12;
+
+const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+
+const isPopularGame = (game: Game) => {
+	return POPULAR_GAME_NAMES.some((name) =>
+		game.name.toLowerCase().includes(name.toLowerCase()),
+	);
+};
+
+const isThundrGame = (code: string) => {
+	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
+};
 
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
@@ -385,7 +397,7 @@ function HotCasinoPanel() {
 		return a.name.localeCompare(b.name);
 	});
 
-	const hotGames = sortedGames.slice(0, HOT_CASINO_LIMIT);
+	const hotGames = sortedGames.filter(isPopularGame).slice(0, HOT_CASINO_LIMIT);
 
 	const handleGameClick = useCallback(
 		async (game: Game) => {
@@ -448,11 +460,11 @@ function HotCasinoPanel() {
 
 	if (isLoading) {
 		return (
-			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-hidden pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
-				{Array.from({ length: 6 }).map((_, i) => (
+			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
+				{Array.from({ length: 10 }).map((_, i) => (
 					<Skeleton
 						key={`casino-skel-${i}`}
-						className="h-44 min-w-[55%] rounded-xl lg:min-w-0"
+						className="h-[110px] w-full rounded-xl"
 					/>
 				))}
 			</div>
@@ -468,7 +480,7 @@ function HotCasinoPanel() {
 	}
 
 	return (
-		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[minmax(160px,55%)] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2 lg:snap-none lg:auto-cols-auto lg:grid-flow-row lg:grid-cols-3 lg:gap-4 lg:overflow-visible lg:pr-0 lg:pb-0 xl:grid-cols-6">
+		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
 			{hotGames.map((game) => {
 				const known = KNOWN_GAMES[game.code];
 				const display = {
@@ -485,7 +497,7 @@ function HotCasinoPanel() {
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
-						className="group relative flex aspect-square w-full h-44 min-w-[55%] snap-start flex-col items-center justify-end overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 lg:min-w-0 lg:snap-none lg:h-auto"
+						className="group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
 						style={{ background: display.gradient }}
 					>
 						{isLoadingThis && (
@@ -514,6 +526,16 @@ function HotCasinoPanel() {
 								<span className="font-bold text-4xl text-white/50">
 									{display.name.charAt(0)}
 								</span>
+							</div>
+						)}
+						{isThundrGame(game.code) && (
+							<div className="relative z-[1] w-full text-center pb-2">
+								<p
+									className="truncate font-normal text-sm text-white"
+									style={{ fontFamily: "Luckiest Guy" }}
+								>
+									{display.name}
+								</p>
 							</div>
 						)}
 					</button>
