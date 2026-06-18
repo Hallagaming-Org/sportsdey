@@ -17,18 +17,20 @@ import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
 
-type HeaderProps = {
-	hideSportsNav?: boolean;
-};
+// type HeaderProps = {
+// 	hideSportsNav?: boolean;
+// };
 
-export default function Header({ hideSportsNav = false }: HeaderProps) {
+export default function Header(
+	//{ hideSportsNav = false }: HeaderProps//
+) {
 	const isStaging =
 		import.meta.env.MODE === "staging" ||
 		import.meta.env.VITE_ENVIRONMENT === "staging";
 	const showPreviewUI = isStaging || import.meta.env.DEV;
 	const location = useLocation();
 	const isAuthRoute = location.pathname.startsWith("/auth");
-	const shouldHideSportsNav = hideSportsNav || isAuthRoute;
+	// const shouldHideSportsNav = hideSportsNav || isAuthRoute;
 	const currentSport = useCurrentSport();
 	const { data: session } = useSession();
 	// const { setTab, tab } = useActiveTab();
@@ -189,7 +191,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 						</div>
 					</div>
 
-					{!shouldHideSportsNav && (
+					{/* {!shouldHideSportsNav && (
 						<nav
 							aria-label="Sports navigation"
 							className="hidden font-bold text-sm lg:flex lg:items-center lg:gap-6"
@@ -217,7 +219,7 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 								Favorites
 							</Link>
 
-							{/* Legacy Sports Nav - Commented out as requested
+					
 							{links.map((l) => {
 								const isActive = (currentSport || SPORTS.FOOTBALL) === l.sport;
 								const Icon = l.icon as React.FC<any>;
@@ -241,9 +243,9 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 									</Link>
 								);
 							})}
-							*/}
+							
 						</nav>
-					)}
+					)} */}
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && !!session?.user && (
