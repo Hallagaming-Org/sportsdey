@@ -1,17 +1,12 @@
+import { Link } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
-
-type WalletTransaction = {
-	id: string;
-	userId: string;
-	amount?: number | null;
-	type: string;
-	reference: string;
-	status: string;
-	paymentMethod?: string | null;
-	metadata?: Record<string, unknown> | null;
-	createdAt?: string | null;
-};
+import {
+	formatTransactionDate,
+	getTransactionDetails,
+	type WalletTransaction,
+} from "@/lib/wallet-transactions";
 
 type WalletRecentTransactionsProps = {
 	transactions: WalletTransaction[];
@@ -23,30 +18,6 @@ const statusBadgeStyles = {
 	pending: "bg-[#FFF9E6] text-[#B58E2A]",
 	failed: "bg-[#FCE8E6] text-[#C5221F]",
 };
-
-function formatDateMMMdyyyy(value: string | null | undefined): string {
-	if (!value) return "Recent";
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return "Recent";
-	const months = [
-		"Jan",
-		"Feb",
-		"Mar",
-		"Apr",
-		"May",
-		"Jun",
-		"Jul",
-		"Aug",
-		"Sep",
-		"Oct",
-		"Nov",
-		"Dec",
-	];
-	const month = months[date.getMonth()];
-	const day = date.getDate();
-	const year = date.getFullYear();
-	return `${month} ${day}, ${year}`;
-}
 
 function TransactionIcon({ type }: { type: string }) {
 	switch (type) {
@@ -181,125 +152,6 @@ function TransactionIcon({ type }: { type: string }) {
 	}
 }
 
-function getTransactionDetails(transaction: WalletTransaction) {
-	const typeLower = (transaction.type || "").toLowerCase();
-	const statusLower = (transaction.status || "").toLowerCase();
-	const methodLower = (transaction.paymentMethod || "").toLowerCase();
-	const meta = transaction.metadata as Record<
-		string,
-		string | undefined
-	> | null;
-
-	let title = "Transaction";
-	let iconType:
-		| "transfer"
-		| "mtn"
-		| "deposit"
-		| "withdrawal"
-		| "electricity"
-		| "airtel"
-		| "default" = "default";
-	let statusText: "Successful" | "Pending" | "Failed" = "Pending";
-	let statusColor: "success" | "pending" | "failed" = "pending";
-
-	if (
-		statusLower === "success" ||
-		statusLower === "completed" ||
-		statusLower === "successful"
-	) {
-		statusText = "Successful";
-		statusColor = "success";
-	} else if (statusLower === "failed" || statusLower === "failure") {
-		statusText = "Failed";
-		statusColor = "failed";
-	} else {
-		statusText = "Pending";
-		statusColor = "pending";
-	}
-
-	if (methodLower === "wallet_transfer") {
-		const isDebit =
-			typeLower === "debit" || (transaction.amount && transaction.amount < 0);
-		const transferType = meta?.transferType;
-		if (transferType === "to_game_wallet") {
-			title = "Transfer to game wallet";
-			iconType = "transfer";
-		} else if (isDebit) {
-			title = "Transfer to friend";
-			iconType = "transfer";
-		} else {
-			title = "Received from friend";
-			iconType = "transfer";
-		}
-	} else if (
-		methodLower === "card" ||
-		methodLower === "paystack" ||
-		methodLower === "bank transfer" ||
-		methodLower === "bank_transfer"
-	) {
-		const isCredit =
-			typeLower === "credit" || (transaction.amount && transaction.amount > 0);
-		if (isCredit) {
-			title = "Deposit";
-			iconType = "deposit";
-		} else {
-			title = "Withdrawal";
-			iconType = "withdrawal";
-		}
-	} else if (
-		methodLower === "thndr games" ||
-		methodLower === "lucky games" ||
-		methodLower === "lagos rush" ||
-		methodLower === "slotegrator games"
-	) {
-		const action = meta?.action || "";
-		const gameName = meta?.game || "Casino";
-		if (action === "bet") {
-			title = `${gameName} - Bet`;
-		} else if (action === "win") {
-			title = `${gameName} - Win`;
-		} else if (
-			action === "refund" ||
-			action === "rollback" ||
-			action === "reset" ||
-			action === "settlement"
-		) {
-			title = `${gameName} - Refund`;
-		} else {
-			title = `${gameName} Game`;
-		}
-		iconType = "default";
-	} else if (meta?.service) {
-		const service = String(meta.service);
-		if (service === "AIRTIME" || service === "DATA_BUNDLE") {
-			title =
-				`${meta.billerName || "Airtime/Data"} ${meta.customerId || ""}`.trim();
-			iconType = "mtn";
-		} else if (service === "ELECTRICITY") {
-			title =
-				`Electricity Bill ${meta.customerId || ""}`.trim() ||
-				"Electricity Bill pay...";
-			iconType = "electricity";
-		} else if (service === "CABLE_TV") {
-			title = `Cable TV ${meta.customerId || ""}`.trim() || "Cable TV";
-			iconType = "airtel";
-		} else {
-			title = "Bill Payment";
-			iconType = "default";
-		}
-	} else {
-		if (typeLower === "credit") {
-			title = "Deposit";
-			iconType = "deposit";
-		} else {
-			title = "Withdrawal";
-			iconType = "withdrawal";
-		}
-	}
-
-	return { title, iconType, statusText, statusColor };
-}
-
 export function WalletRecentTransactions({
 	transactions,
 	isLoading,
@@ -307,7 +159,7 @@ export function WalletRecentTransactions({
 	const mappedTransactions = (transactions || []).slice(0, 10).map((tx) => {
 		const { title, iconType, statusText, statusColor } =
 			getTransactionDetails(tx);
-		const dateString = formatDateMMMdyyyy(tx.createdAt);
+		const dateString = formatTransactionDate(tx.createdAt);
 		return {
 			id: tx.id,
 			title,
@@ -322,9 +174,18 @@ export function WalletRecentTransactions({
 
 	return (
 		<>
-			<p className="mt-4 font-semibold text-[20px] text-primary dark:text-white">
-				Recent Transactions
-			</p>
+			<div className="mt-4 flex items-center justify-between gap-4">
+				<p className="font-semibold text-[20px] text-primary dark:text-white">
+					Recent Transactions
+				</p>
+				<Link
+					to="/wallet/transactions"
+					className="flex h-8 w-8 items-center justify-center rounded-full border border-[#1C1C1E] bg-[#000000] text-[#9CA3AF] transition-colors hover:border-[#1EAD5F] hover:text-[#1EAD5F]"
+					aria-label="View recent transactions"
+				>
+					<ChevronRight className="h-4 w-4" />
+				</Link>
+			</div>
 			<div
 				className={`better-scrollbar mt-2 flex max-h-[355px] min-h-[355px] flex-col overflow-y-auto rounded-[24px] border border-[#1C1C1E] bg-[#000000] px-6 py-2 shadow-sm ${hasNoTransactions ? "justify-center" : ""}`}
 			>

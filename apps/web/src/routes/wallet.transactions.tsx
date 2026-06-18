@@ -1,21 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { CalendarRange, X } from "lucide-react";
-import { useMemo } from "react";
+import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import z from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { formatAmount } from "@/lib/utils";
-import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
 import {
 	formatTransactionDate,
 	getTransactionDetails,
 	groupTransactionsByMonth,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
-import z from "zod";
+import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
 
 const statusBadgeStyles = {
 	success: "bg-[#E2F9EE] text-[#0F9D58]",
@@ -79,6 +78,29 @@ function WalletTransactionsPage() {
 		[transactions],
 	);
 
+	const [activePicker, setActivePicker] = useState<string | null>(null);
+	const pickerRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (!activePicker) return;
+		const handler = (e: MouseEvent) => {
+			if (
+				pickerRef.current &&
+				!pickerRef.current.contains(e.target as Node)
+			) {
+				setActivePicker(null);
+			}
+		};
+		const timer = setTimeout(
+			() => document.addEventListener("mousedown", handler),
+			0,
+		);
+		return () => {
+			clearTimeout(timer);
+			document.removeEventListener("mousedown", handler);
+		};
+	}, [activePicker]);
+
 	const updateSearch = (nextSearch: {
 		month?: string;
 		from?: string;
@@ -104,20 +126,6 @@ function WalletTransactionsPage() {
 		);
 	};
 
-	const handleRangeChange = (field: "from" | "to", value: string) => {
-		updateSearch({
-			month: undefined,
-			from: field === "from" ? value || undefined : search.from,
-			to: field === "to" ? value || undefined : search.to,
-		});
-	};
-
-	const activeFilterLabel = search.month
-		? `Month: ${search.month}`
-		: search.from || search.to
-			? `Range: ${search.from || "Start"} to ${search.to || "End"}`
-			: "All recent transactions";
-
 	if (!isSessionLoading && !session?.user) {
 		return <Navigate to="/auth/sign-in" />;
 	}
@@ -129,7 +137,7 @@ function WalletTransactionsPage() {
 	const transactionsContent =
 		error && !(error instanceof ApiError && error.status === 401) ? (
 			<div className="flex min-h-[360px] flex-col items-center justify-center text-center">
-				<p className="font-semibold text-primary text-lg dark:text-white">
+				<p className="font-semibold text-lg text-primary dark:text-white">
 					Unable to load transactions
 				</p>
 				<p className="mt-2 max-w-md text-[#6C7073] text-sm">
@@ -157,7 +165,7 @@ function WalletTransactionsPage() {
 							{[...Array(3)].map((__, rowIndex) => (
 								<div
 									key={rowIndex}
-									className="flex items-center justify-between gap-4 border-b border-[#1C1C1E] py-4 last:border-b-0"
+									className="flex items-center justify-between gap-4 border-[#1C1C1E] border-b py-4 last:border-b-0"
 								>
 									<div className="flex items-center gap-4">
 										<Skeleton className="h-12 w-12 rounded-full bg-[#1C1C1E]" />
@@ -180,7 +188,7 @@ function WalletTransactionsPage() {
 					alt="No transactions"
 					className="mx-auto h-20 w-20 max-w-[180px]"
 				/>
-				<p className="mt-4 font-medium text-primary text-base dark:text-[#9CA3AF]">
+				<p className="mt-4 font-medium text-base text-primary dark:text-[#9CA3AF]">
 					No transactions found for this filter.
 				</p>
 				<p className="mt-2 max-w-md text-[#6C7073] text-sm">
@@ -202,9 +210,41 @@ function WalletTransactionsPage() {
 				{groupedTransactions.map((group) => (
 					<section key={group.monthKey} className="space-y-3">
 						<div className="flex items-center justify-between">
-							<h2 className="font-semibold text-[18px] text-primary dark:text-white">
-								{group.label}
-							</h2>
+							<div className="relative">
+								<button
+									type="button"
+									onClick={() =>
+										setActivePicker(
+											activePicker === group.monthKey
+												? null
+												: group.monthKey,
+										)
+									}
+									className="flex cursor-pointer items-center gap-2 border-none bg-transparent p-0"
+								>
+									<h2 className="font-semibold text-[18px] text-primary dark:text-white">
+										{group.label}
+									</h2>
+									<ChevronDown className="h-4 w-4 text-[#9CA3AF]" />
+								</button>
+								{activePicker === group.monthKey && (
+									<div
+										ref={pickerRef}
+										className="absolute top-full left-0 z-50 mt-1"
+									>
+										<input
+											type="month"
+											value={group.monthKey}
+											onChange={(e) => {
+												handleMonthChange(e.target.value);
+												setActivePicker(null);
+											}}
+											autoFocus
+											className="w-48 rounded-lg border border-[#1B2722] bg-[#04100B] px-3 py-2 text-white shadow-lg [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-[#1EAD5F]"
+										/>
+									</div>
+								)}
+							</div>
 							<span className="rounded-full border border-[#1B2722] bg-[#04100B] px-3 py-1 text-[#9CA3AF] text-xs">
 								{group.transactions.length} transaction
 								{group.transactions.length === 1 ? "" : "s"}
@@ -219,7 +259,7 @@ function WalletTransactionsPage() {
 								return (
 									<div
 										key={transaction.id}
-										className={`flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${index !== group.transactions.length - 1 ? "border-b border-[#1C1C1E]" : ""}`}
+										className={`flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${index !== group.transactions.length - 1 ? "border-[#1C1C1E] border-b" : ""}`}
 									>
 										<div className="flex items-center gap-4">
 											<TransactionIcon type={iconType} />
@@ -264,73 +304,15 @@ function WalletTransactionsPage() {
 			<div className="rounded-[28px] border border-[#1B2722] bg-[#04100B] p-6 shadow-sm">
 				<div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
 					<div className="space-y-2">
-						<p className="text-[12px] font-semibold uppercase tracking-[0.24em] text-[#6C7073]">
+						<p className="font-semibold text-[#6C7073] text-[12px] uppercase tracking-[0.24em]">
 							Wallet
 						</p>
 						<h1 className="font-semibold text-[32px] text-primary dark:text-white">
 							Recent Transactions
 						</h1>
 						<p className="max-w-2xl text-[#9CA3AF] text-sm">
-							Filter by month or date range, then review transactions grouped by
-							month.
+							Click a month heading to filter transactions by month.
 						</p>
-					</div>
-					<div className="flex items-center gap-3">
-						<CalendarRange className="h-5 w-5 text-[#1EAD5F]" />
-						<span className="rounded-full border border-[#1B2722] bg-[#000606] px-4 py-2 text-[#D1D5DB] text-sm">
-							{activeFilterLabel}
-						</span>
-					</div>
-				</div>
-
-				<div className="mt-6 grid gap-4 rounded-2xl border border-[#1B2722] bg-[#000606] p-4 lg:grid-cols-[1fr_1fr_auto]">
-					<label className="space-y-2">
-						<span className="block text-[#9CA3AF] text-xs uppercase tracking-[0.18em]">
-							Month
-						</span>
-						<Input
-							type="month"
-							value={search.month ?? ""}
-							onChange={(event) => handleMonthChange(event.target.value)}
-							className="border-[#1B2722] bg-[#04100B] text-white"
-						/>
-					</label>
-					<div className="grid gap-4 sm:grid-cols-2">
-						<label className="space-y-2">
-							<span className="block text-[#9CA3AF] text-xs uppercase tracking-[0.18em]">
-								From
-							</span>
-							<Input
-								type="date"
-								value={search.from ?? ""}
-								onChange={(event) =>
-									handleRangeChange("from", event.target.value)
-								}
-								className="border-[#1B2722] bg-[#04100B] text-white"
-							/>
-						</label>
-						<label className="space-y-2">
-							<span className="block text-[#9CA3AF] text-xs uppercase tracking-[0.18em]">
-								To
-							</span>
-							<Input
-								type="date"
-								value={search.to ?? ""}
-								onChange={(event) => handleRangeChange("to", event.target.value)}
-								className="border-[#1B2722] bg-[#04100B] text-white"
-							/>
-						</label>
-					</div>
-					<div className="flex items-end gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={clearFilters}
-							className="border-[#1B2722] bg-[#04100B] text-white hover:bg-[#0C1A13]"
-						>
-							<X className="h-4 w-4" />
-							Clear
-						</Button>
 					</div>
 				</div>
 			</div>

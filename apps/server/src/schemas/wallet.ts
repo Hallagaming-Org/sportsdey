@@ -101,6 +101,23 @@ export const GetTransactionsErrorSchema = z
 	})
 	.openapi("GetTransactionsError");
 
+export const GetTransactionsQuerySchema = z
+	.object({
+		month: z.string().optional().openapi({
+			description: "Filter transactions by month in YYYY-MM format",
+			example: "2026-06",
+		}),
+		from: z.string().optional().openapi({
+			description: "Filter transactions from this date in YYYY-MM-DD format",
+			example: "2026-06-01",
+		}),
+		to: z.string().optional().openapi({
+			description: "Filter transactions up to this date in YYYY-MM-DD format",
+			example: "2026-06-30",
+		}),
+	})
+	.openapi("GetTransactionsQuery");
+
 export const GetTransactionsResponseSchema = z
 	.object({
 		success: z.literal(true).openapi({ description: "Success status" }),
