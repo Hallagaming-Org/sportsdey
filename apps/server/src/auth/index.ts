@@ -89,11 +89,7 @@ export const createAuth = (env: CloudflareBindings) => {
 		secret: env.BETTER_AUTH_SECRET,
 		trustedOrigins,
 		advanced: {
-			crossSubDomainCookies: {
-				enabled: true,
-				// domain: "sportsdey.com",
-			},
-			cookiePrefix: getCookiePrefix(env.NODE_ENV),
+			cookiePrefix: "ba",
 			cookieOptions: {
 				sameSite: env.NODE_ENV === "development" ? "lax" : "none",
 				secure: env.NODE_ENV !== "development",
@@ -103,16 +99,20 @@ export const createAuth = (env: CloudflareBindings) => {
 	});
 };
 
-export function getCookiePrefix(nodeEnv?: string): string {
-	return nodeEnv === "development" ? "ba" : "__Secure-ba";
+export function getCookiePrefix(): string {
+	return "ba";
+}
+
+function secureEnv(nodeEnv?: string): boolean {
+	return nodeEnv === "production" || nodeEnv === "staging";
 }
 
 export function createSessionCookieString(
 	token: string,
 	nodeEnv?: string,
 ): string {
-	const prefix = getCookiePrefix(nodeEnv);
-	const secure = nodeEnv === "production" || nodeEnv === "staging";
+	const secure = secureEnv(nodeEnv);
+	const prefix = secure ? "__Secure-ba" : "ba";
 	const secureFlag = secure ? "; Secure" : "";
 	const sameSite = nodeEnv === "development" ? "Lax" : "None";
 	return `${prefix}.session_token=${token}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
@@ -122,8 +122,8 @@ export function createHashCookie(
 	token: string,
 	nodeEnv?: string,
 ): string {
-	const prefix = getCookiePrefix(nodeEnv);
-	const secure = nodeEnv === "production" || nodeEnv === "staging";
+	const secure = secureEnv(nodeEnv);
+	const prefix = secure ? "__Secure-ba" : "ba";
 	const secureFlag = secure ? "; Secure" : "";
 	return `${prefix}.session_token_hash=${token}; Path=/; HttpOnly; SameSite=None${secureFlag}; Domain=.sportsdey.com; Max-Age=${7 * 24 * 60 * 60}`;
 }
