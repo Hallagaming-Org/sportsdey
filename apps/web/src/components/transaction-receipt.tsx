@@ -1,6 +1,7 @@
 import { Copy, Info, X } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { toPng } from "html-to-image";
+import SportsdeyLogoUrl from "@/logos/SportsdeyLogo.png";
 
 export type ReceiptDetail = {
 	label: string;
@@ -21,12 +22,15 @@ export type TransactionReceiptProps = {
 
 function WatermarkBackground() {
 	return (
-		<div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-5">
-			<div className="w-[150%] h-[150%] -translate-x-[25%] -translate-y-[25%] -rotate-45 flex flex-wrap items-center justify-center pt-20">
-				{Array.from({ length: 150 }).map((_, i) => (
-					<div key={i} className="px-6 py-4 font-black text-2xl tracking-widest text-white whitespace-nowrap">
-						SPORTSDEY
-					</div>
+		<div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-[0.03]">
+			<div className="w-[150%] h-[150%] -translate-x-[25%] -translate-y-[25%] -rotate-45 flex flex-wrap gap-8 items-center justify-center pt-20">
+				{Array.from({ length: 40 }).map((_, i) => (
+					<img
+						key={i}
+						src={SportsdeyLogoUrl}
+						alt=""
+						className="w-32 h-auto grayscale"
+					/>
 				))}
 			</div>
 		</div>
@@ -67,12 +71,14 @@ export function TransactionReceipt({
 				pixelRatio: 2,
 				backgroundColor: '#04100B',
 				style: {
-					fontFamily: 'Inter, sans-serif'
+					fontFamily: 'Inter, sans-serif',
+					transform: 'scale(1)',
+					transformOrigin: 'top left'
 				},
 				cacheBust: true,
 			});
 
-			if (!dataUrl) throw new Error("Failed to generate image");
+			if (!dataUrl || dataUrl === 'data:,') throw new Error("Generated image is empty");
 
 			const link = document.createElement('a');
 			link.href = dataUrl;
@@ -81,8 +87,8 @@ export function TransactionReceipt({
 			link.click();
 			document.body.removeChild(link);
 		} catch (error) {
-			console.error("Error sharing receipt:", error);
-			alert("Unable to generate and share receipt. Please try again.");
+			console.error("Error generating receipt:", error);
+			alert("Error generating receipt: " + (error instanceof Error ? error.message : String(error)));
 		} finally {
 			setIsSharing(false);
 		}
@@ -99,23 +105,19 @@ export function TransactionReceipt({
 	return (
 		<>
 			{/* HIDDEN RECEIPT FOR HTML-TO-IMAGE */}
-			<div className="fixed top-0 left-[-9999px] z-[-1] pointer-events-none">
+			{/* Positioned behind the modal backdrop instead of offscreen to prevent culling issues in Safari */}
+			<div className="fixed inset-0 z-[-1] pointer-events-none flex items-center justify-center overflow-hidden opacity-0">
 				<div
 					ref={receiptRef}
 					className="relative flex flex-col bg-[#04100B] text-white overflow-hidden"
-					style={{ width: "400px", minHeight: "650px", padding: "32px 24px" }}
+					style={{ width: "400px", height: "650px", padding: "32px 24px" }}
 				>
 					<WatermarkBackground />
 
 					<div className="relative z-10 flex flex-col h-full">
 						{/* Header */}
 						<div className="flex items-start justify-between mb-10">
-							<div className="flex items-center gap-1">
-								<div className="flex items-center justify-center bg-[#00D600] rounded-sm w-7 h-7">
-									<span className="font-black text-white text-xs italic">SD</span>
-								</div>
-								<span className="font-black text-xl italic tracking-tight">SportsDey</span>
-							</div>
+							<img src={SportsdeyLogoUrl} alt="Sportsdey" className="h-8 w-auto object-contain" />
 							<div className="text-right">
 								<p className="text-sm font-medium text-white">Transaction Receipt</p>
 							</div>
@@ -209,7 +211,7 @@ export function TransactionReceipt({
 										<span className="text-[#6C7073]">{detail.label}</span>
 										<div className="flex items-center gap-2">
 											<span
-												className={`font-medium ${detail.valueClassName || "text-white"}`}
+												className={`font-medium text-[10px] ${detail.valueClassName || "text-white"}`}
 											>
 												{detail.value}
 											</span>
