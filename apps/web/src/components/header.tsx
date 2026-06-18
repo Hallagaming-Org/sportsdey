@@ -32,7 +32,7 @@ export default function Header(
 	const isAuthRoute = location.pathname.startsWith("/auth");
 	// const shouldHideSportsNav = hideSportsNav || isAuthRoute;
 	const currentSport = useCurrentSport();
-	const { data: session } = useSession();
+	const { data: session, isPending: isSessionLoading } = useSession();
 	// const { setTab, tab } = useActiveTab();
 	// const { totalFavoritesCount } = useFavorites();
 
@@ -313,16 +313,23 @@ export default function Header(
 							</svg>
 						</button>
 
-						{!isAuthRoute && showPreviewUI &&
-							<div className="flex justify-center gap-x-2">
-								<Link to="/auth/sign-in" className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
-									Log in
-								</Link>
-								<Link to="/auth/sign-up" className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
-									Open an account
-									<ChevronRight className="h-3.5 w-3.5" />
-								</Link>
-							</div>}
+						{!isAuthRoute && showPreviewUI && (
+							isSessionLoading ? (
+								<div className="h-8 w-24 animate-pulse rounded-full bg-white/10" />
+							) : session?.user ? (
+								<UserMenu />
+							) : (
+								<div className="flex justify-center gap-x-2">
+									<Link to="/auth/sign-in" className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
+										Log in
+									</Link>
+									<Link to="/auth/sign-up" className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
+										Open an account
+										<ChevronRight className="h-3.5 w-3.5" />
+									</Link>
+								</div>
+							)
+						)}
 						{isAuthRoute && (
 							<button
 								type="button"
