@@ -78,25 +78,14 @@ export function TransactionReceipt({
 
 			if (!blob) throw new Error("Failed to generate image blob");
 
-			const file = new File([blob], "transaction-receipt.png", { type: "image/png" });
-
-			// Use Web Share API if supported
-			if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-				await navigator.share({
-					files: [file],
-					title: "Sportsdey Transaction Receipt",
-				});
-			} else {
-				// Fallback to download
-				const url = URL.createObjectURL(blob);
-				const link = document.createElement('a');
-				link.href = url;
-				link.download = "sportsdey-receipt.png";
-				document.body.appendChild(link);
-				link.click();
-				document.body.removeChild(link);
-				URL.revokeObjectURL(url);
-			}
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = "sportsdey-receipt.png";
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			URL.revokeObjectURL(url);
 		} catch (error) {
 			console.error("Error sharing receipt:", error);
 			alert("Unable to generate and share receipt. Please try again.");
@@ -252,7 +241,7 @@ export function TransactionReceipt({
 							disabled={isSharing}
 							className="w-full flex items-center justify-center cursor-pointer rounded-lg bg-[#00D600] py-4 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
 						>
-							{isSharing ? "Generating..." : "Share"}
+							{isSharing ? "Generating..." : "Download"}
 						</button>
 					</div>
 				</div>
