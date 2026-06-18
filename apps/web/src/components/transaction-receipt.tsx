@@ -100,7 +100,7 @@ export function TransactionReceipt({
 					<button
 						type="button"
 						onClick={onShare}
-						className="w-full cursor-pointer rounded-full bg-[#00D600] py-4 font-bold text-white transition-opacity hover:opacity-90"
+						className="w-full cursor-pointer rounded-lg bg-[#00D600] py-4 font-bold text-white transition-opacity hover:opacity-90"
 					>
 						Share
 					</button>
