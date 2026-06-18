@@ -2,7 +2,7 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { createAuth, createHashCookie, getCookiePrefix } from "./auth";
+import { createAuth, createHashCookie } from "./auth";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
 import cmsRoute from "./routes/cms";
@@ -97,8 +97,6 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 	const auth = getAuth(c.env);
 	const response = await auth.handler(c.req.raw);
 
-	const prefix = getCookiePrefix(c.env.NODE_ENV);
-	const cookieName = `${prefix}.session_token`;
 	const setCookies: string[] = [];
 	response.headers.forEach((value, key) => {
 		if (key.toLowerCase() === "set-cookie") {
@@ -106,11 +104,19 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 		}
 	});
 
-	const tokenCookie = setCookies.find((c) => c.startsWith(`${cookieName}=`));
+	const tokenCookie = setCookies.find(
+		(c) =>
+			c.startsWith("__Secure-ba.session_token=") ||
+			c.startsWith("ba.session_token="),
+	);
 	if (tokenCookie) {
+		const actualPrefix = tokenCookie.startsWith("__Secure-")
+			? "__Secure-ba"
+			: "ba";
 		const match = tokenCookie.match(/=([^;]+)/);
 		if (match) {
 			const token = match[1];
+			console.log("session_token",token)
 			if (token) {
 				const hashCookie = createHashCookie(token, c.env.NODE_ENV);
 				response.headers.append("Set-Cookie", hashCookie);
@@ -119,7 +125,7 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 				const secureFlag = secure ? "; Secure" : "";
 				response.headers.append(
 					"Set-Cookie",
-					`${prefix}.session_token_hash=; Path=/; HttpOnly; SameSite=None${secureFlag}; Domain=.sportsdey.com; Max-Age=0`,
+					`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; SameSite=None${secureFlag}; Domain=.sportsdey.com; Max-Age=0`,
 				);
 			}
 		}
