@@ -4,6 +4,7 @@ import { and, desc, eq, gt, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
+import { createHashCookie, getCookiePrefix } from "@/auth";
 import type { CloudflareBindings } from "../types";
 
 const phoneAuthRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -390,12 +391,19 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		c.json();
 	}
 
+	const prefix = getCookiePrefix(c.env.NODE_ENV);
 	const secure =
 		c.env.NODE_ENV === "production" || c.env.NODE_ENV === "staging";
 	const secureFlag = secure ? "; Secure" : "";
-	const cookieSuffix = `; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
+	const sameSite = c.env.NODE_ENV === "development" ? "Lax" : "None";
+	const cookieSuffix = `; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
 
-	c.header("Set-Cookie", `ba.session_token=${token}${cookieSuffix}`, {
+	c.header("Set-Cookie", `${prefix}.session_token=${token}${cookieSuffix}`, {
+		append: true,
+	});
+
+	const hashCookie = createHashCookie(token, c.env.NODE_ENV);
+	c.header("Set-Cookie", hashCookie, {
 		append: true,
 	});
 
