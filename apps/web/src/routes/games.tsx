@@ -34,7 +34,6 @@ const CATEGORIES = [
 	"jackpot",
 	"lottery",
 	"others",
-	"pvp",
 	"roulette",
 	"scratch",
 ] as const;
@@ -178,9 +177,7 @@ function GamesPage() {
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
 	useEffect(() => {
-		if (category) {
-			setSelectedCategory(category);
-		}
+		setSelectedCategory(category || null);
 	}, [category]);
 
 	useEffect(() => {
