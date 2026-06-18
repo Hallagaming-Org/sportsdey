@@ -393,7 +393,9 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 	const secure =
 		c.env.NODE_ENV === "production" || c.env.NODE_ENV === "staging";
 	const secureFlag = secure ? "; Secure" : "";
-	const cookieSuffix = `; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
+	const cookieDomain = c.env.COOKIE_DOMAIN?.trim();
+	const domainFlag = secure && cookieDomain ? `; Domain=${cookieDomain}` : "";
+	const cookieSuffix = `; Path=/; HttpOnly; SameSite=Lax${secureFlag}${domainFlag}; Max-Age=${7 * 24 * 60 * 60}`;
 
 	c.header("Set-Cookie", `ba.session_token=${token}${cookieSuffix}`, {
 		append: true,
