@@ -28,7 +28,6 @@ export function TransactionReceipt({
 }: TransactionReceiptProps) {
 	const handleCopy = (text: string) => {
 		navigator.clipboard.writeText(text);
-		// Note: A toast notification could be triggered here in a real implementation
 	};
 
 	if (!details || details.length === 0) return null;
@@ -36,17 +35,15 @@ export function TransactionReceipt({
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-[2px]">
 			<div className="relative mx-auto flex w-full max-w-md flex-col rounded-3xl border border-gray-600 bg-[#000606] text-white shadow-xl overflow-hidden max-h-[90vh]">
-				{/* App Bar */}
 				<div className="flex items-center px-4 py-6">
 					<button type="button" onClick={onBack} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#6C7073] text-[#6C7073] transition-colors">
 						<ChevronLeft className="h-4 w-4" />
 					</button>
 					<h1 className="flex-1 text-center font-semibold text-lg">{title}</h1>
-					<div className="w-8" /> {/* Spacer for centering */}
+					<div className="w-8" />
 				</div>
 
 				<div className="flex-1 overflow-y-auto px-6">
-					{/* Status Banner */}
 					<div className="mb-6 flex items-center rounded-xl bg-[#EAFFE7] gap-x-2 p-4 shadow-sm">
 						<div className="w-11 h-11 flex justify-center items-center bg-[#23BF09] rounded-[8px]">
 
@@ -60,7 +57,6 @@ export function TransactionReceipt({
 						</div>
 					</div>
 
-					{/* Details Card */}
 					<div className="rounded-2xl border border-[#1A221E] bg-[#0A120E] p-5">
 						<div className="space-y-5">
 							{details.map((detail, index) => (
