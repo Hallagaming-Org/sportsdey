@@ -18,9 +18,12 @@
 		"admin:create": "node --import tsx src/cli/create-admin.ts",
 		"games:seed": "node --import tsx src/cli/seed-games.ts",
 		"games:sync": "node --import tsx src/cli/sync-games.ts",
-		"games:backfill-categories": "node --import tsx src/cli/backfill-categories.ts"
+		"games:backfill-categories": "node --import tsx src/cli/backfill-categories.ts",
+		"gdrive:sync": "node --import tsx src/cli/sync-gdrive-files.ts",
+		"gdrive:match": "node --import tsx src/cli/match-game-images.ts"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1071.0",
 		"@better-auth/expo": "^1.4.19",
 		"@hono/swagger-ui": "^0.5.2",
 		"@hono/zod-openapi": "^1.1.5",
