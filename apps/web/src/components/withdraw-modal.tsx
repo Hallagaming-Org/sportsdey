@@ -120,6 +120,7 @@ export function WithdrawModal({
 			accountNumber: withdrawAccountNumber.trim(),
 			accountName: withdrawAccountName.trim(),
 		});
+		setIsSuccess(true);
 	};
 
 	if (isSuccess) {
