@@ -372,14 +372,11 @@ export function WalletRecentTransactions({
 		const isMock = tx.id.startsWith("mock");
 		
 		if (iconType === "transfer") {
-			details.push({ label: "From", value: "John Samuel (****456)" });
-			details.push({ label: "To", value: "Adebambo BIG\nOpay (****980)" });
 			details.push({ label: "Amount", value: `₦${Math.abs(tx.amount || 0).toLocaleString()}` });
 			details.push({ label: "Fee", value: "₦0" });
 			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
-			details.push({ label: "Transaction Type", value: isMock ? "Outward Transfer" : "Transfer" });
+			details.push({ label: "Transaction Type", value: "Transfer" });
 		} else if (iconType === "mtn" || iconType === "airtel" || iconType === "electricity") {
-			details.push({ label: "From", value: "John Samuel (****456)" });
 			details.push({ label: "To", value: tx.metadata?.customerId ? `${tx.metadata.customerId} (${tx.metadata.billerName})` : "Utility Bill" });
 			details.push({ label: "Amount", value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}` });
 			details.push({ label: "Fee", value: "₦0" });
@@ -398,7 +395,7 @@ export function WalletRecentTransactions({
 			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
 		}
 
-		details.push({ label: "Transaction ID", value: tx.reference || "0123456789", copyable: true });
+		details.push({ label: "Transaction ID", value: tx.reference || tx.id, copyable: true });
 		return details;
 	};
 
