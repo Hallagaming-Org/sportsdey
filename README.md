@@ -61,8 +61,10 @@ SERVER_URL={your-production-server-domain}
 # apps/server/.env
 CORS_ORIGIN={your-production-web-domain}
 BETTER_AUTH_URL={your-production-server-domain}
+COOKIE_DOMAIN=sportsdey.com
 ```
-- In `apps/server/src/lib/auth.ts`, uncomment the `session.cookieCache` and `advanced.crossSubDomainCookies` sections and replace `<your-workers-subdomain>` with your actual workers subdomain. These settings are required to ensure cookies are transferred properly between your web and server domains.
+- Set `COOKIE_DOMAIN` to the shared parent domain for all web-facing subdomains, for example `sportsdey.com`. Do not set it to the API host or a full URL.
+- In `apps/server/src/auth/index.ts`, `advanced.crossSubDomainCookies` now uses `COOKIE_DOMAIN` so auth cookies are shared across subdomains without hardcoding the server URL.
 
 
 

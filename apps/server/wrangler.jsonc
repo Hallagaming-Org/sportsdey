@@ -19,11 +19,12 @@
 			"persist": true
 		}
 	},
-	"vars": {
-		"NODE_ENV": "development"
-		// "CORS_ORIGIN": "http://localhost:3001",:
-		// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
-	},
+			"vars": {
+				"NODE_ENV": "development"
+				// "CORS_ORIGIN": "http://localhost:3001",:
+				// "COOKIE_DOMAIN": "sportsdey.com",
+				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
+			},
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -70,6 +71,7 @@
 			"vars": {
 				"NODE_ENV": "staging"
 				// "CORS_ORIGIN": "https://staging.sportsdey.com",
+				// "COOKIE_DOMAIN": "sportsdey.com",
 				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
 			}
 		},
@@ -109,6 +111,7 @@
 			"vars": {
 				"NODE_ENV": "production"
 				// "CORS_ORIGIN": "https://sportsdey.com",
+				// "COOKIE_DOMAIN": "sportsdey.com",
 				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
 				// Add public environment variables here
 				// Example: "CORS_ORIGIN": "https://your-domain.com"

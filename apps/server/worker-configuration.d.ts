@@ -13,6 +13,7 @@ declare namespace Cloudflare {
 		BETTER_AUTH_SECRET: string;
 		BETTER_AUTH_URL: string;
 		CORS_ORIGIN: string;
+		COOKIE_DOMAIN: string;
 		YOUTUBE_API_KEY: string;
 		BROADAGE_API_KEY: string;
 		PROXY_URL: string;
@@ -72,6 +73,7 @@ declare namespace NodeJS {
 				| "BETTER_AUTH_SECRET"
 				| "BETTER_AUTH_URL"
 				| "CORS_ORIGIN"
+				| "COOKIE_DOMAIN"
 				| "YOUTUBE_API_KEY"
 				| "BROADAGE_API_KEY"
 				| "PROXY_URL"
