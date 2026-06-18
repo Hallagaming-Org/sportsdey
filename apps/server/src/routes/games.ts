@@ -190,6 +190,7 @@ gamesRoute.openapi(
 		path: "/",
 		summary: "Create games",
 		description: "Create one or multiple games. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			body: {
 				content: {
@@ -293,6 +294,7 @@ gamesRoute.openapi(
 		path: "/{id}",
 		summary: "Update a game",
 		description: "Update a game by ID. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			params: GameParamsSchema,
 			body: {
@@ -400,6 +402,7 @@ gamesRoute.openapi(
 		path: "/{id}/enable",
 		summary: "Enable a game",
 		description: "Enable a game by ID. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			params: GameParamsSchema,
 		},
@@ -485,6 +488,7 @@ gamesRoute.openapi(
 		path: "/{id}/disable",
 		summary: "Disable a game",
 		description: "Disable a game by ID. Requires admin authentication.",
+		security: [{ BearerAuth: [] }],
 		request: {
 			params: GameParamsSchema,
 		},

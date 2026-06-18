@@ -94,6 +94,20 @@ const AdminResponseSchema = z.object({
 	createdAt: z.string().openapi({ description: "Account creation timestamp" }),
 });
 
+const AdminSignInResponseSchema = z.object({
+	admin: AdminResponseSchema,
+	token: z.string().openapi({
+		description: "Admin session token for bearer auth",
+	}),
+});
+
+const AdminMeResponseSchema = z.object({
+	admin: AdminResponseSchema,
+	token: z.string().openapi({
+		description: "Current admin session token",
+	}),
+});
+
 const UpdateMeSchema = z.object({
 	name: z.string().min(1).optional().openapi({ description: "Admin name" }),
 	email: z.string().email().optional().openapi({ description: "Admin email" }),
@@ -212,11 +226,7 @@ const signInRoute = createRoute({
 			description: "Sign in successful",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({
-							admin: AdminResponseSchema,
-						}),
-					),
+					schema: successResponseSchema(AdminSignInResponseSchema),
 				},
 			},
 		},
@@ -268,7 +278,7 @@ const getMeRoute = createRoute({
 			description: "Admin profile retrieved successfully",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(AdminResponseSchema),
+					schema: successResponseSchema(AdminMeResponseSchema),
 				},
 			},
 		},
@@ -774,6 +784,7 @@ adminRoute.openapi(signInRoute, async (c) => {
 				permissions: safeParsePermissions(adminUser.permissions),
 				createdAt: adminUser.createdAt?.toISOString() || "",
 			},
+			token,
 		},
 	});
 });
@@ -899,14 +910,17 @@ adminRoute.openapi(getMeRoute, async (c) => {
 	return c.json({
 		success: true,
 		data: {
-			id: adminUser.id,
-			email: adminUser.email,
-			name: adminUser.name,
-			mobileNumber: adminUser.mobileNumber,
-			image: adminUser.image,
-			role: adminUser.role,
-			permissions: safeParsePermissions(adminUser.permissions),
-			createdAt: adminUser.createdAt?.toISOString() || "",
+			admin: {
+				id: adminUser.id,
+				email: adminUser.email,
+				name: adminUser.name,
+				mobileNumber: adminUser.mobileNumber,
+				image: adminUser.image,
+				role: adminUser.role,
+				permissions: safeParsePermissions(adminUser.permissions),
+				createdAt: adminUser.createdAt?.toISOString() || "",
+			},
+			token,
 		},
 	});
 });
