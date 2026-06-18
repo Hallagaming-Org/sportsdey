@@ -36,6 +36,7 @@ import { Route as NewsIndexRouteImport } from './routes/news.index'
 import { Route as KycIndexRouteImport } from './routes/kyc.index'
 import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
 import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
+import { Route as WalletTransactionsRouteImport } from './routes/wallet.transactions'
 import { Route as TennisMatchesRouteImport } from './routes/tennis.matches'
 import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
 import { Route as SportsbettingSplatRouteImport } from './routes/sportsbetting/$'
@@ -193,6 +194,11 @@ const BasketballIndexRoute = BasketballIndexRouteImport.update({
   path: '/',
   getParentRoute: () => BasketballRoute,
 } as any)
+const WalletTransactionsRoute = WalletTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => WalletRoute,
+} as any)
 const TennisMatchesRoute = TennisMatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
@@ -321,7 +327,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/ufc': typeof UfcRouteWithChildren
   '/videos': typeof VideosRouteWithChildren
-  '/wallet': typeof WalletRoute
+  '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
+  '/wallet/transactions': typeof WalletTransactionsRoute
   '/basketball/': typeof BasketballIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
@@ -364,7 +371,7 @@ export interface FileRoutesByTo {
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/terms': typeof TermsRoute
-  '/wallet': typeof WalletRoute
+  '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
@@ -383,6 +390,7 @@ export interface FileRoutesByTo {
   '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
+  '/wallet/transactions': typeof WalletTransactionsRoute
   '/basketball': typeof BasketballIndexRoute
   '/boxing': typeof BoxingIndexRoute
   '/kyc': typeof KycIndexRoute
@@ -415,7 +423,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/ufc': typeof UfcRouteWithChildren
   '/videos': typeof VideosRouteWithChildren
-  '/wallet': typeof WalletRoute
+  '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth/_layout': typeof AuthLayoutRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
@@ -434,6 +442,7 @@ export interface FileRoutesById {
   '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
+  '/wallet/transactions': typeof WalletTransactionsRoute
   '/basketball/': typeof BasketballIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
@@ -486,6 +495,7 @@ export interface FileRouteTypes {
     | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
+    | '/wallet/transactions'
     | '/basketball/'
     | '/boxing/'
     | '/kyc/'
@@ -529,6 +539,7 @@ export interface FileRouteTypes {
     | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
+    | '/wallet/transactions'
     | '/basketball'
     | '/boxing'
     | '/kyc'
@@ -579,6 +590,7 @@ export interface FileRouteTypes {
     | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
+    | '/wallet/transactions'
     | '/basketball/'
     | '/boxing/'
     | '/kyc/'
@@ -611,7 +623,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   UfcRoute: typeof UfcRouteWithChildren
   VideosRoute: typeof VideosRouteWithChildren
-  WalletRoute: typeof WalletRoute
+  WalletRoute: typeof WalletRouteWithChildren
   WalletTransactionStatusRoute: typeof WalletTransactionStatusRoute
   AuthLayoutRoute: typeof AuthLayoutRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
@@ -816,6 +828,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/basketball/'
       preLoaderRoute: typeof BasketballIndexRouteImport
       parentRoute: typeof BasketballRoute
+    }
+    '/wallet/transactions': {
+      id: '/wallet/transactions'
+      path: '/transactions'
+      fullPath: '/wallet/transactions'
+      preLoaderRoute: typeof WalletTransactionsRouteImport
+      parentRoute: typeof WalletRoute
     }
     '/tennis/matches': {
       id: '/tennis/matches'
@@ -1082,6 +1101,17 @@ const VideosRouteChildren: VideosRouteChildren = {
 const VideosRouteWithChildren =
   VideosRoute._addFileChildren(VideosRouteChildren)
 
+interface WalletRouteChildren {
+  WalletTransactionsRoute: typeof WalletTransactionsRoute
+}
+
+const WalletRouteChildren: WalletRouteChildren = {
+  WalletTransactionsRoute: WalletTransactionsRoute,
+}
+
+const WalletRouteWithChildren =
+  WalletRoute._addFileChildren(WalletRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
@@ -1101,7 +1131,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   UfcRoute: UfcRouteWithChildren,
   VideosRoute: VideosRouteWithChildren,
-  WalletRoute: WalletRoute,
+  WalletRoute: WalletRouteWithChildren,
   WalletTransactionStatusRoute: WalletTransactionStatusRoute,
   AuthLayoutRoute: AuthLayoutRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,

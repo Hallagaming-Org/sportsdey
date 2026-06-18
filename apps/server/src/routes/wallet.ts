@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
@@ -15,6 +15,7 @@ import {
 	GetGameWalletErrorSchema,
 	GetGameWalletResponseSchema,
 	GetTransactionsErrorSchema,
+	GetTransactionsQuerySchema,
 	GetTransactionsResponseSchema,
 	GetWalletErrorSchema,
 	GetWalletResponseSchema,
@@ -121,6 +122,9 @@ const getTransactionsRoute = createRoute({
 	summary: "Get wallet transactions",
 	description: "Retrieve the authenticated user's wallet transaction history",
 	security: [{ BearerAuth: [] }],
+	request: {
+		query: GetTransactionsQuerySchema,
+	},
 	responses: {
 		200: {
 			description: "Transactions retrieved successfully",
@@ -755,27 +759,50 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+	const query = c.req.valid("query");
+	const filters = [
+		eq(schema.walletTransaction.userId, user.id),
+		inArray(schema.walletTransaction.paymentMethod, [
+			"card",
+			"paystack",
+			"bank transfer",
+			"bank_transfer",
+			"wallet_transfer",
+		]),
+	];
+
+	if (query.month) {
+		const [yearString, monthString] = query.month.split("-");
+		const year = Number(yearString);
+		const monthIndex = Number(monthString) - 1;
+		if (Number.isFinite(year) && Number.isFinite(monthIndex)) {
+			const monthStart = new Date(Date.UTC(year, monthIndex, 1));
+			const nextMonthStart = new Date(Date.UTC(year, monthIndex + 1, 1));
+			filters.push(
+				gte(schema.walletTransaction.createdAt, monthStart),
+				lt(schema.walletTransaction.createdAt, nextMonthStart),
+			);
+		}
+	} else {
+		if (query.from) {
+			const fromDate = new Date(`${query.from}T00:00:00.000Z`);
+			if (!Number.isNaN(fromDate.getTime())) {
+				filters.push(gte(schema.walletTransaction.createdAt, fromDate));
+			}
+		}
+
+		if (query.to) {
+			const toDate = new Date(`${query.to}T23:59:59.999Z`);
+			if (!Number.isNaN(toDate.getTime())) {
+				filters.push(lte(schema.walletTransaction.createdAt, toDate));
+			}
+		}
+	}
 
 	const transactions = await db
 		.select()
 		.from(schema.walletTransaction)
-		.where(
-			and(
-				eq(schema.walletTransaction.userId, user.id),
-				inArray(schema.walletTransaction.paymentMethod, [
-					"card",
-					"paystack",
-					"bank transfer",
-					"bank_transfer",
-					"wallet_transfer",
-					"sportsbook",
-					"thndr games",
-					"lucky games",
-					"lagos rush",
-					"slotegrator games",
-				]),
-			),
-		)
+		.where(and(...filters))
 		.orderBy(desc(schema.walletTransaction.createdAt))
 		.limit(50);
 

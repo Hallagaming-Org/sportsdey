@@ -285,7 +285,7 @@ fileRoute.openapi(uploadRoute, async (c) => {
 
 	const baseUrl =
 		c.env.NODE_ENV === "production"
-			? "https://sportsdey-prod.r2.cloudflarestorage.com"
+			? "https://bucket.sportsdey.com"
 			: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
 
 	const url = `${baseUrl}/${r2Key}`;

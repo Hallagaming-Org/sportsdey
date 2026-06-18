@@ -1,6 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
-import { Copy, Eye, EyeOff, Loader2, X } from "lucide-react";
+import {
+	createFileRoute,
+	Navigate,
+	Outlet,
+	useLocation,
+} from "@tanstack/react-router";
+import { Copy, Loader2, X } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
@@ -12,6 +17,7 @@ import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { formatAmount } from "@/lib/utils";
+import type { WalletTransaction } from "@/lib/wallet-transactions";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
@@ -29,18 +35,6 @@ type WalletResponse = {
 	updatedAt: string;
 };
 
-type WalletTransaction = {
-	id: string;
-	userId: string;
-	amount?: number | null;
-	type: string;
-	reference: string;
-	status: string;
-	paymentMethod?: string | null;
-	metadata?: Record<string, unknown> | null;
-	createdAt?: string | null;
-};
-
 type FundWalletResponse = {
 	authorizationUrl: string;
 	reference: string;
@@ -50,7 +44,7 @@ const MIN_DEPOSIT_AMOUNT = 100;
 const MAX_DEPOSIT_AMOUNT = 9_999_999;
 
 function WalletPage() {
-	const [showBalance, setShowBalance] = useState(true);
+	const showBalance = true;
 	const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
 	const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 	const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
@@ -63,6 +57,7 @@ function WalletPage() {
 		name: string;
 	} | null>(null);
 	const location = useLocation();
+	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
 		if ((location.state as { openDeposit?: boolean })?.openDeposit) {
 			setIsDepositModalOpen(true);
@@ -159,7 +154,7 @@ function WalletPage() {
 				<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 					<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
 				</div>
-			) : (
+			) : isWalletRoot ? (
 				<>
 					<div className="mb-6 flex flex-col gap-4 lg:grid lg:grid-cols-5">
 						<div className="space-y-4 lg:col-span-3">
@@ -213,24 +208,6 @@ function WalletPage() {
 											<span className="text-[50px]">••••••</span>
 										)}
 									</p>
-									{/* {!isWalletSectionLoading && (
-										<button
-											type="button"
-											onClick={() => setShowBalance((prev) => !prev)}
-											className="cursor-pointer mt-2 text-primary dark:text-white"
-											aria-label={
-												showBalance
-													? "Hide wallet balance"
-													: "Show wallet balance"
-											}
-										>
-											{showBalance ? (
-												<EyeOff className="h-4 w-4" />
-											) : (
-												<Eye className="h-4 w-4" />
-											)}
-										</button>
-									)} */}
 								</div>
 								<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<button
@@ -350,6 +327,8 @@ function WalletPage() {
 					/>
 					<WalletInfo />
 				</>
+			) : (
+				<Outlet />
 			)}
 			{isDepositModalOpen && (
 				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
