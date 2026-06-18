@@ -35,7 +35,7 @@ export const faqs: FAQ[] = [
 		question: "Where can I find Sportsdey's Terms & Conditions?",
 		answer: (
 			<span>
-				You can find our Terms and Conditions at the bottom of the website (footer) or click here:{" "}
+				Click here to find our terms and conditions {" "}
 				<Link to="/terms" className="text-accent underline hover:text-accent/80">
 					Terms and Conditions
 				</Link>
