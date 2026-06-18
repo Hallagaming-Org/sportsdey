@@ -313,13 +313,13 @@ export default function Header({ hideSportsNav = false }: HeaderProps) {
 
 						{!isAuthRoute && showPreviewUI &&
 							<div className="flex justify-center gap-x-2">
-								<button className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
+								<Link to="/auth/sign-in" className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
 									Log in
-								</button>
-								<button className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
+								</Link>
+								<Link to="/auth/sign-up" className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
 									Open an account
 									<ChevronRight className="h-3.5 w-3.5" />
-								</button>
+								</Link>
 							</div>}
 						{isAuthRoute && (
 							<button
