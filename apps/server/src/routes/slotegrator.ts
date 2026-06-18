@@ -141,7 +141,7 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const currency = "EUR";
+	const currency = "NGN";
 
 	const sessionToken = crypto.randomUUID();
 
