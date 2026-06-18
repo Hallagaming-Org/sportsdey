@@ -347,9 +347,7 @@ export function WalletRecentTransactions({
 }: WalletRecentTransactionsProps) {
 	const [selectedTx, setSelectedTx] = useState<WalletTransaction | null>(null);
 
-	// Use mock transactions if the real list is empty and not loading
-	const displayTransactions =
-		!isLoading && transactions.length === 0 ? MOCK_TRANSACTIONS : transactions;
+	const displayTransactions = transactions;
 
 	const mappedTransactions = (displayTransactions || []).slice(0, 10).map((tx) => {
 		const { title, iconType, statusText, statusColor } =
@@ -497,7 +495,6 @@ export function WalletRecentTransactions({
 							: "Transaction processing."
 					}
 					onBack={() => setSelectedTx(null)}
-					onShare={() => alert("Sharing transaction...")}
 				/>
 			)}
 		</>
