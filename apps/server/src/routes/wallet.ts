@@ -1,4 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import crypto from "node:crypto";
 import { and, desc, eq, gte, lt, lte, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
@@ -32,13 +33,17 @@ import {
 	WithdrawSchema,
 } from "@/schemas/wallet";
 import {
-	createTransferRecipient,
 	getNigerianBanks,
 	initializeTransaction,
-	initiateTransfer,
 	verifyAccountNumber,
 	verifyTransaction,
 } from "@/utils/paystack";
+import {
+	getClientIp,
+	getDeviceInfo,
+	getLocation,
+	getTransactionChannel,
+} from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
 import type { CloudflareBindings } from "../types";
 
@@ -588,6 +593,12 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 	const { amount } = result.data;
 	const db = drizzle(c.env.DB, { schema });
 
+	const userAgent = c.req.header("user-agent") || "";
+	const ipAddress = getClientIp(c);
+	const device = getDeviceInfo(userAgent);
+	const location = getLocation(c);
+	const transactionChannel = getTransactionChannel(userAgent);
+
 	const transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	let currentBalance = 0;
@@ -644,6 +655,13 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				metadata: JSON.stringify({
 					source: "card",
 					paystackReference: paystackResult.reference,
+					ipAddress,
+					device,
+					location,
+					transactionChannel,
+					description: "Deposit to main Wallet",
+					provider: "Paystack",
+					fees: 0,
 				}),
 			})
 			.returning();
@@ -904,7 +922,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 
 			const paymentMethod = tx.channel === "card" ? "card" : "bank_transfer";
 
-			if (status === "success") {
+				if (status === "success") {
 				if (transaction && transaction.status !== "success") {
 					const [wallet] = await db
 						.select()
@@ -927,9 +945,31 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							.where(eq(schema.wallet.userId, transaction.userId));
 					}
 
+					let existingMeta: Record<string, unknown> = {};
+					try {
+						existingMeta = JSON.parse(transaction.metadata || "{}");
+					} catch { /* empty */ }
+
+					const auth = tx.authorization;
+					if (transaction.type === "credit") {
+						existingMeta = {
+							...existingMeta,
+							cardType: auth?.card_type || null,
+							cardLast4: auth?.last4 || null,
+							amountCredited: (tx.amount ?? transaction.amount) / 100,
+							fees: (tx.fees ?? 0) / 100,
+							provider: "Paystack",
+						};
+					}
+
 					await db
 						.update(schema.walletTransaction)
-						.set({ status: "success", paymentMethod, balance: newBalance })
+						.set({
+							status: "success",
+							paymentMethod,
+							balance: newBalance,
+							metadata: JSON.stringify(existingMeta),
+						})
 						.where(eq(schema.walletTransaction.reference, reference));
 				}
 			}
@@ -1487,13 +1527,30 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 	const { amount, bankCode, accountNumber, accountName } = result.data;
 	const db = drizzle(c.env.DB, { schema });
 
+	const [userRecord] = await db
+		.select({ verificationStatus: schema.user.verificationStatus })
+		.from(schema.user)
+		.where(eq(schema.user.id, user.id))
+		.limit(1);
+
+	if (!userRecord || userRecord.verificationStatus !== "approved") {
+		return c.json(
+			{
+				success: false as const,
+				error: "KYC verification required to make withdrawals",
+				details: null,
+			},
+			400,
+		);
+	}
+
 	const [wallet] = await db
 		.select()
 		.from(schema.wallet)
 		.where(eq(schema.wallet.userId, user.id))
 		.limit(1);
 
-	if (!wallet || wallet.balance < amount) {
+	if (!wallet || wallet.balance < amount * 100) {
 		return c.json(
 			{
 				success: false as const,
@@ -1504,88 +1561,74 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 		);
 	}
 
+	const userAgent = c.req.header("user-agent") || "";
+	const ipAddress = getClientIp(c);
+	const device = getDeviceInfo(userAgent);
+	const location = getLocation(c);
+	const transactionChannel = getTransactionChannel(userAgent);
+
 	const reference = `wd_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	try {
-		// const accountVerification = await verifyAccountNumber(
-		// 	c.env.PAYSTACK_SECRET_KEY,
-		// 	accountNumber,
-		// 	bankCode,
-		// );
-
-		// if (!accountVerification.isValid) {
-		// 	return c.json(
-		// 		{
-		// 			success: false as const,
-		// 			error: "Invalid account number or bank code",
-		// 			details: null,
-		// 		},
-		// 		400,
-		// 	);
-		// }
-
-		const recipient = await createTransferRecipient(
-			c.env.PAYSTACK_SECRET_KEY,
-			bankCode,
-			accountNumber,
-			accountName,
-			"NGN",
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
-
-		const transfer = await initiateTransfer(
-			c.env.PAYSTACK_SECRET_KEY,
-			amount,
-			recipient.recipient_code,
-			"balance",
-			"Withdrawal from wallet",
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
-
 		const [withdrawalTxn] = await db
 			.insert(schema.walletTransaction)
 			.values({
-				id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				id: txnId,
 				userId: user.id,
 				amount: amount * 100,
 				type: "debit",
 				reference,
-				status: transfer.status === "success" ? "success" : "pending",
-				paymentMethod: "paystack",
-				balance: wallet.balance - amount * 100,
+				status: "pending_approval",
+				paymentMethod: "bank_transfer",
+				balance: wallet.balance,
 				metadata: JSON.stringify({
 					destinationBank: accountName,
-					accountNumber: accountNumber?.slice(-4)
-						? `****${accountNumber.slice(-4)}`
-						: undefined,
+					bankCode,
+					accountNumber,
+					accountName,
+					balanceBefore: wallet.balance / 100,
+					ipAddress,
+					device,
+					location,
+					transactionChannel,
+					feesAmount: 0,
 				}),
 			})
 			.returning();
 
 		if (!withdrawalTxn?.id) {
 			return c.json(
-				{ success: false, error: "Failed to record withdrawal transaction" },
+				{ success: false, error: "Failed to record withdrawal request" },
 				500,
 			);
 		}
 
-		await db
-			.update(schema.wallet)
-			.set({
-				balance: wallet.balance - amount * 100,
-			})
-			.where(eq(schema.wallet.userId, user.id));
+		const [superAdmin] = await db
+			.select({ id: schema.admin.id })
+			.from(schema.admin)
+			.where(eq(schema.admin.role, "super_admin"))
+			.limit(1);
+
+		if (superAdmin) {
+			await db.insert(schema.adminNotification).values({
+				id: `an_${crypto.randomUUID()}`,
+				adminId: superAdmin.id,
+				title: "New Withdrawal Request",
+				message: `${user.name || user.email} requested a withdrawal of ₦${amount}`,
+				type: "withdrawal_request",
+				referenceId: txnId,
+			});
+		}
 
 		return c.json(
 			{
 				success: true as const,
 				data: {
-					reference: transfer.reference,
-					amount: amount,
-					status: transfer.status,
-					balance: wallet.balance - amount * 100,
+					reference,
+					amount,
+					status: "pending_approval",
+					balance: wallet.balance / 100,
 				},
 			},
 			200,

@@ -1,6 +1,6 @@
 export const adminPermissions = [
 	"user_management",
-	"transactions",
+	"transaction_read",
 	"general",
 	"view_player_details",
 	"view_payouts",
@@ -18,7 +18,7 @@ export type AdminPermission = (typeof adminPermissions)[number];
 
 export const permissionLabels: Record<AdminPermission, string> = {
 	user_management: "User management",
-	transactions: "Transactions",
+	transaction_read: "Transaction Read",
 	general: "General",
 	view_player_details: "View player details",
 	view_payouts: "View payouts",

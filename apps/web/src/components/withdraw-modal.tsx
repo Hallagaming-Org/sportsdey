@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiRequest } from "@/lib/api";
@@ -35,6 +35,7 @@ export function WithdrawModal({
 	const [selectedBankCode, setSelectedBankCode] = useState("");
 	const [selectedBankName, setSelectedBankName] = useState("");
 	const [withdrawError, setWithdrawError] = useState("");
+	const [showSuccess, setShowSuccess] = useState(false);
 
 	const { data: banks = [], isLoading: isBanksLoading } = useQuery({
 		queryKey: ["wallet-banks"],
@@ -58,7 +59,7 @@ export function WithdrawModal({
 				body: JSON.stringify(payload),
 			}),
 		onSuccess: () => {
-			handleClose();
+			setShowSuccess(true);
 		},
 		onError: (error) => {
 			if (error instanceof ApiError && error.status === 401) {
@@ -84,6 +85,7 @@ export function WithdrawModal({
 		setSelectedBankCode("");
 		setSelectedBankName("");
 		setWithdrawError("");
+		setShowSuccess(false);
 		onClose();
 	};
 
@@ -130,12 +132,32 @@ export function WithdrawModal({
 						type="button"
 						onClick={handleClose}
 						aria-label="Close withdraw modal"
-						className="cursor-pointer rounded-md px-2 py-1 text-primary text-sm dark:text-white"
+						className={`cursor-pointer rounded-md px-2 py-1 text-sm ${
+							showSuccess ? "text-[#10C300]" : "text-primary dark:text-white"
+						}`}
 					>
 						<X className="h-4 w-4" />
 					</button>
 				</div>
 
+				{showSuccess ? (
+				<div className="mt-4 flex flex-col items-center space-y-4 py-8">
+					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#10C300]/20">
+						<Check className="h-8 w-8 text-[#10C300]" />
+					</div>
+					<p className="text-center text-white text-lg">
+						Your withdrawal is being processed and you will be credited
+						shortly.
+					</p>
+					<button
+						type="button"
+						onClick={handleClose}
+						className="w-full cursor-pointer rounded-lg bg-[#10C300] px-4 py-2 font-medium text-sm text-white"
+					>
+						Close
+					</button>
+				</div>
+			) : (
 				<form className="mt-4 space-y-4" onSubmit={handleWithdrawSubmit}>
 					<div>
 						<label className="mb-2 block font-medium text-primary text-sm dark:text-white">
@@ -217,6 +239,7 @@ export function WithdrawModal({
 						{withdrawMutation.isPending ? "Processing..." : "Withdraw"}
 					</button>
 				</form>
+			)}
 			</div>
 		</div>
 	);

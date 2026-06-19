@@ -1310,10 +1310,10 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 
 	if (
 		session.role !== "super_admin" &&
-		!requirePermission(session, "transactions")
+		!requirePermission(session, "transaction_read")
 	) {
 		return c.json(
-			{ success: false, error: "Forbidden - transactions permission required" },
+			{ success: false, error: "Forbidden - transaction read permission required" },
 			403,
 		);
 	}

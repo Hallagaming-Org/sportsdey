@@ -1,3 +1,10 @@
+export interface PaystackAuthorization {
+	card_type?: string;
+	last4?: string;
+	bank?: string;
+	channel?: string;
+}
+
 export interface PaystackTransaction {
 	reference: string;
 	amount: number;
@@ -7,6 +14,9 @@ export interface PaystackTransaction {
 	customer: {
 		email: string;
 	};
+	authorization?: PaystackAuthorization;
+	channel?: string;
+	fees?: number;
 }
 
 export interface InitializeTransactionResponse {

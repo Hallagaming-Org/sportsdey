@@ -1,0 +1,1 @@
+ALTER TABLE `wallet_transaction` ADD `balance` integer;
