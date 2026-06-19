@@ -83,6 +83,34 @@ const getUnreadCountRoute = createRoute({
 	},
 });
 
+const getNotificationCountRoute = createRoute({
+	method: "get",
+	path: "/notifications/count",
+	tags: ["Admin - Notifications"],
+	summary: "Get total and unread notification count",
+	description: "Get the total count and unread count of notifications for the admin",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Counts retrieved",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							total: z.number(),
+							unread: z.number(),
+						}),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
 const markReadRoute = createRoute({
 	method: "patch",
 	path: "/notifications/{id}/read",
@@ -193,6 +221,44 @@ adminNotificationsRoute.openapi(getUnreadCountRoute, async (c) => {
 	return c.json({
 		success: true,
 		data: { count: notifications.length },
+	});
+});
+
+adminNotificationsRoute.openapi(getNotificationCountRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const [totalResult, unreadResult] = await Promise.all([
+		db
+			.select({ count: schema.adminNotification.id })
+			.from(schema.adminNotification)
+			.where(eq(schema.adminNotification.adminId, session.adminId)),
+		db
+			.select({ count: schema.adminNotification.id })
+			.from(schema.adminNotification)
+			.where(
+				and(
+					eq(schema.adminNotification.adminId, session.adminId),
+					eq(schema.adminNotification.isRead, false),
+				),
+			),
+	]);
+
+	return c.json({
+		success: true,
+		data: {
+			total: totalResult.length,
+			unread: unreadResult.length,
+		},
 	});
 });
 

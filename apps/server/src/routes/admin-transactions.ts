@@ -7,12 +7,24 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import type { CloudflareBindings } from "../types";
 
-const adminTransactionsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+const adminTransactionsRoute = new OpenAPIHono<{
+	Bindings: CloudflareBindings;
+}>();
 
 function formatDateTime(date: Date): string {
 	const months = [
-		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+		"Jan",
+		"Feb",
+		"Mar",
+		"Apr",
+		"May",
+		"Jun",
+		"Jul",
+		"Aug",
+		"Sep",
+		"Oct",
+		"Nov",
+		"Dec",
 	];
 	const month = months[date.getMonth()];
 	const day = date.getDate();
@@ -25,9 +37,7 @@ function formatDateTime(date: Date): string {
 }
 
 function capitalizeStatus(status: string): string {
-	return status
-		.replace(/_/g, " ")
-		.replace(/\b\w/g, (c) => c.toUpperCase());
+	return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function maskAccountNumber(acc: string): string {
@@ -104,7 +114,10 @@ const getTransactionSummaryRoute = createRoute({
 adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
-		return c.json({ success: false, error: "Unauthorized", details: null }, 401);
+		return c.json(
+			{ success: false, error: "Unauthorized", details: null },
+			401,
+		);
 	}
 
 	const session = await validateAdminSession(c.env, token);
@@ -112,7 +125,10 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json({ success: false, error: "Forbidden - admin only", details: null }, 403);
+		return c.json(
+			{ success: false, error: "Forbidden - admin only", details: null },
+			403,
+		);
 	}
 
 	if (
@@ -120,7 +136,11 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 		!requirePermission(session, "transaction_read")
 	) {
 		return c.json(
-			{ success: false, error: "Forbidden - transactions permission required", details: null },
+			{
+				success: false,
+				error: "Forbidden - transactions permission required",
+				details: null,
+			},
 			403,
 		);
 	}
@@ -135,13 +155,18 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 		.limit(1);
 
 	if (!txn) {
-		return c.json({ success: false, error: "Transaction not found", details: null }, 404);
+		return c.json(
+			{ success: false, error: "Transaction not found", details: null },
+			404,
+		);
 	}
 
 	let meta: Record<string, unknown> = {};
 	try {
 		meta = JSON.parse(txn.metadata || "{}");
-	} catch { /* empty */ }
+	} catch {
+		/* empty */
+	}
 
 	const amount = (txn.amount ?? 0) / 100;
 
@@ -150,7 +175,7 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 			success: true,
 			data: {
 				transactionId: txn.id,
-				type: "Deposit" as const,
+				type: "deposit" as const,
 				status: capitalizeStatus(txn.status),
 				amount,
 				fees: (meta.fees as number) ?? 0,
@@ -170,22 +195,26 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 		});
 	}
 
-	const processedOn = txn.status === "success" || txn.status === "completed" || txn.status === "rejected"
-		? formatDateTime(new Date(txn.createdAt))
-		: null;
+	const processedOn =
+		txn.status === "success" ||
+		txn.status === "completed" ||
+		txn.status === "rejected"
+			? formatDateTime(new Date(txn.createdAt))
+			: null;
 
 	return c.json({
 		success: true,
 		data: {
 			transactionId: txn.id,
-			type: "Withdrawal" as const,
+			type: "withdrawal" as const,
 			status: capitalizeStatus(txn.status),
 			amount,
 			feesAmount: (meta.feesAmount as number) ?? 0,
 			requestedOn: formatDateTime(new Date(txn.createdAt)),
 			processedOn,
 			paymentMethod: txn.paymentMethod,
-			bankName: (meta.bankName as string) ?? (meta.destinationBank as string) ?? null,
+			bankName:
+				(meta.bankName as string) ?? (meta.destinationBank as string) ?? null,
 			accountNumber: maskAccountNumber((meta.accountNumber as string) ?? ""),
 			accountName: (meta.accountName as string) ?? "",
 			referenceId: txn.reference ?? "",

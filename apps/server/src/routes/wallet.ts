@@ -1604,21 +1604,22 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			);
 		}
 
-		const [superAdmin] = await db
+		const superAdmins = await db
 			.select({ id: schema.admin.id })
 			.from(schema.admin)
-			.where(eq(schema.admin.role, "super_admin"))
-			.limit(1);
+			.where(eq(schema.admin.role, "super_admin"));
 
-		if (superAdmin) {
-			await db.insert(schema.adminNotification).values({
-				id: `an_${crypto.randomUUID()}`,
-				adminId: superAdmin.id,
-				title: "New Withdrawal Request",
-				message: `${user.name || user.email} requested a withdrawal of ₦${amount}`,
-				type: "withdrawal_request",
-				referenceId: txnId,
-			});
+		if (superAdmins.length > 0) {
+			await db.insert(schema.adminNotification).values(
+				superAdmins.map((sa) => ({
+					id: `an_${crypto.randomUUID()}`,
+					adminId: sa.id,
+					title: "New Withdrawal Request",
+					message: `${user.name || user.email} requested a withdrawal of ₦${amount}`,
+					type: "withdrawal_request",
+					referenceId: txnId,
+				})),
+			);
 		}
 
 		return c.json(
