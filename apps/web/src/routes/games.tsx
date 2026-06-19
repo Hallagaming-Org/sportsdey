@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { cn } from "@/lib/utils";
 import BlackjackLogo from "../logos/blackjack.svg?react";
 import BlocksLogo from "../logos/blocks.svg?react";
 import PlinkoLogo from "../logos/plinko.svg?react";
@@ -552,18 +553,21 @@ function GamesPage() {
 											<motion.div
 												key={game.code}
 												variants={itemVariants}
-												className="relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-transform hover:scale-[1.02]"
+												className={cn(
+													"relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
+													loadingGame === game.code && "ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90"
+												)}
 												style={{ background: display.gradient, flex: "0 0 110px", height: "110px" }}
 												onClick={() => handleGameClick(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
 												tabIndex={0}
 											>
-												{/* {loadingGame === game.code && (
+												{loadingGame === game.code && (
 													<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-														<Loader2 className="h-10 w-10 animate-spin text-white" />
+														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
-												)} */}
+												)}
 
 												{display.icon ? (
 													<div
@@ -635,18 +639,21 @@ function GamesPage() {
 									<motion.div
 										key={game.code}
 										variants={itemVariants}
-										className="relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-transform hover:scale-[1.02]"
+										className={cn(
+											"relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
+											loadingGame === game.code && "ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90"
+										)}
 										style={{ background: display.gradient }}
 										onClick={() => handleGameClick(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
 										role="button"
 										tabIndex={0}
 									>
-										{/* {loadingGame === game.code && (
+										{loadingGame === game.code && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
-										)} */}
+										)}
 
 										{display.icon ? (
 											<div
