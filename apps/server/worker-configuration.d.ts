@@ -48,7 +48,6 @@ declare namespace Cloudflare {
 		SLOTITEGRATION_MERCHANT_ID: string;
 		SLOTITEGRATION_MERCHANT_KEY: string;
 		SLOTEGRATOR_API_URL: string;
-		BETTING_API_HOST: string;
 		DATABET_CERT: Fetcher;
 		AFRICASTALKING_API_KEY: string;
 		AFRICASTALKING_USERNAME: string;
