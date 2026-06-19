@@ -39,7 +39,7 @@ const args = process.argv.slice(2);
 
 let env: "production" | "staging" = "staging";
 let limit = 0; // 0 means all pages
-let dbName = "staging-db";
+let dbName: string;
 let txtPath: string | null = null;
 let categorize = false;
 
