@@ -498,7 +498,12 @@ function HotCasinoPanel() {
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
-						className="group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+						className={cn(
+							"group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
+							isLoadingThis
+								? "ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90"
+								: "disabled:cursor-not-allowed disabled:opacity-60"
+						)}
 						style={{ background: display.gradient }}
 					>
 						{isLoadingThis && (
