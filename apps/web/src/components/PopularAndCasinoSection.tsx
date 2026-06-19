@@ -27,7 +27,7 @@ type Game = {
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
-	category: string
+	category?: string | null;
 };
 
 type LaunchResponse = {
@@ -423,7 +423,7 @@ function HotCasinoPanel() {
 		queryKey: ["games"],
 		queryFn: async () => {
 			const all = await apiRequest<Game[]>("games");
-			return all.filter((game) => game.enabled && game.category === "popular");
+			return all.filter((game) => game.enabled);
 		},
 	});
 
@@ -535,7 +535,12 @@ function HotCasinoPanel() {
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
-						className="group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+						className={cn(
+							"group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
+							isLoadingThis
+								? "ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90"
+								: "disabled:cursor-not-allowed disabled:opacity-60"
+						)}
 						style={{ background: display.gradient }}
 					>
 						{isLoadingThis && (
