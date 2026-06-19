@@ -25,15 +25,6 @@
 				// "COOKIE_DOMAIN": "sportsdey.com",
 				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
 			},
-	"d1_databases": [
-		{
-			"binding": "DB",
-			"database_name": "sportsdey_db",
-			"database_id": "d091e50e-e19f-40dc-ad77-e7050c7bbbad",
-			"remote": false,
-			"migrations_dir": "./src/db/migrations"
-		}
-	],
 	"env": {
 		"staging": {
 			"name": "sportsdey-staging",
