@@ -27,6 +27,27 @@ const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 export default sportsbookRoute;
 
+async function databetFetch(
+	env: CloudflareBindings,
+	path: string,
+	options: { method?: string; body?: unknown } = {},
+): Promise<Response> {
+	const proxyUrl = env.PROXY_URL;
+	const proxySecret = env.PROXY_SECRET;
+
+	const url = `${proxyUrl.replace(/\/+$/, "")}/sportsbook${path.startsWith("/") ? path : `/${path}`}`;
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+		"X-Proxy-Auth": proxySecret || "",
+	};
+
+	return fetch(url, {
+		method: options.method || "GET",
+		headers,
+		body: options.body ? JSON.stringify(options.body) : undefined,
+	});
+}
+
 const createTokenRoute = createRoute({
 	method: "post",
 	path: "/token/create",
@@ -77,15 +98,12 @@ const createTokenRoute = createRoute({
 sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	const user = c.get("user");
 	const session = c.get("session");
-	console.log(user);
 
-	const bettingHost = c.env.BETTING_API_HOST;
-
-	if (!bettingHost) {
+	if (!c.env.PROXY_URL) {
 		return c.json(
 			{
 				success: false as const,
-				error: "Betting API host not configured",
+				error: "Proxy URL not configured",
 				details: null,
 			},
 			500,
@@ -100,20 +118,14 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	};
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/token/create`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(requestBody),
-			},
-		);
+		const response = await databetFetch(c.env, "/token/create", {
+			method: "POST",
+			body: requestBody,
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
-			console.error("Data.Bet API error:", response.status, errorText);
+			console.error("Sportsbook proxy error:", response.status, errorText);
 			return c.json(
 				{
 					success: false as const,
@@ -2367,17 +2379,6 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	const result = await c.req.json().catch(() => null);
 	if (
 		!result ||
@@ -2411,16 +2412,10 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 	};
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/create`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(apiRequestBody),
-			},
-		);
+		const response = await databetFetch(c.env, "/freebet/create", {
+			method: "POST",
+			body: apiRequestBody,
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -2551,17 +2546,6 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	const result = await c.req.json().catch(() => null);
 	if (!result || !result.freebets || !Array.isArray(result.freebets)) {
 		return c.json(
@@ -2593,16 +2577,10 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 	);
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/create/bulk`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ freebets: freebetsData }),
-			},
-		);
+		const response = await databetFetch(c.env, "/freebet/create/bulk", {
+			method: "POST",
+			body: { freebets: freebetsData },
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -2735,26 +2713,10 @@ sportsbookRoute.openapi(freebetListRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/getList?player_id=${playerId}`,
-			{
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
+		const response = await databetFetch(
+			c.env,
+			`/freebet/getList?player_id=${playerId}`,
 		);
 
 		if (!response.ok) {
@@ -2900,26 +2862,10 @@ sportsbookRoute.openapi(freebetUnusedListRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/getListUnused?player_id=${playerId}`,
-			{
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
+		const response = await databetFetch(
+			c.env,
+			`/freebet/getListUnused?player_id=${playerId}`,
 		);
 
 		if (!response.ok) {
@@ -3065,27 +3011,8 @@ sportsbookRoute.openapi(freebetGetRoute, async (c) => {
 
 	const { id } = c.req.param();
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/${id}`,
-			{
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
-		);
+		const response = await databetFetch(c.env, `/freebet/${id}`);
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -3227,17 +3154,6 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	const result = await c.req.json().catch(() => null);
 	if (!result || !result.player_id || !result.freebet_id) {
 		return c.json(
@@ -3263,16 +3179,10 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 	}
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/update`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(apiRequestBody),
-			},
-		);
+		const response = await databetFetch(c.env, "/freebet/update", {
+			method: "POST",
+			body: apiRequestBody,
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -3397,17 +3307,6 @@ sportsbookRoute.openapi(freebetCancelRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	const result = await c.req.json().catch(() => null);
 	if (!result || !result.freebet_id) {
 		return c.json(
@@ -3420,16 +3319,10 @@ sportsbookRoute.openapi(freebetCancelRoute, async (c) => {
 	}
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/freebet/cancel`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({ freebet_id: result.freebet_id }),
-			},
-		);
+		const response = await databetFetch(c.env, "/freebet/cancel", {
+			method: "POST",
+			body: { freebet_id: result.freebet_id },
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -3569,17 +3462,6 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	const result = await c.req.json().catch(() => null);
 	if (
 		!result ||
@@ -3615,16 +3497,10 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 	}
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/bet-boosts`,
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(apiRequestBody),
-			},
-		);
+		const response = await databetFetch(c.env, "/bet-boosts", {
+			method: "POST",
+			body: apiRequestBody,
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -3743,18 +3619,8 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/bet-boosts`,
-			{
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
-		);
+		const response = await databetFetch(c.env, "/bet-boosts");
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -3889,18 +3755,8 @@ sportsbookRoute.openapi(betBoostGetRoute, async (c) => {
 
 	const { id } = c.req.valid("param");
 
-	const bettingHost = c.env.BETTING_API_HOST;
-
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/bet-boosts/${id}`,
-			{
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
-		);
+		const response = await databetFetch(c.env, `/bet-boosts/${id}`);
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -4045,17 +3901,6 @@ sportsbookRoute.openapi(betBoostUpdateRoute, async (c) => {
 		);
 	}
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	const result = await c.req.json().catch(() => null);
 	if (!result || !result.player_id || !result.boost_id) {
 		return c.json(
@@ -4088,14 +3933,12 @@ sportsbookRoute.openapi(betBoostUpdateRoute, async (c) => {
 	}
 
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/bet-boosts/${result.boost_id}`,
+		const response = await databetFetch(
+			c.env,
+			`/bet-boosts/${result.boost_id}`,
 			{
 				method: "PUT",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(apiRequestBody),
+				body: apiRequestBody,
 			},
 		);
 
@@ -4198,27 +4041,10 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 
 	const { id } = c.req.valid("param");
 
-	const bettingHost = c.env.BETTING_API_HOST;
-	if (!bettingHost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Betting API host not configured",
-			},
-			500,
-		);
-	}
-
 	try {
-		const response = await c.env.DATABET_CERT.fetch(
-			`https://${bettingHost}/bet-boosts/${id}`,
-			{
-				method: "DELETE",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			},
-		);
+		const response = await databetFetch(c.env, `/bet-boosts/${id}`, {
+			method: "DELETE",
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();
