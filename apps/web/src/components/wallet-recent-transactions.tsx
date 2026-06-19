@@ -1,18 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
+import { useState } from "react";
+import {
+	type ReceiptDetail,
+	TransactionReceipt,
+} from "@/components/transaction-receipt";
 import { Skeleton } from "@/components/ui/skeleton";
-import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
 import {
 	formatTransactionDate,
 	getTransactionDetails,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
-import { useState } from "react";
-import {
-	TransactionReceipt,
-	type ReceiptDetail,
-} from "@/components/transaction-receipt";
-
+import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
 
 type WalletRecentTransactionsProps = {
 	transactions: WalletTransaction[];
@@ -40,7 +39,11 @@ const MOCK_TRANSACTIONS: WalletTransaction[] = [
 		reference: "0123456789",
 		status: "success",
 		paymentMethod: "wallet_transfer",
-		metadata: { service: "DATA_BUNDLE", billerName: "MTN NG", customerId: "07061884345" },
+		metadata: {
+			service: "DATA_BUNDLE",
+			billerName: "MTN NG",
+			customerId: "07061884345",
+		},
 		createdAt: new Date().toISOString(),
 	},
 	{
@@ -202,20 +205,22 @@ export function WalletRecentTransactions({
 
 	const displayTransactions = transactions;
 
-	const mappedTransactions = (displayTransactions || []).slice(0, 10).map((tx) => {
-		const { title, iconType, statusText, statusColor } =
-			getTransactionDetails(tx);
-		const dateString = formatTransactionDate(tx.createdAt);
-		return {
-			id: tx.id,
-			title,
-			date: dateString,
-			statusText,
-			statusColor,
-			iconType,
-			original: tx,
-		};
-	});
+	const mappedTransactions = (displayTransactions || [])
+		.slice(0, 10)
+		.map((tx) => {
+			const { title, iconType, statusText, statusColor } =
+				getTransactionDetails(tx);
+			const dateString = formatTransactionDate(tx.createdAt);
+			return {
+				id: tx.id,
+				title,
+				date: dateString,
+				statusText,
+				statusColor,
+				iconType,
+				original: tx,
+			};
+		});
 
 	const hasNoTransactions = !isLoading && mappedTransactions.length === 0;
 
@@ -225,30 +230,72 @@ export function WalletRecentTransactions({
 		const isMock = tx.id.startsWith("mock");
 
 		if (iconType === "transfer") {
-			details.push({ label: "Amount", value: `₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({
+				label: "Amount",
+				value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+			});
 			details.push({ label: "Fee", value: "₦0" });
-			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+			details.push({
+				label: "Date",
+				value: formatTransactionDate(tx.createdAt),
+			});
 			details.push({ label: "Transaction Type", value: "Transfer" });
-		} else if (iconType === "mtn" || iconType === "airtel" || iconType === "electricity") {
-			details.push({ label: "To", value: tx.metadata?.customerId ? `${tx.metadata.customerId} (${tx.metadata.billerName})` : "Utility Bill" });
-			details.push({ label: "Amount", value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+		} else if (
+			iconType === "mtn" ||
+			iconType === "airtel" ||
+			iconType === "electricity"
+		) {
+			details.push({
+				label: "To",
+				value: tx.metadata?.customerId
+					? `${tx.metadata.customerId} (${tx.metadata.billerName})`
+					: "Utility Bill",
+			});
+			details.push({
+				label: "Amount",
+				value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+			});
 			details.push({ label: "Fee", value: "₦0" });
-			details.push({ label: "Description", value: tx.metadata?.service ? `${tx.metadata.service} Purchase` : "Bill Payment" });
-			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+			details.push({
+				label: "Description",
+				value: tx.metadata?.service
+					? `${tx.metadata.service} Purchase`
+					: "Bill Payment",
+			});
+			details.push({
+				label: "Date",
+				value: formatTransactionDate(tx.createdAt),
+			});
 			details.push({ label: "Transaction Type", value: "Bills" });
 		} else if (iconType === "deposit") {
 			details.push({ label: "Transaction Type", value: "Credit (Deposit)" });
-			details.push({ label: "Amount", value: `₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({
+				label: "Amount",
+				value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+			});
 			details.push({ label: "Fee", value: "₦0" });
-			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+			details.push({
+				label: "Date",
+				value: formatTransactionDate(tx.createdAt),
+			});
 		} else {
 			details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
-			details.push({ label: "Amount", value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({
+				label: "Amount",
+				value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+			});
 			details.push({ label: "Fee", value: "₦0" });
-			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+			details.push({
+				label: "Date",
+				value: formatTransactionDate(tx.createdAt),
+			});
 		}
 
-		details.push({ label: "Transaction ID", value: tx.reference || tx.id, copyable: true });
+		details.push({
+			label: "Transaction ID",
+			value: tx.reference || tx.id,
+			copyable: true,
+		});
 		return details;
 	};
 
@@ -309,7 +356,7 @@ export function WalletRecentTransactions({
 							{mappedTransactions.map((transaction) => (
 								<li
 									key={transaction.id}
-									className="flex cursor-pointer items-center justify-between py-4 transition-colors hover:bg-white/5 px-2 -mx-2 rounded-lg"
+									className="-mx-2 flex cursor-pointer items-center justify-between rounded-lg px-2 py-4 transition-colors hover:bg-white/5"
 									onClick={() => setSelectedTx(transaction.original)}
 								>
 									<div className="flex items-center gap-4">

@@ -147,14 +147,14 @@ export function WithdrawModal({
 						onClick={handleClose}
 						aria-label="Close withdraw modal"
 						className={`cursor-pointer rounded-md px-2 py-1 text-sm ${
-							showSuccess ? "text-[#10C300]" : "text-primary dark:text-white"
+							isSuccess ? "text-[#10C300]" : "text-primary dark:text-white"
 						}`}
 					>
 						<X className="h-4 w-4" />
 					</button>
 				</div>
 
-				{showSuccess ? (
+				{isSuccess ? (
 				<div className="mt-4 flex flex-col items-center space-y-4 py-8">
 					<div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#10C300]/20">
 						<Check className="h-8 w-8 text-[#10C300]" />
