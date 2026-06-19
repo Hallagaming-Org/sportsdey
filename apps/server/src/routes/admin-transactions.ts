@@ -117,7 +117,7 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 
 	if (
 		session.role !== "super_admin" &&
-		!requirePermission(session, "transactions")
+		!requirePermission(session, "transaction_read")
 	) {
 		return c.json(
 			{ success: false, error: "Forbidden - transactions permission required", details: null },

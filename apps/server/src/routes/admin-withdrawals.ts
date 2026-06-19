@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
+import { requirePermission } from "@/middleware/admin-permissions";
 import {
 	createTransferRecipient,
 	initiateTransfer,
@@ -39,7 +40,7 @@ const getPendingRoute = createRoute({
 	tags: ["Admin - Withdrawals"],
 	summary: "Get pending withdrawals",
 	description:
-		"List all withdrawal requests pending admin approval (super_admin only)",
+		"List all withdrawal requests pending admin approval (requires transaction_read)",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: z.object({
@@ -66,7 +67,7 @@ const getPendingRoute = createRoute({
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		403: {
-			description: "Forbidden - super_admin only",
+			description: "Forbidden - insufficient permissions",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 	},
@@ -180,9 +181,13 @@ adminWithdrawalsRoute.openapi(getPendingRoute, async (c) => {
 	}
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session || session.role !== "super_admin") {
+	if (
+		!session ||
+		(session.role !== "super_admin" &&
+			!requirePermission(session, "transaction_read"))
+	) {
 		return c.json(
-			{ success: false, error: "Forbidden - super_admin only" },
+			{ success: false, error: "Forbidden - insufficient permissions" },
 			403,
 		);
 	}
