@@ -27,6 +27,7 @@ type Game = {
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
+	category?: string | null;
 };
 
 type LaunchResponse = {
