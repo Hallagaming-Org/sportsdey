@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest } from "@/lib/api";
-import { useSession } from "@/lib/auth/client";
+import { signOut, useSession } from "@/lib/auth/client";
 import {
 	getSportsbookTheme,
 	isSportsbookConfigured,
@@ -96,7 +96,18 @@ const KNOWN_GAMES: Record<
 	},
 };
 
-const PRIORITY_GAMES = ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko", "XCAPEHB", "EAGLEHB", "LUCKYRISEHB", "LAGOSRUSH"];
+const PRIORITY_GAMES = [
+	"solitaire",
+	"blocks",
+	"twentyone",
+	"blackjack",
+	"slots",
+	"plinko",
+	"XCAPEHB",
+	"EAGLEHB",
+	"LUCKYRISEHB",
+	"LAGOSRUSH",
+];
 
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
@@ -123,6 +134,7 @@ export default function PopularAndCasinoSection() {
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
 	const initRef = useRef(false);
+	const navigate = useNavigate();
 
 	useEffect(() => {
 		const isDarkMode = document.documentElement.classList.contains("dark");
@@ -169,9 +181,36 @@ export default function PopularAndCasinoSection() {
 					},
 				);
 				if (cancelled) return;
-				await loadSportsbookWidgets(data.token, isDarkRef.current, () => {
-					if (!cancelled) setWidgetReady(true);
-				});
+				await loadSportsbookWidgets(
+					data.token,
+					isDarkRef.current,
+					(bettingAPI) => {
+						if (!cancelled) setWidgetReady(true);
+						if (!cancelled) {
+							bettingAPI.subscribe("redirect", ({ destination, link }) => {
+								switch (destination) {
+									case "login": {
+										navigate({ to: "/auth/sign-in" });
+										break;
+									}
+									case "logout": {
+										signOut().then(() => {
+											navigate({ to: "/auth/sign-in" });
+										});
+										break;
+									}
+									case "betting-page": {
+										navigate({
+											to: "/sportsbetting/$",
+											params: { _splat: link ?? "" },
+										});
+										break;
+									}
+								}
+							});
+						}
+					},
+				);
 			} catch (err) {
 				if (cancelled) return;
 				console.error("[PopularAndCasinoSection] Widget init error:", err);
@@ -485,7 +524,7 @@ function HotCasinoPanel() {
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
-						className="group relative flex aspect-square w-full h-44 min-w-[55%] snap-start flex-col items-center justify-end overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 lg:min-w-0 lg:snap-none lg:h-auto"
+						className="group relative flex aspect-square h-44 w-full min-w-[55%] snap-start flex-col items-center justify-end overflow-hidden rounded-2xl text-left transition-transform hover:scale-[1.02] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 lg:h-auto lg:min-w-0 lg:snap-none"
 						style={{ background: display.gradient }}
 					>
 						{isLoadingThis && (
@@ -509,8 +548,10 @@ function HotCasinoPanel() {
 								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
 							/>
 						) : (
-							<div className="absolute inset-0 flex items-center justify-center"
-								style={{ opacity: isLoadingThis ? 0.35 : 1 }}>
+							<div
+								className="absolute inset-0 flex items-center justify-center"
+								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
+							>
 								<span className="font-bold text-4xl text-white/50">
 									{display.name.charAt(0)}
 								</span>
