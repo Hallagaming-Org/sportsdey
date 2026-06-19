@@ -27,6 +27,7 @@ type Game = {
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
+	category: string
 };
 
 type LaunchResponse = {
@@ -103,7 +104,7 @@ const DEFAULT_GRADIENT =
 
 const HOT_CASINO_LIMIT = 12;
 
-const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+const POPULAR_GAME_NAMES = ["Aviator Mobile", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
 
 const isPopularGame = (game: Game) => {
 	return POPULAR_GAME_NAMES.some((name) =>
