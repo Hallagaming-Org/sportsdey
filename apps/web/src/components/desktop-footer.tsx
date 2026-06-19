@@ -70,82 +70,84 @@ export default function DesktopFooter() {
 					</div>
 				</div>
 
-				<div>
-					<h3 className="mb-6 font-bold text-base text-white">Quick Links</h3>
-					<ul className="space-y-4 text-sm">
-						<li>
-							<Link
-								to="/"
-								search={{ sports: currentSport, league: undefined }}
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								Matches
-							</Link>
-						</li>
-						<li>
-							<Link
-								to="/news"
-								search={{ sports: currentSport }}
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								News
-							</Link>
-						</li>
+				<div className="flex flex-row justify-between gap-4 md:contents">
+					<div className="flex-1 md:flex-none">
+						<h3 className="mb-6 font-bold text-base text-white">Quick Links</h3>
+						<ul className="space-y-4 text-sm">
+							<li>
+								<Link
+									to="/"
+									search={{ sports: currentSport, league: undefined }}
+									className="text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									Matches
+								</Link>
+							</li>
+							<li>
+								<Link
+									to="/news"
+									search={{ sports: currentSport }}
+									className="text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									News
+								</Link>
+							</li>
 
-						<li>
-							<Link
-								to="/news"
-								search={{ sports: currentSport }}
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								Videos
-							</Link>
-						</li>
-						<li>
-							<Link
-								to="/faqs"
-								className="text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								FAQs
-							</Link>
-						</li>
-					</ul>
-				</div>
+							<li>
+								<Link
+									to="/news"
+									search={{ sports: currentSport }}
+									className="text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									Videos
+								</Link>
+							</li>
+							<li>
+								<Link
+									to="/faqs"
+									className="text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									FAQs
+								</Link>
+							</li>
+						</ul>
+					</div>
 
-				<div>
-					<h3 className="mb-6 font-bold text-base text-white">Our Ecosystem</h3>
-					<ul className="space-y-4 text-sm">
-						<li>
-							<Link
-								to="/betting"
-								search={{ type: "jackpots" } as any}
-								className="cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								Prediction Market
-							</Link>
-						</li>
-						<li>
-							<a
-								href="https://binary.sportsdey.com/sportsdayApi/connectSportsDay"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
-							>
-								Binary Trading
-							</a>
-						</li>
-						<li>
-							<a
-								href="https://Tournament.sportsdey.com"
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-[#A0A0A0] transition-colors hover:text-white block"
-							>
-								Esports Tournaments
-							</a>
-						</li>
+					<div className="flex-1 md:flex-none">
+						<h3 className="mb-6 font-bold text-base text-white">Our Ecosystem</h3>
+						<ul className="space-y-4 text-sm">
+							<li>
+								<Link
+									to="/betting"
+									search={{ type: "jackpots" } as any}
+									className="cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									Prediction Market
+								</Link>
+							</li>
+							<li>
+								<a
+									href="https://binary.sportsdey.com/sportsdayApi/connectSportsDay"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									Binary Trading
+								</a>
+							</li>
+							<li>
+								<a
+									href="https://Tournament.sportsdey.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="text-[#A0A0A0] transition-colors hover:text-white block"
+								>
+									Esports Tournaments
+								</a>
+							</li>
 
-					</ul>
+						</ul>
+					</div>
 				</div>
 
 				<div>
