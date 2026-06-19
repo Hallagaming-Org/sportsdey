@@ -7,11 +7,53 @@ import {
 	getTransactionDetails,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
+import { useState } from "react";
+import {
+	TransactionReceipt,
+	type ReceiptDetail,
+} from "@/components/transaction-receipt";
+
 
 type WalletRecentTransactionsProps = {
 	transactions: WalletTransaction[];
 	isLoading: boolean;
 };
+
+// Mock transactions to use when list is empty
+const MOCK_TRANSACTIONS: WalletTransaction[] = [
+	{
+		id: "mock-1",
+		userId: "u1",
+		amount: 2500,
+		type: "debit",
+		reference: "0123456789",
+		status: "success",
+		paymentMethod: "wallet_transfer",
+		metadata: { transferType: "to_friend" },
+		createdAt: new Date().toISOString(),
+	},
+	{
+		id: "mock-2",
+		userId: "u1",
+		amount: -1500,
+		type: "debit",
+		reference: "0123456789",
+		status: "success",
+		paymentMethod: "wallet_transfer",
+		metadata: { service: "DATA_BUNDLE", billerName: "MTN NG", customerId: "07061884345" },
+		createdAt: new Date().toISOString(),
+	},
+	{
+		id: "mock-3",
+		userId: "u1",
+		amount: 15000,
+		type: "credit",
+		reference: "0123456789",
+		status: "success",
+		paymentMethod: "bank transfer",
+		createdAt: new Date().toISOString(),
+	},
+];
 
 const statusBadgeStyles = {
 	success: "bg-[#E2F9EE] text-[#0F9D58]",
@@ -156,7 +198,11 @@ export function WalletRecentTransactions({
 	transactions,
 	isLoading,
 }: WalletRecentTransactionsProps) {
-	const mappedTransactions = (transactions || []).slice(0, 10).map((tx) => {
+	const [selectedTx, setSelectedTx] = useState<WalletTransaction | null>(null);
+
+	const displayTransactions = transactions;
+
+	const mappedTransactions = (displayTransactions || []).slice(0, 10).map((tx) => {
 		const { title, iconType, statusText, statusColor } =
 			getTransactionDetails(tx);
 		const dateString = formatTransactionDate(tx.createdAt);
@@ -167,10 +213,44 @@ export function WalletRecentTransactions({
 			statusText,
 			statusColor,
 			iconType,
+			original: tx,
 		};
 	});
 
 	const hasNoTransactions = !isLoading && mappedTransactions.length === 0;
+
+	const getReceiptDetails = (tx: WalletTransaction): ReceiptDetail[] => {
+		const { iconType } = getTransactionDetails(tx);
+		const details: ReceiptDetail[] = [];
+		const isMock = tx.id.startsWith("mock");
+
+		if (iconType === "transfer") {
+			details.push({ label: "Amount", value: `₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({ label: "Fee", value: "₦0" });
+			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+			details.push({ label: "Transaction Type", value: "Transfer" });
+		} else if (iconType === "mtn" || iconType === "airtel" || iconType === "electricity") {
+			details.push({ label: "To", value: tx.metadata?.customerId ? `${tx.metadata.customerId} (${tx.metadata.billerName})` : "Utility Bill" });
+			details.push({ label: "Amount", value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({ label: "Fee", value: "₦0" });
+			details.push({ label: "Description", value: tx.metadata?.service ? `${tx.metadata.service} Purchase` : "Bill Payment" });
+			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+			details.push({ label: "Transaction Type", value: "Bills" });
+		} else if (iconType === "deposit") {
+			details.push({ label: "Transaction Type", value: "Credit (Deposit)" });
+			details.push({ label: "Amount", value: `₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({ label: "Fee", value: "₦0" });
+			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+		} else {
+			details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
+			details.push({ label: "Amount", value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}` });
+			details.push({ label: "Fee", value: "₦0" });
+			details.push({ label: "Date", value: formatDateMMMdyyyy(tx.createdAt) });
+		}
+
+		details.push({ label: "Transaction ID", value: tx.reference || tx.id, copyable: true });
+		return details;
+	};
 
 	return (
 		<>
@@ -229,7 +309,8 @@ export function WalletRecentTransactions({
 							{mappedTransactions.map((transaction) => (
 								<li
 									key={transaction.id}
-									className="flex items-center justify-between py-4"
+									className="flex cursor-pointer items-center justify-between py-4 transition-colors hover:bg-white/5 px-2 -mx-2 rounded-lg"
+									onClick={() => setSelectedTx(transaction.original)}
 								>
 									<div className="flex items-center gap-4">
 										<TransactionIcon type={transaction.iconType} />
@@ -255,6 +336,26 @@ export function WalletRecentTransactions({
 					)}
 				</div>
 			</div>
+
+			{/* Modal for displaying the transaction receipt */}
+			{selectedTx && (
+				<TransactionReceipt
+					details={getReceiptDetails(selectedTx)}
+					statusTitle={
+						selectedTx.status.toLowerCase() === "success"
+							? "Successful"
+							: selectedTx.status.toLowerCase() === "pending"
+								? "Pending"
+								: "Failed"
+					}
+					statusMessage={
+						selectedTx.status.toLowerCase() === "success"
+							? "Transaction has been completed."
+							: "Transaction processing."
+					}
+					onBack={() => setSelectedTx(null)}
+				/>
+			)}
 		</>
 	);
 }

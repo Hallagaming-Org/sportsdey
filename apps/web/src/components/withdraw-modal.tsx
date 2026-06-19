@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { SuccessModal } from "@/components/success-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
 
@@ -35,7 +36,7 @@ export function WithdrawModal({
 	const [selectedBankCode, setSelectedBankCode] = useState("");
 	const [selectedBankName, setSelectedBankName] = useState("");
 	const [withdrawError, setWithdrawError] = useState("");
-	const [showSuccess, setShowSuccess] = useState(false);
+	const [isSuccess, setIsSuccess] = useState(false);
 
 	const { data: banks = [], isLoading: isBanksLoading } = useQuery({
 		queryKey: ["wallet-banks"],
@@ -59,7 +60,7 @@ export function WithdrawModal({
 				body: JSON.stringify(payload),
 			}),
 		onSuccess: () => {
-			setShowSuccess(true);
+			setIsSuccess(true);
 		},
 		onError: (error) => {
 			if (error instanceof ApiError && error.status === 401) {
@@ -85,12 +86,13 @@ export function WithdrawModal({
 		setSelectedBankCode("");
 		setSelectedBankName("");
 		setWithdrawError("");
-		setShowSuccess(false);
+		setIsSuccess(false);
 		onClose();
 	};
 
 	const handleWithdrawSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
+
 		const amount = Number(withdrawAmount);
 
 		if (!Number.isFinite(amount) || amount < MIN_WITHDRAW_AMOUNT) {
@@ -119,7 +121,19 @@ export function WithdrawModal({
 			accountNumber: withdrawAccountNumber.trim(),
 			accountName: withdrawAccountName.trim(),
 		});
+		setIsSuccess(true);
 	};
+
+	if (isSuccess) {
+		return (
+			<SuccessModal
+				isOpen={isSuccess}
+				onClose={handleClose}
+				title="Success!"
+				message="Your withdrawal has been processed and you will be credited shortly."
+			/>
+		);
+	}
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -211,7 +225,7 @@ export function WithdrawModal({
 									event.target.value.replace(/\D/g, "").slice(0, 10),
 								)
 							}
-							placeholder="0123456789"
+							placeholder="e.g. 0123456789"
 						/>
 					</div>
 
@@ -223,7 +237,7 @@ export function WithdrawModal({
 							type="text"
 							value={withdrawAccountName}
 							onChange={(event) => setWithdrawAccountName(event.target.value)}
-							placeholder="John Doe"
+							placeholder="e.g. John Doe"
 						/>
 					</div>
 

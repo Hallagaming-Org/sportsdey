@@ -324,7 +324,7 @@ export default function Header(
 										Log in
 									</Link>
 									<Link to="/auth/sign-up" className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
-										Open an account
+										Join now
 										<ChevronRight className="h-3.5 w-3.5" />
 									</Link>
 								</div>

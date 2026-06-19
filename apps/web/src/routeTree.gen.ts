@@ -16,6 +16,7 @@ import { Route as UfcRouteImport } from './routes/ufc'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TennisRouteImport } from './routes/tennis'
 import { Route as SportsbettingRouteImport } from './routes/sportsbetting'
+import { Route as ReceiptPreviewRouteImport } from './routes/receipt-preview'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
@@ -92,6 +93,11 @@ const TennisRoute = TennisRouteImport.update({
 const SportsbettingRoute = SportsbettingRouteImport.update({
   id: '/sportsbetting',
   path: '/sportsbetting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReceiptPreviewRoute = ReceiptPreviewRouteImport.update({
+  id: '/receipt-preview',
+  path: '/receipt-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
@@ -322,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
   '/terms': typeof TermsRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/terms': typeof TermsRoute
   '/wallet': typeof WalletRouteWithChildren
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
+  '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
   '/tennis': typeof TennisRouteWithChildren
   '/terms': typeof TermsRoute
@@ -471,6 +480,7 @@ export interface FileRouteTypes {
     | '/kyc'
     | '/news'
     | '/privacy-policy'
+    | '/receipt-preview'
     | '/sportsbetting'
     | '/tennis'
     | '/terms'
@@ -518,6 +528,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/games'
     | '/privacy-policy'
+    | '/receipt-preview'
     | '/sportsbetting'
     | '/terms'
     | '/wallet'
@@ -566,6 +577,7 @@ export interface FileRouteTypes {
     | '/kyc'
     | '/news'
     | '/privacy-policy'
+    | '/receipt-preview'
     | '/sportsbetting'
     | '/tennis'
     | '/terms'
@@ -618,6 +630,7 @@ export interface RootRouteChildren {
   KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ReceiptPreviewRoute: typeof ReceiptPreviewRoute
   SportsbettingRoute: typeof SportsbettingRouteWithChildren
   TennisRoute: typeof TennisRouteWithChildren
   TermsRoute: typeof TermsRoute
@@ -687,6 +700,13 @@ declare module '@tanstack/react-router' {
       path: '/sportsbetting'
       fullPath: '/sportsbetting'
       preLoaderRoute: typeof SportsbettingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/receipt-preview': {
+      id: '/receipt-preview'
+      path: '/receipt-preview'
+      fullPath: '/receipt-preview'
+      preLoaderRoute: typeof ReceiptPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy-policy': {
@@ -1126,6 +1146,7 @@ const rootRouteChildren: RootRouteChildren = {
   KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ReceiptPreviewRoute: ReceiptPreviewRoute,
   SportsbettingRoute: SportsbettingRouteWithChildren,
   TennisRoute: TennisRouteWithChildren,
   TermsRoute: TermsRoute,
