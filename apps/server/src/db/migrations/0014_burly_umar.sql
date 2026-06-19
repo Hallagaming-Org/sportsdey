@@ -1,1 +1,0 @@
-ALTER TABLE `wallet_transaction` ADD `metadata` text;

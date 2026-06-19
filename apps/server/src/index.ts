@@ -5,6 +5,9 @@ import { logger } from "hono/logger";
 import { createAuth, createHashCookie } from "./auth";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
+import adminNotificationsRoute from "./routes/admin-notifications";
+import adminTransactionsRoute from "./routes/admin-transactions";
+import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
 import type { CloudflareBindings } from "./types";
@@ -161,6 +164,9 @@ app.use("*", async (c, next) => {
 
 app.route("/", routes);
 app.route("/admin", adminRoute);
+app.route("/admin", adminWithdrawalsRoute);
+app.route("/admin", adminTransactionsRoute);
+app.route("/admin", adminNotificationsRoute);
 app.route("/cms", adminCmsRoute);
 app.route("/cms", cmsRoute);
 

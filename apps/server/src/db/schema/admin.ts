@@ -57,3 +57,28 @@ export const adminSessionRelations = relations(adminSession, ({ one }) => ({
 		references: [admin.id],
 	}),
 }));
+
+export const adminNotification = sqliteTable("admin_notification", {
+	id: text("id").primaryKey(),
+	adminId: text("admin_id")
+		.notNull()
+		.references(() => admin.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	message: text("message").notNull(),
+	type: text("type").notNull(),
+	referenceId: text("reference_id"),
+	isRead: integer("is_read", { mode: "boolean" }).default(false).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+});
+
+export const adminNotificationRelations = relations(
+	adminNotification,
+	({ one }) => ({
+		admin: one(admin, {
+			fields: [adminNotification.adminId],
+			references: [admin.id],
+		}),
+	}),
+);
