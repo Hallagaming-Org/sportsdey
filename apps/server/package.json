@@ -20,7 +20,8 @@
 		"games:sync": "node --import tsx src/cli/sync-games.ts",
 		"games:backfill-categories": "node --import tsx src/cli/backfill-categories.ts",
 		"gdrive:sync": "node --import tsx src/cli/sync-gdrive-files.ts",
-		"gdrive:match": "node --import tsx src/cli/match-game-images.ts"
+		"gdrive:match": "node --import tsx src/cli/match-game-images.ts",
+		"withdrawals:seed": "node --import tsx src/cli/seed-withdrawals.ts"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1071.0",
