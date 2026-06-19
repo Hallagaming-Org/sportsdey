@@ -194,16 +194,16 @@ const submitKycRoute = createRoute({
 					schema: z.object({
 						fullName: z.string().min(2).max(100),
 						identificationType: IdentificationTypeEnum,
-						frontDocument: z.string().openapi({
-							type: "string",
-							format: "binary",
-							description: "Front document file",
-						}),
-						backDocument: z.string().openapi({
-							type: "string",
-							format: "binary",
-							description: "Back document file",
-						}),
+				frontDocument: z.instanceof(File).openapi({
+					type: "string",
+					format: "binary",
+					description: "Front document file",
+				}),
+				backDocument: z.instanceof(File).openapi({
+					type: "string",
+					format: "binary",
+					description: "Back document file",
+				}),
 					}),
 				},
 			},
