@@ -112,6 +112,7 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 
 	const { action, amount } = result.data;
 	const db = drizzle(c.env.DB, { schema });
+	const amountInKobo = amount * 100
 
 	const [wallet] = await db
 		.select()
@@ -130,7 +131,7 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 		);
 	}
 
-	if (action === "debit" && wallet.balance < amount) {
+	if (action === "debit" && wallet.balance < amountInKobo) {
 		return c.json(
 			{
 				success: false as const,
@@ -144,8 +145,8 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 	const reference = `hcx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 	const newBalance =
 		action === "credit"
-			? wallet.balance + amount
-			: wallet.balance - amount;
+			? wallet.balance + amountInKobo
+			: wallet.balance - amountInKobo;
 
 	try {
 		await db
@@ -184,7 +185,7 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 			{
 				success: true as const,
 				data: {
-					balance: newBalance,
+					balance: newBalance / 100,
 					amount,
 					action,
 				},
