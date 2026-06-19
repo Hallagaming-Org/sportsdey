@@ -110,8 +110,6 @@ export function SportsbookPage() {
 					return;
 				}
 
-				console.log(window.bettingLoader);
-
 				window.bettingLoader.load(
 					buildAppInitOptions(token, isDarkTheme),
 					(bettingAPI) => {

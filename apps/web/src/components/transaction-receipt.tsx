@@ -87,7 +87,6 @@ export function TransactionReceipt({
 			link.click();
 			document.body.removeChild(link);
 		} catch (error) {
-			console.error("Error generating receipt:", error);
 			alert("Error generating receipt: " + (error instanceof Error ? error.message : String(error)));
 		} finally {
 			setIsSharing(false);

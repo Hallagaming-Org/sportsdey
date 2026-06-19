@@ -902,7 +902,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 			.limit(1);
 
 		if (transaction) {
-			txType = transaction.type === "credit" ? "deposit" : "withdraw";
+			txType = transaction.type === "credit" ? "deposit" : "withdrawal";
 		}
 
 		try {
@@ -1571,17 +1571,20 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	try {
+		const amountInKobo = amount * 100;
+		const newBalance = wallet.balance - amountInKobo;
+
 		const [withdrawalTxn] = await db
 			.insert(schema.walletTransaction)
 			.values({
 				id: txnId,
 				userId: user.id,
-				amount: amount * 100,
+				amount: amountInKobo,
 				type: "debit",
 				reference,
 				status: "pending_approval",
-				paymentMethod: "bank_transfer",
-				balance: wallet.balance,
+				paymentMethod: "paystack",
+				balance: newBalance,
 				metadata: JSON.stringify({
 					destinationBank: accountName,
 					bankCode,
@@ -1603,6 +1606,11 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 				500,
 			);
 		}
+
+		await db
+			.update(schema.wallet)
+			.set({ balance: newBalance })
+			.where(eq(schema.wallet.userId, user.id));
 
 		const superAdmins = await db
 			.select({ id: schema.admin.id })
@@ -1629,7 +1637,7 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 					reference,
 					amount,
 					status: "pending_approval",
-					balance: wallet.balance / 100,
+					balance: newBalance / 100,
 				},
 			},
 			200,

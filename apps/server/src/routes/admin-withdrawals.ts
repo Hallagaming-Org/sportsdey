@@ -79,7 +79,7 @@ const approveRoute = createRoute({
 	tags: ["Admin - Withdrawals"],
 	summary: "Approve withdrawal",
 	description:
-		"Approve a pending withdrawal, deduct balance, and process via Paystack (super_admin only)",
+		"Approve a pending withdrawal and process payout via Paystack (super_admin only)",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: z.object({
@@ -125,7 +125,7 @@ const rejectRoute = createRoute({
 	tags: ["Admin - Withdrawals"],
 	summary: "Reject withdrawal",
 	description:
-		"Reject a pending withdrawal request with a reason (super_admin only)",
+		"Reject a pending withdrawal request with a reason and refund balance (super_admin only)",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: z.object({
@@ -309,24 +309,6 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		);
 	}
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, txn.userId))
-		.limit(1);
-
-	if (!wallet || wallet.balance < txn.amount) {
-		await db
-			.update(schema.walletTransaction)
-			.set({ status: "failed" })
-			.where(eq(schema.walletTransaction.id, id));
-
-		return c.json(
-			{ success: false, error: "Insufficient balance" },
-			400,
-		);
-	}
-
 	try {
 		const recipient = await createTransferRecipient(
 			c.env.PAYSTACK_SECRET_KEY,
@@ -348,20 +330,12 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 			c.env.PROXY_SECRET,
 		);
 
-		const newBalance = wallet.balance - txn.amount;
-
-		await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, txn.userId));
-
 		await db
 			.update(schema.walletTransaction)
 			.set({
 				status:
 					transfer.status === "success" ? "success" : "processing",
 				paymentMethod: "paystack",
-				balance: newBalance,
 				reference: transfer.reference,
 			})
 			.where(eq(schema.walletTransaction.id, id));
@@ -451,13 +425,31 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 		/* empty */
 	}
 
+	const [wallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, txn.userId))
+		.limit(1);
+
+	const refundedBalance = wallet ? wallet.balance + txn.amount : txn.amount;
+
+	if (wallet) {
+		await db
+			.update(schema.wallet)
+			.set({ balance: refundedBalance })
+			.where(eq(schema.wallet.userId, txn.userId));
+	}
+
 	await db
 		.update(schema.walletTransaction)
 		.set({
 			status: "rejected",
+			balance: refundedBalance,
 			metadata: JSON.stringify({
 				...existingMeta,
 				rejectionReason: reason,
+				refundedAmount: txn.amount,
+				balanceAfterRefund: refundedBalance,
 			}),
 		})
 		.where(eq(schema.walletTransaction.id, id));

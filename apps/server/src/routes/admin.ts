@@ -1412,7 +1412,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		let txType: "deposit" | "withdrawal" | "payment";
 		if (tx.type === "credit") {
 			txType = "deposit";
-		} else if (tx.paymentMethod === "paystack") {
+		} else if (tx.type === "debit") {
 			txType = "withdrawal";
 		} else {
 			txType = "payment";

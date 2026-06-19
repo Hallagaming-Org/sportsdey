@@ -297,7 +297,6 @@ function GamesPage() {
 			navigate({ to: "/auth/sign-in" });
 			return;
 		}
-		console.log(import.meta.env.VITE_SERVER_URL, " import")
 		setLoadingGame(game.code);
 		try {
 			const knownGame = KNOWN_GAMES[game.code];
@@ -357,7 +356,6 @@ function GamesPage() {
 				state: { gameUrl } as any,
 			});
 		} catch (error) {
-			console.error("Failed to launch game:", error);
 		} finally {
 			setLoadingGame(null);
 		}

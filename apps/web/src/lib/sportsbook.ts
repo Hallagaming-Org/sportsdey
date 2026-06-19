@@ -251,7 +251,6 @@ export function loadSportsbookBootstrapScript(
 		script.onerror = () =>
 			reject(new Error("Failed to load sportsbook bootstrap script."));
 		document.body.appendChild(script);
-		console.log("script", script);
 	});
 }
 
@@ -287,8 +286,6 @@ export async function loadSportsbookWidgets(
 	if (!window.bettingLoader) {
 		throw new Error("Betting loader is not available.");
 	}
-	console.log("bettingLoader", window.bettingLoader);
-
 	window.bettingLoader.loadWidgets(
 		buildWidgetInitOptions(token, isDark),
 		(bettingAPI) => {

@@ -108,7 +108,6 @@ export function BillPaymentModal({
 					credentials: "include",
 				},
 			);
-			console.log("products", response.content);
 			setProducts(response.content);
 		} catch (err) {
 			setError(
@@ -132,7 +131,6 @@ export function BillPaymentModal({
 	}, [step, selectedBiller, fetchProducts]);
 
 	const handleVend = async () => {
-		console.log(selectedProduct);
 		if (!selectedProduct || !customerId) return;
 		setIsVending(true);
 		setError("");

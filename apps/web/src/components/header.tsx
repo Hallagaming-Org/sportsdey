@@ -24,10 +24,6 @@ import { UserMenu } from "./user-menu";
 export default function Header(
 	//{ hideSportsNav = false }: HeaderProps//
 ) {
-	const isStaging =
-		import.meta.env.MODE === "staging" ||
-		import.meta.env.VITE_ENVIRONMENT === "staging";
-	const showPreviewUI = isStaging || import.meta.env.DEV;
 	const location = useLocation();
 	const isAuthRoute = location.pathname.startsWith("/auth");
 	// const shouldHideSportsNav = hideSportsNav || isAuthRoute;
@@ -165,7 +161,22 @@ export default function Header(
 							</span>
 						</button>
 
-						<UserMenu />
+						{!isAuthRoute && (
+							isSessionLoading ? (
+								<div className="h-8 w-16 animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
+							) : session?.user ? (
+								<UserMenu />
+							) : (
+								<div className="flex gap-x-1.5">
+									<Link to="/auth/sign-in" className="bg-white px-2.5 py-1 text-secondary text-[10px] leading-tight text-black cursor-pointer rounded-full transition-colors whitespace-nowrap">
+										Log in
+									</Link>
+									<Link to="/auth/sign-up" className="flex text-[10px] leading-tight items-center justify-center gap-x-1 bg-accent px-3 py-1 text-white cursor-pointer rounded-full transition-colors whitespace-nowrap">
+										Join now
+									</Link>
+								</div>
+							)
+						)}
 					</div>
 				</div>
 
@@ -313,7 +324,7 @@ export default function Header(
 							</svg>
 						</button>
 
-						{!isAuthRoute && showPreviewUI && (
+						{!isAuthRoute && (
 							isSessionLoading ? (
 								<div className="h-8 w-24 animate-pulse rounded-full bg-white/10" />
 							) : session?.user ? (

@@ -226,7 +226,6 @@ export default function PopularAndCasinoSection() {
 				);
 			} catch (err) {
 				if (cancelled) return;
-				console.error("[PopularAndCasinoSection] Widget init error:", err);
 				const message =
 					err instanceof Error
 						? err.message
@@ -490,7 +489,6 @@ function HotCasinoPanel() {
 					state: { gameUrl: data.data.url } as never,
 				});
 			} catch (error) {
-				console.error("Failed to launch game:", error);
 			} finally {
 				setLoadingCode(null);
 			}
