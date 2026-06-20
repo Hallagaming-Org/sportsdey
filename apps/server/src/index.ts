@@ -90,7 +90,7 @@ app.use(
 			console.log(allowedOrigins.has(origin) ? origin : "");
 			return allowedOrigins.has(origin) ? origin : "";
 		},
-		allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
 		allowHeaders: ["Authorization", "Content-Type"],
 		credentials: true,
 	}),
@@ -119,7 +119,7 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 		const match = tokenCookie.match(/=([^;]+)/);
 		if (match) {
 			const token = match[1];
-			console.log("session_token",token)
+			console.log("session_token", token);
 			if (token) {
 				const hashCookie = createHashCookie(token, c.env.NODE_ENV);
 				response.headers.append("Set-Cookie", hashCookie);
