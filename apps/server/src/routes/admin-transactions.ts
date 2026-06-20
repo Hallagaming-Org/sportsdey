@@ -51,7 +51,7 @@ const TransactionSummaryParamsSchema = z.object({
 
 const TransactionSummaryResponseSchema = z.object({
 	transactionId: z.string(),
-	type: z.enum(["Deposit", "Withdrawal"]),
+	type: z.enum(["deposit", "withdrawal"]),
 	status: z.string(),
 	amount: z.number(),
 	paymentMethod: z.string(),

@@ -508,7 +508,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		id: u.id,
 		name: u.name,
 		email: u.email,
-		wallet: u.wallet ?? 0,
+		wallet: (u.wallet ?? 0) / 100,
 		status: u.status,
 		suspended: u.suspended,
 		registeredDate: u.registeredDate,
@@ -911,7 +911,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 				suspended: existingUser.suspended,
 				createdAt: existingUser.createdAt.toISOString(),
 				wallet: {
-					balance: wallet?.balance ?? 0,
+					balance: (wallet?.balance ?? 0) / 100,
 				},
 				lastTopUp: lastTopUpTransaction?.createdAt?.toISOString() ?? null,
 			},
