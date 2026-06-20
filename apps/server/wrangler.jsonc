@@ -120,25 +120,5 @@
 			"binding": "PRODUCTION_BUCKET",
 			"bucket_name": "sportsdey-prod"
 		}
-	]
-	// "kv_namespaces": [
-	// 	{
-	// 		"binding": "staging-kv",
-	// 		"id": "7720322efb504b96a392d8acfe37ad4b"
-	// 	}
-	// ],
-	// "d1_databases": [
-	// 	{
-	// 		"binding": "DB",
-	// 		"database_name": "staging-db",
-	// 		"database_id": "4be3127a-eadf-47db-918c-ae2fa1c4776e",
-	// 		"migrations_dir": "./src/db/migrations"
-	// 	}
-	// ],
-	// "r2_buckets": [
-	// 	{
-	// 		"binding": "STAGING_BUCKET",
-	// 		"bucket_name": "sportsdey-staging"
-	// 	}
-	// ]
+]
 }

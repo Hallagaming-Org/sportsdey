@@ -6,7 +6,7 @@
 		"build": "wrangler deploy --dry-run",
 		"check-types": "tsc -b",
 		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server --external @better-auth/expo",
-		"dev": "wrangler dev --port=3000",
+		"dev": "wrangler dev --port=3000 --env staging",
 		"start": "wrangler dev",
 		"deploy": "wrangler deploy",
 		"db:push": "drizzle-kit push",
