@@ -41,7 +41,7 @@ const TransactionSummaryParamsSchema = z.object({
 
 const TransactionSummaryResponseSchema = z.object({
 	transactionId: z.string(),
-	type: z.enum(["Deposit", "Withdrawal"]),
+	type: z.enum(["deposit", "withdrawal"]),
 	status: z.string(),
 	amount: z.number(),
 	paymentMethod: z.string(),
@@ -150,7 +150,7 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 			success: true,
 			data: {
 				transactionId: txn.id,
-				type: "Deposit" as const,
+				type: "deposit" as const,
 				status: capitalizeStatus(txn.status),
 				amount,
 				fees: (meta.fees as number) ?? 0,
@@ -178,7 +178,7 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 		success: true,
 		data: {
 			transactionId: txn.id,
-			type: "Withdrawal" as const,
+			type: "withdrawal" as const,
 			status: capitalizeStatus(txn.status),
 			amount,
 			feesAmount: (meta.feesAmount as number) ?? 0,
