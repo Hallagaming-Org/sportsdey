@@ -132,9 +132,6 @@ const CreateAdminSchema = z.object({
 	role: z
 		.enum(["super_admin", "admin", "csr-admin"])
 		.openapi({ description: "Admin role" }),
-	permissions: z
-		.array(z.enum(adminPermissions))
-		.openapi({ description: "Admin permissions" }),
 });
 
 const GetWalletTransactionsQuerySchema = z.object({
@@ -1158,7 +1155,7 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 		return c.json({ success: false, error: "Invalid request body" }, 400);
 	}
 
-	const { email, password, name, role, permissions } = result.data;
+	const { email, password, name, role } = result.data;
 
 	const existing = await getAdminByEmail(c.env, email);
 	if (existing) {
@@ -1166,10 +1163,6 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 	}
 
 	const adminResult = await createAdmin(c.env, { email, password, name, role });
-
-	if (permissions && permissions.length > 0) {
-		await updateAdminPermissions(c.env, adminResult.id, permissions);
-	}
 
 	const admin = await getAdminById(c.env, adminResult.id);
 
@@ -1180,7 +1173,6 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 			email: admin?.email,
 			name: admin?.name,
 			role: admin?.role,
-			permissions: safeParsePermissions(admin?.permissions ?? null),
 			createdAt: admin?.createdAt?.toISOString() || new Date().toISOString(),
 		},
 	});
@@ -1439,6 +1431,38 @@ const UpdateAdminPermissionsSchema = z.object({
 	}),
 });
 
+const listAdminPermissionsRoute = createRoute({
+	method: "get",
+	path: "/permissions",
+	tags: ["Admin - Management"],
+	summary: "List all available permissions",
+	description: "Get a list of all permissions that can be assigned to admins.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Permissions list retrieved",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							permissions: z.array(
+								z.object({
+									key: z.string(),
+									label: z.string(),
+								}),
+							),
+						}),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
 const getAdminPermissionsRoute = createRoute({
 	method: "get",
 	path: "/admins/{id}/permissions",
@@ -1601,6 +1625,27 @@ adminRoute.openapi(getAdminByIdRoute, async (c) => {
 			permissions: safeParsePermissions(admin.permissions),
 			createdAt: admin.createdAt?.toISOString() || "",
 		},
+	});
+});
+
+adminRoute.openapi(listAdminPermissionsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const permissions = Object.entries(permissionLabels).map(
+		([key, label]) => ({ key, label }),
+	);
+
+	return c.json({
+		success: true,
+		data: { permissions },
 	});
 });
 
