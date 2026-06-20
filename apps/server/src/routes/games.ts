@@ -379,7 +379,7 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.get();
 
-		if (!existing) {
+		if (!existing.length) {
 			return c.json(
 				{ success: false as const, error: "Game not found", details: null },
 				404,
@@ -388,7 +388,7 @@ gamesRoute.openapi(
 
 		const [updated] = await db
 			.update(schema.game)
-			.set({ ...result.data, updatedAt: Date.now() })
+			.set({ ...result.data, updatedAt: new Date() })
 			.where(eq(schema.game.id, id))
 			.returning();
 
@@ -459,7 +459,7 @@ gamesRoute.openapi(
 			.from(schema.game)
 			.where(eq(schema.game.id, id));
 
-		if (!existing) {
+		if (!existing.length) {
 			return c.json(
 				{ success: false as const, error: "Game not found", details: null },
 				404,
@@ -468,7 +468,7 @@ gamesRoute.openapi(
 
 		const [updated] = await db
 			.update(schema.game)
-			.set({ enabled: true, updatedAt: Date.now() })
+			.set({ enabled: true, updatedAt: new Date() })
 			.where(eq(schema.game.id, id))
 			.returning();
 
@@ -548,7 +548,7 @@ gamesRoute.openapi(
 
 		console.log("existing", existing);
 
-		if (!existing) {
+		if (!existing.length) {
 			return c.json(
 				{ success: false as const, error: "Game not found", details: null },
 				404,
@@ -557,7 +557,7 @@ gamesRoute.openapi(
 
 		const [updated] = await db
 			.update(schema.game)
-			.set({ enabled: false, updatedAt: Date.now() })
+			.set({ enabled: false, updatedAt: new Date() })
 			.where(eq(schema.game.id, id))
 			.returning();
 
