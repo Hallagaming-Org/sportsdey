@@ -229,8 +229,8 @@ cmsRoute.openapi(
 
 		const query =
 			category === "all"
-				? `*[_type == "news"] | order(publishedAt desc)[$start...$end]${baseFields}`
-				: `*[_type == "news" && category == $category] | order(publishedAt desc)[$start...$end]${baseFields}`;
+				? `*[_type == "news" && !(_id in path("drafts.**"))] | order(publishedAt desc)[$start...$end]${baseFields}`
+				: `*[_type == "news" && category == $category && !(_id in path("drafts.**"))] | order(publishedAt desc)[$start...$end]${baseFields}`;
 
 		const params: Record<string, unknown> = { start, end };
 		if (category !== "all") params.category = category;
@@ -271,7 +271,7 @@ cmsRoute.openapi(
 		const { id } = c.req.valid("param");
 		const client = getSanityClient(c.env);
 		const data = await client.fetch<SanityNews | null>(
-			`*[_type == "news" && _id == $id][0]{
+			`*[_type == "news" && _id == $id && !(_id in path("drafts.**"))][0]{
 				_id,
 				title,
 				publishedAt,
@@ -317,7 +317,7 @@ cmsRoute.openapi(
 		const { slug } = c.req.valid("param");
 		const client = getSanityClient(c.env);
 		const data = await client.fetch<SanityNews | null>(
-			`*[_type == "news" && slug.current == $slug][0]{
+			`*[_type == "news" && slug.current == $slug && !(_id in path("drafts.**"))][0]{
 				_id,
 				title,
 				publishedAt,
@@ -363,7 +363,7 @@ cmsRoute.openapi(
 		const { slug } = c.req.valid("param");
 		const client = getSanityClient(c.env);
 		const data = await client.fetch<SanityAuthor | null>(
-			`*[_type == "author" && slug.current == $slug][0]{
+			`*[_type == "author" && slug.current == $slug && !(_id in path("drafts.**"))][0]{
 				_id,
 				name,
 				slug,
@@ -413,7 +413,7 @@ cmsRoute.openapi(
 		const client = getSanityClient(c.env);
 		try {
 			const data = await client.fetch<SanityNews[]>(
-				`*[_type == "news" && references($authorId)] | order(publishedAt desc) [$offset...$end] {
+				`*[_type == "news" && references($authorId) && !(_id in path("drafts.**"))] | order(publishedAt desc) [$offset...$end] {
 					_id,
 					title,
 					publishedAt,
@@ -463,7 +463,7 @@ cmsRoute.openapi(
 		const client = getSanityClient(c.env);
 		try {
 			const total = await client.fetch<number>(
-				`count(*[_type == "news" && references($authorId)])`,
+				`count(*[_type == "news" && references($authorId) && !(_id in path("drafts.**"))])`,
 				{ authorId },
 			);
 			return c.json({ success: true as const, data: total || 0 }, 200);
@@ -637,7 +637,7 @@ cmsRoute.openapi(
 	async (c) => {
 		const client = getSanityClient(c.env);
 		const data = await client.fetch<SanityBanner[]>(
-			`*[_type == "banner"] | order(_createdAt desc)[0...10] {
+			`*[_type == "banner" && !(_id in path("drafts.**"))] | order(_createdAt desc)[0...10] {
 				_id,
 				image,
 				url,
