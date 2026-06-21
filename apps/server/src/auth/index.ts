@@ -89,6 +89,9 @@ export const createAuth = (env: CloudflareBindings) => {
 		secret: env.BETTER_AUTH_SECRET,
 		trustedOrigins,
 		advanced: {
+      crossSubDomainCookies: {
+    enabled: true
+  },
 			cookiePrefix: "ba",
 			cookieOptions: {
 				sameSite: "none",
