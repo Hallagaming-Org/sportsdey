@@ -154,14 +154,48 @@ const PRIORITY_GAMES = [
 	"LAGOSRUSH",
 ];
 
-const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+const POPULAR_GAME_NAMES = [
+	"Aviator",
+	"CrashX",
+	"High Flyer",
+	"Sweet Bonanza",
+	"Roulette",
+	"Mines",
+	"Plinko",
+	"Gates of Olympus",
+	"Blackjack",
+	"Space",
+	"Keno",
+	"Big Bass Splash",
+	"Baccarat",
+	"JetX",
+	"Helicopter X",
+	"Wild Fortune",
+	"Mystic Fortune",
+	"Balloon",
+	"Football X",
+	"Greyhound",
+	"Car Racing",
+];
 
 const PAGE_SIZE = 24;
 
-const isPopularGame = (game: Game) => {
-	return POPULAR_GAME_NAMES.some((name) =>
-		game.name.toLowerCase().includes(name.toLowerCase()),
-	);
+const getUniquePopularGames = (games: Game[]) => {
+	const result: Game[] = [];
+	const addedIds = new Set<string>();
+
+	for (const popName of POPULAR_GAME_NAMES) {
+		const match = games.find(
+			(g) =>
+				!addedIds.has(g.id) &&
+				g.name.toLowerCase().includes(popName.toLowerCase()),
+		);
+		if (match) {
+			result.push(match);
+			addedIds.add(match.id);
+		}
+	}
+	return result;
 };
 
 const isThundrGame = (code: string) => {
@@ -240,11 +274,14 @@ function GamesPage() {
 		return a.name.localeCompare(b.name);
 	});
 
+	const popularGames = getUniquePopularGames(sortedGames);
+	const popularGameIds = new Set(popularGames.map((g) => g.id));
+
 	const categoryCounts = sortedGames.reduce(
 		(acc, game) => {
 			const cat = game.category ?? "others";
 			acc[cat] = (acc[cat] ?? 0) + 1;
-			if (isPopularGame(game)) {
+			if (popularGameIds.has(game.id)) {
 				acc["popular"] = (acc["popular"] ?? 0) + 1;
 			}
 			if (isThundrGame(game.code)) {
@@ -257,7 +294,7 @@ function GamesPage() {
 
 	const filteredGames = sortedGames.filter((game) => {
 		if (selectedCategory === "popular") {
-			if (!isPopularGame(game)) return false;
+			if (!popularGameIds.has(game.id)) return false;
 		} else if (selectedCategory === "pvp") {
 			if (!isThundrGame(game.code) && (game.category ?? "others") !== "pvp") return false;
 		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
