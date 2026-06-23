@@ -154,7 +154,29 @@ const PRIORITY_GAMES = [
 	"LAGOSRUSH",
 ];
 
-const POPULAR_GAME_NAMES = ["Aviator", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+const POPULAR_GAME_NAMES = [
+	"Aviator",
+	"CrashX",
+	"High Flyer",
+	"Sweet Bonanza",
+	"Roulette",
+	"Mines",
+	"Plinko",
+	"Gates of Olympus",
+	"Blackjack",
+	"Space",
+	"Keno",
+	"Big Bass Splash",
+	"Baccarat",
+	"JetX",
+	"Helicopter X",
+	"Wild Fortune",
+	"Mystic Fortune",
+	"Balloon",
+	"Football X",
+	"Greyhound",
+	"Car Racing",
+];
 
 const PAGE_SIZE = 24;
 
