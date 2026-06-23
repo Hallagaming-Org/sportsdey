@@ -139,10 +139,23 @@ const POPULAR_GAME_NAMES = [
 	"Car Racing",
 ];
 
-const isPopularGame = (game: Game) => {
-	return POPULAR_GAME_NAMES.some((name) =>
-		game.name.toLowerCase().includes(name.toLowerCase()),
-	);
+const getUniquePopularGames = (games: Game[], limit: number) => {
+	const result: Game[] = [];
+	const addedIds = new Set<string>();
+
+	for (const popName of POPULAR_GAME_NAMES) {
+		if (result.length >= limit) break;
+		const match = games.find(
+			(g) =>
+				!addedIds.has(g.id) &&
+				g.name.toLowerCase().includes(popName.toLowerCase()),
+		);
+		if (match) {
+			result.push(match);
+			addedIds.add(match.id);
+		}
+	}
+	return result;
 };
 
 const isThundrGame = (code: string) => {
@@ -458,7 +471,7 @@ function HotCasinoPanel() {
 		return a.name.localeCompare(b.name);
 	});
 
-	const hotGames = sortedGames.filter(isPopularGame).slice(0, HOT_CASINO_LIMIT);
+	const hotGames = getUniquePopularGames(sortedGames, HOT_CASINO_LIMIT);
 
 	const handleGameClick = useCallback(
 		async (game: Game) => {
