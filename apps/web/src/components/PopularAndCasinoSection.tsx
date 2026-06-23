@@ -113,9 +113,31 @@ const PRIORITY_GAMES = [
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
-const HOT_CASINO_LIMIT = 12;
+const HOT_CASINO_LIMIT = 30;
 
-const POPULAR_GAME_NAMES = ["Aviator Mobile", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+const POPULAR_GAME_NAMES = [
+	"Aviator",
+	"CrashX",
+	"High Flyer",
+	"Sweet Bonanza",
+	"Roulette",
+	"Mines",
+	"Plinko",
+	"Gates of Olympus",
+	"Blackjack",
+	"Space",
+	"Keno",
+	"Big Bass Splash",
+	"Baccarat",
+	"JetX",
+	"Helicopter X",
+	"Wild Fortune",
+	"Mystic Fortune",
+	"Balloon",
+	"Football X",
+	"Greyhound",
+	"Car Racing",
+];
 
 const isPopularGame = (game: Game) => {
 	return POPULAR_GAME_NAMES.some((name) =>
