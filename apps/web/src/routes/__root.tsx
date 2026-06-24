@@ -123,6 +123,7 @@ function RootDocument() {
 		"/sportsbetting/$",
 		"/games",
 		"/game/$gameId",
+		"/play/$gameName",
 		"/wallet",
 		"/account",
 		"/favorites",
