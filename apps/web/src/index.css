@@ -15,7 +15,7 @@
 html,
 body {
 	height: 100svh;
-	overflow: hidden;
+	overflow: clip;
 }
 
 :root {
@@ -259,4 +259,12 @@ body {
 .swiper-pagination-bullet-active {
 	background: white !important;
 	opacity: 1;
+}
+
+/* Sportsbook Layout Fixes */
+#betting__container > div > div:nth-child(2) > div:first-child {
+	position: sticky !important;
+	top: 64px !important;
+	z-index: 40 !important;
+	background-color: var(--background);
 }
