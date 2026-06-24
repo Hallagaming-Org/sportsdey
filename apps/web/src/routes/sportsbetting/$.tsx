@@ -117,7 +117,10 @@ export function SportsbookPage() {
 						bettingAPI.subscribe("redirect", ({ destination, link }) => {
 							switch (destination) {
 								case "login": {
-									navigate({ to: "/auth/sign-in" });
+									navigate({ 
+										to: "/auth/sign-in",
+										search: { returnTo: window.location.pathname + window.location.search }
+									});
 									break;
 								}
 								case "logout": {
