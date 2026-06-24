@@ -42,7 +42,7 @@ function PlayGamePage() {
 	const { gameName } = Route.useParams();
 	const navigate = useNavigate();
 	const { data: session, isPending: isSessionLoading } = useSession();
-	
+
 	const [isPlayClicked, setIsPlayClicked] = useState(false);
 	const [gameUrl, setGameUrl] = useState<string | null>(null);
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -67,12 +67,14 @@ function PlayGamePage() {
 	}, [session, isSessionLoading, navigate]);
 
 	const decodedGameName = decodeURIComponent(gameName);
-	const searchName = decodedGameName.toLowerCase().replace(/-/g, " ");
-	
+	const searchName = decodedGameName.toLowerCase().replace(/[-_]/g, " ");
+	const searchCode = searchName.replace(/\s/g, "");
+
 	const targetGame = games.find(
 		(g) =>
 			g.name.toLowerCase() === searchName ||
-			g.name.toLowerCase().includes(searchName),
+			g.name.toLowerCase().includes(searchName) ||
+			g.code.toLowerCase() === searchCode
 	);
 
 	useEffect(() => {
@@ -213,7 +215,7 @@ function PlayGamePage() {
 						)}
 						<div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-90" />
 					</div>
-					
+
 					<div className="relative -mt-16 flex flex-col items-center px-6 pb-12 text-center sm:-mt-24 sm:px-12">
 						<div className="mb-6 flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl border-4 border-[#1a1a1a] bg-gray-900 shadow-2xl sm:h-40 sm:w-40">
 							{targetGame?.imageUrl ? (
@@ -226,26 +228,26 @@ function PlayGamePage() {
 								<p className="text-xl font-bold text-white/50">Logo</p>
 							)}
 						</div>
-						
+
 						<h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-white sm:text-5xl">
 							{targetGame?.name}
 						</h1>
-						{targetGame?.category && (
+						{/* {targetGame?.category && (
 							<p className="mb-8 text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
 								{targetGame.category}
 							</p>
-						)}
-						
+						)} */}
+
 						<button
 							onClick={() => setIsPlayClicked(true)}
 							className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-[#1BAA04] px-12 py-4 font-bold text-white transition-all hover:scale-105 hover:bg-[#158a03] hover:shadow-[0_0_20px_rgba(27,170,4,0.4)] active:scale-95"
 						>
 							<span className="relative flex items-center gap-2 text-lg">
 								PLAY NOW
-								<svg 
-									className="h-5 w-5 transition-transform group-hover:translate-x-1" 
-									fill="none" 
-									viewBox="0 0 24 24" 
+								<svg
+									className="h-5 w-5 transition-transform group-hover:translate-x-1"
+									fill="none"
+									viewBox="0 0 24 24"
 									stroke="currentColor"
 								>
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
