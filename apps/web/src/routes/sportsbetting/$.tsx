@@ -127,9 +127,10 @@ export function SportsbookPage() {
 									break;
 								}
 								case "betting-page": {
+									const cleanLink = link && link.startsWith("/") ? link.slice(1) : (link ?? "");
 									navigate({
 										to: "/sportsbetting/$",
-										params: { _splat: link ?? "" },
+										params: { _splat: cleanLink },
 									});
 									break;
 								}
