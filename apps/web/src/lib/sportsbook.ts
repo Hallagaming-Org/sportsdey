@@ -70,6 +70,10 @@ export type BettingAPI = {
 		event: "redirect",
 		callback: (payload: RedirectPayload) => void,
 	): void;
+	subscribe(
+    event: "handle-not-enough-balance",
+    callback: () => void,
+  ): void;
 };
 
 export type BaseWidgetStyle = {

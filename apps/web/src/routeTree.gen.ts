@@ -41,6 +41,7 @@ import { Route as WalletTransactionsRouteImport } from './routes/wallet.transact
 import { Route as TennisMatchesRouteImport } from './routes/tennis.matches'
 import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
 import { Route as SportsbettingSplatRouteImport } from './routes/sportsbetting/$'
+import { Route as PlayGameNameRouteImport } from './routes/play.$gameName'
 import { Route as NewsSlugRouteImport } from './routes/news.$slug'
 import { Route as KycVerifyRouteImport } from './routes/kyc.verify'
 import { Route as IndexMatchesRouteImport } from './routes/index.matches'
@@ -220,6 +221,11 @@ const SportsbettingSplatRoute = SportsbettingSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => SportsbettingRoute,
 } as any)
+const PlayGameNameRoute = PlayGameNameRouteImport.update({
+  id: '/play/$gameName',
+  path: '/play/$gameName',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NewsSlugRoute = NewsSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -350,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
+  '/play/$gameName': typeof PlayGameNameRoute
   '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
@@ -395,6 +402,7 @@ export interface FileRoutesByTo {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
+  '/play/$gameName': typeof PlayGameNameRoute
   '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
@@ -448,6 +456,7 @@ export interface FileRoutesById {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
+  '/play/$gameName': typeof PlayGameNameRoute
   '/sportsbetting/$': typeof SportsbettingSplatRoute
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
@@ -502,6 +511,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
+    | '/play/$gameName'
     | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
@@ -547,6 +557,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
+    | '/play/$gameName'
     | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
@@ -599,6 +610,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
+    | '/play/$gameName'
     | '/sportsbetting/$'
     | '/tennis/$Id'
     | '/tennis/matches'
@@ -648,6 +660,7 @@ export interface RootRouteChildren {
   GameGameIdRoute: typeof GameGameIdRoute
   IndexGameIdRoute: typeof IndexGameIdRoute
   IndexMatchesRoute: typeof IndexMatchesRoute
+  PlayGameNameRoute: typeof PlayGameNameRoute
   IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute
 }
 
@@ -876,6 +889,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sportsbetting/$'
       preLoaderRoute: typeof SportsbettingSplatRouteImport
       parentRoute: typeof SportsbettingRoute
+    }
+    '/play/$gameName': {
+      id: '/play/$gameName'
+      path: '/play/$gameName'
+      fullPath: '/play/$gameName'
+      preLoaderRoute: typeof PlayGameNameRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/news/$slug': {
       id: '/news/$slug'
@@ -1164,6 +1184,7 @@ const rootRouteChildren: RootRouteChildren = {
   GameGameIdRoute: GameGameIdRoute,
   IndexGameIdRoute: IndexGameIdRoute,
   IndexMatchesRoute: IndexMatchesRoute,
+  PlayGameNameRoute: PlayGameNameRoute,
   IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,
 }
 export const routeTree = rootRouteImport

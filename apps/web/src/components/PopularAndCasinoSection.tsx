@@ -12,12 +12,15 @@ import {
 	SPORTSBOOK_CONTAINER_ID,
 } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
+import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
 import BlocksLogo from "@/logos/blocks.svg?react";
 import PlinkoLogo from "@/logos/plinko.svg?react";
 import SlotsLogo from "@/logos/slots.svg?react";
 import SolitaireLogo from "@/logos/solitaire.svg?react";
 import TwentyOneLogo from "@/logos/twentyone.svg?react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Game = {
 	id: string;
@@ -35,6 +38,8 @@ type LaunchResponse = {
 	data?: { url?: string };
 	error?: string;
 };
+
+// ─── Game Registry ────────────────────────────────────────────────────────────
 
 const KNOWN_GAMES: Record<
 	string,
@@ -110,22 +115,57 @@ const PRIORITY_GAMES = [
 	"LAGOSRUSH",
 ];
 
-const DEFAULT_GRADIENT =
-	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
+const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
+const HOT_CASINO_LIMIT = 30;
 
-const HOT_CASINO_LIMIT = 12;
+const POPULAR_GAME_NAMES = [
+	"Aviator",
+	"CrashX",
+	"High Flyer",
+	"Sweet Bonanza",
+	"Roulette",
+	"Mines",
+	"Plinko",
+	"Gates of Olympus",
+	"Blackjack",
+	"Space",
+	"Keno",
+	"Big Bass Splash",
+	"Baccarat",
+	"JetX",
+	"Helicopter X",
+	"Wild Fortune",
+	"Mystic Fortune",
+	"Balloon",
+	"Football X",
+	"Greyhound",
+	"Car Racing",
+];
 
-const POPULAR_GAME_NAMES = ["Aviator Mobile", "Lagos Rush", "Aviatrix", "Xcape", "Mines"];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const isPopularGame = (game: Game) => {
-	return POPULAR_GAME_NAMES.some((name) =>
-		game.name.toLowerCase().includes(name.toLowerCase()),
-	);
+const getUniquePopularGames = (games: Game[], limit: number) => {
+	const result: Game[] = [];
+	const addedIds = new Set<string>();
+	for (const popName of POPULAR_GAME_NAMES) {
+		if (result.length >= limit) break;
+		const match = games.find(
+			(g) =>
+				!addedIds.has(g.id) &&
+				g.name.toLowerCase().includes(popName.toLowerCase()),
+		);
+		if (match) {
+			result.push(match);
+			addedIds.add(match.id);
+		}
+	}
+	return result;
 };
 
-const isThundrGame = (code: string) => {
-	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
-};
+const isThundrGame = (code: string) =>
+	["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
@@ -141,27 +181,28 @@ const TABS: TabConfig[] = [
 	{ id: "casino", label: "Hot Casino" },
 ];
 
+// ─── Root Section ─────────────────────────────────────────────────────────────
+
 export default function PopularAndCasinoSection() {
 	const [activeTab, setActiveTab] = useState<TabId>("popular");
 	const [isDark, setIsDark] = useState(true);
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
+	const [showBalanceModal, setShowBalanceModal] = useState(false);
 	const initRef = useRef(false);
 	const navigate = useNavigate();
 
+	// Observe dark-mode class changes on <html>
 	useEffect(() => {
 		const isDarkMode = document.documentElement.classList.contains("dark");
 		setIsDark(isDarkMode);
-
 		const observer = new MutationObserver(() => {
 			setIsDark(document.documentElement.classList.contains("dark"));
 		});
-
 		observer.observe(document.documentElement, {
 			attributes: true,
 			attributeFilter: ["class"],
 		});
-
 		return () => observer.disconnect();
 	}, []);
 
@@ -188,21 +229,26 @@ export default function PopularAndCasinoSection() {
 			try {
 				const data = await apiRequest<{ token: string }>(
 					"sportsbook/token/create",
-					{
-						method: "POST",
-						credentials: "include",
-					},
+					{ method: "POST", credentials: "include" },
 				);
 				if (cancelled) return;
+
 				await loadSportsbookWidgets(
 					data.token,
 					isDarkRef.current,
 					(bettingAPI) => {
 						if (!cancelled) setWidgetReady(true);
 						if (!cancelled) {
+							// Issue 1 fix: save current path before login redirect
+							// Issue 3 fix: scroll to top on event navigation
+							// Issue 8 fix: guard empty link
 							bettingAPI.subscribe("redirect", ({ destination, link }) => {
 								switch (destination) {
 									case "login": {
+										sessionStorage.setItem(
+											"post_login_redirect",
+											window.location.pathname + window.location.search,
+										);
 										navigate({ to: "/auth/sign-in" });
 										break;
 									}
@@ -213,13 +259,23 @@ export default function PopularAndCasinoSection() {
 										break;
 									}
 									case "betting-page": {
-										navigate({
-											to: "/sportsbetting/$",
-											params: { _splat: link ?? "" },
-										});
+										if (link) {
+											navigate({
+												to: "/sportsbetting/$",
+												params: { _splat: link },
+											});
+										} else {
+											navigate({ to: "/sportsbetting" });
+										}
+										window.scrollTo({ top: 0, behavior: "smooth" });
 										break;
 									}
 								}
+							});
+
+							// Issue 2 fix: handle insufficient balance
+							bettingAPI.subscribe("handle-not-enough-balance", () => {
+								setShowBalanceModal(true);
 							});
 						}
 					},
@@ -227,9 +283,7 @@ export default function PopularAndCasinoSection() {
 			} catch (err) {
 				if (cancelled) return;
 				const message =
-					err instanceof Error
-						? err.message
-						: "Failed to load popular matches.";
+					err instanceof Error ? err.message : "Failed to load popular matches.";
 				setWidgetError(message);
 				setWidgetReady(true);
 			}
@@ -245,6 +299,15 @@ export default function PopularAndCasinoSection() {
 
 	return (
 		<section className="space-y-4">
+			<InsufficientBalanceModal
+				isOpen={showBalanceModal}
+				onClose={() => setShowBalanceModal(false)}
+				onTopUp={() => {
+					setShowBalanceModal(false);
+					navigate({ to: "/wallet" });
+				}}
+			/>
+
 			<div
 				role="tablist"
 				aria-label="Popular matches and hot casino"
@@ -296,6 +359,8 @@ export default function PopularAndCasinoSection() {
 	);
 }
 
+// ─── Widget Style Builder ─────────────────────────────────────────────────────
+
 function buildWidgetStyle(isDark: boolean): React.CSSProperties {
 	const palette = getSportsbookTheme(isDark, 0).palette;
 	return {
@@ -319,6 +384,8 @@ function buildWidgetStyle(isDark: boolean): React.CSSProperties {
 		"--bet-notification-warning": palette.notificationWarning,
 	} as React.CSSProperties;
 }
+
+// ─── Popular Matches Panel ────────────────────────────────────────────────────
 
 interface PopularMatchesPanelProps {
 	widgetReady: boolean;
@@ -395,7 +462,36 @@ function PopularMatchesPanel({
 
 	return (
 		<div ref={containerRef} className="relative min-h-[200px]">
-			<div id={SPORTSBOOK_CONTAINER_ID} className="hidden" />
+			{/*
+			 * CRITICAL FIX (Issue 7 — betslip not shown on odds click):
+			 *
+			 * This element is the widget's ROOT mount point. The DATA.BET widget
+			 * bootstraps itself by finding document.getElementById(SPORTSBOOK_CONTAINER_ID)
+			 * and attaches its internal DOM tree here, including the logic that
+			 * eventually populates #betting-betslip when an odd is clicked.
+			 *
+			 * It must be:
+			 *   ✅ Present in the DOM at all times
+			 *   ✅ NOT display:none  (widget can't mount into a hidden element)
+			 *   ✅ NOT sr-only       (sr-only uses clip + overflow:hidden which
+			 *                         prevents the widget's internal layout from working)
+			 *   ✅ Zero visual footprint so it doesn't affect your layout
+			 *
+			 * We use position:absolute with zero dimensions and no overflow clipping.
+			 * This keeps the element "real" to the browser while invisible to users.
+			 */}
+			<div
+				id={SPORTSBOOK_CONTAINER_ID}
+				aria-hidden="true"
+				style={{
+					position: "absolute",
+					width: 0,
+					height: 0,
+					overflow: "visible",  // must NOT be hidden — widget writes outside its bounds
+					pointerEvents: "none",
+				}}
+			/>
+
 			{showSkeleton && (
 				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 sm:p-2 dark:bg-card/80">
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -403,6 +499,7 @@ function PopularMatchesPanel({
 					))}
 				</div>
 			)}
+
 			<top-events-outside-widget
 				sport-type="sports"
 				with-sport-title={false}
@@ -413,6 +510,8 @@ function PopularMatchesPanel({
 		</div>
 	);
 }
+
+// ─── Hot Casino Panel ─────────────────────────────────────────────────────────
 
 function HotCasinoPanel() {
 	const navigate = useNavigate();
@@ -436,7 +535,7 @@ function HotCasinoPanel() {
 		return a.name.localeCompare(b.name);
 	});
 
-	const hotGames = sortedGames.filter(isPopularGame).slice(0, HOT_CASINO_LIMIT);
+	const hotGames = getUniquePopularGames(sortedGames, HOT_CASINO_LIMIT);
 
 	const handleGameClick = useCallback(
 		async (game: Game) => {
@@ -489,6 +588,7 @@ function HotCasinoPanel() {
 					state: { gameUrl: data.data.url } as never,
 				});
 			} catch (error) {
+				// Errors are silently swallowed; add toast/logging here if needed
 			} finally {
 				setLoadingCode(null);
 			}
@@ -500,10 +600,7 @@ function HotCasinoPanel() {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
 				{Array.from({ length: 10 }).map((_, i) => (
-					<Skeleton
-						key={`casino-skel-${i}`}
-						className="h-[110px] w-full rounded-xl"
-					/>
+					<Skeleton key={`casino-skel-${i}`} className="h-[110px] w-full rounded-xl" />
 				))}
 			</div>
 		);
@@ -539,7 +636,7 @@ function HotCasinoPanel() {
 							"group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
 							isLoadingThis
 								? "ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90"
-								: "disabled:cursor-not-allowed disabled:opacity-60"
+								: "disabled:cursor-not-allowed disabled:opacity-60",
 						)}
 						style={{ background: display.gradient }}
 					>
