@@ -101,14 +101,14 @@ async function main() {
 		return;
 	}
 
-	console.log("Fetching games with NULL image_url...");
+	console.log("Fetching all games...");
 	const games = await executeD1Json<GameRecord>(
-		"SELECT id, name FROM game WHERE image_url IS NULL",
+		"SELECT id, name FROM game",
 	);
-	console.log(`Found ${games.length} games with NULL image_url`);
+	console.log(`Found ${games.length} games in database`);
 
 	if (games.length === 0) {
-		console.log("No games need image updates.");
+		console.log("No games in database.");
 		return;
 	}
 
