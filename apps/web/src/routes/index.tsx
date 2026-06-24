@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 import SportLandingPage from "@/components/SportLandingPage";
 import { getBanners } from "@/lib/banners-server";
+import { SportsbookBetslip } from "@/components/sportsbook-betslip";
 
 export const Route = createFileRoute("/")({
 	validateSearch: (search: Record<string, unknown>) => ({
@@ -36,6 +37,7 @@ function HomeComponent() {
 	return (
 		<div className="w-full">
 			<SportLandingPage sport="football" banners={banners} />
+			<SportsbookBetslip />
 		</div>
 	);
 }
