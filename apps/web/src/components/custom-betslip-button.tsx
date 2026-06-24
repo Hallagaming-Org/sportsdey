@@ -33,16 +33,7 @@ export function CustomBetslipFloatingButton({ isOpen }: { isOpen: boolean }) {
 	return (
 		<button
 			onClick={() => {
-				const toggleBtn = document.querySelector(".tsqd-open-btn");
-				if (toggleBtn) {
-					(toggleBtn as HTMLElement).click();
-				} else {
-					const betslipContainer = document.getElementById("betting-betslip");
-					if (betslipContainer) {
-						const clickable = betslipContainer.querySelector("div") as HTMLElement;
-						if (clickable) clickable.click();
-					}
-				}
+				document.dispatchEvent(new CustomEvent("toggle-local-betslip"));
 			}}
 			className="fixed bottom-24 right-4 md:right-6 z-[999999] flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-xl transition-transform hover:scale-105"
 		>
