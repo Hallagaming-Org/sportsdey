@@ -727,11 +727,15 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 					userId: bet.userId,
 					amount: -bet.stake,
 					type: "debit",
-					reference: `sb_accept_${result.data.bet_id}`,
+					reference: `sb_accept_${result.data.bet_id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
 					balance: newBalance,
-					metadata: JSON.stringify({ action: "bet_accepted", betId: result.data.bet_id, stake: bet.stake }),
+					metadata: JSON.stringify({
+						action: "bet_accepted",
+						betId: result.data.bet_id,
+						stake: bet.stake,
+					}),
 				})
 				.returning({ id: schema.walletTransaction.id });
 			if (!walletTxn?.id) {
@@ -1023,11 +1027,15 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 						userId: bet.userId,
 						amount: bet.stake,
 						type: "refund",
-						reference: `sb_decline_${bet.id}`,
+						reference: `sb_decline_${bet.id}_${crypto.randomUUID()}`,
 						status: "success",
 						paymentMethod: "sportsbook",
 						balance: newBalance,
-						metadata: JSON.stringify({ action: "bet_declined", betId: bet.id, stake: bet.stake }),
+						metadata: JSON.stringify({
+							action: "bet_declined",
+							betId: bet.id,
+							stake: bet.stake,
+						}),
 					})
 					.returning({ id: schema.walletTransaction.id });
 				if (!walletTxn?.id) {
@@ -1320,7 +1328,8 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				);
 			}
 
-			const settleTypeLabel = settleType === 1 ? "win" : settleType === 2 ? "refund" : "settled";
+			const settleTypeLabel =
+				settleType === 1 ? "win" : settleType === 2 ? "refund" : "settled";
 			const [walletTxn] = await db
 				.insert(schema.walletTransaction)
 				.values({
@@ -1328,11 +1337,16 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 					userId: bet.userId,
 					amount: settleAmount,
 					type: "credit",
-					reference: `sb_settle_${result.data.bet_id}`,
+					reference: `sb_settle_${result.data.bet_id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
 					balance: newBalance,
-					metadata: JSON.stringify({ action: "settled", betId: result.data.bet_id, settleType: settleTypeLabel, settleAmount }),
+					metadata: JSON.stringify({
+						action: "settled",
+						betId: result.data.bet_id,
+						settleType: settleTypeLabel,
+						settleAmount,
+					}),
 				})
 				.returning({ id: schema.walletTransaction.id });
 			if (!walletTxn?.id) {
@@ -1622,11 +1636,15 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 					userId: bet.userId,
 					amount: -unsettleAmount,
 					type: "debit",
-					reference: `sb_unsettle_${result.data.bet_id}`,
+					reference: `sb_unsettle_${result.data.bet_id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
 					balance: newBalance,
-					metadata: JSON.stringify({ action: "unsettled", betId: result.data.bet_id, unsettleAmount }),
+					metadata: JSON.stringify({
+						action: "unsettled",
+						betId: result.data.bet_id,
+						unsettleAmount,
+					}),
 				})
 				.returning({ id: schema.walletTransaction.id });
 			if (!walletTxn?.id) {
@@ -1889,15 +1907,22 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 					userId: bet.userId,
 					amount: refundAmountKobo,
 					type: "credit",
-					reference: `sb_cashout_${result.data.bet_id}_${result.data.cash_out_order_id}`,
+					reference: `sb_cashout_${result.data.bet_id}_${result.data.cash_out_order_id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
 					balance: newBalance,
-					metadata: JSON.stringify({ action: "cash_out_accepted", betId: result.data.bet_id, cashOutOrderId: result.data.cash_out_order_id, refundAmount: refundAmountKobo }),
+					metadata: JSON.stringify({
+						action: "cash_out_accepted",
+						betId: result.data.bet_id,
+						cashOutOrderId: result.data.cash_out_order_id,
+						refundAmount: refundAmountKobo,
+					}),
 				})
 				.returning({ id: schema.walletTransaction.id });
 			if (!walletTxn?.id) {
-				console.error("Failed to record wallet transaction for cashout acceptance");
+				console.error(
+					"Failed to record wallet transaction for cashout acceptance",
+				);
 			}
 		}
 
@@ -2216,15 +2241,21 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 					userId: bet.userId,
 					amount: -refundAmountKobo,
 					type: "debit",
-					reference: `sb_cashout_decline_${result.data.bet_id}`,
+					reference: `sb_cashout_decline_${result.data.bet_id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
 					balance: newBalance,
-					metadata: JSON.stringify({ action: "cash_out_declined", betId: result.data.bet_id, refundAmount: refundAmountKobo }),
+					metadata: JSON.stringify({
+						action: "cash_out_declined",
+						betId: result.data.bet_id,
+						refundAmount: refundAmountKobo,
+					}),
 				})
 				.returning({ id: schema.walletTransaction.id });
 			if (!walletTxn?.id) {
-				console.error("Failed to record wallet transaction for cashout decline");
+				console.error(
+					"Failed to record wallet transaction for cashout decline",
+				);
 			}
 		}
 
@@ -2319,7 +2350,7 @@ const freebetCreateRoute = createRoute({
 						player_id: z.string(),
 						amount: z.number(),
 						currency: z.string(),
-						expired_at: z.string(),
+						expires_at: z.string(),
 						conditions: z.array(z.any()).optional(),
 					}),
 				},
@@ -2338,7 +2369,7 @@ const freebetCreateRoute = createRoute({
 							dataBetFreebetId: z.string(),
 							amount: z.number(),
 							currency: z.string(),
-							expiredAt: z.string(),
+							expiresAt: z.string(),
 						}),
 					}),
 				},
@@ -2385,13 +2416,13 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 		!result.player_id ||
 		!result.amount ||
 		!result.currency ||
-		!result.expired_at
+		!result.expires_at
 	) {
 		return c.json(
 			{
 				success: false as const,
 				error:
-					"Missing required fields: player_id, amount, currency, expired_at",
+					"Missing required fields: player_id, amount, currency, expires_at",
 			},
 			400,
 		);
@@ -2402,12 +2433,12 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 
 	const apiRequestBody = {
 		player_id: result.player_id,
-		idempotency_id: id,
+		idempotence_id: id,
 		amount: {
 			amount: result.amount.toString(),
 			currency_code: result.currency,
 		},
-		expires_at: result.expired_at,
+		expires_at: result.expires_at,
 		conditions: result.conditions || [],
 	};
 
@@ -2416,6 +2447,8 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 			method: "POST",
 			body: apiRequestBody,
 		});
+
+		console.log("requestBody", apiRequestBody);
 
 		if (!response.ok) {
 			const errorText = await response.text();
@@ -2446,7 +2479,7 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 					dataBetFreebetId: createdFreebetId,
 					amount: result.amount,
 					currency: result.currency,
-					expiredAt: result.expired_at,
+					expiresAt: result.expires_at,
 				},
 			},
 			200,
@@ -2482,7 +2515,7 @@ const freebetBulkCreateRoute = createRoute({
 								player_id: z.string(),
 								amount: z.number(),
 								currency: z.string(),
-								expired_at: z.string(),
+								expires_at: z.string(),
 								conditions: z.array(z.any()).optional(),
 							}),
 						),
@@ -2504,7 +2537,7 @@ const freebetBulkCreateRoute = createRoute({
 								dataBetFreebetId: z.string(),
 								amount: z.number(),
 								currency: z.string(),
-								expiredAt: z.string(),
+								expiresAt: z.string(),
 							}),
 						),
 					}),
@@ -2562,16 +2595,16 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 			player_id: string;
 			amount: number;
 			currency: string;
-			expired_at: string;
+			expires_at: string;
 			conditions?: unknown[];
 		}) => ({
-			idempotency_id: crypto.randomUUID(),
+			idempotence_id: crypto.randomUUID(),
 			player_id: fb.player_id,
 			amount: {
 				amount: fb.amount.toString(),
 				currency_code: fb.currency,
 			},
-			expires_at: fb.expired_at,
+			expires_at: fb.expires_at,
 			conditions: fb.conditions || [],
 		}),
 	);
@@ -2611,7 +2644,7 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 						fb: {
 							amount: number;
 							currency: string;
-							expired_at: string;
+							expires_at: string;
 						},
 						index: number,
 					) => ({
@@ -2619,7 +2652,7 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 						dataBetFreebetId: data.freebet_ids[index],
 						amount: fb.amount,
 						currency: fb.currency,
-						expiredAt: fb.expired_at,
+						expiresAt: fb.expires_at,
 					}),
 				),
 			},
@@ -2658,7 +2691,7 @@ const freebetListRoute = createRoute({
 								dataBetFreebetId: z.string(),
 								amount: z.number(),
 								currency: z.string(),
-								expiredAt: z.string().nullable(),
+								expiresAt: z.string().nullable(),
 								status: z.string(),
 								used: z.boolean(),
 								createdAt: z.string(),
@@ -3098,7 +3131,7 @@ const freebetUpdateRoute = createRoute({
 					schema: z.object({
 						player_id: z.string(),
 						freebet_id: z.string(),
-						expired_at: z.string().optional(),
+						expires_at: z.string().optional(),
 						conditions: z.array(z.any()).optional(),
 					}),
 				},
@@ -3170,8 +3203,8 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 		freebet_id: result.freebet_id,
 	};
 
-	if (result.expired_at) {
-		apiRequestBody.expired_at = result.expired_at;
+	if (result.expires_at) {
+		apiRequestBody.expires_at = result.expires_at;
 	}
 
 	if (result.conditions) {
@@ -3462,30 +3495,12 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 		);
 	}
 
-	const result = await c.req.json().catch(() => null);
-	if (
-		!result ||
-		!result.player_id ||
-		!result.currency_code ||
-		!result.initial_quantity ||
-		!result.applicable_conditions ||
-		!result.required_conditions ||
-		!result.expires_at
-	) {
-		return c.json(
-			{
-				success: false as const,
-				error:
-					"Missing required fields: player_id, currency_code, initial_quantity, applicable_conditions, required_conditions, expires_at",
-			},
-			400,
-		);
-	}
+	const result = await c.req.valid("json");
 
 	const apiRequestBody: Record<string, unknown> = {
-		idempotence_id: result.idempotence_id || crypto.randomUUID(),
+		idempotence_id: crypto.randomUUID(),
 		player_id: result.player_id,
-		currency_code: result.currency_code,
+		currency_code: result.currency,
 		initial_quantity: result.initial_quantity,
 		applicable_conditions: result.applicable_conditions,
 		required_conditions: result.required_conditions,
