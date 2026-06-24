@@ -20,12 +20,12 @@ const betslipStyleGetter: Record<
 				return "fixed bottom-0 left-0 top-0 z-40 lg:hidden w-full h-full";
 			}
 			document.body.classList.remove("overflow-hidden");
-			return "fixed bottom-0 left-0 -z-40 w-full";
+			return "fixed bottom-[56px] left-0 top-0 z-40 w-full";
 		}
 		if (breakpoint === "tablet") {
-			return "fixed top-0 left-auto right-0 z-40 h-[100vh]";
+			return `fixed top-0 right-0 z-40 h-[100vh] w-[320px] ${isOpen ? "translate-x-0" : "translate-x-full"} transition-transform`;
 		}
-		return "";
+		return "sticky top-[64px] h-[calc(100vh-64px)] overflow-y-auto";
 	},
 	island: ({ isOpen, breakpoint }: BetslipStyleInput): string => {
 		if (breakpoint === "mobile") {
@@ -34,10 +34,10 @@ const betslipStyleGetter: Record<
 				return "fixed bottom-0 left-0 top-0 z-40 lg:hidden w-full h-full max-h-full";
 			}
 			document.body.classList.remove("overflow-hidden");
-			return "fixed bottom-0 left-0 z-40 w-full";
+			return "fixed bottom-[56px] left-0 top-0 z-40 w-full";
 		}
 		if (breakpoint === "tablet") {
-			return "fixed inset-x-1/2 bottom-0 z-[999999] w-full max-w-[320px] max-h-[100vh] -translate-x-1/2";
+			return `fixed top-0 right-0 z-40 h-[100vh] w-[320px] ${isOpen ? "translate-x-0" : "translate-x-full"} transition-transform`;
 		}
 		return "fixed inset-x-1/2 bottom-0 z-[999999] w-full max-w-[320px] max-h-[80vh] -translate-x-1/2";
 	},
