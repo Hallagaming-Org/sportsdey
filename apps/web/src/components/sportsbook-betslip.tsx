@@ -17,13 +17,13 @@ const betslipStyleGetter: Record<
 		if (breakpoint === "mobile") {
 			if (isOpen) {
 				document.body.classList.add("overflow-hidden");
-				return "fixed bottom-0 left-0 top-0 z-40 lg:hidden w-full h-full";
+				return "fixed bottom-0 left-0 top-0 z-50 lg:hidden w-full h-full bg-background/95 backdrop-blur-sm transition-all";
 			}
 			document.body.classList.remove("overflow-hidden");
-			return "fixed bottom-[56px] left-0 top-0 z-40 w-full";
+			return "fixed bottom-[56px] left-0 z-40 w-full translate-y-full pointer-events-none opacity-0 transition-all";
 		}
 		if (breakpoint === "tablet") {
-			return `fixed top-0 right-0 z-40 h-[100vh] w-[320px] ${isOpen ? "translate-x-0" : "translate-x-full"} transition-transform`;
+			return `fixed top-0 right-0 z-50 h-[100vh] w-[320px] bg-background shadow-2xl ${isOpen ? "translate-x-0" : "translate-x-full"} transition-transform`;
 		}
 		return "sticky top-[64px] h-[calc(100vh-64px)] overflow-y-auto";
 	},
@@ -31,13 +31,13 @@ const betslipStyleGetter: Record<
 		if (breakpoint === "mobile") {
 			if (isOpen) {
 				document.body.classList.add("overflow-hidden");
-				return "fixed bottom-0 left-0 top-0 z-40 lg:hidden w-full h-full max-h-full";
+				return "fixed bottom-0 left-0 top-0 z-50 lg:hidden w-full h-full max-h-full bg-background/95 backdrop-blur-sm transition-all";
 			}
 			document.body.classList.remove("overflow-hidden");
-			return "fixed bottom-[56px] left-0 top-0 z-40 w-full";
+			return "fixed bottom-[56px] left-0 z-40 w-full translate-y-full pointer-events-none opacity-0 transition-all";
 		}
 		if (breakpoint === "tablet") {
-			return `fixed top-0 right-0 z-40 h-[100vh] w-[320px] ${isOpen ? "translate-x-0" : "translate-x-full"} transition-transform`;
+			return `fixed top-0 right-0 z-50 h-[100vh] w-[320px] bg-background shadow-2xl ${isOpen ? "translate-x-0" : "translate-x-full"} transition-transform`;
 		}
 		return "fixed inset-x-1/2 bottom-0 z-[999999] w-full max-w-[320px] max-h-[80vh] -translate-x-1/2";
 	},
