@@ -199,9 +199,9 @@ function PlayGamePage() {
 
 	if (!isPlayClicked) {
 		return (
-			<div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-center pt-8">
+			<div className="mx-auto flex w-full max-w-lg flex-col items-center justify-center pt-8">
 				<div className="w-full overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-800">
-					<div className="relative aspect-[21/9] w-full bg-gray-900">
+					<div className="relative aspect-video w-full bg-gray-900">
 						{targetGame?.imageUrl ? (
 							<img
 								src={targetGame.imageUrl}
@@ -210,14 +210,14 @@ function PlayGamePage() {
 							/>
 						) : (
 							<div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
-								<p className="text-2xl font-bold text-white/50">{targetGame?.name}</p>
+								<p className="text-xl font-bold text-white/50">{targetGame?.name}</p>
 							</div>
 						)}
 						<div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-90" />
 					</div>
 
-					<div className="relative -mt-16 flex flex-col items-center px-6 pb-12 text-center sm:-mt-24 sm:px-12">
-						<div className="mb-6 flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl border-4 border-[#1a1a1a] bg-gray-900 shadow-2xl sm:h-40 sm:w-40">
+					<div className="relative -mt-12 flex flex-col items-center px-6 pb-10 text-center sm:-mt-16 sm:px-10">
+						<div className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border-4 border-[#1a1a1a] bg-gray-900 shadow-xl sm:h-28 sm:w-28">
 							{targetGame?.imageUrl ? (
 								<img
 									src={targetGame.imageUrl}
@@ -225,7 +225,7 @@ function PlayGamePage() {
 									className="h-full w-full object-cover"
 								/>
 							) : (
-								<p className="text-xl font-bold text-white/50">Logo</p>
+								<p className="font-bold text-white/50">Logo</p>
 							)}
 						</div>
 
@@ -240,7 +240,7 @@ function PlayGamePage() {
 
 						<button
 							onClick={() => setIsPlayClicked(true)}
-							className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-[#1BAA04] px-12 py-4 font-bold text-white transition-all hover:scale-105 hover:bg-[#158a03] hover:shadow-[0_0_20px_rgba(27,170,4,0.4)] active:scale-95"
+							className="cursor-pointer group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-[#1BAA04] px-12 py-4 font-bold text-white transition-all hover:scale-105 hover:bg-[#158a03] hover:shadow-[0_0_20px_rgba(27,170,4,0.4)] active:scale-95"
 						>
 							<span className="relative flex items-center gap-2 text-lg">
 								PLAY NOW
