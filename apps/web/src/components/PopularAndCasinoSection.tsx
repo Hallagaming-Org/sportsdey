@@ -12,6 +12,7 @@ import {
 	SPORTSBOOK_CONTAINER_ID,
 } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
+import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
 import BlocksLogo from "@/logos/blocks.svg?react";
 import PlinkoLogo from "@/logos/plinko.svg?react";
@@ -181,6 +182,7 @@ export default function PopularAndCasinoSection() {
 	const [isDark, setIsDark] = useState(true);
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
+	const [showBalanceModal, setShowBalanceModal] = useState(false);
 	const initRef = useRef(false);
 	const navigate = useNavigate();
 
@@ -238,6 +240,10 @@ export default function PopularAndCasinoSection() {
 							bettingAPI.subscribe("redirect", ({ destination, link }) => {
 								switch (destination) {
 									case "login": {
+										sessionStorage.setItem(
+											"post_login_redirect",
+											window.location.pathname + window.location.search
+										);
 										navigate({ to: "/auth/sign-in" });
 										break;
 									}
@@ -248,13 +254,21 @@ export default function PopularAndCasinoSection() {
 										break;
 									}
 									case "betting-page": {
-										navigate({
-											to: "/sportsbetting/$",
-											params: { _splat: link ?? "" },
-										});
+										if (!link) {
+											navigate({ to: "/sportsbetting" });
+										} else {
+											navigate({
+												to: "/sportsbetting/$",
+												params: { _splat: link },
+											});
+										}
+										window.scrollTo({ top: 0, behavior: "smooth" });
 										break;
 									}
 								}
+							});
+							bettingAPI.subscribe("handle-not-enough-balance", () => {
+								setShowBalanceModal(true);
 							});
 						}
 					},
@@ -280,6 +294,14 @@ export default function PopularAndCasinoSection() {
 
 	return (
 		<section className="space-y-4">
+			<InsufficientBalanceModal
+				isOpen={showBalanceModal}
+				onClose={() => setShowBalanceModal(false)}
+				onTopUp={() => {
+					setShowBalanceModal(false);
+					navigate({ to: "/wallet" });
+				}}
+			/>
 			<div
 				role="tablist"
 				aria-label="Popular matches and hot casino"
@@ -430,7 +452,7 @@ function PopularMatchesPanel({
 
 	return (
 		<div ref={containerRef} className="relative min-h-[200px]">
-			<div id={SPORTSBOOK_CONTAINER_ID} className="hidden" />
+			<div id={SPORTSBOOK_CONTAINER_ID} className="sr-only" />
 			{showSkeleton && (
 				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 sm:p-2 dark:bg-card/80">
 					{Array.from({ length: 3 }).map((_, i) => (
