@@ -89,9 +89,6 @@ export const createAuth = (env: CloudflareBindings) => {
 		secret: env.BETTER_AUTH_SECRET,
 		trustedOrigins,
 		advanced: {
-      crossSubDomainCookies: {
-    enabled: true
-  },
 			cookiePrefix: "ba",
 			cookieOptions: {
 				sameSite: "none",
@@ -121,10 +118,7 @@ export function createSessionCookieString(
 	return `${prefix}.session_token=${token}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
 }
 
-export function createHashCookie(
-	token: string,
-	nodeEnv?: string,
-): string {
+export function createHashCookie(token: string, nodeEnv?: string): string {
 	const secure = secureEnv(nodeEnv);
 	const prefix = secure ? "__Secure-ba" : "ba";
 	const secureFlag = secure ? "; Secure" : "";
