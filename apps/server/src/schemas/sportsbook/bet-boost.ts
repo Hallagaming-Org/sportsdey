@@ -2,9 +2,8 @@ import { z } from "@hono/zod-openapi";
 import { BetConditionSchema } from "./bet";
 
 export const BetBoostCreateSchema = z.object({
-	idempotence_id: z.string(),
 	player_id: z.string(),
-	currency_code: z.string(),
+	currency: z.string(),
 	initial_quantity: z.number(),
 	calculation_strategy: z
 		.object({

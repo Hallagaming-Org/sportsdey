@@ -4,7 +4,7 @@ export const FreebetCreateRequestSchema = z.object({
 	player_id: z.string(),
 	amount: z.number(),
 	currency: z.string(),
-	expired_at: z.string(),
+	expires_at: z.string(),
 	conditions: z.array(z.any()).optional(),
 });
 
@@ -15,7 +15,7 @@ export const FreebetCreateResponseSchema = z.object({
 		dataBetFreebetId: z.string(),
 		amount: z.number(),
 		currency: z.string(),
-		expiredAt: z.string(),
+		expiresAt: z.string(),
 	}),
 });
 
@@ -53,7 +53,7 @@ export const FreebetBulkCreateRequestSchema = z.object({
 			idempotence_id: z.string(),
 			amount: z.number(),
 			currency: z.string(),
-			expired_at: z.string(),
+			expires_at: z.string(),
 			conditions: z.array(z.any()).optional(),
 		}),
 	),
@@ -67,7 +67,7 @@ export const FreebetBulkCreateResponseSchema = z.object({
 			dataBetFreebetId: z.string(),
 			amount: z.number(),
 			currency: z.string(),
-			expiredAt: z.string(),
+			expiresAt: z.string(),
 		}),
 	),
 });
@@ -75,7 +75,7 @@ export const FreebetBulkCreateResponseSchema = z.object({
 export const FreebetUpdateRequestSchema = z.object({
 	player_id: z.string(),
 	freebet_id: z.string(),
-	expired_at: z.string().optional(),
+	expires_at: z.string().optional(),
 	conditions: z.array(z.any()).optional(),
 });
 
