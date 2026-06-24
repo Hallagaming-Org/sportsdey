@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useLocation } from "@tanstack/react-router";
 import {
 	Bell,
 	Clock3,
@@ -35,6 +35,7 @@ export function UserMenu() {
 	const { data: session, isPending: isLoading } = useSession();
 	const [isOpen, setIsOpen] = useState(false);
 	const navigate = useNavigate();
+	const location = useLocation();
 
 	const handleSignOut = async () => {
 		await signOut();
@@ -161,6 +162,7 @@ export function UserMenu() {
 	return (
 		<Link
 			to="/auth/sign-in"
+			search={{ returnTo: location.pathname + location.search }}
 			aria-label="Sign In"
 			className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
 		>
