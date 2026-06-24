@@ -376,7 +376,13 @@ export function SportsbookBetslip() {
 				id={SPORTSBOOK_BETSLIP_ID}
 				style={resolvedStyle}
 				className={resolvedClassName}
-			/>
+			>
+				{state?.widgetType === "static" ? (
+					<static-betslip-widget></static-betslip-widget>
+				) : (
+					<island-betslip-widget></island-betslip-widget>
+				)}
+			</div>
 			<CustomBetslipFloatingButton isOpen={localIsOpen} />
 		</>
 	);
