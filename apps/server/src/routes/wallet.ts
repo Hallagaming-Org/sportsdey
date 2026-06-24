@@ -579,16 +579,6 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			400,
 		);
 	}
-	if (!result.success) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Invalid request",
-				details: null,
-			},
-			400,
-		);
-	}
 
 	const { amount } = result.data;
 	const db = drizzle(c.env.DB, { schema });
@@ -625,7 +615,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		currentBalance = existingWallet.balance;
 	}
 
-	try {
+	try{
 		const callbackUrl = `${c.env.SERVER_URL}/wallet/callback`;
 		const paystackResult = await initializeTransaction(
 			c.env.PAYSTACK_SECRET_KEY,
@@ -652,6 +642,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				status: "pending",
 				paymentMethod: "card",
 				balance: currentBalance,
+				createdAt: new Date(),
 				metadata: JSON.stringify({
 					source: "card",
 					paystackReference: paystackResult.reference,
@@ -685,17 +676,16 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			200,
 		);
 	} catch (error) {
-		console.log("fund error", error);
+		console.log("fund error message", error instanceof Error ? error.message : error);
+		console.log("fund error cause", error instanceof Error && 'cause' in error ? error.cause : "N/A");
 		return c.json(
 			{
 				success: false as const,
 				error:
-					error instanceof Error
-						? error.message
-						: "Failed to initialize payment",
+						 "Failed to initialize payment",
 				details: null,
 			},
-			400,
+			500,
 		);
 	}
 });
@@ -878,10 +868,10 @@ walletRoute.openapi(getBanksRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: error instanceof Error ? error.message : "Failed to fetch banks",
+				error: "Failed to fetch banks",
 				details: null,
 			},
-			400,
+			500,
 		);
 	}
 });
