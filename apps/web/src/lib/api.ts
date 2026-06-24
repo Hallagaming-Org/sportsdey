@@ -77,7 +77,7 @@ export async function apiRequest<T>(
 			}
 
 			// User-friendly error messages based on status code
-			let userMessage = data.error || "An error occurred";
+			let userMessage = data.error || "An error occurred. Try again later.";
 
 			if (response.status >= 500) {
 				userMessage = "Server error. Please try again later.";
