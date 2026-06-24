@@ -77,6 +77,7 @@ import {
 	SPORTSBOOK_BETSLIP_ID,
 	type ToggleWidgetBetslipPayload,
 } from "@/lib/sportsbook";
+import { CustomBetslipFloatingButton } from "./custom-betslip-button";
 
 // ─── Layout Constants ─────────────────────────────────────────────────────────
 // Adjust BOTTOM_NAV_HEIGHT_PX to match your site's bottom navigation bar height.
@@ -86,7 +87,7 @@ const BETSLIP_WIDTH_PX = 320;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type BetslipStyleInput = Pick<ToggleWidgetBetslipPayload, "breakpoint" | "isOpen">;
-type StyleResult = { style: React.CSSProperties };
+type StyleResult = { style: React.CSSProperties; className?: string };
 
 // ─── Style Getters ────────────────────────────────────────────────────────────
 //
@@ -117,9 +118,9 @@ const betslipStyleGetter: Record<
 			if (isOpen) {
 				document.body.classList.add("overflow-hidden");
 				return {
+					className: "w-full sm:max-w-[320px]",
 					style: {
 						position: "fixed",
-						left: 0,
 						right: 0,
 						// Anchored above bottom nav, grows upward from there
 						bottom: BOTTOM_NAV_HEIGHT_PX,
@@ -135,16 +136,16 @@ const betslipStyleGetter: Record<
 			// Closed: slide off-screen downward — DO NOT use overflow:hidden or display:none
 			document.body.classList.remove("overflow-hidden");
 			return {
+				className: "w-full sm:max-w-[320px]",
 				style: {
 					position: "fixed",
-					left: 0,
 					right: 0,
 					bottom: BOTTOM_NAV_HEIGHT_PX,
 					maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px - ${BOTTOM_NAV_HEIGHT_PX}px)`,
 					overflowY: "auto",
 					zIndex: 40,
 					// Slide down out of view — element stays in DOM and unclipped
-					transform: "translateY(110%)",
+					transform: "translateY(calc(100% + 100px))",
 					transition: "transform 0.3s ease",
 					pointerEvents: "none",
 				},
@@ -192,10 +193,12 @@ const betslipStyleGetter: Record<
 			if (isOpen) {
 				document.body.classList.add("overflow-hidden");
 				return {
+					className: "w-full sm:max-w-[320px]",
 					style: {
 						position: "fixed",
 						left: 0,
 						right: 0,
+						margin: "0 auto",
 						bottom: BOTTOM_NAV_HEIGHT_PX,
 						maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px - ${BOTTOM_NAV_HEIGHT_PX}px)`,
 						overflowY: "auto",
@@ -207,15 +210,17 @@ const betslipStyleGetter: Record<
 			}
 			document.body.classList.remove("overflow-hidden");
 			return {
+				className: "w-full sm:max-w-[320px]",
 				style: {
 					position: "fixed",
 					left: 0,
 					right: 0,
+					margin: "0 auto",
 					bottom: BOTTOM_NAV_HEIGHT_PX,
 					maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px - ${BOTTOM_NAV_HEIGHT_PX}px)`,
 					overflowY: "auto",
 					zIndex: 40,
-					transform: "translateY(110%)",
+					transform: "translateY(calc(100% + 100px))",
 					transition: "transform 0.3s ease",
 					pointerEvents: "none",
 				},
@@ -230,7 +235,6 @@ const betslipStyleGetter: Record<
 					// Centered island, bottom-anchored, grows upward
 					bottom: 0,
 					left: "50%",
-					transform: "translateX(-50%)",
 					width: BETSLIP_WIDTH_PX,
 					maxWidth: "calc(100vw - 32px)",
 					// Expands upward when open, shows a small handle when closed
@@ -239,7 +243,9 @@ const betslipStyleGetter: Record<
 						: "56px",
 					overflowY: "auto",
 					zIndex: 999999,
-					transition: "max-height 0.3s ease",
+					transition: "transform 0.3s ease, max-height 0.3s ease",
+					transform: isOpen ? "translateX(-50%)" : "translateX(-50%) translateY(calc(100% + 100px))",
+					pointerEvents: isOpen ? "auto" : "none",
 				},
 			};
 		}
@@ -250,7 +256,8 @@ const betslipStyleGetter: Record<
 				position: "fixed",
 				bottom: 0,
 				left: "50%",
-				transform: "translateX(-50%)",
+				transform: isOpen ? "translateX(-50%)" : "translateX(-50%) translateY(calc(100% + 100px))",
+				pointerEvents: isOpen ? "auto" : "none",
 				width: BETSLIP_WIDTH_PX,
 				maxWidth: "calc(100vw - 32px)",
 				maxHeight: isOpen
@@ -258,7 +265,7 @@ const betslipStyleGetter: Record<
 					: "56px",
 				overflowY: "auto",
 				zIndex: 999999,
-				transition: "max-height 0.3s ease",
+				transition: "transform 0.3s ease, max-height 0.3s ease",
 			},
 		};
 	},
@@ -280,12 +287,13 @@ const PRE_MOUNT_STYLE: React.CSSProperties = {
 	position: "fixed",
 	left: 0,
 	right: 0,
+	margin: "0 auto",
 	bottom: 0,
 	// Large enough that the widget can render into it, but pushed off-screen
 	maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px)`,
 	overflowY: "auto",   // NOT hidden — widget must be able to write into this
 	zIndex: 40,
-	transform: "translateY(110%)",  // off-screen, not clipped
+	transform: "translateY(calc(100% + 100px))",  // off-screen, not clipped
 	pointerEvents: "none",
 	transition: "transform 0.3s ease",
 };
@@ -332,22 +340,29 @@ export function SportsbookBetslip() {
 
 	// Resolve the inline style from current state, or fall back to pre-mount
 	let resolvedStyle: React.CSSProperties = PRE_MOUNT_STYLE;
+	let resolvedClassName: string = "w-full sm:max-w-[320px]";
 
 	if (state) {
 		const getter = betslipStyleGetter[state.widgetType] ?? betslipStyleGetter.static;
-		resolvedStyle = getter({
+		const result = getter({
 			isOpen: state.isOpen,
 			breakpoint: state.breakpoint,
-		}).style;
+		});
+		resolvedStyle = result.style;
+		resolvedClassName = result.className ?? "";
 	}
 
 	// This div MUST always be rendered — never conditionally omit it.
 	// The DATA.BET widget finds #betting-betslip by ID and populates it when
 	// an odd is clicked. If the element doesn't exist, nothing happens.
 	return (
-		<div
-			id={SPORTSBOOK_BETSLIP_ID}
-			style={resolvedStyle}
-		/>
+		<>
+			<div
+				id={SPORTSBOOK_BETSLIP_ID}
+				style={resolvedStyle}
+				className={resolvedClassName}
+			/>
+			<CustomBetslipFloatingButton isOpen={!!state?.isOpen} />
+		</>
 	);
 }
