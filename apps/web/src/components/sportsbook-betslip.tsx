@@ -128,8 +128,9 @@ const betslipStyleGetter: Record<
 						maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px - ${BOTTOM_NAV_HEIGHT_PX}px)`,
 						overflowY: "auto",
 						zIndex: 50,
+						opacity: 1,
 						transform: "translateY(0)",
-						transition: "transform 0.3s ease",
+						transition: "opacity 0.3s ease, transform 0.3s ease",
 					},
 				};
 			}
@@ -144,9 +145,9 @@ const betslipStyleGetter: Record<
 					maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px - ${BOTTOM_NAV_HEIGHT_PX}px)`,
 					overflowY: "auto",
 					zIndex: 40,
-					// Slide down out of view — element stays in DOM and unclipped
-					transform: "translateY(calc(100% + 100px))",
-					transition: "transform 0.3s ease",
+					opacity: 0,
+					transform: "translateY(20px)",
+					transition: "opacity 0.3s ease, transform 0.3s ease",
 					pointerEvents: "none",
 				},
 			};
@@ -164,9 +165,11 @@ const betslipStyleGetter: Record<
 					width: BETSLIP_WIDTH_PX,
 					overflowY: "auto",
 					zIndex: 50,
+					opacity: isOpen ? 1 : 0,
 					// Slide in/out from the right edge
 					transform: isOpen ? "translateX(0)" : "translateX(110%)",
-					transition: "transform 0.3s ease",
+					transition: "opacity 0.3s ease, transform 0.3s ease",
+					pointerEvents: isOpen ? "auto" : "none",
 				},
 			};
 		}
@@ -220,8 +223,9 @@ const betslipStyleGetter: Record<
 					maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px - ${BOTTOM_NAV_HEIGHT_PX}px)`,
 					overflowY: "auto",
 					zIndex: 40,
-					transform: "translateY(calc(100% + 100px))",
-					transition: "transform 0.3s ease",
+					opacity: 0,
+					transform: "translateY(20px)",
+					transition: "opacity 0.3s ease, transform 0.3s ease",
 					pointerEvents: "none",
 				},
 			};
@@ -243,8 +247,9 @@ const betslipStyleGetter: Record<
 						: "56px",
 					overflowY: "auto",
 					zIndex: 999999,
-					transition: "transform 0.3s ease, max-height 0.3s ease",
-					transform: isOpen ? "translateX(-50%)" : "translateX(-50%) translateY(calc(100% + 100px))",
+					opacity: isOpen ? 1 : 0,
+					transition: "opacity 0.3s ease, transform 0.3s ease, max-height 0.3s ease",
+					transform: isOpen ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(20px)",
 					pointerEvents: isOpen ? "auto" : "none",
 				},
 			};
@@ -256,7 +261,8 @@ const betslipStyleGetter: Record<
 				position: "fixed",
 				bottom: 0,
 				left: "50%",
-				transform: isOpen ? "translateX(-50%)" : "translateX(-50%) translateY(calc(100% + 100px))",
+				opacity: isOpen ? 1 : 0,
+				transform: isOpen ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(20px)",
 				pointerEvents: isOpen ? "auto" : "none",
 				width: BETSLIP_WIDTH_PX,
 				maxWidth: "calc(100vw - 32px)",
@@ -265,7 +271,7 @@ const betslipStyleGetter: Record<
 					: "56px",
 				overflowY: "auto",
 				zIndex: 999999,
-				transition: "transform 0.3s ease, max-height 0.3s ease",
+				transition: "opacity 0.3s ease, transform 0.3s ease, max-height 0.3s ease",
 			},
 		};
 	},
@@ -293,20 +299,24 @@ const PRE_MOUNT_STYLE: React.CSSProperties = {
 	maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px)`,
 	overflowY: "auto",   // NOT hidden — widget must be able to write into this
 	zIndex: 40,
-	transform: "translateY(calc(100% + 100px))",  // off-screen, not clipped
+	opacity: 0,
+	transform: "translateY(20px)",  // slightly off-position to allow fade-in slide up
 	pointerEvents: "none",
-	transition: "transform 0.3s ease",
+	transition: "opacity 0.3s ease, transform 0.3s ease",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export function SportsbookBetslip() {
 	const [state, setState] = useState<ToggleWidgetBetslipPayload | undefined>();
+	const [localIsOpen, setLocalIsOpen] = useState(false);
 	const prevIsOpenRef = useRef<boolean | undefined>(undefined);
 
 	const initBetting = useCallback(() => {
 		if (!window.bettingAPI) return;
 		window.bettingAPI.subscribe("toggle-widget-betslip", (payload) => {
 			setState(payload);
+			// Sync local visibility with widget's actual state changes
+			setLocalIsOpen(payload.isOpen);
 		});
 	}, []);
 
@@ -316,8 +326,13 @@ export function SportsbookBetslip() {
 			initBetting();
 		}
 		document.addEventListener("betting-init", initBetting);
+		
+		const handleLocalToggle = () => setLocalIsOpen(prev => !prev);
+		document.addEventListener("toggle-local-betslip", handleLocalToggle);
+		
 		return () => {
 			document.removeEventListener("betting-init", initBetting);
+			document.removeEventListener("toggle-local-betslip", handleLocalToggle);
 			document.body.classList.remove("overflow-hidden");
 		};
 	}, [initBetting]);
@@ -330,13 +345,13 @@ export function SportsbookBetslip() {
 		}
 		if (
 			state.breakpoint === "mobile" &&
-			!state.isOpen &&
+			!localIsOpen &&
 			prevIsOpenRef.current === true
 		) {
 			document.body.classList.remove("overflow-hidden");
 		}
-		prevIsOpenRef.current = state.isOpen;
-	}, [state]);
+		prevIsOpenRef.current = localIsOpen;
+	}, [state, localIsOpen]);
 
 	// Resolve the inline style from current state, or fall back to pre-mount
 	let resolvedStyle: React.CSSProperties = PRE_MOUNT_STYLE;
@@ -345,7 +360,7 @@ export function SportsbookBetslip() {
 	if (state) {
 		const getter = betslipStyleGetter[state.widgetType] ?? betslipStyleGetter.static;
 		const result = getter({
-			isOpen: state.isOpen,
+			isOpen: localIsOpen, // Drive CSS transform/opacity with local state
 			breakpoint: state.breakpoint,
 		});
 		resolvedStyle = result.style;
@@ -362,7 +377,7 @@ export function SportsbookBetslip() {
 				style={resolvedStyle}
 				className={resolvedClassName}
 			/>
-			<CustomBetslipFloatingButton isOpen={!!state?.isOpen} />
+			<CustomBetslipFloatingButton isOpen={localIsOpen} />
 		</>
 	);
 }
