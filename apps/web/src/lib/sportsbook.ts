@@ -145,6 +145,19 @@ export function getSportsbookBasename(): string {
 		(import.meta.env.VITE_DATABET_SPA_BASENAME as string | undefined) || ""
 	);
 }
+// export function getSportsbookBootstrapScript(): string {
+// 	return (
+// 		(import.meta.env.VITE_DATABET_SPA_BOOTSTRAP_SCRIPT as string | undefined) ||
+// 		"https://spa.int.databet.cloud/v2/f7078267/bootstrap.js"
+// 	);
+// }
+
+// export function getSportsbookBasename(): string {
+// 	return (
+// 		(import.meta.env.VITE_DATABET_SPA_BASENAME as string | undefined) || "/sportsbook"
+// 	);
+// }
+
 
 export function getSportsbookLocale(): string {
 	return (
