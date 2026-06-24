@@ -35,13 +35,15 @@ const KNOWN_GAMES_LIST = [
 	"XCAPEHB",
 	"EAGLEHB",
 	"LUCKYRISEHB",
-	"LAGOSRUSH"
+	"LAGOSRUSH",
 ];
 
 function PlayGamePage() {
 	const { gameName } = Route.useParams();
 	const navigate = useNavigate();
 	const { data: session, isPending: isSessionLoading } = useSession();
+	
+	const [isPlayClicked, setIsPlayClicked] = useState(false);
 	const [gameUrl, setGameUrl] = useState<string | null>(null);
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -64,24 +66,25 @@ function PlayGamePage() {
 		}
 	}, [session, isSessionLoading, navigate]);
 
+	const decodedGameName = decodeURIComponent(gameName);
+	const searchName = decodedGameName.toLowerCase().replace(/-/g, " ");
+	
+	const targetGame = games.find(
+		(g) =>
+			g.name.toLowerCase() === searchName ||
+			g.name.toLowerCase().includes(searchName),
+	);
+
 	useEffect(() => {
 		let isMounted = true;
 
 		const launchGame = async () => {
+			if (!targetGame) {
+				setError(`Game "${searchName}" not found.`);
+				return;
+			}
+
 			try {
-				// Find game by name (handling spaces and dashes)
-				// e.g. 'lagos-rush' matches 'Lagos Rush'
-				const searchName = gameName.toLowerCase().replace(/-/g, " ");
-				const targetGame = games.find(
-					(g) =>
-						g.name.toLowerCase() === searchName ||
-						g.name.toLowerCase().includes(searchName),
-				);
-
-				if (!targetGame) {
-					throw new Error(`Game "${searchName}" not found.`);
-				}
-
 				let url: string;
 				let body: Record<string, unknown>;
 
@@ -138,22 +141,22 @@ function PlayGamePage() {
 			}
 		};
 
-		if (games.length > 0 && !gameUrl && !error) {
+		if (isPlayClicked && targetGame && !gameUrl && !error) {
 			launchGame();
 		}
 
 		return () => {
 			isMounted = false;
 		};
-	}, [games, gameUrl, error, navigate, gameName]);
+	}, [isPlayClicked, targetGame, gameUrl, error, navigate, searchName]);
 
-	const formattedGameName = gameName
+	const formattedGameName = decodedGameName
 		.replace(/-/g, " ")
 		.replace(/\b\w/g, (c) => c.toUpperCase());
 
-	if (isSessionLoading || isGamesLoading || (!gameUrl && !error)) {
+	if (isSessionLoading || isGamesLoading) {
 		return (
-			<div className="flex h-screen items-center justify-center dark:bg-[#121212]">
+			<div className="flex h-full min-h-[50vh] items-center justify-center">
 				<div className="flex flex-col items-center gap-4">
 					<Loader2 className="h-10 w-10 animate-spin text-[#1BAA04]" />
 					<p className="font-medium text-lg text-gray-900 dark:text-white">
@@ -164,9 +167,23 @@ function PlayGamePage() {
 		);
 	}
 
+	if (!targetGame && !error) {
+		return (
+			<div className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-4">
+				<p className="text-red-500 text-lg">Game "{formattedGameName}" not found.</p>
+				<button
+					onClick={() => navigate({ to: "/games" })}
+					className="rounded-lg bg-[#1BAA04] px-6 py-2 font-medium text-white transition-colors hover:bg-[#158a03]"
+				>
+					Back to Casino
+				</button>
+			</div>
+		);
+	}
+
 	if (error) {
 		return (
-			<div className="flex h-screen flex-col items-center justify-center gap-4 dark:bg-[#121212]">
+			<div className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-4">
 				<p className="text-red-500 text-lg">{error}</p>
 				<button
 					onClick={() => navigate({ to: "/games" })}
@@ -178,29 +195,95 @@ function PlayGamePage() {
 		);
 	}
 
+	if (!isPlayClicked) {
+		return (
+			<div className="mx-auto flex w-full max-w-4xl flex-col items-center justify-center pt-8">
+				<div className="w-full overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-[#1a1a1a] border border-gray-100 dark:border-gray-800">
+					<div className="relative aspect-[21/9] w-full bg-gray-900">
+						{targetGame?.imageUrl ? (
+							<img
+								src={targetGame.imageUrl}
+								alt={targetGame.name}
+								className="h-full w-full object-cover opacity-80"
+							/>
+						) : (
+							<div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+								<p className="text-2xl font-bold text-white/50">{targetGame?.name}</p>
+							</div>
+						)}
+						<div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-90" />
+					</div>
+					
+					<div className="relative -mt-16 flex flex-col items-center px-6 pb-12 text-center sm:-mt-24 sm:px-12">
+						<div className="mb-6 flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl border-4 border-[#1a1a1a] bg-gray-900 shadow-2xl sm:h-40 sm:w-40">
+							{targetGame?.imageUrl ? (
+								<img
+									src={targetGame.imageUrl}
+									alt={targetGame.name}
+									className="h-full w-full object-cover"
+								/>
+							) : (
+								<p className="text-xl font-bold text-white/50">Logo</p>
+							)}
+						</div>
+						
+						<h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-white sm:text-5xl">
+							{targetGame?.name}
+						</h1>
+						{targetGame?.category && (
+							<p className="mb-8 text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+								{targetGame.category}
+							</p>
+						)}
+						
+						<button
+							onClick={() => setIsPlayClicked(true)}
+							className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-[#1BAA04] px-12 py-4 font-bold text-white transition-all hover:scale-105 hover:bg-[#158a03] hover:shadow-[0_0_20px_rgba(27,170,4,0.4)] active:scale-95"
+						>
+							<span className="relative flex items-center gap-2 text-lg">
+								PLAY NOW
+								<svg 
+									className="h-5 w-5 transition-transform group-hover:translate-x-1" 
+									fill="none" 
+									viewBox="0 0 24 24" 
+									stroke="currentColor"
+								>
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+								</svg>
+							</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	return (
-		<div className="relative h-screen w-full bg-[#121212]">
+		<div className="relative h-screen w-full bg-[#121212] overflow-hidden rounded-xl mt-4 border border-gray-800">
 			{isIframeLoading && (
-				<div className="absolute inset-4 z-10 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#1BAA04]/50 bg-[#121212]/80 backdrop-blur-sm">
-					<Loader2 className="mb-4 h-10 w-10 animate-spin text-[#1BAA04]" />
-					<p className="font-medium text-lg text-white">
-						{formattedGameName} is launching...
+				<div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#121212]/90 backdrop-blur-sm">
+					<Loader2 className="mb-4 h-12 w-12 animate-spin text-[#1BAA04]" />
+					<p className="font-medium text-xl text-white">
+						{targetGame?.name || formattedGameName} is launching...
 					</p>
-					<p className="mt-2 text-gray-400 text-sm">
+					<p className="mt-2 text-gray-400">
 						Please wait while we set things up
 					</p>
 				</div>
 			)}
-			<iframe
-				src={gameUrl!}
-				className={cn(
-					"h-screen w-full border-0 transition-opacity duration-500",
-					isIframeLoading ? "opacity-0" : "opacity-100",
-				)}
-				title={formattedGameName}
-				allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-				onLoad={() => setIsIframeLoading(false)}
-			/>
+			{gameUrl && (
+				<iframe
+					src={gameUrl}
+					className={cn(
+						"h-full w-full border-0 transition-opacity duration-500",
+						isIframeLoading ? "opacity-0" : "opacity-100",
+					)}
+					title={targetGame?.name || formattedGameName}
+					allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+					onLoad={() => setIsIframeLoading(false)}
+				/>
+			)}
 		</div>
 	);
 }
+
