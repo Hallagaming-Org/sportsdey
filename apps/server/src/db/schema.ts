@@ -647,6 +647,19 @@ export const userNotificationRelations = relations(
 	}),
 );
 
+export const gdriveFile = sqliteTable(
+	"gdrive_file",
+	{
+		id: text("id").primaryKey(),
+		name: text("name").notNull(),
+		imageUrl: text("image_url").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [index("gdrive_file_name_idx").on(table.name)],
+);
+
 export const game = sqliteTable("game", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
