@@ -168,10 +168,10 @@ export default function Header(
 								<UserMenu />
 							) : (
 								<div className="flex gap-x-1.5">
-									<Link to="/auth/sign-in" className="bg-white px-2.5 py-1 text-secondary text-[10px] leading-tight text-black cursor-pointer rounded-full transition-colors whitespace-nowrap">
+									<Link to="/auth/sign-in" search={{ returnTo: location.href }} className="bg-white px-2.5 py-1 text-secondary text-[10px] leading-tight text-black cursor-pointer rounded-full transition-colors whitespace-nowrap">
 										Log in
 									</Link>
-									<Link to="/auth/sign-up" className="flex text-[10px] leading-tight items-center justify-center gap-x-1 bg-accent px-3 py-1 text-white cursor-pointer rounded-full transition-colors whitespace-nowrap">
+									<Link to="/auth/sign-up" search={{ returnTo: location.href }} className="flex text-[10px] leading-tight items-center justify-center gap-x-1 bg-accent px-3 py-1 text-white cursor-pointer rounded-full transition-colors whitespace-nowrap">
 										Join now
 									</Link>
 								</div>
@@ -331,10 +331,10 @@ export default function Header(
 								<UserMenu />
 							) : (
 								<div className="flex justify-center gap-x-2">
-									<Link to="/auth/sign-in" className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
+									<Link to="/auth/sign-in" search={{ returnTo: location.href }} className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
 										Log in
 									</Link>
-									<Link to="/auth/sign-up" className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
+									<Link to="/auth/sign-up" search={{ returnTo: location.href }} className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
 										Join now
 										<ChevronRight className="h-3.5 w-3.5" />
 									</Link>
