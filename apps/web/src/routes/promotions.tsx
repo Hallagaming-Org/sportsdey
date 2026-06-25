@@ -134,7 +134,7 @@ function PromotionsPage() {
 										{promo.endDate}
 									</p>
 								</div>
-								<button className="flex items-center rounded-lg bg-accent px-3 py-1.5 font-bold text-[10px] text-white transition-colors hover:bg-[#158f03]">
+								<button className="flex items-center rounded-lg bg-accent px-3 py-1.5 font-bold text-[10px] text-[#000606] transition-colors hover:bg-[#158f03]">
 									View more &gt;
 								</button>
 							</div>
