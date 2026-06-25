@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -6,7 +6,7 @@ export const Route = createFileRoute("/promotions")({
 	component: PromotionsPage,
 });
 
-const PROMOTIONS = [
+export const PROMOTIONS = [
 	{
 		id: "1",
 		title: "Superbet Champions Winners",
@@ -106,24 +106,26 @@ function PromotionsPage() {
 				{/* Grid */}
 				<div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
 					{filteredPromotions.map((promo) => (
-						<div
+						<Link 
 							key={promo.id}
-							className="group cursor-pointer overflow-hidden rounded-2xl border border-[#F1F2F4] bg-white transition-colors hover:border-accent dark:border-[#2F3033] dark:bg-[#1C1D1F]"
+							to="/promotions/$id"
+							params={{ id: promo.id }}
+							className="group cursor-pointer overflow-hidden rounded-2xl border border-[#F1F2F4] bg-white transition-colors hover:border-accent dark:border-[#2F3033] dark:bg-[#1C1D1F] block"
 						>
 							{/* Image container */}
 							<div className="relative aspect-[21/9] w-full overflow-hidden bg-gray-100 dark:bg-black">
-								<img
-									src={promo.image}
+								<img 
+									src={promo.image} 
 									alt={promo.title}
 									className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 								/>
 								<div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-									<button className="rounded-full bg-[#1BAA04] px-6 py-1.5 font-bold text-[10px] text-white shadow-md">
+									<button className="rounded-full bg-[#1BAA04] px-6 py-1.5 font-bold text-[10px] text-white shadow-md pointer-events-none">
 										BET NOW
 									</button>
 								</div>
 							</div>
-
+							
 							{/* Content */}
 							<div className="flex items-center justify-between p-4">
 								<div>
@@ -134,11 +136,11 @@ function PromotionsPage() {
 										{promo.endDate}
 									</p>
 								</div>
-								<button className="flex items-center rounded-lg bg-accent px-3 py-1.5 font-bold text-[10px] text-[#000606] transition-colors hover:bg-[#158f03]">
+								<div className="flex items-center rounded-lg bg-accent px-3 py-1.5 font-bold text-[10px] text-[#000606] transition-colors group-hover:bg-[#158f03]">
 									View more &gt;
-								</button>
+								</div>
 							</div>
-						</div>
+						</Link>
 					))}
 				</div>
 
