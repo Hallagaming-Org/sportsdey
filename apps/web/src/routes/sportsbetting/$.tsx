@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
@@ -117,7 +117,10 @@ export function SportsbookPage() {
 						bettingAPI.subscribe("redirect", ({ destination, link }) => {
 							switch (destination) {
 								case "login": {
-									navigate({ to: "/auth/sign-in" });
+									navigate({ 
+										to: "/auth/sign-in",
+										search: { returnTo: window.location.pathname + window.location.search }
+									});
 									break;
 								}
 								case "logout": {
@@ -127,9 +130,10 @@ export function SportsbookPage() {
 									break;
 								}
 								case "betting-page": {
+									const cleanLink = link && link.startsWith("/") ? link.slice(1) : (link ?? "");
 									navigate({
 										to: "/sportsbetting/$",
-										params: { _splat: link ?? "" },
+										params: { _splat: cleanLink },
 									});
 									break;
 								}

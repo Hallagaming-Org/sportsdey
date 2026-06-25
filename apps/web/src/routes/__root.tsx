@@ -191,7 +191,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 							<ErrorBoundary>
 								<Providers>
 									{isAuthRoute ? (
-										<div className="flex h-svh flex-col overflow-hidden">
+										<div className="flex h-svh flex-col overflow-clip">
 											<header className="shrink-0">
 												<Header />
 											</header>
@@ -201,7 +201,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 											</main>
 										</div>
 									) : (
-										<div className="flex h-svh flex-col overflow-hidden">
+										<div className="flex h-svh flex-col overflow-clip">
 											<header className="shrink-0">
 												<Header />
 												<Socials />

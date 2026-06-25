@@ -3,17 +3,28 @@ import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/auth/sign-in")({
+	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
+		return {
+			returnTo: search.returnTo as string | undefined,
+		};
+	},
 	component: SignInPage,
 });
 
 export default function SignInPage() {
 	const navigate = useNavigate();
-	const callbackURL = import.meta.env.DEV
+	const { returnTo } = Route.useSearch();
+	
+	const baseCallbackURL = import.meta.env.DEV
 		? "http://localhost:3001"
 		: import.meta.env.VITE_PUBLIC_URL ||
 			(typeof window !== "undefined"
 				? window.location.origin
 				: "https://sportsdey.com");
+	
+	const callbackURL = returnTo 
+		? `${baseCallbackURL}${returnTo}` 
+		: baseCallbackURL;
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 

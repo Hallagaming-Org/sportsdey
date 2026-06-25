@@ -3,11 +3,18 @@ import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/auth/sign-up")({
+	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
+		return {
+			returnTo: search.returnTo as string | undefined,
+		};
+	},
 	component: SignUpPage,
 });
 
 export default function SignUpPage() {
-	const callbackURL = import.meta.env.DEV
+	const { returnTo } = Route.useSearch();
+	
+	const baseCallbackURL = import.meta.env.DEV
 		? typeof window !== "undefined"
 			? window.location.origin
 			: "http://localhost:3001"
@@ -15,6 +22,10 @@ export default function SignUpPage() {
 			(typeof window !== "undefined"
 				? window.location.origin
 				: "http://localhost:3001");
+	
+	const callbackURL = returnTo 
+		? `${baseCallbackURL}${returnTo}` 
+		: baseCallbackURL;
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
@@ -111,6 +122,7 @@ export default function SignUpPage() {
 					Already have an account?{" "}
 					<Link
 						to="/auth/sign-in"
+						search={{ returnTo }}
 						className="font-medium text-blue-600 hover:text-blue-700"
 					>
 						Sign in

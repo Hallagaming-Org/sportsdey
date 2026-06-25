@@ -260,9 +260,10 @@ export default function PopularAndCasinoSection() {
 									}
 									case "betting-page": {
 										if (link) {
+											const cleanLink = link.startsWith("/") ? link.slice(1) : link;
 											navigate({
 												to: "/sportsbetting/$",
-												params: { _splat: link },
+												params: { _splat: cleanLink },
 											});
 										} else {
 											navigate({ to: "/sportsbetting" });
