@@ -162,7 +162,7 @@ export function UserMenu() {
 	return (
 		<Link
 			to="/auth/sign-in"
-			search={{ returnTo: location.pathname + location.search }}
+			search={{ returnTo: location.href }}
 			aria-label="Sign In"
 			className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
 		>
