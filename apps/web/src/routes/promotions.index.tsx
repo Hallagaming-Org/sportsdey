@@ -18,9 +18,9 @@ type PromoResponse = {
 
 const FILTERS = [
 	{ label: "All", count: 0 },
-	{ label: "Sportsdey Exclusive", count: 0 },
-	{ label: "Casino", count: 0 },
-	{ label: "Sports", count: 0 },
+	// { label: "Sportsdey Exclusive", count: 0 },
+	// { label: "Casino", count: 0 },
+	// { label: "Sports", count: 0 },
 ];
 
 function PromotionsPage() {
@@ -107,7 +107,7 @@ function PromotionsPage() {
 						{/* Grid */}
 						<div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
 							{filteredPromotions.map((promo) => (
-								<Link 
+								<Link
 									key={promo._id}
 									to="/promotions/$id"
 									params={{ id: promo._id }}
@@ -115,8 +115,8 @@ function PromotionsPage() {
 								>
 									{/* Image container */}
 									<div className="relative aspect-[21/9] w-full overflow-hidden bg-gray-100 dark:bg-black">
-										<img 
-											src={promo.imageUrl} 
+										<img
+											src={promo.imageUrl}
 											alt={promo.title}
 											className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 										/>
@@ -126,7 +126,7 @@ function PromotionsPage() {
 											</button>
 										</div>
 									</div>
-									
+
 									{/* Content */}
 									<div className="flex items-center justify-between p-4">
 										<div>
