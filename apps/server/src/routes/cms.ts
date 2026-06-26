@@ -128,11 +128,50 @@ type SanityComment = {
 	createdAt: string;
 };
 
+const PromoListItemSchema = z
+	.object({
+		_id: z.string(),
+		imageUrl: z.string(),
+		title: z.string(),
+		endDate: z.string(),
+	})
+	.openapi("PromoListItem");
+
+const PromoDetailSchema = z
+	.object({
+		_id: z.string(),
+		bannerImages: z
+			.array(
+				z.object({
+					url: z.string(),
+					alt: z.string().optional(),
+				}),
+			)
+			.default([]),
+		title: z.string(),
+		endDate: z.string(),
+		body: z.any().nullable().optional(),
+		type: z.string(),
+	})
+	.openapi("PromoDetail");
+
 type SanityBanner = {
 	_id: string;
 	image?: unknown;
 	url?: string;
 	alt?: string;
+};
+
+type SanityPromo = {
+	_id: string;
+	title: string;
+	bannerImages?: {
+		asset?: unknown;
+		alt?: string;
+	}[];
+	endDate: string;
+	body?: unknown;
+	type: string;
 };
 
 function mapAuthor(env: CloudflareBindings, author: SanityAuthor) {
@@ -656,6 +695,139 @@ cmsRoute.openapi(
 				alt: b.alt,
 			}));
 		return c.json({ success: true as const, data: banners }, 200);
+	},
+);
+
+function mapPromoListItem(env: CloudflareBindings, p: SanityPromo) {
+	const img = p.bannerImages?.[0]?.asset
+		? toImageSizes(env, p.bannerImages[0].asset)
+		: null;
+	return {
+		_id: p._id,
+		imageUrl: img?.hero ?? "",
+		title: p.title,
+		endDate: p.endDate,
+	};
+}
+
+function mapPromoDetail(env: CloudflareBindings, p: SanityPromo) {
+	return {
+		_id: p._id,
+		bannerImages: (p.bannerImages || [])
+			.filter((bi) => bi?.asset)
+			.map((bi) => {
+				const sizes = toImageSizes(env, bi.asset);
+				return {
+					url: sizes?.hero ?? "",
+					alt: bi.alt,
+				};
+			}),
+		title: p.title,
+		endDate: p.endDate,
+		body: p.body ?? null,
+		type: p.type,
+	};
+}
+
+cmsRoute.openapi(
+	createRoute({
+		method: "get",
+		path: "/public/promos",
+		summary: "List promotions",
+		description:
+			"List published promotions with optional type filter (all, sportsdey-exclusive, casino, sport).",
+		request: {
+			query: z.object({
+				type: z.string().default("all"),
+				offset: z.coerce.number().default(0),
+				limit: z.coerce.number().default(20),
+			}),
+		},
+		responses: {
+			200: {
+				content: {
+					"application/json": {
+						schema: successResponseSchema(PromoListItemSchema.array()),
+					},
+				},
+				description: "Successfully retrieved promotions",
+			},
+		},
+		tags: ["CMS Public"],
+	}),
+	async (c) => {
+		const { type, offset, limit } = c.req.valid("query");
+		const client = getSanityClient(c.env);
+
+		const baseFields = `{
+			_id,
+			title,
+			bannerImages[]{asset, alt},
+			endDate,
+			type
+		}`;
+
+		const query =
+			type === "all"
+				? `*[_type == "promo" && !(_id in path("drafts.**"))] | order(endDate desc)[$offset...$end]${baseFields}`
+				: `*[_type == "promo" && type == $type && !(_id in path("drafts.**"))] | order(endDate desc)[$offset...$end]${baseFields}`;
+
+		const params: Record<string, unknown> = { offset, end: offset + limit };
+		if (type !== "all") params.type = type;
+
+		const data = await client.fetch<SanityPromo[]>(query, params);
+		return c.json(
+			{
+				success: true as const,
+				data: (data || []).map((p) => mapPromoListItem(c.env, p)),
+			},
+			200,
+		);
+	},
+);
+
+cmsRoute.openapi(
+	createRoute({
+		method: "get",
+		path: "/public/promos/{id}",
+		summary: "Get promotion by ID",
+		description: "Fetch a single promotion by its Sanity ID.",
+		request: {
+			params: z.object({ id: z.string() }),
+		},
+		responses: {
+			200: {
+				content: {
+					"application/json": {
+						schema: successResponseSchema(PromoDetailSchema.nullable()),
+					},
+				},
+				description: "Successfully retrieved promotion (or null)",
+			},
+		},
+		tags: ["CMS Public"],
+	}),
+	async (c) => {
+		const { id } = c.req.valid("param");
+		const client = getSanityClient(c.env);
+		const data = await client.fetch<SanityPromo | null>(
+			`*[_type == "promo" && _id == $id && !(_id in path("drafts.**"))][0]{
+				_id,
+				title,
+				bannerImages[]{asset, alt},
+				endDate,
+				body,
+				type
+			}`,
+			{ id },
+		);
+		return c.json(
+			{
+				success: true as const,
+				data: data ? mapPromoDetail(c.env, data) : null,
+			},
+			200,
+		);
 	},
 );
 
