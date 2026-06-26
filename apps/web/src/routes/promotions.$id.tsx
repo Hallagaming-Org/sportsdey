@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/promotions/$id")({
 	component: PromotionDetailsPage,
@@ -27,8 +28,20 @@ function PromotionDetailsPage() {
 
 	if (isLoading) {
 		return (
-			<div className="flex flex-col items-center justify-center py-20">
-				<p className="text-gray-500">Loading promotion...</p>
+			<div className="flex flex-col gap-6 px-4 pb-12 lg:container lg:mx-auto">
+				<div className="mx-auto w-full max-w-5xl rounded-xl bg-white p-4 shadow-sm sm:p-6 dark:border dark:border-white/5 dark:bg-card mt-6">
+					<Skeleton className="h-8 w-10 mb-6" />
+					<div className="w-full flex justify-between items-center mb-4">
+						<Skeleton className="h-8 w-64" />
+						<Skeleton className="h-4 w-32" />
+					</div>
+					<Skeleton className="w-full h-64 md:h-96 rounded-lg mb-8" />
+					<div className="space-y-4">
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-5/6" />
+						<Skeleton className="h-4 w-4/6" />
+					</div>
+				</div>
 			</div>
 		);
 	}
