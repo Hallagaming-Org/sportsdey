@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/promotions/")({
 	component: PromotionsPage,
@@ -100,7 +101,20 @@ function PromotionsPage() {
 				</div>
 
 				{status === "pending" ? (
-					<div className="flex justify-center py-12 text-gray-500">Loading promotions...</div>
+					<div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div key={i} className="overflow-hidden rounded-2xl border border-[#F1F2F4] bg-white dark:border-[#2F3033] dark:bg-[#1C1D1F] block">
+								<Skeleton className="aspect-[21/9] w-full" />
+								<div className="flex items-center justify-between p-4 sm:p-5">
+									<div>
+										<Skeleton className="h-5 w-48 mb-2" />
+										<Skeleton className="h-3 w-24" />
+									</div>
+									<Skeleton className="h-8 w-16 rounded-lg" />
+								</div>
+							</div>
+						))}
+					</div>
 				) : status === "error" ? (
 					<div className="flex justify-center py-12 text-red-500">Error loading promotions</div>
 				) : (
