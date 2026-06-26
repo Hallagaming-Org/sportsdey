@@ -134,7 +134,7 @@ function PromotionsPage() {
 												{promo.title}
 											</h3>
 											<p className="mt-0.5 text-gray-500 text-xs dark:text-gray-400">
-												{new Date(promo.endDate).toLocaleDateString()}
+												Ends on {new Date(promo.endDate).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}
 											</p>
 										</div>
 										<div className="flex items-center rounded-lg bg-accent px-3 py-1.5 font-bold text-[10px] text-[#000606] transition-colors group-hover:bg-[#158f03]">
