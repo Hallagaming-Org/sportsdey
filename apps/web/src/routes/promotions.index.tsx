@@ -135,11 +135,7 @@ function PromotionsPage() {
 											alt={promo.title}
 											className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 										/>
-										<div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-											<button className="rounded-full bg-[#1BAA04] px-6 py-1.5 font-bold text-[10px] text-white shadow-md pointer-events-none">
-												BET NOW
-											</button>
-										</div>
+
 									</div>
 
 									{/* Content */}
