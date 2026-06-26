@@ -64,7 +64,7 @@ function PromotionDetailsPage() {
 
 					<div className="flex items-center justify-between">
 						<p className="text-gray-400 text-sm">
-							{new Date(promotion.endDate).toLocaleDateString()}
+							Ends on {new Date(promotion.endDate).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })}
 						</p>
 					</div>
 				</div>
