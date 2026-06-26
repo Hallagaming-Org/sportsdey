@@ -134,6 +134,9 @@ function RootDocument() {
 		"/kyc",
 		"/kyc/",
 		"/kyc/verify",
+		"/promotions",
+		"/promotions/",
+		"/promotions/$id",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
 
