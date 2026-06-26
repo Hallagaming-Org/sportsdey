@@ -90,11 +90,6 @@ function PromotionDetailsPage() {
 							className="absolute top-0 left-0 h-full w-full object-cover"
 						/>
 					)}
-					<div className="absolute bottom-6 left-1/2 -translate-x-1/2">
-						<button className="rounded-full bg-[#1BAA04] px-8 py-2.5 font-bold text-xs text-white shadow-lg transition-transform hover:scale-105">
-							BET NOW
-						</button>
-					</div>
 				</div>
 
 				{promotion.body && (
