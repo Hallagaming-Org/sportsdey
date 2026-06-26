@@ -269,9 +269,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "promotions",
 			label: "Promotions",
 			icon: Gift,
-			isActive: false,
-			disabled: true,
-			onClick: () => showComingSoon("Promotions"),
+			isActive: isItemActive("promotions", location.pathname.startsWith("/promotions")),
+			onClick: () => {
+				setTab("promotions");
+				navigate({ to: "/promotions" as any });
+			},
 		},
 		// {
 		// 	id: "refer",
