@@ -63,7 +63,6 @@ export function TransactionReceipt({
 		try {
 			setIsSharing(true);
 
-			// Wait a brief moment for any pending renders
 			await new Promise((resolve) => setTimeout(resolve, 150));
 
 			const dataUrl = await toPng(receiptRef.current, {
@@ -112,7 +111,6 @@ export function TransactionReceipt({
 					<WatermarkBackground />
 
 					<div className="relative z-10 flex flex-col h-full">
-						{/* Header */}
 						<div className="flex items-start justify-between mb-10">
 							<img src={SportsdeyLogoUrl} alt="Sportsdey" className="h-8 w-auto object-contain" />
 							<div className="text-right">
@@ -120,7 +118,6 @@ export function TransactionReceipt({
 							</div>
 						</div>
 
-						{/* Massive Amount & Status */}
 						<div className="flex flex-col items-center justify-center mb-10">
 							<h1 className="text-4xl font-black text-white mb-2 tracking-tight">
 								{mainAmountText}
@@ -128,23 +125,21 @@ export function TransactionReceipt({
 							<p className="text-base font-bold text-white">{statusTitle}</p>
 						</div>
 
-						{/* Table Details */}
 						<div className="flex flex-col mb-10">
 							<div className="border-t border-b border-[#1A221E] py-1 mb-2 flex justify-between items-center h-12">
-								<span className="text-[#6C7073] text-sm">Transaction Type</span>
+								<span className="text-[#6C7073] text-[10px]">Transaction Type</span>
 								<span className="text-white font-medium text-sm">{transactionTypeText}</span>
 							</div>
 
 							{details.filter(d => !['transaction type'].includes(d.label.toLowerCase())).map((detail, index) => (
 								<div key={index} className="border-b border-[#1A221E] py-1 mb-2 flex justify-between items-center h-12">
-									<span className="text-[#6C7073] text-sm">{detail.label}</span>
+									<span className="text-[#6C7073] text-[10px]">{detail.label}</span>
 									<span className="text-white font-medium text-sm text-right">{detail.value}</span>
 								</div>
 							))}
 						</div>
 
 						<div className="mt-auto">
-							{/* Badges */}
 							<div className="flex gap-4 justify-center mb-6">
 								<div className="flex items-center gap-2 bg-[#00D600] text-white px-4 py-2 rounded-lg text-xs font-bold w-[140px] justify-center">
 									<svg viewBox="0 0 24 24" className="w-5 h-5 fill-current"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.15 2.67.72 3.4 1.8-3.12 1.87-2.61 5.98.38 7.22-.64 1.62-1.45 2.92-2.43 3.99zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.32 2.45-1.92 4.41-3.74 4.25z" /></svg>
@@ -161,8 +156,6 @@ export function TransactionReceipt({
 									</div>
 								</div>
 							</div>
-
-							{/* Footer Fine Print */}
 							<div className="text-center text-[#6C7073] text-[9px] leading-relaxed px-4">
 								For more information, please contact us: 020*****530, ****0625000<br />
 								Sportsdeycontactcomplaints@Sportsdey.com, complaints@Sportsdey.com<br />
@@ -173,8 +166,6 @@ export function TransactionReceipt({
 				</div>
 			</div>
 
-
-			{/* VISIBLE MODAL */}
 			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-[2px]">
 				<div className="relative mx-auto flex w-full max-w-md flex-col rounded-3xl border border-gray-600 bg-[#000606] text-white shadow-xl overflow-hidden max-h-[90vh]">
 					<div className="flex items-center px-4 py-6">
