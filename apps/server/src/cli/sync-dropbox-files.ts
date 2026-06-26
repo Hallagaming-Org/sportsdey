@@ -26,6 +26,7 @@ const args = process.argv.slice(2);
 let env: "production" | "staging" = "production";
 let concurrency = 3;
 let batchSize = 10;
+let countOnly = false;
 const RATE_LIMIT_DELAY = 200;
 
 for (const arg of args) {
@@ -35,6 +36,8 @@ for (const arg of args) {
 		concurrency = Number.parseInt(arg.replace("--concurrency=", ""), 10);
 	} else if (arg.startsWith("--batch-size=")) {
 		batchSize = Number.parseInt(arg.replace("--batch-size=", ""), 10);
+	} else if (arg === "--count") {
+		countOnly = true;
 	}
 }
 
@@ -201,7 +204,7 @@ async function getExistingNames(): Promise<Set<string>> {
 
 	return new Promise((resolve) => {
 		exec(
-			`npx wrangler d1 execute ${usedDbName} --command "SELECT name FROM gdrive_file" --remote --env ${env}`,
+			`npx wrangler d1 execute ${usedDbName} --command "SELECT name FROM gdrive_file" --remote --json --env ${env}`,
 			(error, stdout) => {
 				if (error) {
 					console.log(
@@ -213,12 +216,41 @@ async function getExistingNames(): Promise<Set<string>> {
 				}
 
 				const names = new Set<string>();
-				for (const line of stdout.trim().split("\n")) {
-					const trimmed = line.trim();
-					if (trimmed && !trimmed.includes("name")) {
-						names.add(normalizeName(trimmed));
+
+				const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+				if (jsonMatch) {
+					try {
+						const parsed = JSON.parse(jsonMatch[0]);
+						const rows = parsed.results ?? [];
+						for (const row of rows) {
+							if (row.name) {
+								names.add(normalizeName(row.name));
+							}
+						}
+						console.log(`Found ${names.size} existing files in database`);
+						resolve(names);
+						return;
+					} catch {
+						// fall through to text parsing
 					}
 				}
+
+				for (const line of stdout.trim().split("\n")) {
+					const trimmed = line.trim();
+					const cleaned = trimmed
+						.replace(/[│┌┐└┘├┤┬┴┼─┃\s]+/g, " ")
+						.trim();
+					if (
+						cleaned &&
+						!cleaned.includes("name") &&
+						!cleaned.includes("─") &&
+						!cleaned.includes("┌") &&
+						!cleaned.match(/^[─┌┐└┘├┤┬┴┼┃│\s]+$/)
+					) {
+						names.add(normalizeName(cleaned));
+					}
+				}
+
 				console.log(`Found ${names.size} existing files in database`);
 				resolve(names);
 			},
@@ -257,7 +289,7 @@ async function processBatch(
 			console.log(`  [${i + 1}/${batch.length}] Uploading: ${file.name}`);
 			await uploadToR2(key, data, mimeType);
 
-			const imageUrl = `${R2_PUBLIC_URL}/${key}`;
+			const imageUrl = `${R2_PUBLIC_URL}/sportsdey-prod/${key}`;
 			const id = crypto.randomUUID();
 			const sql = `INSERT INTO gdrive_file (id, name, image_url, created_at) VALUES (${escape(id)}, ${escape(normalizedName)}, ${escape(imageUrl)}, ${timestamp});`;
 
@@ -300,6 +332,16 @@ async function processBatch(
 }
 
 async function main() {
+	if (countOnly) {
+		const allFiles = await listDropboxFiles();
+		const existingNames = await getExistingNames();
+		const newFiles = allFiles.filter(
+			(f) => !existingNames.has(normalizeName(f.name)),
+		);
+		console.log(newFiles.length);
+		return;
+	}
+
 	console.log(`Syncing files from Dropbox to R2 (${env} environment)...`);
 	console.log(`Concurrency: ${concurrency}, Batch size: ${batchSize}`);
 	console.log("");
