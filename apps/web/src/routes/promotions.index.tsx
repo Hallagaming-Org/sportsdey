@@ -17,7 +17,7 @@ type PromoResponse = {
 };
 
 const FILTERS = [
-	{ label: "All", count: 0 },
+	{ label: "All" },
 	// { label: "Sportsdey Exclusive", count: 0 },
 	// { label: "Casino", count: 0 },
 	// { label: "Sports", count: 0 },
