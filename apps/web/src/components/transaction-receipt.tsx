@@ -103,8 +103,6 @@ export function TransactionReceipt({
 
 	return (
 		<>
-			{/* HIDDEN RECEIPT FOR HTML-TO-IMAGE */}
-			{/* Positioned behind the modal backdrop instead of offscreen to prevent culling issues in Safari */}
 			<div className="fixed inset-0 z-[-1] pointer-events-none flex items-center justify-center overflow-hidden opacity-0">
 				<div
 					ref={receiptRef}
