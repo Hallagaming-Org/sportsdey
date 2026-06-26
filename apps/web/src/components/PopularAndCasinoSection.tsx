@@ -576,7 +576,10 @@ function HotCasinoPanel() {
 				if (!response.ok || data.success === false || !data.data?.url) {
 					if (data.error === "Unauthorized" || response.status === 401) {
 						if (!session?.user) {
-							navigate({ to: "/auth/sign-in" });
+							navigate({ 
+								to: "/auth/sign-in",
+								search: { returnTo: window.location.pathname + window.location.search }
+							});
 							return;
 						}
 					}

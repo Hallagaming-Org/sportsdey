@@ -135,6 +135,11 @@ export function SportsbookPage() {
 										to: "/sportsbetting/$",
 										params: { _splat: cleanLink },
 									});
+									window.scrollTo({ top: 0, behavior: "smooth" });
+									const mains = document.querySelectorAll("main");
+									mains.forEach((main) => {
+										main.scrollTo({ top: 0, behavior: "smooth" });
+									});
 									break;
 								}
 								default: {
