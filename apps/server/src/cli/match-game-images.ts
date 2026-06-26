@@ -64,15 +64,13 @@ function executeD1Json<T>(command: string): Promise<T[]> {
 				reject(error);
 			} else {
 				try {
-					const lines = stdout.trim().split("\n").filter(Boolean);
+					const topLevel = JSON.parse(stdout.trim());
+					const entries = Array.isArray(topLevel) ? topLevel : [topLevel];
 					const results: T[] = [];
-					for (const line of lines) {
-						try {
-							const parsed = JSON.parse(line);
-							if (parsed && parsed.results) {
-								results.push(...parsed.results);
-							}
-						} catch {}
+					for (const entry of entries) {
+						if (entry && entry.results) {
+							results.push(...entry.results);
+						}
 					}
 					resolve(results);
 				} catch {
