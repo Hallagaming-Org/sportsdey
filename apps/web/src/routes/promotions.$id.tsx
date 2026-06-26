@@ -37,7 +37,17 @@ function PromotionDetailsPage() {
 				>
 					<ArrowLeft size={26} />
 				</Link>
-				
+				<div className="w-full flex justify-between items-center">
+
+					<h1 className="mb-4 font-bold text-3xl">{promotion.title}</h1>
+
+					<div className="flex items-center justify-between">
+						<p className="text-gray-400 text-sm">
+							{promotion.endDate}
+						</p>
+					</div>
+				</div>
+
 				<div className="relative w-full overflow-hidden rounded-lg pb-[50%] mb-8 bg-gray-100 dark:bg-black">
 					<img
 						src={promotion.image}
@@ -51,20 +61,13 @@ function PromotionDetailsPage() {
 					</div>
 				</div>
 
-				<h1 className="mb-4 font-bold text-3xl">{promotion.title}</h1>
-				
-				<div className="mb-8 flex items-center justify-between">
-					<p className="text-gray-400 text-sm">
-						{promotion.endDate}
-					</p>
-				</div>
 
 				<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
 					<p className="text-gray-800 dark:text-gray-200">
 						Full explanation about the promotions posted or uploaded on the site
 						here...
 					</p>
-					
+
 					{/* Placeholder text */}
 					<div className="mt-8 text-left text-sm text-gray-600 dark:text-gray-400">
 						<h3 className="mb-4 font-bold text-lg text-gray-900 dark:text-white">Terms and Conditions</h3>
