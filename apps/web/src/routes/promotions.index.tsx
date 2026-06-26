@@ -93,7 +93,7 @@ function PromotionsPage() {
 								)}
 							>
 								<span>{filter.label}</span>
-								<span className="rounded-full h-6 w-6 flex items-center justify-center bg-[#040C01] text-white text-[10px]">{0}</span>
+								<span className="rounded-full h-6 w-6 flex items-center justify-center bg-[#040C01] text-white text-[10px]">{filteredPromotions?.length}</span>
 							</button>
 						)
 					})}
