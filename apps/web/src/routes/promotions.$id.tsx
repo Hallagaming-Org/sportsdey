@@ -1,26 +1,47 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { PROMOTIONS } from "./promotions.index";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api";
 
 export const Route = createFileRoute("/promotions/$id")({
 	component: PromotionDetailsPage,
 });
 
+type SinglePromoResponse = {
+	_id: string;
+	title: string;
+	endDate: string;
+	bannerImages: { url: string }[];
+	body: string | null;
+	type: string;
+};
+
 function PromotionDetailsPage() {
 	const { id } = Route.useParams();
 	const navigate = useNavigate();
 
-	const promotion = PROMOTIONS.find((p) => p.id === id);
+	const { data: promotion, isLoading, error } = useQuery({
+		queryKey: ["promotion", id],
+		queryFn: () => apiRequest<SinglePromoResponse>(`cms/public/promos/${id}`),
+	});
 
-	if (!promotion) {
+	if (isLoading) {
 		return (
 			<div className="flex flex-col items-center justify-center py-20">
-				<h2 className="mb-4 text-xl font-bold text-white">
+				<p className="text-gray-500">Loading promotion...</p>
+			</div>
+		);
+	}
+
+	if (error || !promotion) {
+		return (
+			<div className="flex flex-col items-center justify-center py-20">
+				<h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
 					Promotion not found
 				</h2>
 				<button
 					onClick={() => navigate({ to: "/promotions" })}
-					className="rounded-lg bg-accent px-6 py-2 font-bold text-white hover:bg-accent/90"
+					className="rounded-lg bg-accent px-6 py-2 font-bold text-[#000606] hover:bg-accent/90"
 				>
 					Back to Promotions
 				</button>
@@ -39,21 +60,23 @@ function PromotionDetailsPage() {
 				</Link>
 				<div className="w-full flex justify-between items-center">
 
-					<h1 className="mb-4 font-bold text-3xl">{promotion.title}</h1>
+					<h1 className="mb-4 font-bold text-3xl capitalize">{promotion.title}</h1>
 
 					<div className="flex items-center justify-between">
 						<p className="text-gray-400 text-sm">
-							{promotion.endDate}
+							{new Date(promotion.endDate).toLocaleDateString()}
 						</p>
 					</div>
 				</div>
 
 				<div className="relative w-full overflow-hidden rounded-lg pb-[50%] mb-8 bg-gray-100 dark:bg-black">
-					<img
-						src={promotion.image}
-						alt={promotion.title}
-						className="absolute top-0 left-0 h-full w-full object-cover"
-					/>
+					{promotion.bannerImages?.[0]?.url && (
+						<img
+							src={promotion.bannerImages[0].url}
+							alt={promotion.title}
+							className="absolute top-0 left-0 h-full w-full object-cover"
+						/>
+					)}
 					<div className="absolute bottom-6 left-1/2 -translate-x-1/2">
 						<button className="rounded-full bg-[#1BAA04] px-8 py-2.5 font-bold text-xs text-white shadow-lg transition-transform hover:scale-105">
 							BET NOW
@@ -61,12 +84,14 @@ function PromotionDetailsPage() {
 					</div>
 				</div>
 
-
 				<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
-					<p className="text-gray-800 dark:text-gray-200">
-						Full explanation about the promotions posted or uploaded on the site
-						here...
-					</p>
+					{promotion.body ? (
+						<div dangerouslySetInnerHTML={{ __html: promotion.body }} />
+					) : (
+						<p className="text-gray-800 dark:text-gray-200">
+							Full explanation about the promotions posted or uploaded on the site here...
+						</p>
+					)}
 
 					{/* Placeholder text */}
 					<div className="mt-8 text-left text-sm text-gray-600 dark:text-gray-400">
