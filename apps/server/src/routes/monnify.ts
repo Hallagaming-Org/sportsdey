@@ -399,6 +399,38 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 		);
 	}
 
+	const db = drizzle(c.env.DB, { schema });
+
+	const [wallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, userId))
+		.limit(1);
+
+	if (!wallet) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Wallet not found",
+				details: null,
+			},
+			400,
+		);
+	}
+
+	const amountInKobo = amount * 100;
+
+	if (wallet.balance < amountInKobo) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Insufficient balance",
+				details: null,
+			},
+			400,
+		);
+	}
+
 	const validationResult = await validateCustomer(env, productCode, customerId);
 	if (!validationResult.ok || !validationResult.data) {
 		return c.json(
@@ -414,9 +446,6 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 	const validatedCustomerName =
 		validationResult.data.customerName || customerName;
 	const vendReference = `VND_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-
-	const finalValidationReference = validationReference;
-	const db = drizzle(c.env.DB, { schema });
 
 	const transactionId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
@@ -505,6 +534,34 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 			status,
 		})
 		.where(eq(schema.utilityTransaction.id, transactionId));
+
+	if (status === "success") {
+		const newBalance = wallet.balance - amountInKobo;
+
+		await db.insert(schema.walletTransaction).values({
+			id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId,
+			amount: amountInKobo,
+			type: "debit",
+			reference: vendReference,
+			status: "completed",
+			paymentMethod: "bill_payment",
+			balance: newBalance,
+			metadata: JSON.stringify({
+				serviceCategory,
+				billerName: result.data.billerName,
+				productName: result.data.productName,
+				customerId,
+				vendReference,
+				utilityTransactionId: transactionId,
+			}),
+		});
+
+		await db
+			.update(schema.wallet)
+			.set({ balance: newBalance })
+			.where(eq(schema.wallet.userId, userId));
+	}
 
 	return c.json(
 		{
