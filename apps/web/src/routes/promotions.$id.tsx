@@ -84,26 +84,11 @@ function PromotionDetailsPage() {
 					</div>
 				</div>
 
-				<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
-					{promotion.body ? (
+				{promotion.body && (
+					<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none text-gray-800 dark:text-gray-200">
 						<div dangerouslySetInnerHTML={{ __html: promotion.body }} />
-					) : (
-						<p className="text-gray-800 dark:text-gray-200">
-							Full explanation about the promotions posted or uploaded on the site here...
-						</p>
-					)}
-
-					{/* Placeholder text */}
-					<div className="mt-8 text-left text-sm text-gray-600 dark:text-gray-400">
-						<h3 className="mb-4 font-bold text-lg text-gray-900 dark:text-white">Terms and Conditions</h3>
-						<ul className="list-disc pl-5 space-y-2">
-							<li>This promotion is valid for all registered players.</li>
-							<li>The minimum qualifying bet must be placed.</li>
-							<li>Bonus funds will be credited within 24 hours of the qualifying bet settlement.</li>
-							<li>Standard terms and conditions apply.</li>
-						</ul>
 					</div>
-				</div>
+				)}
 			</div>
 		</div>
 	);
