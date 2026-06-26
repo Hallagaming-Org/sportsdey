@@ -1,4 +1,4 @@
-const MONNIFY_BASE_URL = "https://sandbox.monnify.com/api/v1";
+const MONNIFY_BASE_URL = "https://sandbox.monnify.com/api";
 
 interface MonnifyAccessToken {
 	token: string;
@@ -122,11 +122,15 @@ async function monnifyRequest<T>(
 		return { ok: false, error: "Failed to obtain access token" };
 	}
 
+	console.log("access_token", token);
+
 	const url = `${MONNIFY_BASE_URL}${endpoint}`;
 	const headers: Record<string, string> = {
 		Authorization: `Bearer ${token}`,
 		"Content-Type": "application/json",
 	};
+
+	console.log("headers", headers);
 
 	try {
 		const res = await fetch(url, {
@@ -204,14 +208,18 @@ export async function getAccessToken(env: {
 		`${env.MONNIFY_API_KEY}:${env.MONNIFY_CLIENT_SECRET}`,
 	).toString("base64");
 
+	const url = `${MONNIFY_BASE_URL}/auth/login`;
+	const method = "POST";
+	const headers = {
+		Authorization: `Basic ${credentials}`,
+		"Content-Type": "application/json",
+	};
+	const body = JSON.stringify({});
+
+	console.log({ url, method, headers, body });
+
 	try {
-		const res = await fetch(`${MONNIFY_BASE_URL}/auth/login`, {
-			method: "POST",
-			headers: {
-				Authorization: `Basic ${credentials}`,
-				"Content-Type": "application/json",
-			},
-		});
+		const res = await fetch(url, { method, headers });
 
 		const data = (await res.json()) as {
 			requestSuccessful?: boolean;
@@ -219,6 +227,8 @@ export async function getAccessToken(env: {
 			responseMessage: string;
 			responseBody?: { accessToken: string; expiresIn: number };
 		};
+
+		console.log("access_token_result", data);
 
 		if (
 			data.requestSuccessful === true &&

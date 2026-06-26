@@ -1,7 +1,7 @@
+import { exec } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { exec } from "node:child_process";
 
 interface GdriveFile {
 	name: string;
@@ -43,9 +43,7 @@ function escape(value: string | number | null | undefined): string {
 		: `'${String(value).replace(/'/g, "''")}'`;
 }
 
-function executeD1(
-	command: string,
-): Promise<string> {
+function executeD1(command: string): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const cmd = `npx wrangler d1 execute ${usedDbName} --command ${JSON.stringify(command)} --remote --env ${env}`;
 		exec(cmd, { timeout: 120000 }, (error, stdout) => {
@@ -66,15 +64,13 @@ function executeD1Json<T>(command: string): Promise<T[]> {
 				reject(error);
 			} else {
 				try {
-					const lines = stdout.trim().split("\n").filter(Boolean);
+					const topLevel = JSON.parse(stdout.trim());
+					const entries = Array.isArray(topLevel) ? topLevel : [topLevel];
 					const results: T[] = [];
-					for (const line of lines) {
-						try {
-							const parsed = JSON.parse(line);
-							if (parsed && parsed.results) {
-								results.push(...parsed.results);
-							}
-						} catch {}
+					for (const entry of entries) {
+						if (entry && entry.results) {
+							results.push(...entry.results);
+						}
 					}
 					resolve(results);
 				} catch {
@@ -102,9 +98,7 @@ async function main() {
 	}
 
 	console.log("Fetching all games...");
-	const games = await executeD1Json<GameRecord>(
-		"SELECT id, name FROM game",
-	);
+	const games = await executeD1Json<GameRecord>("SELECT id, name FROM game");
 	console.log(`Found ${games.length} games in database`);
 
 	if (games.length === 0) {
@@ -115,6 +109,9 @@ async function main() {
 	const gdriveLookup = new Map<string, string>();
 	for (const f of gdriveFiles) {
 		const key = normalizeName(f.name);
+		if (f.name !== key) {
+			console.log(`  Normalizing gdrive name: "${f.name}" -> "${key}"`);
+		}
 		if (!gdriveLookup.has(key)) {
 			gdriveLookup.set(key, f.image_url);
 		}
@@ -123,11 +120,15 @@ async function main() {
 	console.log(`Unique normalized names from gdrive_file: ${gdriveLookup.size}`);
 	console.log("");
 
-	const matches: Array<{ gameId: string; gameName: string; imageUrl: string }> = [];
+	const matches: Array<{ gameId: string; gameName: string; imageUrl: string }> =
+		[];
 	const unmatched: string[] = [];
 
 	for (const game of games) {
 		const key = normalizeName(game.name);
+		if (game.name !== key) {
+			console.log(`  Normalizing game name: "${game.name}" -> "${key}"`);
+		}
 		const imageUrl = gdriveLookup.get(key);
 		if (imageUrl) {
 			matches.push({
@@ -202,7 +203,9 @@ async function main() {
 				});
 			});
 			updated += batch.length;
-			console.log(`Batch ${batchNum}/${totalBatches}: ${updated} games updated`);
+			console.log(
+				`Batch ${batchNum}/${totalBatches}: ${updated} games updated`,
+			);
 		} catch (err) {
 			console.error(`Batch ${batchNum} failed:`, err);
 		}

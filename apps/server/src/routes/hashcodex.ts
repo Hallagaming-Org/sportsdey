@@ -11,11 +11,7 @@ const DepositSchema = z
 		action: z
 			.enum(["credit", "debit"])
 			.openapi({ description: "credit to add funds, debit to remove funds" }),
-		amount: z
-			.number()
-			.positive()
-			.int()
-			.openapi({ description: "Amount in kobo" }),
+		amount: z.number().positive().openapi({ description: "Amount in kobo" }),
 	})
 	.openapi("HashcodexDepositSchema");
 
@@ -24,8 +20,12 @@ const DepositResponseSchema = z
 		success: z.literal(true).openapi({ description: "Success status" }),
 		data: z
 			.object({
-				balance: z.number().openapi({ description: "New wallet balance in kobo" }),
-				amount: z.number().openapi({ description: "Transaction amount in kobo" }),
+				balance: z
+					.number()
+					.openapi({ description: "New wallet balance in kobo" }),
+				amount: z
+					.number()
+					.openapi({ description: "Transaction amount in kobo" }),
 				action: z.string().openapi({ description: "credit or debit" }),
 			})
 			.openapi({ description: "Response data" }),
@@ -112,7 +112,7 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 
 	const { action, amount } = result.data;
 	const db = drizzle(c.env.DB, { schema });
-	const amountInKobo = amount * 100
+	const amountInKobo = amount * 100;
 
 	const [wallet] = await db
 		.select()
