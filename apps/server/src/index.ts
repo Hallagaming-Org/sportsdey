@@ -6,6 +6,8 @@ import { createAuth, createHashCookie } from "./auth";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
 import adminNotificationsRoute from "./routes/admin-notifications";
+import adminOverviewRoute from "./routes/admin-overview";
+import adminTicketsRoute from "./routes/admin-tickets";
 import adminTransactionsRoute from "./routes/admin-transactions";
 import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
@@ -166,7 +168,9 @@ app.route("/", routes);
 app.route("/admin", adminRoute);
 app.route("/admin", adminWithdrawalsRoute);
 app.route("/admin", adminTransactionsRoute);
+app.route("/admin", adminTicketsRoute);
 app.route("/admin", adminNotificationsRoute);
+app.route("/admin", adminOverviewRoute);
 app.route("/cms", adminCmsRoute);
 app.route("/cms", cmsRoute);
 
