@@ -3,6 +3,7 @@ import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, Plus, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
@@ -49,6 +50,9 @@ export default function Header(
 	const mobileBalance = walletData?.balance
 		? `₦ ${formatAmount(walletData.balance)}`
 		: "₦ 0.00";
+
+	const { data: unreadData } = useUnreadNotifications();
+	const unreadCount = unreadData?.count ?? 0;
 
 	useEffect(() => {
 		if (open) {
@@ -152,31 +156,41 @@ export default function Header(
 
 						<button
 							type="button"
+							onClick={() => router.navigate({ to: "/notifications" })}
 							className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent bg-transparent text-black dark:text-white"
 							aria-label="Notifications"
 						>
 							<NotificationIcon />
-							<span className="absolute top-0 right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-400 font-bold text-[#070711] text-[6px]">
-								{"1"}
-							</span>
+							{unreadCount > 0 && (
+								<span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 font-bold text-[#070711] text-[8px] leading-none">
+									{unreadCount > 99 ? "99+" : unreadCount}
+								</span>
+							)}
 						</button>
 
-						{!isAuthRoute && (
-							isSessionLoading ? (
+						{!isAuthRoute &&
+							(isSessionLoading ? (
 								<div className="h-8 w-16 animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
 							) : session?.user ? (
 								<UserMenu />
 							) : (
 								<div className="flex gap-x-1.5">
-									<Link to="/auth/sign-in" search={{ returnTo: location.href }} className="bg-white px-2.5 py-1 text-secondary text-[10px] leading-tight text-black cursor-pointer rounded-full transition-colors whitespace-nowrap">
+									<Link
+										to="/auth/sign-in"
+										search={{ returnTo: location.href }}
+										className="cursor-pointer whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[10px] text-black text-secondary leading-tight transition-colors"
+									>
 										Log in
 									</Link>
-									<Link to="/auth/sign-up" search={{ returnTo: location.href }} className="flex text-[10px] leading-tight items-center justify-center gap-x-1 bg-accent px-3 py-1 text-white cursor-pointer rounded-full transition-colors whitespace-nowrap">
+									<Link
+										to="/auth/sign-up"
+										search={{ returnTo: location.href }}
+										className="flex cursor-pointer items-center justify-center gap-x-1 whitespace-nowrap rounded-full bg-accent px-3 py-1 text-[10px] text-white leading-tight transition-colors"
+									>
 										Join now
 									</Link>
 								</div>
-							)
-						)}
+							))}
 					</div>
 				</div>
 
@@ -309,6 +323,7 @@ export default function Header(
 						{/* Notification Bell */}
 						<button
 							type="button"
+							onClick={() => router.navigate({ to: "/notifications" })}
 							className="relative cursor-pointer rounded-full p-1.5 text-secondary transition-colors hover:bg-white/10 dark:text-white"
 							aria-label="Notifications"
 						>
@@ -322,25 +337,37 @@ export default function Header(
 								<title>Notifications</title>
 								<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />
 							</svg>
+							{unreadCount > 0 && (
+								<span className="absolute top-0.5 right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-400 px-1 font-bold text-[#070711] text-[7px] leading-none">
+									{unreadCount > 99 ? "99+" : unreadCount}
+								</span>
+							)}
 						</button>
 
-						{!isAuthRoute && (
-							isSessionLoading ? (
+						{!isAuthRoute &&
+							(isSessionLoading ? (
 								<div className="h-8 w-24 animate-pulse rounded-full bg-white/10" />
 							) : session?.user ? (
 								<UserMenu />
 							) : (
 								<div className="flex justify-center gap-x-2">
-									<Link to="/auth/sign-in" search={{ returnTo: location.href }} className="bg-white px-3 py-1.5 text-secondary text-xs text-black cursor-pointer rounded-full transition-colors">
+									<Link
+										to="/auth/sign-in"
+										search={{ returnTo: location.href }}
+										className="cursor-pointer rounded-full bg-white px-3 py-1.5 text-black text-secondary text-xs transition-colors"
+									>
 										Log in
 									</Link>
-									<Link to="/auth/sign-up" search={{ returnTo: location.href }} className="flex text-xs items-center justify-center gap-x-2 bg-accent px-4 py-1.5 text-white cursor-pointer rounded-full transition-colors">
+									<Link
+										to="/auth/sign-up"
+										search={{ returnTo: location.href }}
+										className="flex cursor-pointer items-center justify-center gap-x-2 rounded-full bg-accent px-4 py-1.5 text-white text-xs transition-colors"
+									>
 										Join now
 										<ChevronRight className="h-3.5 w-3.5" />
 									</Link>
 								</div>
-							)
-						)}
+							))}
 						{isAuthRoute && (
 							<button
 								type="button"

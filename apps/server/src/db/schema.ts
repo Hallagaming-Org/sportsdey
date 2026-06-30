@@ -617,6 +617,7 @@ export const userNotification = sqliteTable("user_notification", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	title: text("title").notNull(),
 	message: text("message").notNull(),
+	read: integer("read", { mode: "boolean" }).notNull().default(false),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),

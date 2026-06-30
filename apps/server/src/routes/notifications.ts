@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -10,6 +10,7 @@ import {
 	CreateUserNotificationSchema,
 	NotificationAcknowledgementSchema,
 	TicketStatusNotificationSchema,
+	UnreadCountResponseSchema,
 	UserNotificationListResponseSchema,
 	UserNotificationSingleResponseSchema,
 } from "@/schemas/notifications";
@@ -89,6 +90,7 @@ notificationsRoute.openapi(getNotificationsRoute, async (c) => {
 			userId: schema.userNotification.userId,
 			title: schema.userNotification.title,
 			message: schema.userNotification.message,
+			read: schema.userNotification.read,
 			createdAt: schema.userNotification.createdAt,
 		})
 		.from(schema.userNotification)
@@ -114,6 +116,69 @@ notificationsRoute.openapi(getNotificationsRoute, async (c) => {
 				page,
 				limit,
 				totalPages,
+			},
+		},
+		200,
+	);
+});
+
+const unreadCountRoute = createRoute({
+	method: "get",
+	path: "/unread-count",
+	tags: ["Notifications"],
+	summary: "Get unread notifications count",
+	description: "Get the count of unread notifications for the authenticated user",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Unread count retrieved successfully",
+			content: {
+				"application/json": {
+					schema: UnreadCountResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - user not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+notificationsRoute.openapi(unreadCountRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const [result] = await db
+		.select({ count: count() })
+		.from(schema.userNotification)
+		.where(
+			and(
+				eq(schema.userNotification.userId, user.id),
+				eq(schema.userNotification.read, false),
+			),
+		);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				count: result?.count ?? 0,
 			},
 		},
 		200,
@@ -182,6 +247,7 @@ notificationsRoute.openapi(getNotificationByIdRoute, async (c) => {
 			userId: schema.userNotification.userId,
 			title: schema.userNotification.title,
 			message: schema.userNotification.message,
+			read: schema.userNotification.read,
 			createdAt: schema.userNotification.createdAt,
 		})
 		.from(schema.userNotification)
@@ -371,6 +437,106 @@ notificationsRoute.openapi(sendNotificationRoute, async (c) => {
 			data: notification,
 		},
 		201,
+	);
+});
+
+const markNotificationReadRoute = createRoute({
+	method: "post",
+	path: "/{id}/read",
+	tags: ["Notifications"],
+	summary: "Mark notification as read",
+	description: "Mark a specific notification as read",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			id: z.string(),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Notification marked as read",
+			content: {
+				"application/json": {
+					schema: UserNotificationSingleResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - user not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Notification not found",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+notificationsRoute.openapi(markNotificationReadRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	const notificationId = c.req.param("id");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existing] = await db
+		.select({ id: schema.userNotification.id })
+		.from(schema.userNotification)
+		.where(
+			and(
+				eq(schema.userNotification.id, notificationId),
+				eq(schema.userNotification.userId, user.id),
+			),
+		)
+		.limit(1);
+
+	if (!existing) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Notification not found",
+				details: null,
+			},
+			404,
+		);
+	}
+
+	const [notification] = await db
+		.update(schema.userNotification)
+		.set({ read: true })
+		.where(eq(schema.userNotification.id, notificationId))
+		.returning({
+			id: schema.userNotification.id,
+			userId: schema.userNotification.userId,
+			title: schema.userNotification.title,
+			message: schema.userNotification.message,
+			read: schema.userNotification.read,
+			createdAt: schema.userNotification.createdAt,
+		});
+
+	return c.json(
+		{
+			success: true as const,
+			data: notification,
+		},
+		200,
 	);
 });
 

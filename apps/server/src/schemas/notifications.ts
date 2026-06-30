@@ -67,9 +67,21 @@ export const UserNotificationResponseSchema = z
 		userId: z.string().openapi({ description: "User ID" }),
 		title: z.string().openapi({ description: "Notification title" }),
 		message: z.string().openapi({ description: "Notification message" }),
+		read: z.boolean().openapi({ description: "Whether the notification has been read" }),
 		createdAt: z.number().openapi({ description: "Creation timestamp" }),
 	})
 	.openapi("UserNotificationResponse");
+
+export const UnreadCountResponseSchema = z
+	.object({
+		success: z.literal(true).openapi({ description: "Success status" }),
+		data: z
+			.object({
+				count: z.number().openapi({ description: "Number of unread notifications" }),
+			})
+			.openapi({ description: "Response data" }),
+	})
+	.openapi("UnreadCountResponse");
 
 export const UserNotificationListResponseSchema = z
 	.object({

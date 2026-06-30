@@ -1,0 +1,1 @@
+ALTER TABLE `user_notification` ADD `read` integer DEFAULT false NOT NULL;

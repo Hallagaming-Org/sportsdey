@@ -14,7 +14,7 @@ export type WalletMenuItem = {
 
 export const walletMenuItems: WalletMenuItem[] = [
 	{ label: "Profile", icon: ProfileIcon, path: "/account" },
-	{ label: "Notifications", icon: BellIcon },
+	{ label: "Notifications", icon: BellIcon, path: "/notifications" },
 	{ label: "Wallet", icon: WalletIcon, path: "/wallet" },
 	// { label: "Bet History", icon: HistoryIcon },
 	{ label: "KYC Verification", icon: BettingIcon, path: "/kyc" },
