@@ -93,7 +93,7 @@ function WalletPage() {
 				body: JSON.stringify({ amount }),
 			}),
 		onSuccess: (data) => {
-			window.open(data.authorizationUrl, "_blank", "noopener,noreferrer");
+			window.location.href = data.authorizationUrl;
 			setIsDepositModalOpen(false);
 			setDepositAmount("");
 			setDepositError("");
