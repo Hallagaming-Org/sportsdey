@@ -626,7 +626,7 @@ function HotCasinoPanel() {
 					name: game.name,
 					subtitle: known?.subtitle ?? "Play now",
 					Icon: known?.icon,
-					image: known?.image ?? game.imageUrl ?? "/lagos-rush.png",
+					image: game.imageUrl ?? known?.image ?? "/lagos-rush.png",
 					gradient: known?.gradient ?? DEFAULT_GRADIENT,
 				};
 				const isLoadingThis = loadingCode === game.code;
