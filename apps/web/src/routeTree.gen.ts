@@ -18,6 +18,7 @@ import { Route as TennisRouteImport } from './routes/tennis'
 import { Route as SportsbettingRouteImport } from './routes/sportsbetting'
 import { Route as ReceiptPreviewRouteImport } from './routes/receipt-preview'
 import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
 import { Route as GamesRouteImport } from './routes/games'
@@ -34,6 +35,7 @@ import { Route as VideosIndexRouteImport } from './routes/videos.index'
 import { Route as UfcIndexRouteImport } from './routes/ufc.index'
 import { Route as TennisIndexRouteImport } from './routes/tennis.index'
 import { Route as PromotionsIndexRouteImport } from './routes/promotions.index'
+import { Route as NotificationsIndexRouteImport } from './routes/notifications.index'
 import { Route as NewsIndexRouteImport } from './routes/news.index'
 import { Route as KycIndexRouteImport } from './routes/kyc.index'
 import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
@@ -44,6 +46,7 @@ import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
 import { Route as SportsbettingSplatRouteImport } from './routes/sportsbetting/$'
 import { Route as PromotionsIdRouteImport } from './routes/promotions.$id'
 import { Route as PlayGameNameRouteImport } from './routes/play.$gameName'
+import { Route as NotificationsIdRouteImport } from './routes/notifications.$id'
 import { Route as NewsSlugRouteImport } from './routes/news.$slug'
 import { Route as KycVerifyRouteImport } from './routes/kyc.verify'
 import { Route as IndexMatchesRouteImport } from './routes/index.matches'
@@ -106,6 +109,11 @@ const ReceiptPreviewRoute = ReceiptPreviewRouteImport.update({
 const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
   id: '/privacy-policy',
   path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NewsRoute = NewsRouteImport.update({
@@ -188,6 +196,11 @@ const PromotionsIndexRoute = PromotionsIndexRouteImport.update({
   path: '/promotions/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotificationsIndexRoute = NotificationsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => NotificationsRoute,
+} as any)
 const NewsIndexRoute = NewsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -237,6 +250,11 @@ const PlayGameNameRoute = PlayGameNameRouteImport.update({
   id: '/play/$gameName',
   path: '/play/$gameName',
   getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsIdRoute = NotificationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => NotificationsRoute,
 } as any)
 const NewsSlugRoute = NewsSlugRouteImport.update({
   id: '/$slug',
@@ -345,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/games': typeof GamesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
+  '/notifications': typeof NotificationsRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
@@ -368,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
+  '/notifications/$id': typeof NotificationsIdRoute
   '/play/$gameName': typeof PlayGameNameRoute
   '/promotions/$id': typeof PromotionsIdRoute
   '/sportsbetting/$': typeof SportsbettingSplatRoute
@@ -378,6 +398,7 @@ export interface FileRoutesByFullPath {
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
   '/news/': typeof NewsIndexRoute
+  '/notifications/': typeof NotificationsIndexRoute
   '/promotions/': typeof PromotionsIndexRoute
   '/tennis/': typeof TennisIndexRoute
   '/ufc/': typeof UfcIndexRoute
@@ -416,6 +437,7 @@ export interface FileRoutesByTo {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
+  '/notifications/$id': typeof NotificationsIdRoute
   '/play/$gameName': typeof PlayGameNameRoute
   '/promotions/$id': typeof PromotionsIdRoute
   '/sportsbetting/$': typeof SportsbettingSplatRoute
@@ -426,6 +448,7 @@ export interface FileRoutesByTo {
   '/boxing': typeof BoxingIndexRoute
   '/kyc': typeof KycIndexRoute
   '/news': typeof NewsIndexRoute
+  '/notifications': typeof NotificationsIndexRoute
   '/promotions': typeof PromotionsIndexRoute
   '/tennis': typeof TennisIndexRoute
   '/ufc': typeof UfcIndexRoute
@@ -449,6 +472,7 @@ export interface FileRoutesById {
   '/games': typeof GamesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
+  '/notifications': typeof NotificationsRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
@@ -472,6 +496,7 @@ export interface FileRoutesById {
   '/index/matches': typeof IndexMatchesRoute
   '/kyc/verify': typeof KycVerifyRoute
   '/news/$slug': typeof NewsSlugRouteWithChildren
+  '/notifications/$id': typeof NotificationsIdRoute
   '/play/$gameName': typeof PlayGameNameRoute
   '/promotions/$id': typeof PromotionsIdRoute
   '/sportsbetting/$': typeof SportsbettingSplatRoute
@@ -482,6 +507,7 @@ export interface FileRoutesById {
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
   '/news/': typeof NewsIndexRoute
+  '/notifications/': typeof NotificationsIndexRoute
   '/promotions/': typeof PromotionsIndexRoute
   '/tennis/': typeof TennisIndexRoute
   '/ufc/': typeof UfcIndexRoute
@@ -506,6 +532,7 @@ export interface FileRouteTypes {
     | '/games'
     | '/kyc'
     | '/news'
+    | '/notifications'
     | '/privacy-policy'
     | '/receipt-preview'
     | '/sportsbetting'
@@ -529,6 +556,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
+    | '/notifications/$id'
     | '/play/$gameName'
     | '/promotions/$id'
     | '/sportsbetting/$'
@@ -539,6 +567,7 @@ export interface FileRouteTypes {
     | '/boxing/'
     | '/kyc/'
     | '/news/'
+    | '/notifications/'
     | '/promotions/'
     | '/tennis/'
     | '/ufc/'
@@ -577,6 +606,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
+    | '/notifications/$id'
     | '/play/$gameName'
     | '/promotions/$id'
     | '/sportsbetting/$'
@@ -587,6 +617,7 @@ export interface FileRouteTypes {
     | '/boxing'
     | '/kyc'
     | '/news'
+    | '/notifications'
     | '/promotions'
     | '/tennis'
     | '/ufc'
@@ -609,6 +640,7 @@ export interface FileRouteTypes {
     | '/games'
     | '/kyc'
     | '/news'
+    | '/notifications'
     | '/privacy-policy'
     | '/receipt-preview'
     | '/sportsbetting'
@@ -632,6 +664,7 @@ export interface FileRouteTypes {
     | '/index/matches'
     | '/kyc/verify'
     | '/news/$slug'
+    | '/notifications/$id'
     | '/play/$gameName'
     | '/promotions/$id'
     | '/sportsbetting/$'
@@ -642,6 +675,7 @@ export interface FileRouteTypes {
     | '/boxing/'
     | '/kyc/'
     | '/news/'
+    | '/notifications/'
     | '/promotions/'
     | '/tennis/'
     | '/ufc/'
@@ -665,6 +699,7 @@ export interface RootRouteChildren {
   GamesRoute: typeof GamesRoute
   KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
+  NotificationsRoute: typeof NotificationsRouteWithChildren
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   ReceiptPreviewRoute: typeof ReceiptPreviewRoute
   SportsbettingRoute: typeof SportsbettingRouteWithChildren
@@ -753,6 +788,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy-policy'
       fullPath: '/privacy-policy'
       preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/news': {
@@ -867,6 +909,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromotionsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notifications/': {
+      id: '/notifications/'
+      path: '/'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof NotificationsIndexRouteImport
+      parentRoute: typeof NotificationsRoute
+    }
     '/news/': {
       id: '/news/'
       path: '/'
@@ -936,6 +985,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/play/$gameName'
       preLoaderRoute: typeof PlayGameNameRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/notifications/$id': {
+      id: '/notifications/$id'
+      path: '/$id'
+      fullPath: '/notifications/$id'
+      preLoaderRoute: typeof NotificationsIdRouteImport
+      parentRoute: typeof NotificationsRoute
     }
     '/news/$slug': {
       id: '/news/$slug'
@@ -1131,6 +1187,20 @@ const NewsRouteChildren: NewsRouteChildren = {
 
 const NewsRouteWithChildren = NewsRoute._addFileChildren(NewsRouteChildren)
 
+interface NotificationsRouteChildren {
+  NotificationsIdRoute: typeof NotificationsIdRoute
+  NotificationsIndexRoute: typeof NotificationsIndexRoute
+}
+
+const NotificationsRouteChildren: NotificationsRouteChildren = {
+  NotificationsIdRoute: NotificationsIdRoute,
+  NotificationsIndexRoute: NotificationsIndexRoute,
+}
+
+const NotificationsRouteWithChildren = NotificationsRoute._addFileChildren(
+  NotificationsRouteChildren,
+)
+
 interface SportsbettingRouteChildren {
   SportsbettingSplatRoute: typeof SportsbettingSplatRoute
 }
@@ -1205,6 +1275,7 @@ const rootRouteChildren: RootRouteChildren = {
   GamesRoute: GamesRoute,
   KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
+  NotificationsRoute: NotificationsRouteWithChildren,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   ReceiptPreviewRoute: ReceiptPreviewRoute,
   SportsbettingRoute: SportsbettingRouteWithChildren,
