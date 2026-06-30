@@ -2,6 +2,7 @@ import { exec } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import readline from "node:readline";
 
 interface GdriveFile {
 	name: string;
@@ -16,10 +17,13 @@ interface GameRecord {
 const args = process.argv.slice(2);
 
 let env: "production" | "staging" = "staging";
+let requiredGamesFile: string | undefined;
 
 for (const arg of args) {
 	if (arg === "production" || arg === "staging") {
 		env = arg;
+	} else if (arg.startsWith("--required-games-file=")) {
+		requiredGamesFile = arg.replace("--required-games-file=", "");
 	}
 }
 
@@ -32,6 +36,21 @@ function normalizeName(name: string): string {
 		.replace(/\.[^.]+$/, "")
 		.replace(/[-_]+/g, " ")
 		.replace(/\s+/g, " ");
+}
+
+async function readRequiredGames(filePath: string): Promise<Set<string>> {
+	const names = new Set<string>();
+	const fileStream = fs.createReadStream(filePath);
+	const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+
+	for await (const line of rl) {
+		const trimmed = line.trim();
+		if (trimmed && !trimmed.startsWith("#")) {
+			names.add(normalizeName(trimmed));
+		}
+	}
+
+	return names;
 }
 
 function escape(value: string | number | null | undefined): string {
@@ -117,6 +136,11 @@ async function main() {
 		}
 	}
 
+	const manualOverrides: Record<string, string[]> = {
+		"lucky rise": ["luckyrise"],
+		"lagos rush": ["lagos rush thumbnail"],
+	};
+
 	console.log(`Unique normalized names from gdrive_file: ${gdriveLookup.size}`);
 	console.log("");
 
@@ -129,7 +153,24 @@ async function main() {
 		if (game.name !== key) {
 			console.log(`  Normalizing game name: "${game.name}" -> "${key}"`);
 		}
-		const imageUrl = gdriveLookup.get(key);
+		let imageUrl = gdriveLookup.get(key);
+		if (!imageUrl) {
+			const altKeys = manualOverrides[key];
+			if (altKeys) {
+				for (const alt of altKeys) {
+					imageUrl = gdriveLookup.get(alt);
+					if (imageUrl) {
+						console.log(
+							`  Matched via override: "${game.name}" -> gdrive "${alt}"`,
+						);
+						break;
+					}
+				}
+			}
+		}
+		if (!imageUrl) {
+			imageUrl = gdriveLookup.get(key.replace(/\s+/g, ""));
+		}
 		if (imageUrl) {
 			matches.push({
 				gameId: game.id,
@@ -151,6 +192,34 @@ async function main() {
 			console.log(`  - ${name}`);
 		}
 		console.log("");
+	}
+
+	if (requiredGamesFile) {
+		const requiredNames = await readRequiredGames(requiredGamesFile);
+		const requiredUnmatched: string[] = [];
+		requiredNames.forEach((requiredName) => {
+			const matched = matches.some(
+				(m) => normalizeName(m.gameName) === requiredName,
+			);
+			if (!matched) {
+				requiredUnmatched.push(requiredName);
+			}
+		});
+
+		if (requiredUnmatched.length > 0) {
+			console.error(
+				"ERROR: The following required games have no matching image:",
+			);
+			for (const name of requiredUnmatched) {
+				console.error(`  - ${name}`);
+			}
+			console.error("");
+			process.exit(1);
+		}
+
+		console.log(
+			`Required games with images: ${requiredNames.size}/${requiredNames.size}`,
+		);
 	}
 
 	if (matches.length === 0) {
