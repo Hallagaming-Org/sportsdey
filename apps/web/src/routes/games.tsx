@@ -25,6 +25,7 @@ export const Route = createFileRoute("/games")({
 const CATEGORIES = [
 	"popular",
 	"crash-games",
+	"original",
 	"pvp",
 	"slots",
 	"table/card-games",
@@ -42,6 +43,7 @@ const CATEGORIES = [
 const CATEGORY_EMOJIS: Record<string, string> = {
 	"popular": "🔥",
 	"crash-games": "🚀",
+	"original": "🎯",
 	"pvp": "⚔️",
 	"slots": "🎰",
 	"table/card-games": "🃏",
@@ -136,6 +138,11 @@ const KNOWN_GAMES: Record<
 		image: "/lagos-rush.png",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
+	"sportsdey-crash": {
+		subtitle: "sportsdey original",
+		image: "/sportsdey-crash.jpeg",
+		gradient: "linear-gradient(to bottom, #1a1a2e, #16213e, #e94560)",
+	},
 };
 
 const DEFAULT_GRADIENT =
@@ -152,6 +159,7 @@ const PRIORITY_GAMES = [
 	"EAGLEHB",
 	"LUCKYRISEHB",
 	"LAGOSRUSH",
+	"sportsdey-crash",
 ];
 
 const POPULAR_GAME_NAMES = [
@@ -335,6 +343,12 @@ function GamesPage() {
 			navigate({ to: "/auth/sign-in" });
 			return;
 		}
+
+		if (game.code === "sportsdey-crash") {
+			window.open("https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino", "_blank");
+			return;
+		}
+
 		setLoadingGame(game.code);
 		try {
 			const knownGame = KNOWN_GAMES[game.code];
@@ -409,22 +423,12 @@ function GamesPage() {
 	const getGameDisplay = (game: Game) => {
 		const knownGame = KNOWN_GAMES[game.code];
 
-		if (knownGame) {
-			return {
-				name: game.name,
-				subtitle: knownGame.subtitle || "",
-				icon: knownGame.icon,
-				image: knownGame.image || "",
-				gradient: knownGame.gradient,
-			};
-		}
-
 		return {
 			name: game.name,
-			subtitle: "Play now",
-			icon: undefined,
-			image: game.imageUrl || "/lagos-rush.png",
-			gradient: DEFAULT_GRADIENT,
+			subtitle: knownGame?.subtitle ?? "Play now",
+			icon: knownGame?.icon,
+			image: game.imageUrl ?? knownGame?.image ?? "/lagos-rush.png",
+			gradient: knownGame?.gradient ?? DEFAULT_GRADIENT,
 		};
 	};
 
