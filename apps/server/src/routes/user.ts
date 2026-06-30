@@ -107,6 +107,13 @@ const GetAllUsersQuerySchema = z
 			.enum(["all", "recent", "pending"])
 			.optional()
 			.openapi({ description: "Filter by tab", example: "all" }),
+		search: z
+			.string()
+			.optional()
+			.openapi({
+				description: "Search users by name, email, or ID",
+				example: "john",
+			}),
 		fromDate: z.string().optional().openapi({
 			description:
 				"Filter users registered on or after this date (ISO format: YYYY-MM-DD)",
@@ -456,12 +463,13 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		| "pending_verification"
 		| "rejected"
 		| undefined;
+	const search = c.req.query("search")?.trim() || undefined;
 	const { fromDate, toDate } = parseQueryDateRange({
 		fromDate: c.req.query("fromDate"),
 		toDate: c.req.query("toDate"),
 	});
 
-	const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
 	let baseQuery = db
 		.select({
@@ -514,8 +522,18 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		registeredDate: u.registeredDate,
 	}));
 
-	// apply from/to date filters in memory
+	// apply search and date filters in memory
 	const filtered = users.filter((u) => {
+		if (search) {
+			const q = search.toLowerCase();
+			if (
+				!u.name.toLowerCase().includes(q) &&
+				!u.email.toLowerCase().includes(q) &&
+				!u.id.toLowerCase().includes(q)
+			) {
+				return false;
+			}
+		}
 		if (!fromDate && !toDate) return true;
 		const ts = new Date(u.registeredDate).getTime();
 		if (fromDate && ts < fromDate.getTime()) return false;
@@ -1073,5 +1091,357 @@ userRoute.openapi(
 		);
 	},
 );
+
+// ─── Wallet Overview ───────────────────────────────────────────────────────────
+
+const WalletOverviewResponseSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.object({
+			currentBalance: z.number(),
+			totalDeposits: z.number(),
+			totalWithdrawals: z.number(),
+			netPosition: z.number(),
+		}),
+	})
+	.openapi("WalletOverviewResponse");
+
+const getWalletOverviewRoute = createRoute({
+	method: "get",
+	path: "/{userId}/wallet/overview",
+	tags: ["User"],
+	summary: "Get user wallet overview (admin only)",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string(),
+		}),
+		query: z.object({
+			fromDate: z.string().optional(),
+			toDate: z.string().optional(),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Wallet overview retrieved successfully",
+			content: { "application/json": { schema: WalletOverviewResponseSchema } },
+		},
+	},
+});
+
+userRoute.openapi(getWalletOverviewRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+	}
+	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
+		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	}
+
+	const userId = c.req.param("userId");
+	const { fromDate: fd, toDate: td } = c.req.valid("query");
+	const { fromDate, toDate } = parseQueryDateRange({ fromDate: fd, toDate: td });
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const [walletRow] = await db
+		.select({ balance: schema.wallet.balance })
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, userId))
+		.limit(1);
+
+	const currentBalance = (walletRow?.balance ?? 0) / 100;
+
+	const depositFilters = [
+		eq(schema.walletTransaction.userId, userId),
+		eq(schema.walletTransaction.type, "credit"),
+		eq(schema.walletTransaction.status, "success"),
+	];
+	if (fromDate) depositFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate) depositFilters.push(lte(schema.walletTransaction.createdAt, toDate));
+
+	const [depositResult] = await db
+		.select({ total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)` })
+		.from(schema.walletTransaction)
+		.where(and(...depositFilters));
+
+	const totalDeposits = (depositResult?.total ?? 0) / 100;
+
+	const withdrawalFilters = [
+		eq(schema.walletTransaction.userId, userId),
+		eq(schema.walletTransaction.type, "debit"),
+		eq(schema.walletTransaction.status, "success"),
+	];
+	if (fromDate) withdrawalFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate) withdrawalFilters.push(lte(schema.walletTransaction.createdAt, toDate));
+
+	const [withdrawalResult] = await db
+		.select({ total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)` })
+		.from(schema.walletTransaction)
+		.where(and(...withdrawalFilters));
+
+	const totalWithdrawals = (withdrawalResult?.total ?? 0) / 100;
+	const netPosition = totalDeposits - totalWithdrawals;
+
+	return c.json(
+		{
+			success: true as const,
+			data: { currentBalance, totalDeposits, totalWithdrawals, netPosition },
+		},
+		200,
+	);
+});
+
+// ─── Wallet Transactions ───────────────────────────────────────────────────────
+
+const WalletTransactionItemSchema = z.object({
+	id: z.string(),
+	type: z.string(),
+	amount: z.number(),
+	referenceId: z.string(),
+	dateTime: z.string(),
+	status: z.string(),
+});
+
+const WalletTransactionsResponseSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.object({
+			transactions: z.array(WalletTransactionItemSchema),
+			totalPages: z.number(),
+			total: z.number(),
+		}),
+	})
+	.openapi("WalletTransactionsResponse");
+
+const getWalletTransactionsRoute = createRoute({
+	method: "get",
+	path: "/{userId}/wallet/transactions",
+	tags: ["User"],
+	summary: "Get user wallet transactions (admin only)",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string(),
+		}),
+		query: z.object({
+			page: z.string().optional(),
+			limit: z.string().optional(),
+			fromDate: z.string().optional(),
+			toDate: z.string().optional(),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Wallet transactions retrieved successfully",
+			content: { "application/json": { schema: WalletTransactionsResponseSchema } },
+		},
+	},
+});
+
+userRoute.openapi(getWalletTransactionsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+	}
+	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
+		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	}
+
+	const userId = c.req.param("userId");
+	const query = c.req.valid("query");
+	const page = Math.max(1, parseInt(query.page || "1", 10));
+	const limit = Math.min(100, Math.max(1, parseInt(query.limit || "10", 10)));
+	const offset = (page - 1) * limit;
+	const { fromDate, toDate } = parseQueryDateRange({ fromDate: query.fromDate, toDate: query.toDate });
+
+	const db = drizzle(c.env.DB, { schema });
+
+	const filters = [eq(schema.walletTransaction.userId, userId)];
+	if (fromDate) filters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate) filters.push(lte(schema.walletTransaction.createdAt, toDate));
+
+	const [{ count }] = await db
+		.select({ count: sql<number>`COUNT(*)` })
+		.from(schema.walletTransaction)
+		.where(and(...filters));
+
+	const total = Number(count);
+	const totalPages = Math.ceil(total / limit);
+
+	const rows = await db
+		.select({
+			id: schema.walletTransaction.id,
+			amount: schema.walletTransaction.amount,
+			type: schema.walletTransaction.type,
+			reference: schema.walletTransaction.reference,
+			status: schema.walletTransaction.status,
+			paymentMethod: schema.walletTransaction.paymentMethod,
+			createdAt: schema.walletTransaction.createdAt,
+		})
+		.from(schema.walletTransaction)
+		.where(and(...filters))
+		.orderBy(desc(schema.walletTransaction.createdAt))
+		.limit(limit)
+		.offset(offset);
+
+	const transactions = rows.map((row) => {
+		let displayType: string;
+		if (row.type === "credit") {
+			displayType = row.paymentMethod === "manual" ? "manual_credit" : "deposit";
+		} else {
+			displayType = row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
+		}
+		return {
+			id: row.id,
+			type: displayType,
+			amount: row.amount / 100,
+			referenceId: row.reference ?? "",
+			dateTime: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
+			status: row.status,
+		};
+	});
+
+	return c.json(
+		{
+			success: true as const,
+			data: { transactions, totalPages, total },
+		},
+		200,
+	);
+});
+
+// ─── Manual Credit/Debit ──────────────────────────────────────────────────────
+
+const ManualTransactionSchema = z
+	.object({
+		type: z.enum(["credit", "debit"]),
+		amount: z.number().positive(),
+		reason: z.string().min(1),
+	})
+	.openapi("ManualTransaction");
+
+const ManualTransactionResponseSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.object({
+			transactionId: z.string(),
+			newBalance: z.number(),
+		}),
+	})
+	.openapi("ManualTransactionResponse");
+
+const postManualTransactionRoute = createRoute({
+	method: "post",
+	path: "/{userId}/wallet/manual",
+	tags: ["User"],
+	summary: "Manual wallet credit/debit (admin only)",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string(),
+		}),
+		body: {
+			content: { "application/json": { schema: ManualTransactionSchema } },
+		},
+	},
+	responses: {
+		200: {
+			description: "Manual transaction processed successfully",
+			content: { "application/json": { schema: ManualTransactionResponseSchema } },
+		},
+	},
+});
+
+userRoute.openapi(postManualTransactionRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+	}
+	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
+		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	}
+
+	const userId = c.req.param("userId");
+	const body = c.req.valid("json");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select({ id: schema.user.id })
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!existingUser) {
+		return c.json({ success: false as const, error: "User not found" }, 404);
+	}
+
+	const [walletRow] = await db
+		.select({ id: schema.wallet.id, balance: schema.wallet.balance })
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, userId))
+		.limit(1);
+
+	if (!walletRow) {
+		return c.json({ success: false as const, error: "Wallet not found" }, 404);
+	}
+
+	const amountInKobo = Math.round(body.amount * 100);
+	const newBalance =
+		body.type === "credit"
+			? walletRow.balance + amountInKobo
+			: walletRow.balance - amountInKobo;
+
+	if (body.type === "debit" && newBalance < 0) {
+		return c.json({ success: false as const, error: "Insufficient balance" }, 400);
+	}
+
+	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+
+	await db.insert(schema.walletTransaction).values({
+		id: txnId,
+		userId,
+		amount: amountInKobo,
+		type: body.type,
+		reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+		status: "success",
+		paymentMethod: "manual",
+		balance: newBalance,
+		metadata: JSON.stringify({
+			reason: body.reason,
+			processedBy: session.id,
+			description: `Manual ${body.type} - ${body.reason}`,
+		}),
+		createdAt: new Date(),
+	});
+
+	await db
+		.update(schema.wallet)
+		.set({ balance: newBalance })
+		.where(eq(schema.wallet.id, walletRow.id));
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				transactionId: txnId,
+				newBalance: newBalance / 100,
+			},
+		},
+		200,
+	);
+});
 
 export default userRoute;
