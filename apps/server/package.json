@@ -21,6 +21,7 @@
 		"games:backfill-categories": "node --import tsx src/cli/backfill-categories.ts",
 		"dropbox:sync": "node --import tsx src/cli/sync-dropbox-files.ts",
 		"gdrive:match": "node --import tsx src/cli/match-game-images.ts",
+		"dropbox:list": "node --import tsx src/cli/list-dropbox-files.ts",
 		"withdrawals:seed": "node --import tsx src/cli/seed-withdrawals.ts"
 	},
 	"dependencies": {
