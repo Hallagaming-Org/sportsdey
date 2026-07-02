@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PortableText } from "@portabletext/react";
 
 export const Route = createFileRoute("/promotions/$id")({
 	component: PromotionDetailsPage,
@@ -92,11 +93,37 @@ function PromotionDetailsPage() {
 					)}
 				</div>
 
-				{promotion.body && (
+				{/* {promotion.body && (
 					<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none text-gray-800 dark:text-gray-200">
 						<div dangerouslySetInnerHTML={{ __html: promotion.body }} />
 					</div>
-				)}
+				)} */}
+				<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
+					<PortableText
+						value={(promotion?.body as any) || []}
+						components={{
+							block: {
+								normal: ({ children }: any) => {
+									const text = children.join("").trim();
+									if (!text) return <div className="h-4" />;
+									return <p className="mb-4 leading-relaxed">{children}</p>;
+								},
+							},
+							marks: {
+								link: ({ value, children }: any) => (
+									<a
+										href={value?.href}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="text-blue-600 underline"
+									>
+										{children}
+									</a>
+								),
+							},
+						}}
+					/>
+				</div>
 			</div>
 		</div>
 	);

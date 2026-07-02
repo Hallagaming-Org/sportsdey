@@ -210,14 +210,14 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			),
 			onClick: goToNews,
 		},
-		{
-			id: "predictions",
-			label: "Predictions Market",
-			icon: PredictionMarket,
-			isActive: false,
-			disabled: true,
-			onClick: () => showComingSoon("Predictions Market"),
-		},
+		// {
+		// 	id: "predictions",
+		// 	label: "Predictions Market",
+		// 	icon: PredictionMarket,
+		// 	isActive: false,
+		// 	disabled: true,
+		// 	onClick: () => showComingSoon("Predictions Market"),
+		// },
 		{
 			id: "videos",
 			label: "Videos",
@@ -238,14 +238,14 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				);
 			},
 		},
-		{
-			id: "tournament",
-			label: "Tournament",
-			icon: Trophy,
-			isActive: false,
-			disabled: true,
-			onClick: () => showComingSoon("Tournament"),
-		},
+		// {
+		// 	id: "tournament",
+		// 	label: "Tournament",
+		// 	icon: Trophy,
+		// 	isActive: false,
+		// 	disabled: true,
+		// 	onClick: () => showComingSoon("Tournament"),
+		// },
 		// {
 		// 	id: "lottery",
 		// 	label: "Lottery",

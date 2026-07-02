@@ -201,7 +201,7 @@ function RouteComponent() {
 				)}
 				<div className="prose prose-sm sm:prose-base lg:prose-lg max-w-none">
 					<PortableText
-						value={news?.body || []}
+						value={(news?.body as any) || []}
 						components={{
 							block: {
 								normal: ({ children }: any) => {
