@@ -934,4 +934,278 @@ kycRoute.openapi(getKycByUserIdRoute, async (c) => {
 	);
 });
 
+const approveKycRoute = createRoute({
+	method: "post",
+	path: "/{kycId}/approve",
+	tags: ["KYC"],
+	summary: "Approve KYC (Admin)",
+	description: "Approve a KYC application. Super admin or admin with kyc_approve permission required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			kycId: z.string().openapi({ description: "The KYC ID to approve" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "KYC approved successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({ message: z.string() }),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Bad request",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		404: {
+			description: "KYC not found",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+	},
+});
+
+kycRoute.openapi(approveKycRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super admin or admin only" },
+			403,
+		);
+	}
+
+	const { kycId } = c.req.valid("param");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [kycRecord] = await db
+		.select()
+		.from(schema.kyc)
+		.where(eq(schema.kyc.id, kycId))
+		.limit(1);
+
+	if (!kycRecord) {
+		return c.json({ success: false, error: "KYC not found" }, 404);
+	}
+
+	await db
+		.update(schema.kyc)
+		.set({ status: "approved", updatedAt: new Date() })
+		.where(eq(schema.kyc.id, kycId));
+
+	await db
+		.update(schema.user)
+		.set({ verificationStatus: "approved" })
+		.where(eq(schema.user.id, kycRecord.userId));
+
+	return c.json({ success: true, data: { message: "KYC approved successfully" } }, 200);
+});
+
+const rejectKycRoute = createRoute({
+	method: "post",
+	path: "/{kycId}/reject",
+	tags: ["KYC"],
+	summary: "Reject KYC (Admin)",
+	description: "Reject a KYC application with a reason. Super admin or admin with kyc_approve permission required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			kycId: z.string().openapi({ description: "The KYC ID to reject" }),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						reason: z.string().min(1).openapi({ description: "Reason for rejection" }),
+					}),
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "KYC rejected successfully",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({ message: z.string() }),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Bad request",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		404: {
+			description: "KYC not found",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+	},
+});
+
+kycRoute.openapi(rejectKycRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super admin or admin only" },
+			403,
+		);
+	}
+
+	const { kycId } = c.req.valid("param");
+	const { reason } = c.req.valid("json");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [kycRecord] = await db
+		.select()
+		.from(schema.kyc)
+		.where(eq(schema.kyc.id, kycId))
+		.limit(1);
+
+	if (!kycRecord) {
+		return c.json({ success: false, error: "KYC not found" }, 404);
+	}
+
+	await db
+		.update(schema.kyc)
+		.set({ status: "rejected", rejectionReason: reason, updatedAt: new Date() })
+		.where(eq(schema.kyc.id, kycId));
+
+	await db
+		.update(schema.user)
+		.set({ verificationStatus: "rejected" })
+		.where(eq(schema.user.id, kycRecord.userId));
+
+	return c.json({ success: true, data: { message: "KYC rejected" } }, 200);
+});
+
+const reviewKycRoute = createRoute({
+	method: "post",
+	path: "/{kycId}/review",
+	tags: ["KYC"],
+	summary: "Mark KYC as in review (Admin)",
+	description: "Mark a KYC application as in review/pending_review. Super admin or admin with kyc_approve permission required.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			kycId: z.string().openapi({ description: "The KYC ID to mark as in review" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "KYC marked as in review",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({ message: z.string() }),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Bad request",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+		404: {
+			description: "KYC not found",
+			content: { "application/json": { schema: KycErrorSchema } },
+		},
+	},
+});
+
+kycRoute.openapi(reviewKycRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{ success: false, error: "Forbidden - super admin or admin only" },
+			403,
+		);
+	}
+
+	const { kycId } = c.req.valid("param");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [kycRecord] = await db
+		.select()
+		.from(schema.kyc)
+		.where(eq(schema.kyc.id, kycId))
+		.limit(1);
+
+	if (!kycRecord) {
+		return c.json({ success: false, error: "KYC not found" }, 404);
+	}
+
+	await db
+		.update(schema.kyc)
+		.set({ status: "pending_review", updatedAt: new Date() })
+		.where(eq(schema.kyc.id, kycId));
+
+	await db
+		.update(schema.user)
+		.set({ verificationStatus: "pending_review" })
+		.where(eq(schema.user.id, kycRecord.userId));
+
+	return c.json(
+		{ success: true, data: { message: "KYC marked as in review" } },
+		200,
+	);
+});
+
 export default kycRoute;
