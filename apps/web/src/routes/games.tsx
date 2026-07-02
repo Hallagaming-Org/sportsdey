@@ -25,7 +25,7 @@ export const Route = createFileRoute("/games")({
 const CATEGORIES = [
 	"popular",
 	"crash-games",
-	"original",
+	"originals",
 	"pvp",
 	"slots",
 	"table/card-games",
@@ -43,7 +43,7 @@ const CATEGORIES = [
 const CATEGORY_EMOJIS: Record<string, string> = {
 	"popular": "🔥",
 	"crash-games": "🚀",
-	"original": "🎯",
+	"originals": "🎯",
 	"pvp": "⚔️",
 	"slots": "🎰",
 	"table/card-games": "🃏",
@@ -140,8 +140,8 @@ const KNOWN_GAMES: Record<
 	},
 	"sportsdey-crash": {
 		subtitle: "sportsdey original",
-		image: "/sportsdey-crash.jpeg",
-		gradient: "linear-gradient(to bottom, #1a1a2e, #16213e, #e94560)",
+		image: "/lagos-rush.png",
+		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
 };
 
