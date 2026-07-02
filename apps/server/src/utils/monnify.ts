@@ -122,15 +122,13 @@ async function monnifyRequest<T>(
 		return { ok: false, error: "Failed to obtain access token" };
 	}
 
-	console.log("access_token", token);
-
 	const url = `${MONNIFY_BASE_URL}${endpoint}`;
 	const headers: Record<string, string> = {
 		Authorization: `Bearer ${token}`,
 		"Content-Type": "application/json",
 	};
 
-	console.log("headers", headers);
+	console.log({ url, method, headers, body });
 
 	try {
 		const res = await fetch(url, {
@@ -139,14 +137,12 @@ async function monnifyRequest<T>(
 			...(body ? { body: JSON.stringify(body) } : {}),
 		});
 
-		const ras = await res.json();
-		console.log("validation result", ras);
+		const responseText = await res.text();
+		console.log("monnify_response", { status: res.status, body: responseText });
 
-		const data = ras as
+		const data = JSON.parse(responseText) as
 			| { responseCode: string; responseMessage: string; responseBody: T }
 			| MonnifyErrorResponse;
-
-		console.log("validation result", data);
 
 		if ("requestSuccessful" in data && data.requestSuccessful === true) {
 			const body = data as {
@@ -208,7 +204,7 @@ export async function getAccessToken(env: {
 		`${env.MONNIFY_API_KEY}:${env.MONNIFY_CLIENT_SECRET}`,
 	).toString("base64");
 
-	const url = `${MONNIFY_BASE_URL}/auth/login`;
+	const url = `${MONNIFY_BASE_URL}/v1/auth/login`;
 	const method = "POST";
 	const headers = {
 		Authorization: `Basic ${credentials}`,
@@ -259,7 +255,7 @@ export async function getCategories(env: {
 }> {
 	return monnifyRequest<MonnifyCategory[]>(
 		"GET",
-		"/vas/bills-payment/biller-categories",
+		"/v1/vas/bills-payment/biller-categories",
 		env,
 	);
 }
@@ -272,7 +268,7 @@ export async function getBillers(
 	},
 	categoryCode?: string,
 ): Promise<{ ok: boolean; data?: MonnifyBiller[]; error?: string }> {
-	const endpoint = `/vas/bills-payment/billers?category_code=${categoryCode}`;
+	const endpoint = `/v1/vas/bills-payment/billers?category_code=${categoryCode}`;
 	return monnifyRequest<MonnifyBiller[]>("GET", endpoint, env);
 }
 
@@ -287,7 +283,7 @@ export async function getProducts(
 ): Promise<{ ok: boolean; data?: MonnifyProductsResponse; error?: string }> {
 	const result = await monnifyRequest<MonnifyProductsResponse>(
 		"GET",
-		`/vas/bills-payment/biller-products?biller_code=${billerCode}`,
+		`/v1/vas/bills-payment/biller-products?biller_code=${billerCode}`,
 		env,
 	);
 
@@ -330,7 +326,7 @@ export async function validateCustomer(
 }> {
 	return monnifyRequest<MonnifyValidationResponse>(
 		"POST",
-		"/vas/bills-payment/validate-customer",
+		"/v1/vas/bills-payment/validate-customer",
 		env,
 		{
 			billerCode: productCode.split("_")[0],
@@ -357,7 +353,7 @@ export async function vendBill(
 ): Promise<{ ok: boolean; data?: MonnifyVendResponse; error?: string }> {
 	return monnifyRequest<MonnifyVendResponse>(
 		"POST",
-		"/vas/bills-payment/vend",
+		"/v1/vas/bills-payment/vend",
 		env,
 		{
 			billerCode: params.productCode.split("_")[0],
@@ -387,7 +383,7 @@ export async function requeryTransaction(
 }> {
 	return monnifyRequest<MonnifyRequeryResponse>(
 		"GET",
-		`/vas/bills-payment/requery?reference=${transactionReference}`,
+		`/v1/vas/bills-payment/requery?reference=${transactionReference}`,
 		env,
 	);
 }
