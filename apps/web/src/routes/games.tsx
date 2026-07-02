@@ -164,23 +164,31 @@ const PRIORITY_GAMES = [
 
 const POPULAR_GAME_NAMES = [
 	"Aviator",
+	"Lagos Rush",
+	"Penalty Shootout",
 	"CrashX",
-	"High Flyer",
 	"Sweet Bonanza",
-	"Roulette",
 	"Mines",
 	"Plinko",
 	"Gates of Olympus",
-	"Blackjack",
-	"Space",
+	"High Flyer",
 	"Keno",
 	"Big Bass Splash",
 	"Baccarat",
 	"JetX",
 	"Helicopter X",
+	"Balloon",
+	"Xcape",
+	"Hi Lo",
+	"Blocks",
+	"Eagle",
+	"Avia Rush",
+	"Avia Masters",
+	"Roulette",
+	"Blackjack",
+	"Space",
 	"Wild Fortune",
 	"Mystic Fortune",
-	"Balloon",
 	"Football X",
 	"Greyhound",
 	"Car Racing",
@@ -288,9 +296,13 @@ function GamesPage() {
 	const categoryCounts = sortedGames.reduce(
 		(acc, game) => {
 			const cat = game.category ?? "others";
-			acc[cat] = (acc[cat] ?? 0) + 1;
 			if (popularGameIds.has(game.id)) {
+				if (cat !== "popular") {
+					acc[cat] = (acc[cat] ?? 0) + 1;
+				}
 				acc["popular"] = (acc["popular"] ?? 0) + 1;
+			} else if (cat !== "popular") {
+				acc[cat] = (acc[cat] ?? 0) + 1;
 			}
 			if (isThundrGame(game.code)) {
 				acc["pvp"] = (acc["pvp"] ?? 0) + 1;
