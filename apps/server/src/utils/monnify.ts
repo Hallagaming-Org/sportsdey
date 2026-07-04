@@ -1,4 +1,4 @@
-const MONNIFY_BASE_URL = "https://sandbox.monnify.com/api";
+const MONNIFY_BASE_URL = "https://api.monnify.com/api";
 
 interface MonnifyAccessToken {
 	token: string;
