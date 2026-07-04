@@ -9,7 +9,7 @@ import {
 } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
-import { parseQueryDateRange } from "@/utils";
+import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -927,11 +927,11 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 				country: existingUser.country,
 				verificationStatus: existingUser.verificationStatus,
 				suspended: existingUser.suspended,
-				createdAt: existingUser.createdAt.toISOString(),
+				createdAt: toWAT(existingUser.createdAt),
 				wallet: {
 					balance: (wallet?.balance ?? 0) / 100,
 				},
-				lastTopUp: lastTopUpTransaction?.createdAt?.toISOString() ?? null,
+				lastTopUp: toWAT(lastTopUpTransaction?.createdAt) ?? null,
 			},
 		},
 		200,
@@ -1305,7 +1305,7 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 			type: displayType,
 			amount: row.amount / 100,
 			referenceId: row.reference ?? "",
-			dateTime: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
+			dateTime: toWAT(row.createdAt),
 			status: row.status,
 		};
 	});

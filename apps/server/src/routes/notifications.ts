@@ -6,6 +6,7 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema } from "@/schemas";
+import { toWAT } from "@/utils";
 import {
 	CreateUserNotificationSchema,
 	NotificationAcknowledgementSchema,
@@ -111,7 +112,10 @@ notificationsRoute.openapi(getNotificationsRoute, async (c) => {
 		{
 			success: true as const,
 			data: {
-				notifications,
+				notifications: notifications.map((n) => ({
+					...n,
+					createdAt: toWAT(n.createdAt),
+				})),
 				total,
 				page,
 				limit,
@@ -273,7 +277,7 @@ notificationsRoute.openapi(getNotificationByIdRoute, async (c) => {
 	return c.json(
 		{
 			success: true as const,
-			data: notification,
+			data: { ...notification, createdAt: toWAT(notification.createdAt) },
 		},
 		200,
 	);
@@ -434,7 +438,7 @@ notificationsRoute.openapi(sendNotificationRoute, async (c) => {
 	return c.json(
 		{
 			success: true as const,
-			data: notification,
+			data: { ...notification, createdAt: toWAT(notification.createdAt) },
 		},
 		201,
 	);
@@ -534,7 +538,7 @@ notificationsRoute.openapi(markNotificationReadRoute, async (c) => {
 	return c.json(
 		{
 			success: true as const,
-			data: notification,
+			data: { ...notification, createdAt: toWAT(notification.createdAt) },
 		},
 		200,
 	);

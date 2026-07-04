@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { getSanityClient, getSanityServerClient } from "../lib/sanity";
 import { toImageSizes } from "../lib/sanity-image";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const cmsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -626,7 +627,7 @@ cmsRoute.openapi(
 		}
 
 		const client = getSanityClient(c.env);
-		const now = new Date().toISOString();
+		const now = toWAT(new Date());
 		const doc = await client.create({
 			_type: "comment",
 			name: user.name || user.email || "SportsDey user",

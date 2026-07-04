@@ -18,15 +18,16 @@ function formatAmount(amount: number): string {
 }
 
 function formatDate(date: Date): string {
+	const watDate = new Date(date.getTime() + 60 * 60 * 1000);
 	const months = [
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 	];
-	const month = months[date.getMonth()];
-	const day = date.getDate();
-	const year = date.getFullYear();
-	const hours = date.getHours();
-	const minutes = date.getMinutes().toString().padStart(2, "0");
+	const month = months[watDate.getMonth()];
+	const day = watDate.getDate();
+	const year = watDate.getFullYear();
+	const hours = watDate.getHours();
+	const minutes = watDate.getMinutes().toString().padStart(2, "0");
 	const ampm = hours >= 12 ? "pm" : "am";
 	const displayHours = hours % 12 || 12;
 	return `${month} ${day}, ${year}, ${displayHours}:${minutes} ${ampm}`;

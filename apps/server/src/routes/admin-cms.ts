@@ -2,7 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { parseQueryDateRange } from "@/utils";
+import { parseQueryDateRange, toWAT } from "@/utils";
 import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
 import type { CloudflareBindings } from "../types";
 
@@ -106,7 +106,7 @@ function isDraft(id: string): boolean {
 }
 
 function formatDate(dateString: string): string {
-	const date = new Date(dateString);
+	const date = new Date(new Date(dateString).getTime() + 60 * 60 * 1000);
 	const months = [
 		"Jan",
 		"Feb",
@@ -915,7 +915,7 @@ cmsRoute.openapi(
 					_type: "reference",
 					_ref: author._id,
 				},
-				publishedAt: new Date().toISOString(),
+				publishedAt: toWAT(new Date()),
 			};
 
 			if (imageAsset) {

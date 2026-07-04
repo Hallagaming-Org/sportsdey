@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const fileRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -326,7 +327,7 @@ fileRoute.openapi(uploadRoute, async (c) => {
 				url: userFile.url,
 				mimeType: userFile.mimeType,
 				size: userFile.size,
-				createdAt: userFile.createdAt.toISOString(),
+				createdAt: toWAT(userFile.createdAt),
 			},
 		},
 		200,
@@ -359,7 +360,7 @@ fileRoute.openapi(listFilesRoute, async (c) => {
 				url: f.url,
 				mimeType: f.mimeType,
 				size: f.size,
-				createdAt: f.createdAt.toISOString(),
+				createdAt: toWAT(f.createdAt),
 			})),
 		},
 		200,
@@ -398,7 +399,7 @@ fileRoute.openapi(getFileRoute, async (c) => {
 				url: file.url,
 				mimeType: file.mimeType,
 				size: file.size,
-				createdAt: file.createdAt.toISOString(),
+				createdAt: toWAT(file.createdAt),
 			},
 		},
 		200,

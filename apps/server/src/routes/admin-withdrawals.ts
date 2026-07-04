@@ -10,6 +10,7 @@ import {
 	createTransferRecipient,
 	initiateTransfer,
 } from "@/utils/paystack";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const adminWithdrawalsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -244,7 +245,7 @@ adminWithdrawalsRoute.openapi(getPendingRoute, async (c) => {
 			bankCode: (meta.bankCode as string) || undefined,
 			accountNumber: (meta.accountNumber as string) || undefined,
 			accountName: (meta.accountName as string) || undefined,
-			createdAt: new Date(tx.createdAt).toISOString(),
+			createdAt: toWAT(tx.createdAt),
 		};
 	});
 

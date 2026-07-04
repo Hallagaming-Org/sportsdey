@@ -25,7 +25,7 @@ import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { parseQueryDateRange } from "@/utils";
+import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -699,6 +699,7 @@ const deleteDeviceRoute = createRoute({
 });
 
 function formatDateTime(date: Date) {
+	const watDate = new Date(date.getTime() + 60 * 60 * 1000);
 	const months = [
 		"Jan",
 		"Feb",
@@ -713,12 +714,12 @@ function formatDateTime(date: Date) {
 		"Nov",
 		"Dec",
 	];
-	const month = months[date.getMonth()];
-	const day = date.getDate();
-	const year = date.getFullYear();
+	const month = months[watDate.getMonth()];
+	const day = watDate.getDate();
+	const year = watDate.getFullYear();
 
-	const hours = date.getHours();
-	const minutes = date.getMinutes();
+	const hours = watDate.getHours();
+	const minutes = watDate.getMinutes();
 	const ampm = hours >= 12 ? "pm" : "am";
 	const displayHours = hours % 12 || 12;
 	const displayMinutes = minutes.toString().padStart(2, "0");
@@ -779,7 +780,7 @@ adminRoute.openapi(signInRoute, async (c) => {
 				image: adminUser.image,
 				role: adminUser.role,
 				permissions: safeParsePermissions(adminUser.permissions),
-				createdAt: adminUser.createdAt?.toISOString() || "",
+				createdAt: toWAT(adminUser.createdAt) || "",
 			},
 			token,
 		},
@@ -849,8 +850,8 @@ adminRoute.openapi(getDevicesRoute, async (c) => {
 			deviceName: s.deviceName || "Unknown Device",
 			ipAddress: s.ipAddress,
 			browser: s.browser || "Unknown",
-			lastActiveAt: s.lastActiveAt?.toISOString() || "",
-			createdAt: s.createdAt?.toISOString() || "",
+			lastActiveAt: toWAT(s.lastActiveAt) || "",
+			createdAt: toWAT(s.createdAt) || "",
 			isCurrentDevice: s.token === token,
 		};
 	});
@@ -915,7 +916,7 @@ adminRoute.openapi(getMeRoute, async (c) => {
 				image: adminUser.image,
 				role: adminUser.role,
 				permissions: safeParsePermissions(adminUser.permissions),
-				createdAt: adminUser.createdAt?.toISOString() || "",
+				createdAt: toWAT(adminUser.createdAt) || "",
 			},
 			token,
 		},
@@ -986,7 +987,7 @@ adminRoute.openapi(updateMeRoute, async (c) => {
 				mobileNumber: updatedAdmin.mobileNumber,
 				image: updatedAdmin.image,
 				role: updatedAdmin.role,
-				createdAt: updatedAdmin.createdAt?.toISOString() || "",
+				createdAt: toWAT(updatedAdmin.createdAt) || "",
 			},
 		});
 	} catch (error) {
@@ -1144,7 +1145,7 @@ adminRoute.openapi(listAdminsRoute, async (c) => {
 			image: admin.image,
 			role: admin.role,
 			permissions: safeParsePermissions(admin.permissions),
-			createdAt: admin.createdAt?.toISOString() || "",
+			createdAt: toWAT(admin.createdAt) || "",
 		})),
 	});
 });
@@ -1187,7 +1188,7 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 			email: admin?.email,
 			name: admin?.name,
 			role: admin?.role,
-			createdAt: admin?.createdAt?.toISOString() || new Date().toISOString(),
+			createdAt: toWAT(admin?.createdAt) || toWAT(new Date()),
 		},
 	});
 });
@@ -1637,7 +1638,7 @@ adminRoute.openapi(getAdminByIdRoute, async (c) => {
 			image: admin.image,
 			role: admin.role,
 			permissions: safeParsePermissions(admin.permissions),
-			createdAt: admin.createdAt?.toISOString() || "",
+			createdAt: toWAT(admin.createdAt) || "",
 		},
 	});
 });

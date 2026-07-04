@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import crypto from "node:crypto";
-import { and, desc, eq, gte, lt, lte, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
@@ -45,6 +45,7 @@ import {
 	getTransactionChannel,
 } from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -724,8 +725,8 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 		const walletResponse = {
 			id: newWallet.id,
 			balance: newWallet.balance / 100,
-			createdAt: newWallet.createdAt,
-			updatedAt: newWallet.updatedAt,
+			createdAt: toWAT(newWallet.createdAt),
+			updatedAt: toWAT(newWallet.updatedAt),
 		};
 
 		return c.json(
@@ -740,8 +741,8 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 	const walletResponse = {
 		id: wallet.id,
 		balance: wallet.balance / 100,
-		createdAt: wallet.createdAt,
-		updatedAt: wallet.updatedAt,
+		createdAt: toWAT(wallet.createdAt),
+		updatedAt: toWAT(wallet.updatedAt),
 	};
 
 	return c.json(
@@ -770,13 +771,6 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 	const query = c.req.valid("query");
 	const filters = [
 		eq(schema.walletTransaction.userId, user.id),
-		inArray(schema.walletTransaction.paymentMethod, [
-			"card",
-			"paystack",
-			"bank transfer",
-			"bank_transfer",
-			"wallet_transfer",
-		]),
 	];
 
 	if (query.month) {
@@ -818,6 +812,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 		...tx,
 		amount: (tx.amount ?? 0) / 100,
 		balance: (tx.balance ?? 0) / 100,
+		createdAt: toWAT(tx.createdAt),
 		...(tx.paymentMethod !== "wallet_transfer" && {
 			recipientWalletId: undefined,
 			recipientName: undefined,
@@ -1350,8 +1345,8 @@ walletRoute.openapi(createWithdrawalAccountRoute, async (c) => {
 					bankName: account.bankName,
 					accountNumber: account.accountNumber,
 					accountName: account.accountName,
-					createdAt: account.createdAt,
-					updatedAt: account.updatedAt,
+					createdAt: toWAT(account.createdAt),
+					updatedAt: toWAT(account.updatedAt),
 				},
 			},
 			201,
@@ -1399,8 +1394,8 @@ walletRoute.openapi(getWithdrawalAccountsRoute, async (c) => {
 				bankName: account.bankName,
 				accountNumber: account.accountNumber,
 				accountName: account.accountName,
-				createdAt: account.createdAt,
-				updatedAt: account.updatedAt,
+				createdAt: toWAT(account.createdAt),
+				updatedAt: toWAT(account.updatedAt),
 			})),
 		},
 		200,
@@ -1449,8 +1444,8 @@ walletRoute.openapi(getWithdrawalAccountRoute, async (c) => {
 				bankName: account.bankName,
 				accountNumber: account.accountNumber,
 				accountName: account.accountName,
-				createdAt: account.createdAt,
-				updatedAt: account.updatedAt,
+				createdAt: toWAT(account.createdAt),
+				updatedAt: toWAT(account.updatedAt),
 			},
 		},
 		200,
@@ -1896,8 +1891,8 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 		const walletResponse = {
 			id: newGameWallet.id,
 			balance: newGameWallet.balance,
-			createdAt: newGameWallet.createdAt,
-			updatedAt: newGameWallet.updatedAt,
+			createdAt: toWAT(newGameWallet.createdAt),
+			updatedAt: toWAT(newGameWallet.updatedAt),
 		};
 
 		return c.json(
@@ -1912,8 +1907,8 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 	const walletResponse = {
 		id: gameWallet.id,
 		balance: gameWallet.balance / 100,
-		createdAt: gameWallet.createdAt,
-		updatedAt: gameWallet.updatedAt,
+		createdAt: toWAT(gameWallet.createdAt),
+		updatedAt: toWAT(gameWallet.updatedAt),
 	};
 
 	return c.json(

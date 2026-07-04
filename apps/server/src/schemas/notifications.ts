@@ -68,7 +68,7 @@ export const UserNotificationResponseSchema = z
 		title: z.string().openapi({ description: "Notification title" }),
 		message: z.string().openapi({ description: "Notification message" }),
 		read: z.boolean().openapi({ description: "Whether the notification has been read" }),
-		createdAt: z.number().openapi({ description: "Creation timestamp" }),
+		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 	})
 	.openapi("UserNotificationResponse");
 

@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const gamesRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -131,7 +132,14 @@ gamesRoute.openapi(
 			query = query.limit(limit);
 		}
 		const games = await query;
-		return c.json({ success: true as const, data: games }, 200);
+		return c.json({
+			success: true as const,
+			data: games.map((g) => ({
+				...g,
+				createdAt: toWAT(g.createdAt),
+				updatedAt: toWAT(g.updatedAt),
+			})),
+		}, 200);
 	},
 );
 
@@ -180,7 +188,10 @@ gamesRoute.openapi(
 			);
 		}
 
-		return c.json({ success: true as const, data: game }, 200);
+		return c.json({
+			success: true as const,
+			data: { ...game, createdAt: toWAT(game.createdAt), updatedAt: toWAT(game.updatedAt) },
+		}, 200);
 	},
 );
 
@@ -284,7 +295,14 @@ gamesRoute.openapi(
 			);
 		}
 
-		return c.json({ success: true as const, data: inserted }, 201);
+		return c.json({
+			success: true as const,
+			data: inserted.map((g) => ({
+				...g,
+				createdAt: toWAT(g.createdAt),
+				updatedAt: toWAT(g.updatedAt),
+			})),
+		}, 201);
 	},
 );
 
@@ -392,7 +410,10 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.returning();
 
-		return c.json({ success: true as const, data: updated }, 200);
+		return c.json({
+			success: true as const,
+			data: { ...updated, createdAt: toWAT(updated.createdAt), updatedAt: toWAT(updated.updatedAt) },
+		}, 200);
 	},
 );
 

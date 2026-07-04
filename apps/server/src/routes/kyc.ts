@@ -6,6 +6,7 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 type R2Bucket = CloudflareBindings["PRODUCTION_BUCKET"];
@@ -490,7 +491,7 @@ kycRoute.openapi(submitKycRoute, async (c) => {
 				fullName,
 				identificationType:
 					identificationType as (typeof IDENTIFICATION_TYPES)[number],
-				submittedAt: submittedAt.toISOString(),
+				submittedAt: toWAT(submittedAt),
 				rejectionReason: null,
 				documents: {
 					front: { id: frontFileId!, url: frontUpload.url },
@@ -587,7 +588,7 @@ kycRoute.openapi(getKycRoute, async (c) => {
 				fullName: kycRecord.fullName,
 				identificationType:
 					kycRecord.identificationType as (typeof IDENTIFICATION_TYPES)[number],
-				submittedAt: kycRecord.submittedAt.toISOString(),
+				submittedAt: toWAT(kycRecord.submittedAt),
 				rejectionReason: kycRecord.rejectionReason,
 				documents: {
 					front: frontDocument,
@@ -767,7 +768,7 @@ kycRoute.openapi(getAllKycRoute, async (c) => {
 			front: kyc.frontSize ?? 0,
 			back: kyc.backSize ?? 0,
 		},
-		uploaded_at: kyc.submittedAt.toISOString(),
+		uploaded_at: toWAT(kyc.submittedAt),
 		type: {
 			front: kyc.frontMimeType ?? "",
 			back: kyc.backMimeType ?? "",

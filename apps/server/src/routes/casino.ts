@@ -8,6 +8,7 @@ import {
 	GamePlayResponseSchema,
 	TransactionsResponseSchema,
 } from "@/schemas/casino";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const casinoRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -155,7 +156,7 @@ casinoRoute.openapi(getTransactionsRoute, async (c) => {
 		type: tx.type,
 		amount: tx.amount,
 		game: tx.game,
-		createdAt: tx.createdAt.toISOString(),
+		createdAt: toWAT(tx.createdAt),
 	}));
 
 	return c.json(

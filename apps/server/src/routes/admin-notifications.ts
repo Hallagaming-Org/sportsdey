@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const adminNotificationsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -188,7 +189,7 @@ adminNotificationsRoute.openapi(getNotificationsRoute, async (c) => {
 				type: n.type,
 				referenceId: n.referenceId,
 				isRead: n.isRead,
-				createdAt: new Date(n.createdAt).toISOString(),
+				createdAt: toWAT(n.createdAt),
 			})),
 			pagination: { page, limit, total, totalPages },
 		},
