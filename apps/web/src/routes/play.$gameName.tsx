@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -260,31 +260,44 @@ function PlayGamePage() {
 		);
 	}
 
+	const router = useRouter();
+
 	return (
-		<div className="relative h-screen w-full bg-[#121212] overflow-hidden rounded-xl mt-4 border border-gray-800">
-			{isIframeLoading && (
-				<div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#121212]/90 backdrop-blur-sm">
-					<Loader2 className="mb-4 h-12 w-12 animate-spin text-[#1BAA04]" />
-					<p className="font-medium text-xl text-white">
-						{targetGame?.name || formattedGameName} is launching...
-					</p>
-					<p className="mt-2 text-gray-400">
-						Please wait while we set things up
-					</p>
-				</div>
-			)}
-			{gameUrl && (
-				<iframe
-					src={gameUrl}
-					className={cn(
-						"h-full w-full border-0 transition-opacity duration-500",
-						isIframeLoading ? "opacity-0" : "opacity-100",
-					)}
-					title={targetGame?.name || formattedGameName}
-					allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-					onLoad={() => setIsIframeLoading(false)}
-				/>
-			)}
+		<div className="relative h-full w-full flex flex-col bg-[#121212] overflow-hidden rounded-xl mt-4 border border-gray-800">
+			<div className="flex items-center px-4 py-3 shrink-0">
+				<button 
+					onClick={() => router.history.back()}
+					className="flex items-center gap-2 text-white hover:text-[#1BAA04] transition-colors cursor-pointer font-medium"
+				>
+					<ArrowLeft className="h-5 w-5" />
+					<span>Back</span>
+				</button>
+			</div>
+			<div className="relative flex-1 w-full">
+				{isIframeLoading && (
+					<div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#121212]/90 backdrop-blur-sm">
+						<Loader2 className="mb-4 h-12 w-12 animate-spin text-[#1BAA04]" />
+						<p className="font-medium text-xl text-white">
+							{targetGame?.name || formattedGameName} is launching...
+						</p>
+						<p className="mt-2 text-gray-400">
+							Please wait while we set things up
+						</p>
+					</div>
+				)}
+				{gameUrl && (
+					<iframe
+						src={gameUrl}
+						className={cn(
+							"h-full w-full border-0 transition-opacity duration-500",
+							isIframeLoading ? "opacity-0" : "opacity-100",
+						)}
+						title={targetGame?.name || formattedGameName}
+						allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+						onLoad={() => setIsIframeLoading(false)}
+					/>
+				)}
+			</div>
 		</div>
 	);
 }
