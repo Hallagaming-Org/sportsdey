@@ -7,3 +7,7 @@ catalog:
   typescript: ^5.8.2
   tsdown: ^0.15.5
   wrangler: ^4.40.3
+ignoredBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
