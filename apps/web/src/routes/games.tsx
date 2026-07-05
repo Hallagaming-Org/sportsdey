@@ -282,6 +282,12 @@ function GamesPage() {
 		if (sortAsc && selectedCategory === null) {
 			return a.name.localeCompare(b.name);
 		}
+
+		const isAAviator = a.name.toLowerCase().includes("aviator");
+		const isBAviator = b.name.toLowerCase().includes("aviator");
+		if (isAAviator && !isBAviator) return -1;
+		if (!isAAviator && isBAviator) return 1;
+
 		const aIndex = PRIORITY_GAMES.indexOf(a.code);
 		const bIndex = PRIORITY_GAMES.indexOf(b.code);
 		if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
@@ -296,6 +302,8 @@ function GamesPage() {
 	const categoryCounts = sortedGames.reduce(
 		(acc, game) => {
 			const cat = game.category ?? "others";
+			const isAviator = game.name.toLowerCase().includes("aviator");
+
 			if (popularGameIds.has(game.id)) {
 				if (cat !== "popular") {
 					acc[cat] = (acc[cat] ?? 0) + 1;
@@ -307,16 +315,23 @@ function GamesPage() {
 			if (isThundrGame(game.code)) {
 				acc["pvp"] = (acc["pvp"] ?? 0) + 1;
 			}
+			if (isAviator && cat !== "crash-games") {
+				acc["crash-games"] = (acc["crash-games"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
+		const isAviator = game.name.toLowerCase().includes("aviator");
+
 		if (selectedCategory === "popular") {
 			if (!popularGameIds.has(game.id)) return false;
 		} else if (selectedCategory === "pvp") {
 			if (!isThundrGame(game.code) && (game.category ?? "others") !== "pvp") return false;
+		} else if (selectedCategory === "crash-games") {
+			if (!isAviator && (game.category ?? "others") !== "crash-games") return false;
 		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
