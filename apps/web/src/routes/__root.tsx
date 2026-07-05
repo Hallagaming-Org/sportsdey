@@ -93,6 +93,7 @@ function RootDocument() {
 
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
+	const isGameRoute = location.pathname.startsWith("/game/") || location.pathname.startsWith("/play/");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
