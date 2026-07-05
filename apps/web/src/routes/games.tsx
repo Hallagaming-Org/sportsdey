@@ -218,6 +218,10 @@ const isThundrGame = (code: string) => {
 	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
 };
 
+const isOriginalsGame = (code: string) => {
+	return ["LAGOSRUSH", "sportsdey-crash"].includes(code);
+};
+
 function GamesPage() {
 	const navigate = useNavigate({ from: "/games" });
 	const { category } = Route.useSearch();
@@ -318,6 +322,9 @@ function GamesPage() {
 			if (isAviator && cat !== "crash-games") {
 				acc["crash-games"] = (acc["crash-games"] ?? 0) + 1;
 			}
+			if (isOriginalsGame(game.code) && cat !== "originals") {
+				acc["originals"] = (acc["originals"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
@@ -332,6 +339,8 @@ function GamesPage() {
 			if (!isThundrGame(game.code) && (game.category ?? "others") !== "pvp") return false;
 		} else if (selectedCategory === "crash-games") {
 			if (!isAviator && (game.category ?? "others") !== "crash-games") return false;
+		} else if (selectedCategory === "originals") {
+			if (!isOriginalsGame(game.code) && (game.category ?? "others") !== "originals") return false;
 		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
