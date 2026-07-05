@@ -441,6 +441,7 @@ function GamesPage() {
 			navigate({
 				to: "/game/$gameId",
 				params: { gameId: game.code },
+				search: { category: selectedCategory || undefined },
 				state: { gameUrl } as any,
 			});
 		} catch (error) {
