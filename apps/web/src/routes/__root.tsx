@@ -207,24 +207,25 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 										<div className="flex h-svh flex-col overflow-clip">
 											<header className="shrink-0">
 												<Header />
-												<Socials />
+												{!isGameRoute && <Socials />}
 											</header>
 
-											<main className="no-scrollbar flex-1 overflow-y-auto">
+											<main className={cn("no-scrollbar flex-1 overflow-y-auto", isGameRoute && "flex flex-col")}>
 												<div
 													className={cn(
-														"mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
-														shouldShowSidebar
+														isGameRoute ? "" : "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
+														!isGameRoute && shouldShowSidebar
 															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
-															: "lg:grid-cols-1",
+															: (!isGameRoute ? "lg:grid-cols-1" : ""),
+														isGameRoute && "h-full flex-1"
 													)}
 												>
-													{shouldShowSidebar && (
+													{!isGameRoute && shouldShowSidebar && (
 														<aside className="no-scrollbar hidden pr-4 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6">
 															<Sidebar />
 														</aside>
 													)}
-													<section className="min-w-0">
+													<section className={cn("min-w-0", isGameRoute && "h-full flex-1")}>
 														<Outlet />
 													</section>
 												</div>
@@ -233,12 +234,14 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 														<AppDownloadBanner />
 													</div>
 												)} */}
-												<DesktopFooter />
+												{!isGameRoute && <DesktopFooter />}
 											</main>
 
-											<footer className="shrink-0 lg:hidden">
-												<Footer />
-											</footer>
+											{!isGameRoute && (
+												<footer className="shrink-0 lg:hidden">
+													<Footer />
+												</footer>
+											)}
 										</div>
 									)}
 								</Providers>
