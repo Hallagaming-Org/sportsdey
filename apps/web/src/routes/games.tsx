@@ -140,7 +140,7 @@ const KNOWN_GAMES: Record<
 	},
 	"sportsdey-crash": {
 		subtitle: "sportsdey original",
-		image: "/lagos-rush.png",
+		image: "/sportsdey-crash.jpeg",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
 };
