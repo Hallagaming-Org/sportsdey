@@ -218,8 +218,12 @@ const isThundrGame = (code: string) => {
 	return ["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
 };
 
+const isOriginalsGame = (code: string) => {
+	return ["LAGOSRUSH", "sportsdey-crash"].includes(code);
+};
+
 function GamesPage() {
-	const navigate = useNavigate();
+	const navigate = useNavigate({ from: "/games" });
 	const { category } = Route.useSearch();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -282,6 +286,12 @@ function GamesPage() {
 		if (sortAsc && selectedCategory === null) {
 			return a.name.localeCompare(b.name);
 		}
+
+		const isAAviator = a.name.toLowerCase().includes("aviator");
+		const isBAviator = b.name.toLowerCase().includes("aviator");
+		if (isAAviator && !isBAviator) return -1;
+		if (!isAAviator && isBAviator) return 1;
+
 		const aIndex = PRIORITY_GAMES.indexOf(a.code);
 		const bIndex = PRIORITY_GAMES.indexOf(b.code);
 		if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
@@ -296,6 +306,8 @@ function GamesPage() {
 	const categoryCounts = sortedGames.reduce(
 		(acc, game) => {
 			const cat = game.category ?? "others";
+			const isAviator = game.name.toLowerCase().includes("aviator");
+
 			if (popularGameIds.has(game.id)) {
 				if (cat !== "popular") {
 					acc[cat] = (acc[cat] ?? 0) + 1;
@@ -307,16 +319,28 @@ function GamesPage() {
 			if (isThundrGame(game.code)) {
 				acc["pvp"] = (acc["pvp"] ?? 0) + 1;
 			}
+			if (isAviator && cat !== "crash-games") {
+				acc["crash-games"] = (acc["crash-games"] ?? 0) + 1;
+			}
+			if (isOriginalsGame(game.code) && cat !== "originals") {
+				acc["originals"] = (acc["originals"] ?? 0) + 1;
+			}
 			return acc;
 		},
 		{} as Record<string, number>,
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
+		const isAviator = game.name.toLowerCase().includes("aviator");
+
 		if (selectedCategory === "popular") {
 			if (!popularGameIds.has(game.id)) return false;
 		} else if (selectedCategory === "pvp") {
 			if (!isThundrGame(game.code) && (game.category ?? "others") !== "pvp") return false;
+		} else if (selectedCategory === "crash-games") {
+			if (!isAviator && (game.category ?? "others") !== "crash-games") return false;
+		} else if (selectedCategory === "originals") {
+			if (!isOriginalsGame(game.code) && (game.category ?? "others") !== "originals") return false;
 		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
 			return false;
 		}
@@ -417,6 +441,7 @@ function GamesPage() {
 			navigate({
 				to: "/game/$gameId",
 				params: { gameId: game.code },
+				search: { category: selectedCategory || undefined },
 				state: { gameUrl } as any,
 			});
 		} catch (error) {
@@ -533,7 +558,7 @@ function GamesPage() {
 
 					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
 						<button
-							onClick={() => setSelectedCategory(null)}
+							onClick={() => navigate({ search: (prev) => ({ ...prev, category: undefined }) })}
 							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${selectedCategory === null
 								? "border-[#1BAA04] bg-[#1BAA04] text-white"
 								: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
@@ -556,9 +581,7 @@ function GamesPage() {
 								<button
 									key={cat}
 									onClick={() =>
-										setSelectedCategory(
-											selectedCategory === cat ? null : cat,
-										)
+										navigate({ search: (prev) => ({ ...prev, category: selectedCategory === cat ? undefined : cat }) })
 									}
 									className={`flex items-center shrink-0 gap-2 text-white rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${selectedCategory === cat
 										? "border-[#1BAA04] bg-[#1BAA04]"
