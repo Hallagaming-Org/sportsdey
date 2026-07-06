@@ -460,7 +460,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 
 	const balanceKobo = wallet?.balance ?? 0;
 	const oldBalanceKobo = balanceKobo;
-	const amountKobo = amount / 10;
+	const amountKobo = Math.round(amount / 10);
 
 	if (!wallet || balanceKobo < amountKobo) {
 		return c.json(
@@ -637,7 +637,7 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 
 	const balanceKobo = wallet?.balance ?? 0;
 	const oldBalanceKobo = balanceKobo;
-	const amountKobo = amount / 10;
+	const amountKobo = Math.round(amount / 10);
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	const newBalanceKobo = balanceKobo + amountKobo;
@@ -803,7 +803,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 
 	const balanceKobo = wallet?.balance ?? 0;
 	const oldBalanceKobo = balanceKobo;
-	const amountKobo = amount / 10;
+	const amountKobo = Math.round(amount / 10);
 	const adjustment = existingTx.type === "BET" ? amountKobo : -amountKobo;
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
