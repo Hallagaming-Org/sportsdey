@@ -11,6 +11,7 @@ import { formatAmount } from "@/lib/utils";
 import {
 	formatTransactionDate,
 	getTransactionDetails,
+	getTransactionTypeLabel,
 	groupTransactionsByMonth,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
@@ -252,7 +253,8 @@ function WalletTransactionsPage() {
 						</div>
 						<div className="overflow-hidden rounded-[24px] border border-[#1C1C1E] bg-[#04100B]">
 							{group.transactions.map((transaction, index) => {
-								const { title, iconType, statusText, statusColor } =
+								const typeLabel = getTransactionTypeLabel(transaction);
+								const { iconType, statusText, statusColor } =
 									getTransactionDetails(transaction);
 								const amount = transaction.amount ?? 0;
 								const isCredit = amount >= 0;

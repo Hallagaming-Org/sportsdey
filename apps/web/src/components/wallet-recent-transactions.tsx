@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
 	formatTransactionDate,
 	getTransactionDetails,
+	getTransactionTypeLabel,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
 import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
@@ -18,113 +19,6 @@ type WalletRecentTransactionsProps = {
 	isLoading: boolean;
 };
 
-// Mock transactions that match the mockup image exactly
-const MOCK_TRANSACTIONS: WalletTransaction[] = [
-	{
-		id: "mock-1",
-		userId: "u1",
-		amount: 150000,
-		type: "credit",
-		reference: "TX-0123456789-1",
-		status: "success",
-		paymentMethod: "bank transfer",
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-2",
-		userId: "u1",
-		amount: 80000,
-		type: "credit",
-		reference: "TX-0123456789-2",
-		status: "success",
-		paymentMethod: "slotegrator games",
-		metadata: {
-			action: "win",
-			game: "Aviator",
-		},
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-3",
-		userId: "u1",
-		amount: 50000,
-		type: "debit",
-		reference: "TX-0123456789-3",
-		status: "success",
-		paymentMethod: "slotegrator games",
-		metadata: {
-			action: "bet",
-			game: "Aviator",
-		},
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-4",
-		userId: "u1",
-		amount: 50000,
-		type: "debit",
-		reference: "TX-0123456789-4",
-		status: "success",
-		paymentMethod: "wallet_transfer",
-		metadata: {
-			transferType: "to_friend",
-		},
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-5",
-		userId: "u1",
-		amount: 50000,
-		type: "debit",
-		reference: "TX-0123456789-5",
-		status: "pending",
-		paymentMethod: "bank transfer",
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-6",
-		userId: "u1",
-		amount: 50000,
-		type: "debit",
-		reference: "TX-0123456789-6",
-		status: "success",
-		paymentMethod: "bills",
-		metadata: {
-			service: "DATA_BUNDLE",
-			billerName: "Internet Bill payment",
-		},
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-7",
-		userId: "u1",
-		amount: 50000,
-		type: "debit",
-		reference: "TX-0123456789-7",
-		status: "failed",
-		paymentMethod: "bills",
-		metadata: {
-			service: "DATA_BUNDLE",
-			billerName: "MTN Ng Data",
-			customerId: "07016",
-		},
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-	{
-		id: "mock-8",
-		userId: "u1",
-		amount: 50000,
-		type: "debit",
-		reference: "TX-0123456789-8",
-		status: "success",
-		paymentMethod: "bills",
-		metadata: {
-			service: "ELECTRICITY",
-			customerId: "Electricity Bill payme...",
-		},
-		createdAt: "2025-08-08T22:42:00.000Z",
-	},
-];
 
 const statusBadgeStyles = {
 	success: "bg-[#E2F9EE] text-[#0F9D58]",
@@ -162,75 +56,6 @@ function parseDateTime(createdAt: string | null | undefined) {
 	return { date: formattedDate, time: formattedTime };
 }
 
-function getTransactionTypeLabel(tx: WalletTransaction): string {
-	const typeLower = (tx.type || "").toLowerCase();
-	const methodLower = (tx.paymentMethod || "").toLowerCase();
-	const meta = tx.metadata as Record<string, string | undefined> | null;
-	const isCredit = (tx.amount ?? 0) >= 0;
-
-	if (methodLower === "wallet_transfer") {
-		const isDebit = typeLower === "debit" || (tx.amount && tx.amount < 0);
-		if (meta?.transferType === "to_game_wallet") {
-			return "Transfer to game";
-		}
-		return isDebit ? "Transfer to friend" : "Received - Transfer";
-	}
-
-	if (
-		methodLower === "bank transfer" ||
-		methodLower === "bank_transfer" ||
-		methodLower === "paystack" ||
-		methodLower === "card"
-	) {
-		return isCredit ? "Deposit - Transfer" : "Withdrawal";
-	}
-
-	if (
-		methodLower === "slotegrator games" ||
-		methodLower === "thndr games" ||
-		methodLower === "lucky games" ||
-		methodLower === "lagos rush" ||
-		tx.id.includes("aviator") ||
-		String(meta?.game).toLowerCase() === "aviator"
-	) {
-		const action = meta?.action || "";
-		const gameName = meta?.game || "Aviator";
-		if (action === "bet") {
-			return `Bets - ${gameName}`;
-		}
-		if (action === "win") {
-			return `Wininigs - ${gameName}`;
-		}
-		return `${gameName} Game`;
-	}
-
-	if (meta?.service) {
-		const service = String(meta.service);
-		const biller = meta.billerName || "";
-		const customerId = meta.customerId || "";
-		if (service === "AIRTIME" || service === "DATA_BUNDLE") {
-			if (biller.toLowerCase().includes("mtn")) {
-				return `MTN Ng Data ${customerId.slice(0, 5)}...`;
-			}
-			if (biller) {
-				return `${biller} Data ${customerId.slice(0, 5)}...`;
-			}
-			return `Internet Bill payment`;
-		}
-		if (service === "ELECTRICITY") {
-			return `Electricity Bill payme...`;
-		}
-		if (service === "CABLE_TV") {
-			return "Cable TV payment";
-		}
-	}
-
-	// Fallbacks
-	if (typeLower === "credit") return "Deposit - Transfer";
-	if (typeLower === "debit") return "Withdrawal";
-	return "Transaction";
-}
-
 function getTransactionAmountLabel(amount?: number | null): string {
 	const amountVal = Math.abs(amount ?? 0);
 	return `₦${amountVal.toLocaleString("en-US", {
@@ -245,11 +70,8 @@ export function WalletRecentTransactions({
 }: WalletRecentTransactionsProps) {
 	const [selectedTx, setSelectedTx] = useState<WalletTransaction | null>(null);
 
-	// Fallback to MOCK_TRANSACTIONS if there are no transactions
-	const displayTransactions =
-		transactions && transactions.length > 0 ? transactions : MOCK_TRANSACTIONS;
-
-	const mappedTransactions = (displayTransactions || [])
+	const mappedTransactions = (transactions || [])
+		.filter((tx) => tx.amount != null && tx.amount !== 0)
 		.slice(0, 10)
 		.map((tx) => {
 			const { statusText, statusColor } = getTransactionDetails(tx);
@@ -442,7 +264,7 @@ export function WalletRecentTransactions({
 												{tx.time}
 											</div>
 										</td>
-										<td className="py-4 pr-4 text-white font-medium text-[15px]">
+										<td className="max-w-[200px] truncate py-4 pr-4 text-white font-medium text-[15px]">
 											{tx.typeLabel}
 										</td>
 										<td className="py-4 pr-4 text-white font-semibold text-[15px]">

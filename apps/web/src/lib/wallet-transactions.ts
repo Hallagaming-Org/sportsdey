@@ -174,6 +174,78 @@ export function getTransactionDetails(
 	return { title, iconType, statusText, statusColor };
 }
 
+export function getTransactionTypeLabel(transaction: WalletTransaction): string {
+	const typeLower = (transaction.type || "").toLowerCase();
+	const methodLower = (transaction.paymentMethod || "").toLowerCase();
+	const meta = transaction.metadata as Record<string, string | undefined> | null;
+	const isCredit = typeLower === "credit" || (transaction.amount ?? 0) > 0;
+	const isDebit = typeLower === "debit" || (transaction.amount ?? 0) < 0;
+
+	const casinoPaymentMethods = new Set([
+		"lagos rush",
+		"lucky games",
+		"lucky rise",
+		"slotegrator games",
+		"thndr games",
+		"thundr games",
+		"hashcodex",
+	]);
+	const sportsbookPaymentMethods = new Set(["sportsbook"]);
+
+	if (methodLower === "wallet_transfer") {
+		const transferDebit = typeLower === "debit" || (transaction.amount && transaction.amount < 0);
+		if (meta?.transferType === "to_game_wallet") {
+			return "Transfer to game";
+		}
+		return transferDebit ? "Transfer to friend" : "Received - Transfer";
+	}
+
+	if (methodLower === "paystack" || methodLower === "manual") {
+		return isCredit ? "Deposit" : "Withdrawal";
+	}
+
+	if (meta?.serviceCategory || meta?.service || methodLower === "bill_payment") {
+		const serviceCategory = String(meta?.serviceCategory || meta?.service || "").toLowerCase();
+		const biller = meta?.billerName || "";
+		const customerId = meta?.customerId || "";
+		if (serviceCategory === "airtime") {
+			if (biller) {
+				return `${biller} Ng Airtime ${customerId}`;
+			}
+			return "Airtime Bill payment";
+		}
+		if (serviceCategory === "data") {
+			if (biller) {
+				return `${biller} Ng Data ${customerId}`;
+			}
+			return "Data Bill payment";
+		}
+		if (serviceCategory === "electricity") {
+			return "Electricity Bill payment";
+		}
+		if (serviceCategory === "cable_tv") {
+			return "Cable Bill payment";
+		}
+		if (!serviceCategory && methodLower === "bill_payment") {
+			return "Bill Payment";
+		}
+	}
+
+	if (casinoPaymentMethods.has(methodLower)) {
+		return isDebit ? "Debit - Casino" : "Credit - Casino";
+	}
+
+	if (sportsbookPaymentMethods.has(methodLower)) {
+		return isDebit ? "Debit - Sportsbook" : "Credit - Sportsbook";
+	}
+
+	const paymentMethod = transaction.paymentMethod || "Unknown";
+	if (isCredit) {
+		return `Winnings - ${paymentMethod}`;
+	}
+	return `Loss - ${paymentMethod}`;
+}
+
 export type WalletTransactionsMonthGroup = {
 	monthKey: string;
 	label: string;
