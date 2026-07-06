@@ -25,7 +25,7 @@ export const Route = createFileRoute("/games")({
 const CATEGORIES = [
 	"popular",
 	"crash-games",
-	"originals",
+	"original",
 	"pvp",
 	"slots",
 	"table/card-games",
@@ -43,7 +43,7 @@ const CATEGORIES = [
 const CATEGORY_EMOJIS: Record<string, string> = {
 	"popular": "🔥",
 	"crash-games": "🚀",
-	"originals": "🎯",
+	"original": "🎯",
 	"pvp": "⚔️",
 	"slots": "🎰",
 	"table/card-games": "🃏",
@@ -58,12 +58,18 @@ const CATEGORY_EMOJIS: Record<string, string> = {
 	"scratch": "🎫",
 };
 
+type Category = {
+	id: string;
+	name: string;
+	slug: string;
+};
+
 type Game = {
 	id: string;
 	name: string;
 	code: string;
 	imageUrl: string | null;
-	category: string | null;
+	categories: Category[];
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
@@ -305,24 +311,27 @@ function GamesPage() {
 
 	const categoryCounts = sortedGames.reduce(
 		(acc, game) => {
-			const cat = game.category ?? "others";
+			const cats = game.categories?.map((c) => c.slug) ?? [];
 			const isAviator = game.name.toLowerCase().includes("aviator");
 
-			if (popularGameIds.has(game.id)) {
+			if (popularGameIds.has(game.id) || cats.includes("popular")) {
+				acc["popular"] = (acc["popular"] ?? 0) + 1;
+			}
+			for (const cat of cats) {
 				if (cat !== "popular") {
 					acc[cat] = (acc[cat] ?? 0) + 1;
 				}
-				acc["popular"] = (acc["popular"] ?? 0) + 1;
-			} else if (cat !== "popular") {
-				acc[cat] = (acc[cat] ?? 0) + 1;
+			}
+			if (cats.length === 0) {
+				acc["others"] = (acc["others"] ?? 0) + 1;
 			}
 			if (isThundrGame(game.code)) {
 				acc["pvp"] = (acc["pvp"] ?? 0) + 1;
 			}
-			if (isAviator && cat !== "crash-games") {
+			if (isAviator && !cats.includes("crash-games")) {
 				acc["crash-games"] = (acc["crash-games"] ?? 0) + 1;
 			}
-			if (isOriginalsGame(game.code) && cat !== "originals") {
+			if (isOriginalsGame(game.code) && !cats.includes("originals")) {
 				acc["originals"] = (acc["originals"] ?? 0) + 1;
 			}
 			return acc;
@@ -331,17 +340,18 @@ function GamesPage() {
 	);
 
 	const filteredGames = sortedGames.filter((game) => {
+		const cats = game.categories?.map((c) => c.slug) ?? [];
 		const isAviator = game.name.toLowerCase().includes("aviator");
 
 		if (selectedCategory === "popular") {
-			if (!popularGameIds.has(game.id)) return false;
+			if (!popularGameIds.has(game.id) && !cats.includes("popular")) return false;
 		} else if (selectedCategory === "pvp") {
-			if (!isThundrGame(game.code) && (game.category ?? "others") !== "pvp") return false;
+			if (!isThundrGame(game.code) && !cats.includes("pvp")) return false;
 		} else if (selectedCategory === "crash-games") {
-			if (!isAviator && (game.category ?? "others") !== "crash-games") return false;
+			if (!isAviator && !cats.includes("crash-games")) return false;
 		} else if (selectedCategory === "originals") {
-			if (!isOriginalsGame(game.code) && (game.category ?? "others") !== "originals") return false;
-		} else if (selectedCategory && (game.category ?? "others") !== selectedCategory) {
+			if (!isOriginalsGame(game.code) && !cats.includes("originals")) return false;
+		} else if (selectedCategory && !cats.includes(selectedCategory)) {
 			return false;
 		}
 		if (searchQuery && !game.name.toLowerCase().includes(searchQuery.toLowerCase())) {

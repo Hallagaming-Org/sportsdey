@@ -308,13 +308,6 @@ async function main() {
 		? parseCasinoGamesFile(resolvedTxtPath)
 		: new Map<string, string>();
 
-	for (const game of allGames) {
-		(game as GameItem & { category: string | null }).category = getCategory(
-			game.name,
-			categoryMap,
-		);
-	}
-
 	const newGames = allGames.filter(
 		(game) => !existingIds.has(game.uuid) || existingIds.size === 0,
 	);
@@ -331,11 +324,11 @@ async function main() {
 	const values = newGames
 		.map(
 			(game) =>
-				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape((game as GameItem & { category: string | null }).category)}, 1, ${now}, ${now})`,
+				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${now}, ${now})`,
 		)
 		.join(",\n");
 
-	const sql = `INSERT INTO game (id, name, code, image_url, category, enabled, created_at, updated_at) VALUES ${values};`;
+	const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${values};`;
 
 	const batchSize = 100;
 	const timestamp = Date.now();
@@ -356,10 +349,10 @@ async function main() {
 		const batchValues = batch
 			.map(
 				(game) =>
-					`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape((game as GameItem & { category: string | null }).category)}, 1, ${timestamp}, ${timestamp})`,
+					`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${timestamp}, ${timestamp})`,
 			)
 			.join(",\n");
-		const batchSql = `INSERT INTO game (id, name, code, image_url, category, enabled, created_at, updated_at) VALUES ${batchValues};`;
+		const batchSql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${batchValues};`;
 		const batchNum = Math.floor(i / batchSize) + 1;
 
 		const tempFile = path.join(
@@ -397,57 +390,69 @@ async function main() {
 	}
 
 	if (categorize && categoryMap.size > 0) {
-		console.log("\nBackfilling categories for existing uncategorized games...");
-		const allGamesForBackfill = allGames.filter((game) =>
-			existingIds.has(game.uuid),
-		);
-
+		console.log("\nInserting categories into category and game_category tables...");
 		const { exec: execBackfill } = await import("node:child_process");
 
-		for (let i = 0; i < allGamesForBackfill.length; i += batchSize) {
-			const batch = allGamesForBackfill.slice(i, i + batchSize);
-			const cases = batch
-				.map((game) => {
-					const cat = getCategory(game.name, categoryMap);
-					if (!cat) return null;
-					return `WHEN '${game.uuid.replace(/'/g, "''")}' THEN '${cat.replace(/'/g, "''")}'`;
-				})
-				.filter(Boolean);
+		const catInserted = new Set<string>();
+		const gcValues: string[] = [];
+		const now = Date.now();
 
-			if (cases.length === 0) continue;
-
-			const matchedIds = batch
-				.filter((g) => getCategory(g.name, categoryMap))
-				.map((g) => `'${g.uuid.replace(/'/g, "''")}'`)
-				.join(",");
-			const updateSql = `UPDATE game SET category = CASE id ${cases.join(" ")} END, updated_at = ${Date.now()} WHERE id IN (${matchedIds});`;
-
-			const batchNum = Math.floor(i / batchSize) + 1;
-			const tempFile = path.join(
-				os.tmpdir(),
-				`backfill-categories-${timestamp}-${batchNum}.sql`,
-			);
-			fs.writeFileSync(tempFile, updateSql);
-
-			try {
-				await new Promise((resolve, reject) => {
-					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`;
-					execBackfill(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
-						try {
-							fs.unlinkSync(tempFile);
-						} catch {}
-						if (error) reject(error);
-						else resolve(stdout);
-					});
-				});
-				console.log(
-					`Backfill batch ${batchNum}: ${cases.length} games updated`,
+		for (const game of allGames) {
+			const cat = getCategory(game.name, categoryMap);
+			if (cat) {
+				const slug = cat.toLowerCase().replace(/[\/\s]+/g, "-");
+				if (!catInserted.has(slug)) {
+					catInserted.add(slug);
+				}
+				gcValues.push(
+					`(${escape(game.uuid)}, ${escape(slug)})`,
 				);
-			} catch (err) {
-				console.error(`Backfill batch ${batchNum} failed:`, err);
 			}
 		}
-		console.log("\nBackfill complete!");
+
+		if (catInserted.size > 0) {
+			const catSql = `INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${[...catInserted].map((s) => `(${escape(s)}, ${escape(s)}, ${escape(s)}, ${now})`).join(",\n")};`;
+			const tempFile = path.join(os.tmpdir(), `sync-categories-${timestamp}-0.sql`);
+			fs.writeFileSync(tempFile, catSql);
+			try {
+				await new Promise((resolve, reject) => {
+					execBackfill(
+						`npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`,
+						{ timeout: 120000 },
+						(error) => {
+							try { fs.unlinkSync(tempFile); } catch {}
+							if (error) reject(error);
+							else resolve(undefined);
+						},
+					);
+				});
+				console.log(`Inserted ${catInserted.size} categories`);
+			} catch (err) {
+				console.error("Failed to insert categories:", err);
+			}
+		}
+
+		if (gcValues.length > 0) {
+			const gcSql = `INSERT OR IGNORE INTO game_category (game_id, category_id) VALUES ${gcValues.join(",\n")};`;
+			const tempFile = path.join(os.tmpdir(), `sync-categories-${timestamp}-1.sql`);
+			fs.writeFileSync(tempFile, gcSql);
+			try {
+				await new Promise((resolve, reject) => {
+					execBackfill(
+						`npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`,
+						{ timeout: 120000 },
+						(error) => {
+							try { fs.unlinkSync(tempFile); } catch {}
+							if (error) reject(error);
+							else resolve(undefined);
+						},
+					);
+				});
+				console.log(`Linked ${gcValues.length} game-category pairs`);
+			} catch (err) {
+				console.error("Failed to link game categories:", err);
+			}
+		}
 	}
 }
 
