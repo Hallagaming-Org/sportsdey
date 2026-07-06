@@ -17,7 +17,7 @@ const GAMES = [
 	{ name: "Xcape", code: "XCAPEHB", category: "popular" },
 	{ name: "Eagle", code: "EAGLEHB", category: "others" },
 	{ name: "Lucky Rise", code: "LUCKYRISEHB", category: "others" },
-	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "popular" },
+	{ name: "Lagos Rush", code: "LAGOSRUSH", category: "original" },
 	{ name: "Sportsdey Crash", code: "sportsdey-crash", category: "original" },
 ];
 
