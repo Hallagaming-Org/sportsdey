@@ -242,7 +242,7 @@ function GamesPage() {
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
-	const [sortAsc, setSortAsc] = useState(false);
+	const [sortAsc, setSortAsc] = useState<boolean | null>(null);
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
 	useEffect(() => {
@@ -381,9 +381,8 @@ function GamesPage() {
 		if (aAviator && !bAviator) return -1;
 		if (!aAviator && bAviator) return 1;
 
-		if (sortAsc) return a.name.localeCompare(b.name);
-		if (sortAsc === false && selectedCategory === null)
-			return a.name.localeCompare(b.name);
+		if (sortAsc === true) return a.name.localeCompare(b.name);
+		if (sortAsc === false) return b.name.localeCompare(a.name);
 
 		const aPriority = PRIORITY_GAMES.indexOf(a.code);
 		const bPriority = PRIORITY_GAMES.indexOf(b.code);
@@ -592,9 +591,15 @@ function GamesPage() {
 
 							{selectedCategory === null && (
 								<button
-									onClick={() => setSortAsc(!sortAsc)}
-									className={`w-10 h-10 flex items-center justify-center rounded-lg border border-[#1B2722] cursor-pointer ${
-										sortAsc ? "" : ""
+									onClick={() =>
+										setSortAsc((prev) =>
+											prev === null ? true : prev === true ? false : null,
+										)
+									}
+									className={`w-10 h-10 flex items-center justify-center rounded-lg border cursor-pointer ${
+										sortAsc === null
+											? "border-[#1BAA04] bg-[#1BAA04]/10"
+											: "border-[#1B2722]"
 									}`}
 								>
 									<FilerAToZ />
