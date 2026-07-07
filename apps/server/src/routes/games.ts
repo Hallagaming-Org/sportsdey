@@ -85,7 +85,15 @@ const GameListQuerySchema = z
 		category: z
 			.string()
 			.optional()
-			.openapi({ description: "Filter by game category" }),
+			.openapi({ description: "Filter by game category slug" }),
+		search: z
+			.string()
+			.optional()
+			.openapi({ description: "Search games by name" }),
+		sort: z
+			.enum(["asc", "desc"])
+			.optional()
+			.openapi({ description: "Sort order (default: Aviator-first then alphabetical)" }),
 		offset: z
 			.coerce.number()
 			.int()
@@ -124,70 +132,33 @@ gamesRoute.openapi(
 		tags: ["Games"],
 	}),
 	async (c) => {
-		let { category: categorySlug, offset, limit } = c.req.valid("query");
-		if (categorySlug) {
-			categorySlug = categorySlug.replace(/\//g, "-");
-		}
 		const db = drizzle(c.env.DB, { schema });
 
-		let gameIds: string[] = [];
-		if (categorySlug) {
-			const catGames = await db
-				.select({ gameId: schema.gameCategory.gameId })
-				.from(schema.gameCategory)
-				.innerJoin(
-					schema.category,
-					eq(schema.gameCategory.categoryId, schema.category.id),
-				)
-				.where(eq(schema.category.slug, categorySlug));
-			gameIds = catGames.map((g) => g.gameId);
-			if (gameIds.length === 0) {
-				return c.json({ success: true as const, data: [] }, 200);
-			}
-		}
-
-		let query: any = db.select().from(schema.game).orderBy(schema.game.name);
-		if (categorySlug) {
-			query = query.where(inArray(schema.game.id, gameIds));
-		}
-		if (offset !== undefined) {
-			query = query.offset(offset);
-		}
-		if (limit !== undefined) {
-			query = query.limit(limit);
-		}
-		const games = await query;
-
-		const ids = games.map((g: any) => g.id);
-		const categoryMap: Record<string, { id: string; name: string; slug: string }[]> = {};
-		if (ids.length > 0) {
-			const gameCategories = await db
-				.select({
-					gameId: schema.gameCategory.gameId,
-					id: schema.category.id,
-					name: schema.category.name,
-					slug: schema.category.slug,
-				})
-				.from(schema.gameCategory)
-				.innerJoin(
-					schema.category,
-					eq(schema.gameCategory.categoryId, schema.category.id),
-				)
-				.where(inArray(schema.gameCategory.gameId, ids));
-
-			for (const gc of gameCategories) {
-				if (!categoryMap[gc.gameId]) categoryMap[gc.gameId] = [];
-				categoryMap[gc.gameId].push({ id: gc.id, name: gc.name, slug: gc.slug });
-			}
-		}
+		const games = await db.query.game.findMany({
+			with: {
+				categories: {
+					with: {
+						category: true,
+					},
+				},
+			},
+		});
 
 		return c.json({
 			success: true as const,
-			data: games.map((g: any) => ({
-				...g,
-				categories: categoryMap[g.id] ?? [],
+			data: games.map((g) => ({
+				id: g.id,
+				name: g.name,
+				code: g.code,
+				imageUrl: g.imageUrl,
+				enabled: g.enabled,
 				createdAt: toWAT(g.createdAt),
 				updatedAt: toWAT(g.updatedAt),
+				categories: g.categories.map((gc) => ({
+					id: gc.category.id,
+					name: gc.category.name,
+					slug: gc.category.slug,
+				})),
 			})),
 		}, 200);
 	},
