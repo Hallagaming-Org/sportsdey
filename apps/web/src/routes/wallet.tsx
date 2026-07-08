@@ -17,13 +17,13 @@ import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { formatAmount } from "@/lib/utils";
-import { trackWebengageEvent } from "@/lib/webengage";
+// import { trackWebengageEvent } from "@/lib/webengage";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
+import AeroplaneIcon from "@/logos/aeroplane.svg?react";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
-import AeroplaneIcon from "@/logos/aeroplane.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
 export const Route = createFileRoute("/wallet")({
@@ -54,7 +54,9 @@ function WalletPage() {
 	const [depositError, setDepositError] = useState("");
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<"deposit" | "withdraw" | null>(null);
+	const [blockedModal, setBlockedModal] = useState<
+		"deposit" | "withdraw" | null
+	>(null);
 	const [billPaymentCategory, setBillPaymentCategory] = useState<{
 		code: string;
 		name: string;
@@ -421,7 +423,8 @@ function WalletPage() {
 							<AeroplaneIcon className="animate-plane-fly-in h-20 w-20 text-white" />
 						</div>
 						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
-							Pilot mode boss.<br />
+							Pilot mode boss.
+							<br />
 							Withdrawals and Deposits are currently blocked
 						</p>
 						<button

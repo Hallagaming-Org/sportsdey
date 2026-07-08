@@ -127,6 +127,20 @@
       "when": 1782730252006,
       "tag": "0017_conscious_bastion",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1783348542877,
+      "tag": "0018_greedy_punisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1783350396447,
+      "tag": "0019_grey_nomad",
+      "breakpoints": true
     }
   ]
 }

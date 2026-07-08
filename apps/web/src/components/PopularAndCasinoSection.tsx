@@ -102,6 +102,9 @@ const KNOWN_GAMES: Record<
 	},
 };
 
+const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
+const HOT_CASINO_LIMIT = 30;
+
 const PRIORITY_GAMES = [
 	"solitaire",
 	"blocks",
@@ -114,9 +117,6 @@ const PRIORITY_GAMES = [
 	"LUCKYRISEHB",
 	"LAGOSRUSH",
 ];
-
-const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
-const HOT_CASINO_LIMIT = 30;
 
 const POPULAR_GAME_NAMES = [
 	"Aviator",
@@ -141,8 +141,6 @@ const POPULAR_GAME_NAMES = [
 	"Greyhound",
 	"Car Racing",
 ];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getUniquePopularGames = (games: Game[], limit: number) => {
 	const result: Game[] = [];

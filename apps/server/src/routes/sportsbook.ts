@@ -36,11 +36,12 @@ async function databetFetch(
 	const proxyUrl = env.PROXY_URL;
 	const proxySecret = env.PROXY_SECRET;
 
-	const url = `${proxyUrl.replace(/\/+$/, "")}/sportsbook${path.startsWith("/") ? path : `/${path}`}`;
+	const url = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 		"X-Proxy-Auth": proxySecret || "",
 	};
+	console.log("url", url);
 
 	return fetch(url, {
 		method: options.method || "GET",

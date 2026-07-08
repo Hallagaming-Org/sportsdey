@@ -6,12 +6,18 @@ import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 
+type Category = {
+	id: string;
+	name: string;
+	slug: string;
+};
+
 type Game = {
 	id: string;
 	name: string;
 	code: string;
 	imageUrl: string | null;
-	category: string | null;
+	categories: Category[];
 	enabled: boolean;
 };
 

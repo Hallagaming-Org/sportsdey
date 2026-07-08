@@ -666,7 +666,6 @@ export const game = sqliteTable("game", {
 	name: text("name").notNull(),
 	code: text("code").notNull(),
 	imageUrl: text("image_url"),
-	category: text("category"),
 	enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -676,5 +675,51 @@ export const game = sqliteTable("game", {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+export const category = sqliteTable("category", {
+	id: text("id").primaryKey(),
+	name: text("name").notNull().unique(),
+	slug: text("slug").notNull().unique(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+});
+
+export const gameCategory = sqliteTable(
+	"game_category",
+	{
+		gameId: text("game_id")
+			.notNull()
+			.references(() => game.id, { onDelete: "cascade" }),
+		categoryId: text("category_id")
+			.notNull()
+			.references(() => category.id, { onDelete: "cascade" }),
+	},
+	(table) => ({
+		pk: index("game_category_game_id_category_id_idx").on(
+			table.gameId,
+			table.categoryId,
+		),
+	}),
+);
+
+export const gameRelations = relations(game, ({ many }) => ({
+	categories: many(gameCategory),
+}));
+
+export const categoryRelations = relations(category, ({ many }) => ({
+	games: many(gameCategory),
+}));
+
+export const gameCategoryRelations = relations(gameCategory, ({ one }) => ({
+	game: one(game, {
+		fields: [gameCategory.gameId],
+		references: [game.id],
+	}),
+	category: one(category, {
+		fields: [gameCategory.categoryId],
+		references: [category.id],
+	}),
+}));
 
 export * from "./schema/admin";
