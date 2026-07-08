@@ -132,6 +132,7 @@ function RootDocument() {
 		"/about",
 		"/privacy-policy",
 		"/terms",
+		"/general-betting-rules",
 		"/kyc",
 		"/kyc/",
 		"/kyc/verify",
