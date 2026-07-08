@@ -162,7 +162,7 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 			.values({
 				id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 				userId: user.id,
-				amount,
+				amountInKobo,
 				type: action,
 				reference,
 				status: "completed",
