@@ -1354,7 +1354,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		conditions.push(
 			and(
 				eq(schema.walletTransaction.type, "debit"),
-				eq(schema.walletTransaction.paymentMethod, "wallet_transfer"),
+				eq(schema.walletTransaction.paymentMethod, "bill_payment"),
 			),
 		);
 	}
@@ -1388,7 +1388,15 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		.where(whereClause)
 		.orderBy(desc(schema.walletTransaction.createdAt));
 
+	const excludedPaymentMethods = [
+		"slotegrator games",
+		"lucky games",
+		"lagos rush",
+		"thndr games",
+	];
+
 	const filtered = transactions.filter((tx) => {
+		if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
 		if (!fromDateBoundary && !toDateBoundary) return true;
 		const ts = new Date(tx.createdAt).getTime();
 		if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
