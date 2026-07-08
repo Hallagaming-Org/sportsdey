@@ -21,6 +21,7 @@ import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
+import { Route as GeneralBettingRulesRouteImport } from './routes/general-betting-rules'
 import { Route as GamesRouteImport } from './routes/games'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as FaqsRouteImport } from './routes/faqs'
@@ -124,6 +125,11 @@ const NewsRoute = NewsRouteImport.update({
 const KycRoute = KycRouteImport.update({
   id: '/kyc',
   path: '/kyc',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GeneralBettingRulesRoute = GeneralBettingRulesRouteImport.update({
+  id: '/general-betting-rules',
+  path: '/general-betting-rules',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GamesRoute = GamesRouteImport.update({
@@ -361,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/notifications': typeof NotificationsRouteWithChildren
@@ -417,6 +424,7 @@ export interface FileRoutesByTo {
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
@@ -470,6 +478,7 @@ export interface FileRoutesById {
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/notifications': typeof NotificationsRouteWithChildren
@@ -530,6 +539,7 @@ export interface FileRouteTypes {
     | '/faqs'
     | '/favorites'
     | '/games'
+    | '/general-betting-rules'
     | '/kyc'
     | '/news'
     | '/notifications'
@@ -586,6 +596,7 @@ export interface FileRouteTypes {
     | '/faqs'
     | '/favorites'
     | '/games'
+    | '/general-betting-rules'
     | '/privacy-policy'
     | '/receipt-preview'
     | '/sportsbetting'
@@ -638,6 +649,7 @@ export interface FileRouteTypes {
     | '/faqs'
     | '/favorites'
     | '/games'
+    | '/general-betting-rules'
     | '/kyc'
     | '/news'
     | '/notifications'
@@ -697,6 +709,7 @@ export interface RootRouteChildren {
   FaqsRoute: typeof FaqsRoute
   FavoritesRoute: typeof FavoritesRoute
   GamesRoute: typeof GamesRoute
+  GeneralBettingRulesRoute: typeof GeneralBettingRulesRoute
   KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
   NotificationsRoute: typeof NotificationsRouteWithChildren
@@ -809,6 +822,13 @@ declare module '@tanstack/react-router' {
       path: '/kyc'
       fullPath: '/kyc'
       preLoaderRoute: typeof KycRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/general-betting-rules': {
+      id: '/general-betting-rules'
+      path: '/general-betting-rules'
+      fullPath: '/general-betting-rules'
+      preLoaderRoute: typeof GeneralBettingRulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/games': {
@@ -1273,6 +1293,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqsRoute: FaqsRoute,
   FavoritesRoute: FavoritesRoute,
   GamesRoute: GamesRoute,
+  GeneralBettingRulesRoute: GeneralBettingRulesRoute,
   KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
   NotificationsRoute: NotificationsRouteWithChildren,
