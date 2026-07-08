@@ -182,14 +182,12 @@ export default function DesktopFooter() {
 							</Link>
 						</li>
 						<li>
-							<a
-								href="/General-Betting-Rules.docx"
-								target="_blank"
-								rel="noopener noreferrer"
+							<Link
+								to="/general-betting-rules"
 								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>
 								General Betting Rules
-							</a>
+							</Link>
 						</li>
 						<li>
 							<Link
