@@ -183,6 +183,14 @@ export default function DesktopFooter() {
 						</li>
 						<li>
 							<Link
+								to="/general-betting-rules"
+								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+							>
+								General Betting Rules
+							</Link>
+						</li>
+						<li>
+							<Link
 								to="/privacy-policy"
 								className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 							>

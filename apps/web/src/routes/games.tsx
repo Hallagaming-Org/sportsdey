@@ -332,7 +332,7 @@ function GamesPage() {
 						acc[cat] = count;
 					} else {
 						acc[cat] = allGames.filter((g) =>
-							g.categories.some((c) => c.slug === cat),
+							g.categories?.some((c) => c.slug === cat),
 						).length;
 					}
 					return acc;
@@ -363,7 +363,7 @@ function GamesPage() {
 			}
 		} else {
 			filteredGames = allGames.filter((g) =>
-				g.categories.some((c) => c.slug === selectedCategory),
+				g.categories?.some((c) => c.slug === selectedCategory),
 			);
 		}
 	}
