@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
 	generateSessionToken,
@@ -8,13 +8,22 @@ import {
 	validateAdminSession,
 } from "@/auth/admin";
 import * as schema from "@/db/schema";
-import { requirePermission } from "@/middleware/admin-permissions";
-import { parseQueryDateRange, toWAT } from "@/utils";
 import {
 	setWebengageUserAttributes,
 	trackWebengageEvent,
 } from "@/lib/webengage";
+import { requirePermission } from "@/middleware/admin-permissions";
+import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
+
+const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
+	"sportsbook",
+	"thndr games",
+	"lagos rush",
+	"lucky games",
+	"hashcodex",
+	"slotegrator games",
+];
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -111,13 +120,10 @@ const GetAllUsersQuerySchema = z
 			.enum(["all", "recent", "pending"])
 			.optional()
 			.openapi({ description: "Filter by tab", example: "all" }),
-		search: z
-			.string()
-			.optional()
-			.openapi({
-				description: "Search users by name, email, or ID",
-				example: "john",
-			}),
+		search: z.string().optional().openapi({
+			description: "Search users by name, email, or ID",
+			example: "john",
+		}),
 		fromDate: z.string().optional().openapi({
 			description:
 				"Filter users registered on or after this date (ISO format: YYYY-MM-DD)",
@@ -352,25 +358,33 @@ userRoute.openapi(updateUserRoute, async (c) => {
 	const firstName = nameParts[0] || "";
 	const lastName = nameParts.slice(1).join(" ") || "";
 
-	setWebengageUserAttributes(c.env, {
-		userId: updatedUser.id,
-		email: updatedUser.email ?? "",
-		firstName,
-		lastName,
-		phone: updatedUser.mobileNumber ?? undefined,
-	}, c.executionCtx);
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: updatedUser.id,
+			email: updatedUser.email ?? "",
+			firstName,
+			lastName,
+			phone: updatedUser.mobileNumber ?? undefined,
+		},
+		c.executionCtx,
+	);
 
 	if (updatedUser.name && updatedUser.country && updatedUser.mobileNumber) {
-		trackWebengageEvent(c.env, {
-			userId: updatedUser.id,
-			eventName: "Profile Completed",
-			eventData: {
-				"First Name": firstName,
-				"Last Name": lastName,
-				Mobile: updatedUser.mobileNumber,
-				Country: updatedUser.country,
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: updatedUser.id,
+				eventName: "Profile Completed",
+				eventData: {
+					"First Name": firstName,
+					"Last Name": lastName,
+					Mobile: updatedUser.mobileNumber,
+					Country: updatedUser.country,
+				},
 			},
-		}, c.executionCtx);
+			c.executionCtx,
+		);
 	}
 
 	return c.json(
@@ -1118,8 +1132,6 @@ userRoute.openapi(
 	},
 );
 
-// ─── Wallet Overview ───────────────────────────────────────────────────────────
-
 const WalletOverviewResponseSchema = z
 	.object({
 		success: z.literal(true),
@@ -1157,20 +1169,43 @@ const getWalletOverviewRoute = createRoute({
 
 userRoute.openapi(getWalletOverviewRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
-	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	if (!token)
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (!session)
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
 	if (session.role !== "super_admin" && session.role !== "admin") {
-		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
 	}
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
-		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
 	}
 
 	const userId = c.req.param("userId");
 	const { fromDate: fd, toDate: td } = c.req.valid("query");
-	const { fromDate, toDate } = parseQueryDateRange({ fromDate: fd, toDate: td });
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: fd,
+		toDate: td,
+	});
 
 	const db = drizzle(c.env.DB, { schema });
 
@@ -1186,12 +1221,20 @@ userRoute.openapi(getWalletOverviewRoute, async (c) => {
 		eq(schema.walletTransaction.userId, userId),
 		eq(schema.walletTransaction.type, "credit"),
 		eq(schema.walletTransaction.status, "success"),
+		notInArray(
+			schema.walletTransaction.paymentMethod,
+			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
+		),
 	];
-	if (fromDate) depositFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) depositFilters.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		depositFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		depositFilters.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [depositResult] = await db
-		.select({ total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)` })
+		.select({
+			total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
+		})
 		.from(schema.walletTransaction)
 		.where(and(...depositFilters));
 
@@ -1201,12 +1244,20 @@ userRoute.openapi(getWalletOverviewRoute, async (c) => {
 		eq(schema.walletTransaction.userId, userId),
 		eq(schema.walletTransaction.type, "debit"),
 		eq(schema.walletTransaction.status, "success"),
+		notInArray(
+			schema.walletTransaction.paymentMethod,
+			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
+		),
 	];
-	if (fromDate) withdrawalFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) withdrawalFilters.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		withdrawalFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		withdrawalFilters.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [withdrawalResult] = await db
-		.select({ total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)` })
+		.select({
+			total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
+		})
 		.from(schema.walletTransaction)
 		.where(and(...withdrawalFilters));
 
@@ -1264,22 +1315,44 @@ const getWalletTransactionsRoute = createRoute({
 	responses: {
 		200: {
 			description: "Wallet transactions retrieved successfully",
-			content: { "application/json": { schema: WalletTransactionsResponseSchema } },
+			content: {
+				"application/json": { schema: WalletTransactionsResponseSchema },
+			},
 		},
 	},
 });
 
 userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
-	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	if (!token)
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (!session)
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
 	if (session.role !== "super_admin" && session.role !== "admin") {
-		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
 	}
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
-		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
 	}
 
 	const userId = c.req.param("userId");
@@ -1287,11 +1360,20 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const page = Math.max(1, parseInt(query.page || "1", 10));
 	const limit = Math.min(100, Math.max(1, parseInt(query.limit || "10", 10)));
 	const offset = (page - 1) * limit;
-	const { fromDate, toDate } = parseQueryDateRange({ fromDate: query.fromDate, toDate: query.toDate });
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: query.fromDate,
+		toDate: query.toDate,
+	});
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const filters = [eq(schema.walletTransaction.userId, userId)];
+	const filters = [
+		eq(schema.walletTransaction.userId, userId),
+		notInArray(
+			schema.walletTransaction.paymentMethod,
+			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
+		),
+	];
 	if (fromDate) filters.push(gte(schema.walletTransaction.createdAt, fromDate));
 	if (toDate) filters.push(lte(schema.walletTransaction.createdAt, toDate));
 
@@ -1322,9 +1404,11 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const transactions = rows.map((row) => {
 		let displayType: string;
 		if (row.type === "credit") {
-			displayType = row.paymentMethod === "manual" ? "manual_credit" : "deposit";
+			displayType =
+				row.paymentMethod === "manual" ? "manual_credit" : "deposit";
 		} else {
-			displayType = row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
+			displayType =
+				row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
 		}
 		return {
 			id: row.id,
@@ -1382,22 +1466,44 @@ const postManualTransactionRoute = createRoute({
 	responses: {
 		200: {
 			description: "Manual transaction processed successfully",
-			content: { "application/json": { schema: ManualTransactionResponseSchema } },
+			content: {
+				"application/json": { schema: ManualTransactionResponseSchema },
+			},
 		},
 	},
 });
 
 userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
-	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	if (!token)
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (!session)
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
 	if (session.role !== "super_admin" && session.role !== "admin") {
-		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
 	}
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
-		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
 	}
 
 	const userId = c.req.param("userId");
@@ -1431,7 +1537,10 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 			: walletRow.balance - amountInKobo;
 
 	if (body.type === "debit" && newBalance < 0) {
-		return c.json({ success: false as const, error: "Insufficient balance" }, 400);
+		return c.json(
+			{ success: false as const, error: "Insufficient balance" },
+			400,
+		);
 	}
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
