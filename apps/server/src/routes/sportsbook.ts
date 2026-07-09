@@ -4,6 +4,10 @@ import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
+import {
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -22,10 +26,6 @@ import {
 	SportsbookTokenErrorSchema,
 } from "@/schemas/sportsbook";
 import { toWAT } from "@/utils";
-import {
-	setWebengageUserAttributes,
-	trackWebengageEvent,
-} from "@/lib/webengage";
 import type { CloudflareBindings } from "../types";
 
 const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -494,6 +494,8 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: "place",
 				eventData: JSON.stringify(result.data),
+				balanceBefore: wallet.balance,
+				balanceAfter: wallet.balance,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -513,20 +515,26 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		}
 
 		const firstSelection = result.data.selections?.[0];
-		trackWebengageEvent(c.env, {
-			userId: session.userId,
-			eventName: "bet_slip_created",
-			eventData: {
-				sport: firstSelection?.sport ?? "",
-				league: firstSelection?.league ?? "",
-				match_id: firstSelection?.match_id ?? result.data.bet_id,
-				bet_type: result.data.bet_type ?? "",
-				odds: result.data.total_odds_value?.toString() ?? "",
-				stake_amount: stakeKobo / 100,
-				potential_payout: (stakeKobo * (result.data.total_odds_value ?? 1)) / 100,
-				odds_total: result.data.total_odds_value ?? 0,
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: session.userId,
+				eventName: "bet_slip_created",
+				eventData: {
+					sport: firstSelection?.sport ?? "",
+					league: firstSelection?.league ?? "",
+					match_id: firstSelection?.match_id ?? result.data.bet_id,
+					bet_type: result.data.bet_type ?? "",
+					odds: result.data.total_odds_value?.toString() ?? "",
+					stake_amount: stakeKobo / 100,
+					potential_payout:
+						(stakeKobo * (Number.parseInt(result.data.total_odds_value) ?? 1)) /
+						100,
+					odds_total: result.data.total_odds_value ?? 0,
+				},
 			},
-		}, c.executionCtx);
+			c.executionCtx,
+		);
 
 		return c.body(null, 204);
 	} catch (error) {
@@ -714,9 +722,14 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 			throw new Error("Wallet not found");
 		}
 
+		const balanceBefore = wallet.balance;
+
+		let balance: number;
+
 		if (!bet.betFreebetId) {
 			const newBalance = wallet.balance - bet.stake;
 			const newFrozenBalance = wallet.frozenBalance - bet.stake;
+			balance = newBalance;
 
 			const walletUpdate = await db
 				.update(schema.wallet)
@@ -747,7 +760,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				.values({
 					id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 					userId: bet.userId,
-					amount: -bet.stake,
+					amount: bet.stake,
 					type: "debit",
 					reference: `sb_accept_${result.data.bet_id}_${crypto.randomUUID()}`,
 					status: "success",
@@ -800,6 +813,8 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: "accept",
 				eventData: JSON.stringify(result.data),
+				balanceBefore: balanceBefore,
+				balanceAfter: balance,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -835,38 +850,56 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	}
 
 	const betTypeLabels: Record<number, string> = {
-		1: "single", 2: "accumulator", 3: "system",
-		4: "chain", 5: "conditional", 6: "multi-single",
-		7: "multi-accumulator", 8: "live-series", 9: "live-accumulator",
+		1: "single",
+		2: "accumulator",
+		3: "system",
+		4: "chain",
+		5: "conditional",
+		6: "multi-single",
+		7: "multi-accumulator",
+		8: "live-series",
+		9: "live-accumulator",
 	};
 
-	const selections = result.data.bet_odds as Array<Record<string, unknown>> | undefined;
+	const selections = result.data.bet_odds as
+		| Array<Record<string, unknown>>
+		| undefined;
 	const firstSelection = selections?.[0];
-	const matchIds = selections?.map((s) => String(s?.match_id ?? "")).filter(Boolean) ?? [];
-	const originalBetType = typeof result.data.bet_type === "number"
-		? betTypeLabels[result.data.bet_type] ?? String(result.data.bet_type)
-		: (bet.betType ?? "");
-	const potentialPayout = bet.totalOdds ? (bet.stake / 100) * bet.totalOdds : 0;
+	const matchIds =
+		selections?.map((s) => String(s?.match_id ?? "")).filter(Boolean) ?? [];
+	const originalBetType =
+		typeof result.data.bet_type === "number"
+			? (betTypeLabels[result.data.bet_type] ?? String(result.data.bet_type))
+			: (bet.betType ?? "");
+	const potentialPayout = bet.totalOdds
+		? (bet.stake / 100) * Number.parseInt(bet.totalOdds)
+		: 0;
 
-	trackWebengageEvent(c.env, {
-		userId: bet.userId,
-		eventName: "bet_placed",
-		eventData: {
-			bet_id: bet.id,
-			bet_type: originalBetType,
-			category: (firstSelection?.category as string) ?? "",
-			sub_category: (firstSelection?.sub_category as string) ?? "",
-			stake_amount: bet.stake / 100,
-			potential_payout: potentialPayout,
-			odds_total: bet.totalOdds ?? 0,
-			selection_count: selections?.length ?? 0,
-			sport: (firstSelection?.sport as string) ?? "",
-			league: (firstSelection?.league as string) ?? "",
-			match_ids: matchIds,
-			is_live_bet: firstSelection?.is_live === true || firstSelection?.is_live === "true",
-			wallet_balance_after: newBalance / 100,
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: bet.userId,
+			eventName: "bet_placed",
+			eventData: {
+				bet_id: bet.id,
+				bet_type: originalBetType,
+				category: (firstSelection?.category as string) ?? "",
+				sub_category: (firstSelection?.sub_category as string) ?? "",
+				stake_amount: bet.stake / 100,
+				potential_payout: potentialPayout,
+				odds_total: bet.totalOdds ?? 0,
+				selection_count: selections?.length ?? 0,
+				sport: (firstSelection?.sport as string) ?? "",
+				league: (firstSelection?.league as string) ?? "",
+				match_ids: matchIds,
+				is_live_bet:
+					firstSelection?.is_live === true ||
+					firstSelection?.is_live === "true",
+				wallet_balance_after: balance / 100,
+			},
 		},
-	}, c.executionCtx);
+		c.executionCtx,
+	);
 
 	return c.body(null, 204);
 });
@@ -1143,6 +1176,10 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		}
 
 		const now = new Date();
+		const declineBalanceBefore = wallet?.balance ?? 0;
+		const declineBalanceAfter = wallet && !bet.betFreebetId && bet.status === "accepted"
+			? wallet.balance + bet.stake
+			: declineBalanceBefore;
 		const createdEvent = await db
 			.insert(schema.sportsbookBetEvent)
 			.values({
@@ -1151,6 +1188,8 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: nextStatus,
 				eventData: JSON.stringify(result.data),
+				balanceBefore: declineBalanceBefore,
+				balanceAfter: declineBalanceAfter,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -1360,6 +1399,8 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		const isFreebetWin = bet.betFreebetId && settleType === 1;
 		const shouldCredit = !bet.betFreebetId || isFreebetWin;
 
+		const balance = wallet.balance;
+
 		if (wallet && shouldCredit) {
 			const newBalance = wallet.balance + settleAmount;
 			const walletUpdate = await db
@@ -1444,6 +1485,10 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		}
 
 		const now = new Date();
+		const settleBalanceBefore = wallet?.balance ?? 0;
+		const settleBalanceAfter = shouldCredit
+			? (wallet?.balance ?? 0) + settleAmount
+			: (wallet?.balance ?? 0);
 		const createdEvent = await db
 			.insert(schema.sportsbookBetEvent)
 			.values({
@@ -1452,6 +1497,8 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: newStatus,
 				eventData: JSON.stringify(result.data),
+				balanceBefore: settleBalanceBefore,
+				balanceAfter: settleBalanceAfter,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -1486,24 +1533,29 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-	const settleTypeLabel = settleType === 1 ? "win" : settleType === 2 ? "refund" : "loss";
+	const settleTypeLabel =
+		settleType === 1 ? "win" : settleType === 2 ? "refund" : "loss";
 	const payoutAmount = settleType === 1 ? settleAmount / 100 : 0;
-	const netPnl = payoutAmount - (bet.stake / 100);
+	const netPnl = payoutAmount - bet.stake / 100;
 
-	trackWebengageEvent(c.env, {
-		userId: bet.userId,
-		eventName: "bet_settled",
-		eventData: {
-			bet_id: bet.id,
-			outcome: settleTypeLabel,
-			payout_amount: payoutAmount,
-			net_pnl: netPnl,
-			sport: result.data.selections?.[0]?.sport ?? "",
-			category: result.data.selections?.[0]?.category ?? "",
-			sub_category: result.data.selections?.[0]?.sub_category ?? "",
-			league: result.data.selections?.[0]?.league ?? "",
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: bet.userId,
+			eventName: "bet_settled",
+			eventData: {
+				bet_id: bet.id,
+				outcome: settleTypeLabel,
+				payout_amount: payoutAmount,
+				net_pnl: netPnl,
+				sport: result.data.selections?.[0]?.sport ?? "",
+				category: result.data.selections?.[0]?.category ?? "",
+				sub_category: result.data.selections?.[0]?.sub_category ?? "",
+				league: result.data.selections?.[0]?.league ?? "",
+			},
 		},
-	}, c.executionCtx);
+		c.executionCtx,
+	);
 
 	return c.body(null, 204);
 });
@@ -1753,6 +1805,8 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		}
 
 		const now = new Date();
+		const unsettleBalanceBefore = wallet?.balance ?? 0;
+		const unsettleBalanceAfter = wallet ? wallet.balance - unsettleAmount : 0;
 		const createdEvent = await db
 			.insert(schema.sportsbookBetEvent)
 			.values({
@@ -1761,6 +1815,8 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: "unsettle",
 				eventData: JSON.stringify(result.data),
+				balanceBefore: unsettleBalanceBefore,
+				balanceAfter: unsettleBalanceAfter,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -2031,6 +2087,8 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		}
 
 		const now = new Date();
+		const cashOutBalanceBefore = wallet?.balance ?? 0;
+		const cashOutBalanceAfter = wallet ? wallet.balance + refundAmountKobo : 0;
 		const createdEvent = await db
 			.insert(schema.sportsbookBetEvent)
 			.values({
@@ -2039,6 +2097,8 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: "cash_out_accepted",
 				eventData: JSON.stringify(result.data),
+				balanceBefore: cashOutBalanceBefore,
+				balanceAfter: cashOutBalanceAfter,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -2075,20 +2135,26 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 
 	const cashoutValue = refundAmountKobo / 100;
 	const originalStake = bet.stake / 100;
-	const originalPotentialPayout = bet.totalOdds ? originalStake * bet.totalOdds : 0;
+	const originalPotentialPayout = bet.totalOdds
+		? originalStake * bet.totalOdds
+		: 0;
 	const cashoutRate = originalStake - cashoutValue;
 
-	trackWebengageEvent(c.env, {
-		userId: bet.userId,
-		eventName: "bet_cashout_requested",
-		eventData: {
-			bet_id: bet.id,
-			cashout_value: cashoutValue,
-			original_stake: originalStake,
-			original_potential_payout: originalPotentialPayout,
-			cashout_rate: cashoutRate,
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: bet.userId,
+			eventName: "bet_cashout_requested",
+			eventData: {
+				bet_id: bet.id,
+				cashout_value: cashoutValue,
+				original_stake: originalStake,
+				original_potential_payout: originalPotentialPayout,
+				cashout_rate: cashoutRate,
+			},
 		},
-	}, c.executionCtx);
+		c.executionCtx,
+	);
 
 	return c.body(null, 204);
 });
@@ -2381,6 +2447,11 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		}
 
 		const now = new Date();
+		const cashOutDeclinedBalanceBefore = wallet?.balance ?? 0;
+		const cashOutDeclinedBalanceAfter =
+			wallet && refundAmountKobo > 0
+				? wallet.balance - refundAmountKobo
+				: cashOutDeclinedBalanceBefore;
 		const createdEvent = await db
 			.insert(schema.sportsbookBetEvent)
 			.values({
@@ -2389,6 +2460,8 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 				requestId: result.data.request_id,
 				eventType: "cash_out_declined",
 				eventData: JSON.stringify(result.data),
+				balanceBefore: cashOutDeclinedBalanceBefore,
+				balanceAfter: cashOutDeclinedBalanceAfter,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });

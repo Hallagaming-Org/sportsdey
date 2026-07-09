@@ -521,6 +521,8 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 			providerTxId: provider_tx_id,
 			type: "BET",
 			amount: amountKobo,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			sessionToken: session_token,
 			game,
 		})
@@ -687,6 +689,8 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 			providerTxId: provider_tx_id,
 			type: "WIN",
 			amount: amountKobo,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			sessionToken: session_token,
 			game,
 		})
@@ -854,6 +858,8 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 			providerTxId: `rollback_${rollback_provider_tx_id}`,
 			type: "ROLLBACK",
 			amount: amountKobo,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			sessionToken: session_token,
 			game,
 		})

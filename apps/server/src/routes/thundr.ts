@@ -467,6 +467,8 @@ thundrRoute.post("/transactions", async (c) => {
 			userId: session.userId,
 			type: tx.type,
 			amount: txAmountKobo,
+			balanceBefore: currentBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			roundId: tx.roundId,
 			gameId: tx.gameId,
 			sessionId: tx.sessionId,
