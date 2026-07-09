@@ -1881,7 +1881,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 			.values({
 				id: generateUUIDv7(),
 				userId: user.id,
-				amount: -amount * 100,
+				amount: amount * 100,
 				type: "debit",
 				reference: `${reference}_sender`,
 				status: "completed",
@@ -2151,7 +2151,7 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			.values({
 				id: generateUUIDv7(),
 				userId: user.id,
-				amount: -amount * 100,
+				amount: amount * 100,
 				type: "debit",
 				reference: `${reference}_normal`,
 				status: "completed",
