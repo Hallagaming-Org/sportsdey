@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
 import { changeEmail, useSession } from "@/lib/auth/client";
+import {
+	loginWebengageUser,
+	setWebengageUserAttributes,
+} from "@/lib/webengage";
 
 export const Route = createFileRoute("/account")({
 	component: AccountPage,
@@ -41,12 +45,15 @@ function AccountPage() {
 	const [newEmail, setNewEmail] = useState("");
 
 	useEffect(() => {
+		if (session?.user?.id) {
+			loginWebengageUser(session.user.id);
+		}
 		setFormState((prev) => ({
 			...prev,
 			fullName: session?.user?.name ?? "",
 			email: session?.user?.email ?? "",
 		}));
-	}, [session?.user?.email, session?.user?.name]);
+	}, [session?.user?.email, session?.user?.id, session?.user?.name]);
 
 	const updateUserMutation = useMutation({
 		mutationFn: (data: {
@@ -68,6 +75,16 @@ function AccountPage() {
 				country: data.country ?? "",
 				mobileNumbers: data.mobileNumber ?? "",
 			}));
+			const nameParts = data.name.trim().split(/\s+/);
+			const firstName = nameParts[0] || "";
+			const lastName = nameParts.slice(1).join(" ") || "";
+			trackWebengageEvent("Profile Completed", {
+				"First Name": firstName,
+				"Last Name": lastName,
+				Mobile: (userMobile as string) || "",
+				Country: "",
+				"Reference Id": referralId,
+			});
 			toast.success("Profile updated successfully");
 		},
 		onError: (error) => {

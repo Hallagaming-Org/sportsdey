@@ -16,6 +16,7 @@ import {
 	getNewsBySlug,
 } from "@/lib/news-server";
 import { formatRelativeTime } from "@/lib/utils";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 type NewsItem = NewsDetail;
 type NewsComment = Comment;
@@ -123,6 +124,15 @@ function RouteComponent() {
 			setComments((prev) => [newComment, ...prev]);
 			setCommentText("");
 			setCommentError("");
+			const newsData = news as Record<string, unknown>;
+			trackWebengageEvent("News article commented", {
+				article_id: newsId,
+				article_category: (newsData.category as string) || "",
+				author: news?.author?.name || "",
+				"image url": news?.image?.hero || "",
+				Comment: newComment.message || commentText,
+				Time: new Date().toISOString(),
+			});
 		},
 		onError: (err: unknown) => {
 			setCommentError(
@@ -131,8 +141,16 @@ function RouteComponent() {
 		},
 	});
 	useEffect(() => {
-		// console.log(news);
-	}, []);
+		if (news) {
+			const newsData = news as Record<string, unknown>;
+			trackWebengageEvent("News article read", {
+				article_id: news._id || "",
+				article_category: (newsData.category as string) || "",
+				author: news.author?.name || "",
+				"image url": news.image?.hero || "",
+			});
+		}
+	}, [news]);
 	if (!news)
 		return <div className="p-8 text-center uppercase">News not found</div>;
 

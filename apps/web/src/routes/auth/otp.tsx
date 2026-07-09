@@ -3,6 +3,7 @@ import { Mail } from "lucide-react";
 import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 import z from "zod";
 import { verifyPhoneOtp } from "@/lib/auth/client";
+import { loginWebengageUser } from "@/lib/webengage";
 
 const otpSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -60,6 +61,7 @@ function OtpPage() {
 		try {
 			const otp = otpDigits.join("");
 			const data = await verifyPhoneOtp(phone, otp);
+			loginWebengageUser(data.user.id);
 			if (data.isFirstTimeSignIn) {
 				navigate({
 					to: "/auth/complete-profile",

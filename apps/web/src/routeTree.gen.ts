@@ -40,7 +40,6 @@ import { Route as NewsIndexRouteImport } from './routes/news.index'
 import { Route as KycIndexRouteImport } from './routes/kyc.index'
 import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
 import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
-import { Route as WebengageOauthCallbackRouteImport } from './routes/webengage.oauth-callback'
 import { Route as WalletTransactionsRouteImport } from './routes/wallet.transactions'
 import { Route as TennisMatchesRouteImport } from './routes/tennis.matches'
 import { Route as TennisIdRouteImport } from './routes/tennis/$Id'
@@ -61,6 +60,7 @@ import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthPhoneSignInRouteImport } from './routes/auth/phone-sign-in'
 import { Route as AuthOtpRouteImport } from './routes/auth/otp'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth/complete-profile'
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthLayoutRouteImport } from './routes/auth/_layout'
 import { Route as TennisTournamentTournamentIdRouteImport } from './routes/tennis.tournament.$tournamentId'
 import { Route as NewsSlugOgRouteImport } from './routes/news.$slug.og'
@@ -222,11 +222,6 @@ const BasketballIndexRoute = BasketballIndexRouteImport.update({
   path: '/',
   getParentRoute: () => BasketballRoute,
 } as any)
-const WebengageOauthCallbackRoute = WebengageOauthCallbackRouteImport.update({
-  id: '/webengage/oauth-callback',
-  path: '/webengage/oauth-callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const WalletTransactionsRoute = WalletTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
@@ -327,6 +322,11 @@ const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
   path: '/auth/complete-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthLayoutRoute = AuthLayoutRouteImport.update({
   id: '/auth/_layout',
   path: '/auth',
@@ -380,6 +380,7 @@ export interface FileRoutesByFullPath {
   '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
@@ -400,7 +401,6 @@ export interface FileRoutesByFullPath {
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
   '/wallet/transactions': typeof WalletTransactionsRoute
-  '/webengage/oauth-callback': typeof WebengageOauthCallbackRoute
   '/basketball/': typeof BasketballIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
@@ -431,6 +431,7 @@ export interface FileRoutesByTo {
   '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
@@ -451,7 +452,6 @@ export interface FileRoutesByTo {
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
   '/wallet/transactions': typeof WalletTransactionsRoute
-  '/webengage/oauth-callback': typeof WebengageOauthCallbackRoute
   '/basketball': typeof BasketballIndexRoute
   '/boxing': typeof BoxingIndexRoute
   '/kyc': typeof KycIndexRoute
@@ -491,6 +491,7 @@ export interface FileRoutesById {
   '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth/_layout': typeof AuthLayoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
@@ -511,7 +512,6 @@ export interface FileRoutesById {
   '/tennis/$Id': typeof TennisIdRoute
   '/tennis/matches': typeof TennisMatchesRoute
   '/wallet/transactions': typeof WalletTransactionsRoute
-  '/webengage/oauth-callback': typeof WebengageOauthCallbackRoute
   '/basketball/': typeof BasketballIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
@@ -552,6 +552,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth'
+    | '/auth/callback'
     | '/auth/complete-profile'
     | '/auth/otp'
     | '/auth/phone-sign-in'
@@ -572,7 +573,6 @@ export interface FileRouteTypes {
     | '/tennis/$Id'
     | '/tennis/matches'
     | '/wallet/transactions'
-    | '/webengage/oauth-callback'
     | '/basketball/'
     | '/boxing/'
     | '/kyc/'
@@ -603,6 +603,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth'
+    | '/auth/callback'
     | '/auth/complete-profile'
     | '/auth/otp'
     | '/auth/phone-sign-in'
@@ -623,7 +624,6 @@ export interface FileRouteTypes {
     | '/tennis/$Id'
     | '/tennis/matches'
     | '/wallet/transactions'
-    | '/webengage/oauth-callback'
     | '/basketball'
     | '/boxing'
     | '/kyc'
@@ -662,6 +662,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth/_layout'
+    | '/auth/callback'
     | '/auth/complete-profile'
     | '/auth/otp'
     | '/auth/phone-sign-in'
@@ -682,7 +683,6 @@ export interface FileRouteTypes {
     | '/tennis/$Id'
     | '/tennis/matches'
     | '/wallet/transactions'
-    | '/webengage/oauth-callback'
     | '/basketball/'
     | '/boxing/'
     | '/kyc/'
@@ -722,6 +722,7 @@ export interface RootRouteChildren {
   WalletRoute: typeof WalletRouteWithChildren
   WalletTransactionStatusRoute: typeof WalletTransactionStatusRoute
   AuthLayoutRoute: typeof AuthLayoutRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
   AuthOtpRoute: typeof AuthOtpRoute
   AuthPhoneSignInRoute: typeof AuthPhoneSignInRoute
@@ -733,7 +734,6 @@ export interface RootRouteChildren {
   IndexMatchesRoute: typeof IndexMatchesRoute
   PlayGameNameRoute: typeof PlayGameNameRoute
   PromotionsIdRoute: typeof PromotionsIdRoute
-  WebengageOauthCallbackRoute: typeof WebengageOauthCallbackRoute
   PromotionsIndexRoute: typeof PromotionsIndexRoute
   IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute
 }
@@ -957,13 +957,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BasketballIndexRouteImport
       parentRoute: typeof BasketballRoute
     }
-    '/webengage/oauth-callback': {
-      id: '/webengage/oauth-callback'
-      path: '/webengage/oauth-callback'
-      fullPath: '/webengage/oauth-callback'
-      preLoaderRoute: typeof WebengageOauthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/wallet/transactions': {
       id: '/wallet/transactions'
       path: '/transactions'
@@ -1102,6 +1095,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/complete-profile'
       fullPath: '/auth/complete-profile'
       preLoaderRoute: typeof AuthCompleteProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/_layout': {
@@ -1306,6 +1306,7 @@ const rootRouteChildren: RootRouteChildren = {
   WalletRoute: WalletRouteWithChildren,
   WalletTransactionStatusRoute: WalletTransactionStatusRoute,
   AuthLayoutRoute: AuthLayoutRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
   AuthOtpRoute: AuthOtpRoute,
   AuthPhoneSignInRoute: AuthPhoneSignInRoute,
@@ -1317,7 +1318,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexMatchesRoute: IndexMatchesRoute,
   PlayGameNameRoute: PlayGameNameRoute,
   PromotionsIdRoute: PromotionsIdRoute,
-  WebengageOauthCallbackRoute: WebengageOauthCallbackRoute,
   PromotionsIndexRoute: PromotionsIndexRoute,
   IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,
 }

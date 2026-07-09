@@ -13,21 +13,14 @@ export const Route = createFileRoute("/auth/sign-up")({
 
 export default function SignUpPage() {
 	const { returnTo } = Route.useSearch();
-	
-	const baseCallbackURL = import.meta.env.DEV
-		? typeof window !== "undefined"
-			? window.location.origin
-			: "http://localhost:3001"
-		: import.meta.env.VITE_PUBLIC_URL ||
-			(typeof window !== "undefined"
-				? window.location.origin
-				: "http://localhost:3001");
-	
-	const callbackURL = returnTo 
-		? `${baseCallbackURL}${returnTo}` 
-		: baseCallbackURL;
+
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+
+	const webURL = import.meta.env.VITE_PUBLIC_URL;
+	const callbackURL = returnTo
+		? `${webURL}auth/callback?returnTo=${encodeURIComponent(returnTo)}`
+		: `${webURL}auth/callback`;
 
 	const handleSocialSignUp = async (
 		provider: "google" | "apple" | "facebook",

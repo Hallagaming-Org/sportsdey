@@ -11,6 +11,7 @@ import {
 	initiateTransfer,
 } from "@/utils/paystack";
 import { toWAT } from "@/utils";
+import { setWebengageUserAttributes, trackWebengageEvent } from "@/lib/webengage";
 import type { CloudflareBindings } from "../types";
 
 const adminWithdrawalsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -347,6 +348,24 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 			title: "Withdrawal Approved",
 			message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been approved and is being processed.`,
 		});
+
+		trackWebengageEvent(c.env, {
+			userId: txn.userId,
+			eventName: "withdrawal_completed",
+			eventData: {
+				amount: txn.amount / 100,
+				transaction_id: transfer.reference,
+				bank: bankCode,
+				wallet_balance_after: (txn.balance ?? 0) / 100,
+				"account number": accountNumber,
+				"account name": accountName ?? "",
+			},
+		}, c.executionCtx);
+
+		setWebengageUserAttributes(c.env, {
+			userId: txn.userId,
+			wallet_balance: (txn.balance ?? 0) / 100,
+		}, c.executionCtx);
 
 		return c.json({
 			success: true,

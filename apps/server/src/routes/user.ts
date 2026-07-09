@@ -10,6 +10,10 @@ import {
 import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
 import type { CloudflareBindings } from "../types";
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -344,6 +348,31 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		updatedAt: updatedUser.updatedAt,
 	};
 
+	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
+	const firstName = nameParts[0] || "";
+	const lastName = nameParts.slice(1).join(" ") || "";
+
+	setWebengageUserAttributes(c.env, {
+		userId: updatedUser.id,
+		email: updatedUser.email ?? "",
+		firstName,
+		lastName,
+		phone: updatedUser.mobileNumber ?? undefined,
+	}, c.executionCtx);
+
+	if (updatedUser.name && updatedUser.country && updatedUser.mobileNumber) {
+		trackWebengageEvent(c.env, {
+			userId: updatedUser.id,
+			eventName: "Profile Completed",
+			eventData: {
+				"First Name": firstName,
+				"Last Name": lastName,
+				Mobile: updatedUser.mobileNumber,
+				Country: updatedUser.country,
+			},
+		}, c.executionCtx);
+	}
+
 	return c.json(
 		{
 			success: true as const,
@@ -469,8 +498,6 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		toDate: c.req.query("toDate"),
 	});
 
-	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
 	let baseQuery = db
 		.select({
 			id: schema.user.id,
@@ -489,11 +516,6 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		baseQuery = baseQuery.where(statusCondition) as typeof baseQuery;
 	}
 
-	if (tab === "recent") {
-		const recentCondition = and(gte(schema.user.createdAt, sevenDaysAgo));
-		baseQuery = baseQuery.where(recentCondition) as typeof baseQuery;
-	}
-
 	if (tab === "pending") {
 		const pendingCondition = and(
 			eq(schema.user.verificationStatus, "pending_verification"),
@@ -506,7 +528,11 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// filtering at the application layer.
 
 	const orderByClause =
-		sort === "desc" ? desc(schema.user.name) : asc(schema.user.name);
+		tab === "recent"
+			? desc(schema.user.createdAt)
+			: sort === "desc"
+				? desc(schema.user.name)
+				: asc(schema.user.name);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory

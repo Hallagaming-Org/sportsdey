@@ -22,6 +22,10 @@ import {
 	SportsbookTokenErrorSchema,
 } from "@/schemas/sportsbook";
 import { toWAT } from "@/utils";
+import {
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
 import type { CloudflareBindings } from "../types";
 
 const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -508,6 +512,22 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 			);
 		}
 
+		const firstSelection = result.data.selections?.[0];
+		trackWebengageEvent(c.env, {
+			userId: session.userId,
+			eventName: "bet_slip_created",
+			eventData: {
+				sport: firstSelection?.sport ?? "",
+				league: firstSelection?.league ?? "",
+				match_id: firstSelection?.match_id ?? result.data.bet_id,
+				bet_type: result.data.bet_type ?? "",
+				odds: result.data.total_odds_value?.toString() ?? "",
+				stake_amount: stakeKobo / 100,
+				potential_payout: (stakeKobo * (result.data.total_odds_value ?? 1)) / 100,
+				odds_total: result.data.total_odds_value ?? 0,
+			},
+		}, c.executionCtx);
+
 		return c.body(null, 204);
 	} catch (error) {
 		console.error("Bet place transaction error:", error);
@@ -813,6 +833,40 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 			400,
 		);
 	}
+
+	const betTypeLabels: Record<number, string> = {
+		1: "single", 2: "accumulator", 3: "system",
+		4: "chain", 5: "conditional", 6: "multi-single",
+		7: "multi-accumulator", 8: "live-series", 9: "live-accumulator",
+	};
+
+	const selections = result.data.bet_odds as Array<Record<string, unknown>> | undefined;
+	const firstSelection = selections?.[0];
+	const matchIds = selections?.map((s) => String(s?.match_id ?? "")).filter(Boolean) ?? [];
+	const originalBetType = typeof result.data.bet_type === "number"
+		? betTypeLabels[result.data.bet_type] ?? String(result.data.bet_type)
+		: (bet.betType ?? "");
+	const potentialPayout = bet.totalOdds ? (bet.stake / 100) * bet.totalOdds : 0;
+
+	trackWebengageEvent(c.env, {
+		userId: bet.userId,
+		eventName: "bet_placed",
+		eventData: {
+			bet_id: bet.id,
+			bet_type: originalBetType,
+			category: (firstSelection?.category as string) ?? "",
+			sub_category: (firstSelection?.sub_category as string) ?? "",
+			stake_amount: bet.stake / 100,
+			potential_payout: potentialPayout,
+			odds_total: bet.totalOdds ?? 0,
+			selection_count: selections?.length ?? 0,
+			sport: (firstSelection?.sport as string) ?? "",
+			league: (firstSelection?.league as string) ?? "",
+			match_ids: matchIds,
+			is_live_bet: firstSelection?.is_live === true || firstSelection?.is_live === "true",
+			wallet_balance_after: newBalance / 100,
+		},
+	}, c.executionCtx);
 
 	return c.body(null, 204);
 });
@@ -1432,6 +1486,25 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
+	const settleTypeLabel = settleType === 1 ? "win" : settleType === 2 ? "refund" : "loss";
+	const payoutAmount = settleType === 1 ? settleAmount / 100 : 0;
+	const netPnl = payoutAmount - (bet.stake / 100);
+
+	trackWebengageEvent(c.env, {
+		userId: bet.userId,
+		eventName: "bet_settled",
+		eventData: {
+			bet_id: bet.id,
+			outcome: settleTypeLabel,
+			payout_amount: payoutAmount,
+			net_pnl: netPnl,
+			sport: result.data.selections?.[0]?.sport ?? "",
+			category: result.data.selections?.[0]?.category ?? "",
+			sub_category: result.data.selections?.[0]?.sub_category ?? "",
+			league: result.data.selections?.[0]?.league ?? "",
+		},
+	}, c.executionCtx);
+
 	return c.body(null, 204);
 });
 
@@ -1999,6 +2072,23 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 			400,
 		);
 	}
+
+	const cashoutValue = refundAmountKobo / 100;
+	const originalStake = bet.stake / 100;
+	const originalPotentialPayout = bet.totalOdds ? originalStake * bet.totalOdds : 0;
+	const cashoutRate = originalStake - cashoutValue;
+
+	trackWebengageEvent(c.env, {
+		userId: bet.userId,
+		eventName: "bet_cashout_requested",
+		eventData: {
+			bet_id: bet.id,
+			cashout_value: cashoutValue,
+			original_stake: originalStake,
+			original_potential_payout: originalPotentialPayout,
+			cashout_rate: cashoutRate,
+		},
+	}, c.executionCtx);
 
 	return c.body(null, 204);
 });

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 
@@ -12,25 +12,17 @@ export const Route = createFileRoute("/auth/sign-in")({
 });
 
 export default function SignInPage() {
-	const navigate = useNavigate();
 	const { returnTo } = Route.useSearch();
-	
-	const baseCallbackURL = import.meta.env.DEV
-		? "http://localhost:3001"
-		: import.meta.env.VITE_PUBLIC_URL ||
-			(typeof window !== "undefined"
-				? window.location.origin
-				: "https://sportsdey.com");
-	
-	const callbackURL = returnTo 
-		? `${baseCallbackURL}${returnTo}` 
-		: baseCallbackURL;
+
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
-	const handleSocialSignIn = async (
-		provider: "google" | "facebook",
-	) => {
+	const webURL = import.meta.env.VITE_PUBLIC_URL;
+	const callbackURL = returnTo
+		? `${webURL}auth/callback?returnTo=${encodeURIComponent(returnTo)}`
+		: `${webURL}auth/callback`;
+
+	const handleSocialSignIn = async (provider: "google" | "facebook") => {
 		setIsLoading(true);
 		setError("");
 		try {
@@ -89,8 +81,6 @@ export default function SignInPage() {
 							Continue with Google
 						</span>
 					</button>
-
-
 
 					{/*<button
 						onClick={() => handleSocialSignIn("facebook")}

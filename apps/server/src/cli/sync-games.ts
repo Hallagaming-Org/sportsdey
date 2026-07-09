@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
+import { categorizeGamesFromJson } from "./categorize-utils";
 
 interface GameItem {
 	uuid: string;
@@ -40,12 +41,12 @@ const args = process.argv.slice(2);
 let env: "production" | "staging" = "staging";
 let limit = 0; // 0 means all pages
 let dbName: string;
-let txtPath: string | null = null;
+let jsonPath: string | null = null;
 let categorize = false;
 
-const defaultTxtPath = path.resolve(
+const defaultJsonPath = path.resolve(
 	process.cwd(),
-	"../../Casino_Games_Condensed.txt",
+	"../../../casino_games.json",
 );
 
 for (const arg of args) {
@@ -55,8 +56,8 @@ for (const arg of args) {
 		limit = Number.parseInt(arg, 10);
 	} else if (arg.startsWith("--db=")) {
 		dbName = arg.replace("--db=", "");
-	} else if (arg.startsWith("--txt-path=")) {
-		txtPath = arg.replace("--txt-path=", "");
+	} else if (arg.startsWith("--json=")) {
+		jsonPath = arg.replace("--json=", "");
 	} else if (arg === "--categorize") {
 		categorize = true;
 	}
@@ -99,66 +100,6 @@ function escape(value: string | number | null | undefined): string {
 	return typeof value === "number"
 		? value.toString()
 		: `'${String(value).replace(/'/g, "''")}'`;
-}
-
-const GAME_TYPES = [
-	"Table/Card Games",
-	"Crash Games",
-	"Slots",
-	"Classic",
-	"Arcade",
-	"Bingo",
-	"Dice",
-	"Scratch",
-	"Jackpot",
-	"Lottery",
-	"Roulette",
-	"Popular/Hot Casino",
-] as const;
-
-function normalizeName(name: string): string {
-	return name.toLowerCase().trim().replace(/\s+/g, " ");
-}
-
-function parseCasinoGamesFile(filePath: string): Map<string, string> {
-	const content = fs.readFileSync(filePath, "utf-8");
-	const lines = content.split("\n");
-	const map = new Map<string, string>();
-	const sortedTypes = [...GAME_TYPES].sort((a, b) => b.length - a.length);
-
-	for (const line of lines) {
-		const trimmed = line.trimEnd();
-		if (
-			!trimmed ||
-			trimmed.startsWith("CASINO") ||
-			trimmed.startsWith("=") ||
-			trimmed.startsWith("GAME TITLE") ||
-			trimmed.startsWith("-")
-		) {
-			continue;
-		}
-
-		for (const type of sortedTypes) {
-			if (trimmed.endsWith(type)) {
-				const name = normalizeName(trimmed.slice(0, -type.length));
-				if (name && !map.has(name)) {
-					map.set(name, type.toLowerCase().replace(/\s+/g, "-"));
-				}
-				break;
-			}
-		}
-	}
-
-	console.log(`Loaded ${map.size} game categories from ${filePath}`);
-	return map;
-}
-
-function getCategory(
-	gameName: string,
-	categoryMap: Map<string, string>,
-): string | null {
-	const normalized = normalizeName(gameName);
-	return categoryMap.get(normalized) ?? "others";
 }
 
 async function generateXSign(
@@ -303,10 +244,7 @@ async function main() {
 
 	const existingIds = await getExistingGameIds();
 
-	const resolvedTxtPath = txtPath ?? defaultTxtPath;
-	const categoryMap = fs.existsSync(resolvedTxtPath)
-		? parseCasinoGamesFile(resolvedTxtPath)
-		: new Map<string, string>();
+	const resolvedJsonPath = jsonPath ?? defaultJsonPath;
 
 	const newGames = allGames.filter(
 		(game) => !existingIds.has(game.uuid) || existingIds.size === 0,
@@ -389,70 +327,9 @@ async function main() {
 		console.log(`\nDone! Inserted ${inserted} games.`);
 	}
 
-	if (categorize && categoryMap.size > 0) {
-		console.log("\nInserting categories into category and game_category tables...");
-		const { exec: execBackfill } = await import("node:child_process");
-
-		const catInserted = new Set<string>();
-		const gcValues: string[] = [];
-		const now = Date.now();
-
-		for (const game of allGames) {
-			const cat = getCategory(game.name, categoryMap);
-			if (cat) {
-				const slug = cat.toLowerCase().replace(/[\/\s]+/g, "-");
-				if (!catInserted.has(slug)) {
-					catInserted.add(slug);
-				}
-				gcValues.push(
-					`(${escape(game.uuid)}, ${escape(slug)})`,
-				);
-			}
-		}
-
-		if (catInserted.size > 0) {
-			const catSql = `INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${[...catInserted].map((s) => `(${escape(s)}, ${escape(s)}, ${escape(s)}, ${now})`).join(",\n")};`;
-			const tempFile = path.join(os.tmpdir(), `sync-categories-${timestamp}-0.sql`);
-			fs.writeFileSync(tempFile, catSql);
-			try {
-				await new Promise((resolve, reject) => {
-					execBackfill(
-						`npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`,
-						{ timeout: 120000 },
-						(error) => {
-							try { fs.unlinkSync(tempFile); } catch {}
-							if (error) reject(error);
-							else resolve(undefined);
-						},
-					);
-				});
-				console.log(`Inserted ${catInserted.size} categories`);
-			} catch (err) {
-				console.error("Failed to insert categories:", err);
-			}
-		}
-
-		if (gcValues.length > 0) {
-			const gcSql = `INSERT OR IGNORE INTO game_category (game_id, category_id) VALUES ${gcValues.join(",\n")};`;
-			const tempFile = path.join(os.tmpdir(), `sync-categories-${timestamp}-1.sql`);
-			fs.writeFileSync(tempFile, gcSql);
-			try {
-				await new Promise((resolve, reject) => {
-					execBackfill(
-						`npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${env}`,
-						{ timeout: 120000 },
-						(error) => {
-							try { fs.unlinkSync(tempFile); } catch {}
-							if (error) reject(error);
-							else resolve(undefined);
-						},
-					);
-				});
-				console.log(`Linked ${gcValues.length} game-category pairs`);
-			} catch (err) {
-				console.error("Failed to link game categories:", err);
-			}
-		}
+	if (categorize) {
+		console.log("\nRunning categorization from JSON...");
+		await categorizeGamesFromJson(usedDbName, env, resolvedJsonPath);
 	}
 }
 

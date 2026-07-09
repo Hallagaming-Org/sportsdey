@@ -22,6 +22,12 @@ import TwentyOneLogo from "@/logos/twentyone.svg?react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type Category = {
+	id: string;
+	name: string;
+	slug: string;
+};
+
 type Game = {
 	id: string;
 	name: string;
@@ -30,7 +36,7 @@ type Game = {
 	enabled: boolean;
 	createdAt: number;
 	updatedAt: number;
-	category?: string | null;
+	categories: Category[];
 };
 
 type LaunchResponse = {

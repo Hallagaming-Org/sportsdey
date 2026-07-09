@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { SPORTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
 import Soccer from "@/logos/Soccer";
@@ -53,6 +54,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToHome = () => {
 		setTab("scores");
+		trackWebengageEvent("Category", { Name: "Home" });
 		const target =
 			currentSport === SPORTS.TENNIS
 				? "/tennis"
@@ -71,6 +73,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToScores = () => {
 		setTab("match-scores");
+		trackWebengageEvent("Category", { Name: "Scores" });
 		const targetSport = currentSport || "football";
 		navigate({
 			to:
@@ -85,11 +88,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToCasino = () => {
 		setTab("games");
+		trackWebengageEvent("Category", { Name: "Casino" });
 		navigate({ to: "/games", search: { category: undefined } });
 	};
 
 	const goToSportsbook = () => {
 		setTab("betting");
+		trackWebengageEvent("Category", { Name: "Sportsbook" });
 		navigate({
 			to: "/sportsbetting",
 			search: { sports: currentSport } as any,
@@ -98,6 +103,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToNews = () => {
 		setTab("news");
+		trackWebengageEvent("Category", { Name: "News" });
 		navigate({
 			to: "/news",
 			search: { sports: currentSport || SPORTS.FOOTBALL },
@@ -114,6 +120,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToVideos = () => {
 		setTab("videos");
+		trackWebengageEvent("Category", { Name: "Videos" });
 		navigate({
 			to: "/videos",
 			search: { sports: currentSport || SPORTS.FOOTBALL },
@@ -272,6 +279,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive("promotions", location.pathname.startsWith("/promotions")),
 			onClick: () => {
 				setTab("promotions");
+				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
 			},
 		},

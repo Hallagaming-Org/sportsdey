@@ -1,6 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { cn } from "@/lib/utils";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 import Games from "@/logos/game.svg?react";
 import Home from "@/logos/home-Filled.svg?react";
@@ -24,8 +25,10 @@ const bottomBarItems: {
 ];
 const Footer = () => {
 	const currentSport = useCurrentSport();
-	const { tab, setTab } = useActiveTab();
+		const { tab, setTab } = useActiveTab();
 	const router = useRouter();
+	const trackCategory = (name: string) =>
+		trackWebengageEvent("Category", { Name: name });
 	return (
 		<div className="px-0 pt-3 lg:hidden">
 			<div className="w-full">
@@ -37,6 +40,7 @@ const Footer = () => {
 								onClick={() => {
 									setTab(item);
 									if (item === "scores") {
+										trackCategory("Home");
 										const targetSport = currentSport || "football";
 										router.navigate({
 											to:
@@ -50,6 +54,7 @@ const Footer = () => {
 									}
 
 									if (item === "betting") {
+										trackCategory("Sportsbetting");
 										router.navigate({
 											to: "/sportsbetting",
 											search: { sports: currentSport } as any,
@@ -57,10 +62,12 @@ const Footer = () => {
 									}
 
 									if (item === "games") {
+										trackCategory("Casino");
 										router.navigate({ to: "/games" });
 									}
 
 									if (item === "favourites") {
+										trackCategory("Wallet");
 										router.navigate({
 											to: "/wallet",
 											search: { sports: currentSport } as any,
@@ -68,6 +75,7 @@ const Footer = () => {
 									}
 
 									if (item === "news") {
+										trackCategory("News");
 										router.navigate({
 											to: "/news",
 											search: { sports: currentSport } as any,

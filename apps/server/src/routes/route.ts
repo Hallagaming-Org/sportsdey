@@ -20,7 +20,6 @@ import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
-
 const routes = new OpenAPIHono();
 
 routes.route("/football", footballRoute);
