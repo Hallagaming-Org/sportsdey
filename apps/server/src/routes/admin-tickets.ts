@@ -116,6 +116,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 		gameType: string;
 		outcome: "Won" | "Active" | "Lost";
 		createdAt: Date;
+		balanceBefore: number | null;
+		balanceAfter: number | null;
 	}> = [];
 
 	if (type === "all" || type === "sportsbook") {
@@ -137,17 +139,27 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				betAmount: schema.sportsbookBet.stake,
 				outcome: schema.sportsbookBet.status,
 				createdAt: schema.sportsbookBet.createdAt,
+				balanceBefore: schema.sportsbookBetEvent.balanceBefore,
+				balanceAfter: schema.sportsbookBetEvent.balanceAfter,
 			})
 			.from(schema.sportsbookBet)
 			.innerJoin(
 				schema.user,
 				eq(schema.sportsbookBet.userId, schema.user.id),
 			)
+			.leftJoin(
+				schema.sportsbookBetEvent,
+				eq(schema.sportsbookBet.id, schema.sportsbookBetEvent.betId),
+			)
 			.where(sbConditions.length > 0 ? and(...sbConditions) : undefined)
 			.orderBy(desc(schema.sportsbookBet.createdAt))
 			.limit(MAX_PER_SOURCE);
 
+		const processedBetIds = new Set<string>();
 		for (const r of sbResults) {
+			if (processedBetIds.has(r.id)) continue;
+			processedBetIds.add(r.id);
+
 			const ts = r.createdAt.getTime();
 			if (fromBoundary && ts < fromBoundary.getTime()) continue;
 			if (toBoundary && ts > toBoundary.getTime()) continue;
@@ -159,6 +171,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				gameType: "Sportsbook",
 				outcome: mapSbOutcome(r.outcome),
 				createdAt: r.createdAt,
+				balanceBefore: r.balanceBefore,
+				balanceAfter: r.balanceAfter,
 			});
 		}
 	}
@@ -171,6 +185,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 			typeCol: any;
 			amountCol: any;
 			createdAtCol: any;
+			balanceBeforeCol: any;
+			balanceAfterCol: any;
 		}> = [
 			{
 				table: schema.gameTransactions,
@@ -179,6 +195,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				typeCol: schema.gameTransactions.type,
 				amountCol: schema.gameTransactions.amount,
 				createdAtCol: schema.gameTransactions.createdAt,
+				balanceBeforeCol: schema.gameTransactions.balanceBefore,
+				balanceAfterCol: schema.gameTransactions.balanceAfter,
 			},
 			{
 				table: schema.thundrTransactions,
@@ -187,6 +205,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				typeCol: schema.thundrTransactions.type,
 				amountCol: schema.thundrTransactions.amount,
 				createdAtCol: schema.thundrTransactions.createdAt,
+				balanceBeforeCol: schema.thundrTransactions.balanceBefore,
+				balanceAfterCol: schema.thundrTransactions.balanceAfter,
 			},
 			{
 				table: schema.slotitegrationTransactions,
@@ -195,6 +215,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				typeCol: schema.slotitegrationTransactions.type,
 				amountCol: schema.slotitegrationTransactions.amount,
 				createdAtCol: schema.slotitegrationTransactions.createdAt,
+				balanceBeforeCol: schema.slotitegrationTransactions.balanceBefore,
+				balanceAfterCol: schema.slotitegrationTransactions.balanceAfter,
 			},
 			{
 				table: schema.pocketsTransactions,
@@ -203,6 +225,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				typeCol: schema.pocketsTransactions.type,
 				amountCol: schema.pocketsTransactions.amount,
 				createdAtCol: schema.pocketsTransactions.createdAt,
+				balanceBeforeCol: schema.pocketsTransactions.balanceBefore,
+				balanceAfterCol: schema.pocketsTransactions.balanceAfter,
 			},
 		];
 
@@ -225,6 +249,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 					betAmount: source.amountCol,
 					outcomeType: source.typeCol,
 					createdAt: source.createdAtCol,
+					balanceBefore: source.balanceBeforeCol,
+					balanceAfter: source.balanceAfterCol,
 				})
 				.from(source.table)
 				.innerJoin(
@@ -249,6 +275,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 					gameType: "Casino",
 					outcome: mapCasinoOutcome(r.outcomeType),
 					createdAt: r.createdAt,
+					balanceBefore: r.balanceBefore,
+					balanceAfter: r.balanceAfter,
 				});
 			}
 		}
@@ -275,6 +303,8 @@ adminTicketsRoute.get("/tickets", async (c) => {
 				gameType: t.gameType,
 				outcome: t.outcome,
 				createdAt: formatDate(t.createdAt),
+				balanceBefore: t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+				balanceAfter: t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
 			})),
 			pagination: {
 				page,

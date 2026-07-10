@@ -1,22 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
+import Loader from "@/components/loader";
 import { useSession } from "@/lib/auth/client";
 import {
 	loginWebengageUser,
 	setWebengageUserAttributes,
 } from "@/lib/webengage";
-import Loader from "@/components/loader";
 
-export const Route = createFileRoute("/webengage/oauth-callback")({
-	validateSearch: (
-		search: Record<string, unknown>,
-	): { returnTo?: string } => ({
+export const Route = createFileRoute("/auth/callback")({
+	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => ({
 		returnTo: search.returnTo as string | undefined,
 	}),
-	component: WebengageCallback,
+	component: AuthCallback,
 });
 
-function WebengageCallback() {
+function AuthCallback() {
 	const { returnTo } = Route.useSearch();
 	const navigate = useNavigate();
 	const { data: session } = useSession();
@@ -31,9 +29,9 @@ function WebengageCallback() {
 
 		const nameParts = (session.user.name || "").trim().split(/\s+/);
 		setWebengageUserAttributes({
-			email: session.user.email || "",
-			"first name": nameParts[0] || "",
-			"last name": nameParts.slice(1).join(" ") || "",
+			we_email: session.user.email || "",
+			we_first_name: nameParts[0] || "",
+			we_last_name: nameParts.slice(1).join(" ") || "",
 		});
 
 		navigate({ to: returnTo || "/" });

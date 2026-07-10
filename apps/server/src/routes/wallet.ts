@@ -1,8 +1,12 @@
-import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import crypto from "node:crypto";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import {
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
 import {
 	CallbackQuerySchema,
 	CreateWithdrawalAccountErrorSchema,
@@ -32,6 +36,7 @@ import {
 	WithdrawErrorSchema,
 	WithdrawSchema,
 } from "@/schemas/wallet";
+import { toWAT } from "@/utils";
 import {
 	getNigerianBanks,
 	initializeTransaction,
@@ -45,7 +50,6 @@ import {
 	getTransactionChannel,
 } from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
-import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -616,7 +620,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		currentBalance = existingWallet.balance;
 	}
 
-	try{
+	try {
 		const callbackUrl = `${c.env.SERVER_URL}/wallet/callback`;
 		const paystackResult = await initializeTransaction(
 			c.env.PAYSTACK_SECRET_KEY,
@@ -665,6 +669,15 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			);
 		}
 
+		// trackWebengageEvent(c.env, {
+		// 	userId: user.id,
+		// 	eventName: "deposit_initiated",
+		// 	eventData: {
+		// 		amount,
+		// 		currency: "NGN",
+		// 	},
+		// }, c.executionCtx);
+
 		return c.json(
 			{
 				success: true as const,
@@ -677,13 +690,18 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			200,
 		);
 	} catch (error) {
-		console.log("fund error message", error instanceof Error ? error.message : error);
-		console.log("fund error cause", error instanceof Error && 'cause' in error ? error.cause : "N/A");
+		console.log(
+			"fund error message",
+			error instanceof Error ? error.message : error,
+		);
+		console.log(
+			"fund error cause",
+			error instanceof Error && "cause" in error ? error.cause : "N/A",
+		);
 		return c.json(
 			{
 				success: false as const,
-				error:
-						 "Failed to initialize payment",
+				error: "Failed to initialize payment",
 				details: null,
 			},
 			500,
@@ -769,9 +787,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 	const query = c.req.valid("query");
-	const filters = [
-		eq(schema.walletTransaction.userId, user.id),
-	];
+	const filters = [eq(schema.walletTransaction.userId, user.id)];
 
 	if (query.month) {
 		const [yearString, monthString] = query.month.split("-");
@@ -907,7 +923,23 @@ walletRoute.openapi(callbackRoute, async (c) => {
 
 			const paymentMethod = tx.channel === "card" ? "card" : "bank_transfer";
 
-				if (status === "success") {
+			if (status === "failed" && transaction) {
+				trackWebengageEvent(
+					c.env,
+					{
+						userId: transaction.userId,
+						eventName: "deposit_failed",
+						eventData: {
+							amount: (tx.amount ?? transaction.amount) / 100,
+							payment_method: paymentMethod,
+							failure_reason: tx.gateway_response || "Payment failed",
+						},
+					},
+					c.executionCtx,
+				);
+			}
+
+			if (status === "success") {
 				if (transaction && transaction.status !== "success") {
 					const [wallet] = await db
 						.select()
@@ -933,7 +965,9 @@ walletRoute.openapi(callbackRoute, async (c) => {
 					let existingMeta: Record<string, unknown> = {};
 					try {
 						existingMeta = JSON.parse(transaction.metadata || "{}");
-					} catch { /* empty */ }
+					} catch {
+						/* empty */
+					}
 
 					const auth = tx.authorization;
 					if (transaction.type === "credit") {
@@ -956,6 +990,43 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							metadata: JSON.stringify(existingMeta),
 						})
 						.where(eq(schema.walletTransaction.reference, reference));
+
+					const userEmail = transaction.userId;
+					const userRecord = await db
+						.select({ email: schema.user.email, name: schema.user.name })
+						.from(schema.user)
+						.where(eq(schema.user.id, transaction.userId))
+						.limit(1)
+						.then((r) => r[0]);
+
+					trackWebengageEvent(
+						c.env,
+						{
+							userId: transaction.userId,
+							eventName: "deposit_completed",
+							eventData: {
+								amount: (tx.amount ?? transaction.amount) / 100,
+								currency: "NGN",
+								payment_method: paymentMethod,
+								transaction_id: reference,
+								type: "credit",
+								wallet_balance_after: newBalance / 100,
+							},
+						},
+						c.executionCtx,
+					);
+
+					setWebengageUserAttributes(
+						c.env,
+						{
+							userId: transaction.userId,
+							email: userRecord?.email,
+							firstName: userRecord?.name?.split(" ")[0],
+							lastName: userRecord?.name?.split(" ").slice(1).join(" "),
+							wallet_balance: newBalance / 100,
+						},
+						c.executionCtx,
+					);
 				}
 			}
 		} catch {
@@ -1611,6 +1682,22 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			.set({ balance: newBalance })
 			.where(eq(schema.wallet.userId, user.id));
 
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "withdrawal_requested",
+				eventData: {
+					amount,
+					bank: bankCode,
+					wallet_balance_before: wallet.balance / 100,
+					"account number": accountNumber,
+					"account name": accountName ?? "",
+				},
+			},
+			c.executionCtx,
+		);
+
 		const superAdmins = await db
 			.select({ id: schema.admin.id })
 			.from(schema.admin)
@@ -1781,7 +1868,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 			.values({
 				id: generateUUIDv7(),
 				userId: user.id,
-				amount: -amount * 100,
+				amount: amount * 100,
 				type: "debit",
 				reference: `${reference}_sender`,
 				status: "completed",
@@ -1831,6 +1918,21 @@ walletRoute.openapi(transferRoute, async (c) => {
 				500,
 			);
 		}
+
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "transfer_funds completed",
+				eventData: {
+					"wallet id": recipientWalletId,
+					amount,
+					transaction_id: reference,
+					wallet_balance_after: senderWallet.balance / 100 - amount,
+				},
+			},
+			c.executionCtx,
+		);
 
 		return c.json(
 			{
@@ -2001,6 +2103,19 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 
 	const reference = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds initated",
+			eventData: {
+				"wallet id": "game_wallet",
+				amount,
+			},
+		},
+		c.executionCtx,
+	);
+
 	try {
 		await db
 			.update(schema.wallet)
@@ -2023,7 +2138,7 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			.values({
 				id: generateUUIDv7(),
 				userId: user.id,
-				amount: -amount * 100,
+				amount: amount * 100,
 				type: "debit",
 				reference: `${reference}_normal`,
 				status: "completed",
@@ -2073,6 +2188,21 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			.from(schema.gameWallet)
 			.where(eq(schema.gameWallet.id, gameWallet.id))
 			.limit(1);
+
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "transfer_funds completed",
+				eventData: {
+					"wallet id": "game_wallet",
+					amount,
+					transaction_id: reference,
+					wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+				},
+			},
+			c.executionCtx,
+		);
 
 		return c.json(
 			{

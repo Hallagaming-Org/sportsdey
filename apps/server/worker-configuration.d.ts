@@ -52,6 +52,9 @@ declare namespace Cloudflare {
 		AFRICASTALKING_API_KEY: string;
 		AFRICASTALKING_USERNAME: string;
 		AFRICASTALKING_SENDER_ID: string;
+		WEBENGAGE_API_KEY: string;
+		WEBENGAGE_LICENSE_CODE: string;
+		WEBENGAGE_HOST: string;
 	}
 }
 export interface CloudflareBindings extends Cloudflare.Env {}

@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { apiRequest } from "@/lib/api";
+import { trackWebengageEvent } from "@/lib/webengage";
 import DetailsImageCard from "@/shared/DetailsImageCard";
 import type { BasketballGameDetails } from "@/types/api";
 import { getTimeUntilStart, safeParseDate } from "@/utils/timeUtils";
@@ -24,6 +25,7 @@ const BasketBallDetailsPage = () => {
 	>("western");
 	const [standingsEnabled, setStandingsEnabled] = useState(false);
 	const [statsEnabled, setStatsEnabled] = useState(false);
+	const matchTrackedRef = useRef(false);
 
 	const {
 		isFavoriteTeam,
@@ -357,6 +359,23 @@ const BasketBallDetailsPage = () => {
 				return null;
 		}
 	};
+
+	useEffect(() => {
+		if (gameDetails && !matchTrackedRef.current) {
+			matchTrackedRef.current = true;
+			trackWebengageEvent("Match viewed", {
+				match_id: Id,
+				sport: "basketball",
+				league: gameDetails.tournament?.name || "",
+				teams: `${gameDetails.home?.name || ""} vs ${gameDetails.away?.name || ""}`,
+				timings: gameDetails.date || "",
+				match_status: gameDetails.status || "",
+				match_score: `${gameDetails.home?.points ?? ""} - ${gameDetails.away?.points ?? ""}`,
+				match_time: gameDetails.clock || "",
+				referrer: "",
+			});
+		}
+	}, [gameDetails, Id]);
 
 	useEffect(() => {
 		if (

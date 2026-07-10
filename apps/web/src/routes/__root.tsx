@@ -21,7 +21,9 @@ import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
+
 import { cn } from "@/lib/utils";
 import { store } from "@/store";
 import Header from "../components/header";
@@ -82,7 +84,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
-	
+	const { data: session } = useSession();
+
 	useEffect(() => {
 		window.scrollTo(0, 0);
 		const mains = document.querySelectorAll("main");

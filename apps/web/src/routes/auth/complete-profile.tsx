@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import z from "zod";
 import { apiRequest } from "@/lib/api";
 import { changeEmail, useSession } from "@/lib/auth/client";
+import {
+	loginWebengageUser,
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
 
 const profileSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -23,14 +28,19 @@ function CompleteProfilePage() {
 	const [error, setError] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
+	const referralId = "";
+
 	useEffect(() => {
+		if (session?.user?.id) {
+			loginWebengageUser(session.user.id);
+		}
 		if (session?.user?.name) {
 			setFullName(session.user.name);
 		}
 		if (session?.user?.email) {
 			setEmail(session.user.email);
 		}
-	}, [session?.user?.email, session?.user?.name]);
+	}, [session?.user?.email, session?.user?.id, session?.user?.name]);
 
 	const isGeneratedLocalEmail = (value: string) =>
 		/^phone_\d+@sportsdey\.local$/.test(value.trim());
@@ -51,6 +61,25 @@ function CompleteProfilePage() {
 				method: "PATCH",
 				credentials: "include",
 				body: JSON.stringify({ name: fullName }),
+			});
+
+			const nameParts = fullName.trim().split(/\s+/);
+			const firstName = nameParts[0] || "";
+			const lastName = nameParts.slice(1).join(" ") || "";
+			const userMobile =
+				(session?.user as Record<string, unknown>)?.mobileNumber || "";
+			setWebengageUserAttributes({
+				we_first_name: firstName,
+				we_last_name: lastName,
+				we_email: email.trim(),
+				we_phone: userMobile as string,
+			});
+			trackWebengageEvent("Profile Completed", {
+				"First Name": firstName,
+				"Last Name": lastName,
+				Mobile: (userMobile as string) || "",
+				Country: "",
+				"Reference Id": referralId,
 			});
 
 			if (
@@ -154,11 +183,15 @@ function CompleteProfilePage() {
 				</button>
 
 				<div className="mt-6 text-center">
-					<Link to="/" search={{} as any} className="text-[#1e2421] text-sm underline">
+					<Link
+						to="/"
+						search={{} as any}
+						className="text-[#1e2421] text-sm underline"
+					>
 						Skip for now
 					</Link>
 				</div>
-		</div>
+			</div>
 		</div>
 	);
 }

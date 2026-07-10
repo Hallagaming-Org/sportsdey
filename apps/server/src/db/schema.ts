@@ -174,6 +174,8 @@ export const sportsbookBetEvent = sqliteTable("sportsbook_bet_event", {
 	requestId: text("request_id").unique(),
 	eventType: text("event_type").notNull(),
 	eventData: text("event_data"),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -382,6 +384,8 @@ export const gameTransactions = sqliteTable("game_transactions", {
 	providerTxId: text("provider_tx_id").notNull().unique(),
 	type: text("type").notNull(),
 	amount: integer("amount").notNull(),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	sessionToken: text("session_token").notNull(),
 	game: text("game").notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -447,6 +451,8 @@ export const thundrTransactions = sqliteTable("thundr_transactions", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	type: text("type").notNull(),
 	amount: integer("amount").notNull(),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	roundId: text("round_id").notNull(),
 	gameId: text("game_id").notNull(),
 	sessionId: text("session_id").notNull(),
@@ -473,6 +479,8 @@ export const pocketsTransactions = sqliteTable("pockets_transactions", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	type: text("type").notNull(),
 	amount: integer("amount").notNull(),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	currency: text("currency").notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -529,6 +537,8 @@ export const slotitegrationTransactions = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		type: text("type").notNull(),
 		amount: integer("amount").notNull(),
+		balanceBefore: integer("balance_before"),
+		balanceAfter: integer("balance_after"),
 		currency: text("currency").notNull(),
 		roundId: text("round_id"),
 		gameId: text("game_id"),

@@ -4,16 +4,18 @@ import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
-import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { requirePermission } from "@/middleware/admin-permissions";
 import {
-	createTransferRecipient,
-	initiateTransfer,
-} from "@/utils/paystack";
+	trackWebengageEvent,
+} from "@/lib/webengage";
+import { requirePermission } from "@/middleware/admin-permissions";
+import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
+import { createTransferRecipient, initiateTransfer } from "@/utils/paystack";
 import type { CloudflareBindings } from "../types";
 
-const adminWithdrawalsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+const adminWithdrawalsRoute = new OpenAPIHono<{
+	Bindings: CloudflareBindings;
+}>();
 
 const PendingWithdrawalSchema = z.object({
 	id: z.string(),
@@ -150,9 +152,7 @@ const rejectRoute = createRoute({
 			description: "Withdrawal rejected",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({ message: z.string() }),
-					),
+					schema: successResponseSchema(z.object({ message: z.string() })),
 				},
 			},
 		},
@@ -219,10 +219,7 @@ adminWithdrawalsRoute.openapi(getPendingRoute, async (c) => {
 			createdAt: schema.walletTransaction.createdAt,
 		})
 		.from(schema.walletTransaction)
-		.innerJoin(
-			schema.user,
-			eq(schema.walletTransaction.userId, schema.user.id),
-		)
+		.innerJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
 		.where(eq(schema.walletTransaction.status, "pending_approval"))
 		.orderBy(desc(schema.walletTransaction.createdAt))
 		.limit(limit)
@@ -251,7 +248,10 @@ adminWithdrawalsRoute.openapi(getPendingRoute, async (c) => {
 
 	return c.json({
 		success: true,
-		data: { transactions: formatted, pagination: { page, limit, total, totalPages } },
+		data: {
+			transactions: formatted,
+			pagination: { page, limit, total, totalPages },
+		},
 	});
 });
 
@@ -334,8 +334,7 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		await db
 			.update(schema.walletTransaction)
 			.set({
-				status:
-					transfer.status === "success" ? "success" : "processing",
+				status: transfer.status === "success" ? "success" : "processing",
 				paymentMethod: "paystack",
 				reference: transfer.reference,
 			})
@@ -347,6 +346,24 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 			title: "Withdrawal Approved",
 			message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been approved and is being processed.`,
 		});
+
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: txn.userId,
+				eventName: "withdrawal_completed",
+				eventData: {
+					amount: txn.amount / 100,
+					transaction_id: transfer.reference,
+					bank: bankCode,
+					wallet_balance_after: (txn.balance ?? 0) / 100,
+					"account number": accountNumber,
+					"account name": accountName ?? "",
+				},
+			},
+			c.executionCtx,
+		);
+
 
 		return c.json({
 			success: true,
@@ -385,15 +402,10 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 
 	const { id } = c.req.valid("param");
 	const body = await c.req.json();
-	const reasonResult = z
-		.object({ reason: z.string().min(1) })
-		.safeParse(body);
+	const reasonResult = z.object({ reason: z.string().min(1) }).safeParse(body);
 
 	if (!reasonResult.success) {
-		return c.json(
-			{ success: false, error: "Reason is required" },
-			400,
-		);
+		return c.json({ success: false, error: "Reason is required" }, 400);
 	}
 
 	const { reason } = reasonResult.data;

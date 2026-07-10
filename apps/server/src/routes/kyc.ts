@@ -7,6 +7,7 @@ import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { toWAT } from "@/utils";
+import { setWebengageUserAttributes } from "@/lib/webengage";
 import type { CloudflareBindings } from "../types";
 
 type R2Bucket = CloudflareBindings["PRODUCTION_BUCKET"];
@@ -1019,6 +1020,11 @@ kycRoute.openapi(approveKycRoute, async (c) => {
 		.set({ verificationStatus: "approved" })
 		.where(eq(schema.user.id, kycRecord.userId));
 
+	setWebengageUserAttributes(c.env, {
+		userId: kycRecord.userId,
+		kyc_status: true,
+	}, c.executionCtx);
+
 	return c.json({ success: true, data: { message: "KYC approved successfully" } }, 200);
 });
 
@@ -1115,6 +1121,11 @@ kycRoute.openapi(rejectKycRoute, async (c) => {
 		.update(schema.user)
 		.set({ verificationStatus: "rejected" })
 		.where(eq(schema.user.id, kycRecord.userId));
+
+	setWebengageUserAttributes(c.env, {
+		userId: kycRecord.userId,
+		kyc_status: false,
+	}, c.executionCtx);
 
 	return c.json({ success: true, data: { message: "KYC rejected" } }, 200);
 });
