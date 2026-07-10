@@ -731,6 +731,8 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
+	let bal: number;
+
 	try {
 		const wallet = await db.query.wallet.findFirst({
 			where: eq(schema.wallet.userId, bet.userId),
@@ -741,13 +743,11 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		}
 
 		const balanceBefore = wallet.balance;
-
-		let balance: number;
+		bal = balanceBefore;
 
 		if (!bet.betFreebetId) {
 			const newBalance = wallet.balance - bet.stake;
 			const newFrozenBalance = wallet.frozenBalance - bet.stake;
-			balance = newBalance;
 
 			const walletUpdate = await db
 				.update(schema.wallet)
@@ -771,7 +771,6 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 					400,
 				);
 			}
-			console.log("wallet update", walletUpdate);
 
 			const [walletTxn] = await db
 				.insert(schema.walletTransaction)
@@ -832,7 +831,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				eventType: "accept",
 				eventData: JSON.stringify(result.data),
 				balanceBefore: balanceBefore,
-				balanceAfter: balance,
+				balanceAfter: walletUpdate.balance,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -902,7 +901,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				sport: firstSelection?.meta?.sport_event_info_sport_id ?? "",
 				league: firstSelection?.meta?.sport_event_info_tournament_id ?? "",
 				match_ids: selections?.map((s) => s.match_id ?? "") ?? [],
-				wallet_balance_after: (balance ?? wallet.balance) / 100,
+				wallet_balance_after: bal / 100,
 			},
 		},
 		c.executionCtx,
