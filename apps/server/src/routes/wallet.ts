@@ -1846,19 +1846,6 @@ walletRoute.openapi(transferRoute, async (c) => {
 
 	const reference = `trf_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	trackWebengageEvent(
-		c.env,
-		{
-			userId: user.id,
-			eventName: "transfer_funds initated",
-			eventData: {
-				"wallet id": recipientWalletId,
-				amount,
-			},
-		},
-		c.executionCtx,
-	);
-
 	try {
 		await db
 			.update(schema.wallet)
