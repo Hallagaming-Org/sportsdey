@@ -8,10 +8,7 @@ import {
 	validateAdminSession,
 } from "@/auth/admin";
 import * as schema from "@/db/schema";
-import {
-	setWebengageUserAttributes,
-	trackWebengageEvent,
-} from "@/lib/webengage";
+import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -369,23 +366,6 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
-
-	if (updatedUser.name && updatedUser.country && updatedUser.mobileNumber) {
-		trackWebengageEvent(
-			c.env,
-			{
-				userId: updatedUser.id,
-				eventName: "Profile Completed",
-				eventData: {
-					"First Name": firstName,
-					"Last Name": lastName,
-					Mobile: updatedUser.mobileNumber,
-					Country: updatedUser.country,
-				},
-			},
-			c.executionCtx,
-		);
-	}
 
 	return c.json(
 		{
