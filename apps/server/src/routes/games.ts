@@ -64,11 +64,13 @@ const GameResponseSchema = z
 		code: z.string().openapi({ description: "Game code" }),
 		imageUrl: z.string().nullable().openapi({ description: "Image URL" }),
 		categories: z
-			.array(z.object({
-				id: z.string(),
-				name: z.string(),
-				slug: z.string(),
-			}))
+			.array(
+				z.object({
+					id: z.string(),
+					name: z.string(),
+					slug: z.string(),
+				}),
+			)
 			.openapi({ description: "Game categories" }),
 		enabled: z.boolean().openapi({ description: "Enabled status" }),
 		createdAt: z.number().openapi({ description: "Created at timestamp" }),
@@ -93,15 +95,17 @@ const GameListQuerySchema = z
 		sort: z
 			.enum(["asc", "desc"])
 			.optional()
-			.openapi({ description: "Sort order (default: Aviator-first then alphabetical)" }),
-		offset: z
-			.coerce.number()
+			.openapi({
+				description: "Sort order (default: Aviator-first then alphabetical)",
+			}),
+		offset: z.coerce
+			.number()
 			.int()
 			.min(0)
 			.optional()
 			.openapi({ description: "Offset for pagination" }),
-		limit: z
-			.coerce.number()
+		limit: z.coerce
+			.number()
 			.int()
 			.min(1)
 			.max(100)
@@ -144,23 +148,33 @@ gamesRoute.openapi(
 			},
 		});
 
-		return c.json({
-			success: true as const,
-			data: games.map((g) => ({
-				id: g.id,
-				name: g.name,
-				code: g.code,
-				imageUrl: g.imageUrl,
-				enabled: g.enabled,
-				createdAt: toWAT(g.createdAt),
-				updatedAt: toWAT(g.updatedAt),
-				categories: g.categories.map((gc) => ({
-					id: gc.category.id,
-					name: gc.category.name,
-					slug: gc.category.slug,
+		return c.json(
+			{
+				success: true as const,
+				data: games.map((g) => ({
+					id: g.id,
+					name: g.name,
+					code: g.code,
+					imageUrl: g.imageUrl,
+					enabled: g.enabled,
+					createdAt: toWAT(g.createdAt),
+					updatedAt: toWAT(g.updatedAt),
+					categories: [
+						...new Map(
+							g.categories.map((gc) => [
+								gc.category.slug,
+								{
+									id: gc.category.id,
+									name: gc.category.name,
+									slug: gc.category.slug,
+								},
+							]),
+						).values(),
+					],
 				})),
-			})),
-		}, 200);
+			},
+			200,
+		);
 	},
 );
 
@@ -222,10 +236,18 @@ gamesRoute.openapi(
 			)
 			.where(eq(schema.gameCategory.gameId, game.id));
 
-		return c.json({
-			success: true as const,
-			data: { ...game, categories, createdAt: toWAT(game.createdAt), updatedAt: toWAT(game.updatedAt) },
-		}, 200);
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					...game,
+					categories: [...new Map(categories.map((c) => [c.slug, c])).values()],
+					createdAt: toWAT(game.createdAt),
+					updatedAt: toWAT(game.updatedAt),
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -333,16 +355,25 @@ gamesRoute.openapi(
 			const categoryIds = result.data[i]?.categoryIds;
 			if (categoryIds) {
 				for (const catId of categoryIds) {
-					gameCategoryValues.push({ gameId: inserted[i].id, categoryId: catId });
+					gameCategoryValues.push({
+						gameId: inserted[i].id,
+						categoryId: catId,
+					});
 				}
 			}
 		}
 		if (gameCategoryValues.length > 0) {
-			await db.insert(schema.gameCategory).values(gameCategoryValues).onConflictDoNothing();
+			await db
+				.insert(schema.gameCategory)
+				.values(gameCategoryValues)
+				.onConflictDoNothing();
 		}
 
 		const ids = inserted.map((g) => g.id);
-		const categoryMap: Record<string, { id: string; name: string; slug: string }[]> = {};
+		const categoryMap: Record<
+			string,
+			{ id: string; name: string; slug: string }[]
+		> = {};
 		if (ids.length > 0) {
 			const gameCategories = await db
 				.select({
@@ -360,19 +391,26 @@ gamesRoute.openapi(
 
 			for (const gc of gameCategories) {
 				if (!categoryMap[gc.gameId]) categoryMap[gc.gameId] = [];
-				categoryMap[gc.gameId].push({ id: gc.id, name: gc.name, slug: gc.slug });
+				categoryMap[gc.gameId].push({
+					id: gc.id,
+					name: gc.name,
+					slug: gc.slug,
+				});
 			}
 		}
 
-		return c.json({
-			success: true as const,
-			data: inserted.map((g) => ({
-				...g,
-				categories: categoryMap[g.id] ?? [],
-				createdAt: toWAT(g.createdAt),
-				updatedAt: toWAT(g.updatedAt),
-			})),
-		}, 201);
+		return c.json(
+			{
+				success: true as const,
+				data: inserted.map((g) => ({
+					...g,
+					categories: categoryMap[g.id] ?? [],
+					createdAt: toWAT(g.createdAt),
+					updatedAt: toWAT(g.updatedAt),
+				})),
+			},
+			201,
+		);
 	},
 );
 
@@ -487,7 +525,9 @@ gamesRoute.openapi(
 				.where(eq(schema.gameCategory.gameId, id));
 			await db
 				.insert(schema.gameCategory)
-				.values(categoryIds.map((catId) => ({ gameId: id, categoryId: catId })));
+				.values(
+					categoryIds.map((catId) => ({ gameId: id, categoryId: catId })),
+				);
 		}
 
 		const categories = await db
@@ -503,10 +543,18 @@ gamesRoute.openapi(
 			)
 			.where(eq(schema.gameCategory.gameId, id));
 
-		return c.json({
-			success: true as const,
-			data: { ...updated, categories, createdAt: toWAT(updated.createdAt), updatedAt: toWAT(updated.updatedAt) },
-		}, 200);
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					...updated,
+					categories,
+					createdAt: toWAT(updated.createdAt),
+					updatedAt: toWAT(updated.updatedAt),
+				},
+			},
+			200,
+		);
 	},
 );
 

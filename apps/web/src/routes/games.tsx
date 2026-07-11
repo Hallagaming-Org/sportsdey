@@ -25,7 +25,7 @@ export const Route = createFileRoute("/games")({
 const CATEGORIES = [
 	"popular",
 	"crash-games",
-	"originals",
+	"original",
 	"pvp",
 	"slots",
 	"tablecardgames",
@@ -43,7 +43,7 @@ const CATEGORIES = [
 const CATEGORY_EMOJIS: Record<string, string> = {
 	popular: "🔥",
 	"crash-games": "🚀",
-	originals: "🎯",
+	original: "🎯",
 	pvp: "⚔️",
 	slots: "🎰",
 	tablecardgames: "🃏",
@@ -140,7 +140,7 @@ const THUNDR_CODES = [
 
 const ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash"];
 
-const SPECIAL_CATEGORIES = ["popular", "pvp", "crash-games", "originals"];
+const SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
 
 const KNOWN_GAMES: Record<
 	string,
@@ -321,7 +321,7 @@ function GamesPage() {
 									g.name.toLowerCase().includes("aviator"),
 								).length;
 								break;
-							case "originals":
+							case "original":
 								count = allGames.filter((g) =>
 									ORIGINALS_CODES.includes(g.code),
 								).length;
@@ -355,7 +355,7 @@ function GamesPage() {
 						g.name.toLowerCase().includes("aviator"),
 					);
 					break;
-				case "originals":
+				case "original":
 					filteredGames = allGames.filter((g) =>
 						ORIGINALS_CODES.includes(g.code),
 					);
