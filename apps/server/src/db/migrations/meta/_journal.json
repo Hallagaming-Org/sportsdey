@@ -141,6 +141,13 @@
       "when": 1783350396447,
       "tag": "0019_grey_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1783697449770,
+      "tag": "0020_early_king_cobra",
+      "breakpoints": true
     }
   ]
 }
