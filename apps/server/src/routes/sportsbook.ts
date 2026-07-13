@@ -1406,8 +1406,6 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		const isFreebetWin = bet.betFreebetId && settleType === 1;
 		const shouldCredit = !bet.betFreebetId || isFreebetWin;
 
-		const balance = wallet.balance;
-
 		if (wallet && shouldCredit) {
 			const newBalance = wallet.balance + settleAmount;
 			const walletUpdate = await db
