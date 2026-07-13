@@ -732,6 +732,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	}
 
 	let bal: number;
+	let balAfter: number;
 
 	try {
 		const wallet = await db.query.wallet.findFirst({
@@ -744,10 +745,12 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 
 		const balanceBefore = wallet.balance;
 		bal = balanceBefore;
+		balAfter = balanceBefore;
 
 		if (!bet.betFreebetId) {
 			const newBalance = wallet.balance - bet.stake;
 			const newFrozenBalance = wallet.frozenBalance - bet.stake;
+			balAfter = newBalance;
 
 			const walletUpdate = await db
 				.update(schema.wallet)
@@ -831,7 +834,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				eventType: "accept",
 				eventData: JSON.stringify(result.data),
 				balanceBefore: balanceBefore,
-				balanceAfter: walletUpdate.balance,
+				balanceAfter: balAfter,
 				createdAt: now,
 			})
 			.returning({ id: schema.sportsbookBetEvent.id });
@@ -851,7 +854,6 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 			);
 		}
 	} catch (error) {
-		console.error("Bet accept transaction error:", error);
 		return c.json(
 			{
 				error: {
@@ -901,7 +903,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				sport: firstSelection?.meta?.sport_event_info_sport_id ?? "",
 				league: firstSelection?.meta?.sport_event_info_tournament_id ?? "",
 				match_ids: selections?.map((s) => s.match_id ?? "") ?? [],
-				wallet_balance_after: bal / 100,
+				wallet_balance_after: balAfter / 100,
 			},
 		},
 		c.executionCtx,
