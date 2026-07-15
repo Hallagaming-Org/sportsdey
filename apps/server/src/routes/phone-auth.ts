@@ -302,12 +302,7 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		);
 	}
 
-	let payload: { otpHash?: string; attempts?: number; consumed?: boolean } = {};
-	try {
-		payload = JSON.parse(otpRecord.value);
-	} catch {
-		return c.json({ success: false as const, error: "Invalid OTP state" }, 400);
-	}
+	const payload = JSON.parse(otpRecord.value) as { otpHash?: string; attempts?: number; consumed?: boolean };
 
 	if (payload.consumed) {
 		return c.json({ success: false as const, error: "OTP already used" }, 401);

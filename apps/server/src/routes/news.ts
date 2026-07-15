@@ -61,147 +61,100 @@ newsRoute.openapi(
 		tags: ["News"],
 	}),
 	async (c) => {
-		try {
-			const { query, pageToken, channelId } = c.req.valid("query");
-			const apiKey = c.env?.YOUTUBE_API_KEY;
+		const { query, pageToken, channelId } = c.req.valid("query");
+		const apiKey = c.env?.YOUTUBE_API_KEY;
 
-			if (!apiKey) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Configuration error",
-						details: [
-							{
-								field: "YOUTUBE_API_KEY",
-								message: "YouTube API key is missing",
-								code: "missing_api_key",
-							},
-						],
-					},
-					500,
-				);
-			}
-
-			const cacheKey = `news_videos_${query}_${pageToken || "first"}`;
-			let cachedData = null;
-			if (getKvNamespace(c.env)) {
-				try {
-					cachedData = (await getKvNamespace(c.env)?.get(cacheKey, "json")) as {
-						data: any;
-						expiresAt: number;
-					} | null;
-				} catch (e) {
-					cachedData = null;
-				}
-			}
-
-			if (cachedData && Date.now() <= cachedData.expiresAt) {
-				return c.json(
-					{
-						success: true as const,
-						data: cachedData.data,
-					},
-					200,
-				);
-			}
-
-			let apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&order=date&key=${apiKey}&maxResults=10`;
-			if (pageToken) {
-				apiUrl += `&pageToken=${pageToken}`;
-			}
-			if (channelId) {
-				apiUrl += `&channelId=${channelId}`;
-			}
-
-			let response: Response;
-			try {
-				response = await fetchWithTimeout(apiUrl, {}, 10000);
-			} catch (err) {
-				if (isTimeoutError(err)) {
-					return c.json(
-						{
-							success: false as const,
-							error: "Gateway timeout",
-							details: [
-								{
-									field: "youtube_api",
-									message: "YouTube API request timed out",
-									code: "timeout_error",
-								},
-							],
-						},
-						502,
-					);
-				}
-				throw err;
-			}
-
-			if (!response.ok) {
-				return c.json(
-					{
-						success: false as const,
-						error: "External API error",
-						details: [
-							{
-								field: "youtube_api",
-								message: `YouTube API returned status ${response.status}`,
-								code: "external_api_error",
-							},
-						],
-					},
-					502,
-				);
-			}
-
-			const data: any = await response.json();
-			const transformedData = {
-				nextPageToken: data.nextPageToken,
-				prevPageToken: data.prevPageToken,
-				videos: data.items.map((item: any) => ({
-					videoId: item.id.videoId,
-					publishedAt: item.snippet.publishedAt,
-					title: item.snippet.title,
-				})),
-			};
-
-			if (getKvNamespace(c.env)) {
-				try {
-					await getKvNamespace(c.env)?.put(
-						cacheKey,
-						JSON.stringify({
-							data: transformedData,
-							expiresAt: Date.now() + 10 * 60 * 1000, // Cache for 10 minutes
-						}),
-					);
-				} catch (cacheErr) {
-					console.warn("Cache write failed:", cacheErr);
-				}
-			}
-
-			return c.json(
-				{
-					success: true as const,
-					data: transformedData,
-				},
-				200,
-			);
-		} catch (error) {
+		if (!apiKey) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
+					error: "Configuration error",
 					details: [
 						{
-							field: "server",
-							message:
-								"An unexpected error occurred while processing your request",
-							code: "internal_error",
+							field: "YOUTUBE_API_KEY",
+							message: "YouTube API key is missing",
+							code: "missing_api_key",
 						},
 					],
 				},
 				500,
 			);
 		}
+
+		const cacheKey = `news_videos_${query}_${pageToken || "first"}`;
+		let cachedData = null;
+		if (getKvNamespace(c.env)) {
+			cachedData = (await getKvNamespace(c.env)?.get(cacheKey, "json")) as {
+				data: any;
+				expiresAt: number;
+			} | null;
+		}
+
+		if (cachedData && Date.now() <= cachedData.expiresAt) {
+			return c.json(
+				{
+					success: true as const,
+					data: cachedData.data,
+				},
+				200,
+			);
+		}
+
+		let apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&order=date&key=${apiKey}&maxResults=10`;
+		if (pageToken) {
+			apiUrl += `&pageToken=${pageToken}`;
+		}
+		if (channelId) {
+			apiUrl += `&channelId=${channelId}`;
+		}
+
+		const response: Response = await fetchWithTimeout(apiUrl, {}, 10000);
+
+		if (!response.ok) {
+			return c.json(
+				{
+					success: false as const,
+					error: "External API error",
+					details: [
+						{
+							field: "youtube_api",
+							message: `YouTube API returned status ${response.status}`,
+							code: "external_api_error",
+						},
+					],
+				},
+				502,
+			);
+		}
+
+		const data: any = await response.json();
+		const transformedData = {
+			nextPageToken: data.nextPageToken,
+			prevPageToken: data.prevPageToken,
+			videos: data.items.map((item: any) => ({
+				videoId: item.id.videoId,
+				publishedAt: item.snippet.publishedAt,
+				title: item.snippet.title,
+			})),
+		};
+
+		if (getKvNamespace(c.env)) {
+			await getKvNamespace(c.env)?.put(
+				cacheKey,
+				JSON.stringify({
+					data: transformedData,
+					expiresAt: Date.now() + 10 * 60 * 1000, // Cache for 10 minutes
+				}),
+			);
+		}
+
+		return c.json(
+			{
+				success: true as const,
+				data: transformedData,
+			},
+			200,
+		);
 	},
 	jsonZodErrorFormatter,
 );

@@ -451,29 +451,25 @@ cmsRoute.openapi(
 		const { id: authorId } = c.req.valid("param");
 		const { offset, limit } = c.req.valid("query");
 		const client = getSanityClient(c.env);
-		try {
-			const data = await client.fetch<SanityNews[]>(
-				`*[_type == "news" && references($authorId) && !(_id in path("drafts.**"))] | order(publishedAt desc) [$offset...$end] {
-					_id,
-					title,
-					publishedAt,
-					image,
-					slug,
-					body,
-					sport
-				}`,
-				{ authorId, offset, end: offset + limit },
-			);
-			return c.json(
-				{
-					success: true as const,
-					data: (data || []).map((n) => mapAuthorNews(c.env, n)),
-				},
-				200,
-			);
-		} catch {
-			return c.json({ success: true as const, data: [] }, 200);
-		}
+		const data = await client.fetch<SanityNews[]>(
+			`*[_type == "news" && references($authorId) && !(_id in path("drafts.**"))] | order(publishedAt desc) [$offset...$end] {
+				_id,
+				title,
+				publishedAt,
+				image,
+				slug,
+				body,
+				sport
+			}`,
+			{ authorId, offset, end: offset + limit },
+		);
+		return c.json(
+			{
+				success: true as const,
+				data: (data || []).map((n) => mapAuthorNews(c.env, n)),
+			},
+			200,
+		);
 	},
 );
 
@@ -501,15 +497,11 @@ cmsRoute.openapi(
 	async (c) => {
 		const { id: authorId } = c.req.valid("param");
 		const client = getSanityClient(c.env);
-		try {
-			const total = await client.fetch<number>(
-				`count(*[_type == "news" && references($authorId) && !(_id in path("drafts.**"))])`,
-				{ authorId },
-			);
-			return c.json({ success: true as const, data: total || 0 }, 200);
-		} catch {
-			return c.json({ success: true as const, data: 0 }, 200);
-		}
+		const total = await client.fetch<number>(
+			`count(*[_type == "news" && references($authorId) && !(_id in path("drafts.**"))])`,
+			{ authorId },
+		);
+		return c.json({ success: true as const, data: total || 0 }, 200);
 	},
 );
 

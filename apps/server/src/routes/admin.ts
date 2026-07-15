@@ -54,12 +54,8 @@ const ErrorSchemaWithDetails = z.object({
 
 function safeParsePermissions(permissions: string | null): string[] {
 	if (!permissions) return [];
-	try {
-		const parsed = JSON.parse(permissions);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
+	const parsed = JSON.parse(permissions);
+	return Array.isArray(parsed) ? parsed : [];
 }
 
 const SignInSchema = z.object({
@@ -924,76 +920,71 @@ adminRoute.openapi(getMeRoute, async (c) => {
 });
 
 adminRoute.openapi(updateMeRoute, async (c) => {
-	try {
-		const token = getSessionToken(c.req.raw.headers);
-		if (!token) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const session = await validateAdminSession(c.env, token);
-		if (!session) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const body = await c.req.json();
-		const result = UpdateMeSchema.safeParse(body);
-		if (!result.success) {
-			const error = result.error;
-			const issues = error.issues || [];
-			const message = issues[0]?.message || "Invalid request body";
-			return c.json(
-				{
-					success: false,
-					error: message,
-				},
-				400,
-			);
-		}
-
-		const { name, email, mobileNumber } = result.data;
-
-		console.log("PATCH /me - updating admin:", {
-			adminId: session.adminId,
-			name,
-			email,
-			mobileNumber,
-		});
-
-		if (email) {
-			const existing = await getAdminByEmail(c.env, email);
-			if (existing && existing.id !== session.adminId) {
-				return c.json({ success: false, error: "Email already in use" }, 400);
-			}
-		}
-
-		const updatedAdmin = await updateAdminById(c.env, session.adminId, {
-			name,
-			email,
-			mobileNumber,
-		});
-
-		console.log("PATCH /me - updatedAdmin:", updatedAdmin);
-
-		if (!updatedAdmin) {
-			return c.json({ success: false, error: "Failed to update profile" }, 500);
-		}
-
-		return c.json({
-			success: true,
-			data: {
-				id: updatedAdmin.id,
-				email: updatedAdmin.email,
-				name: updatedAdmin.name,
-				mobileNumber: updatedAdmin.mobileNumber,
-				image: updatedAdmin.image,
-				role: updatedAdmin.role,
-				createdAt: toWAT(updatedAdmin.createdAt) || "",
-			},
-		});
-	} catch (error) {
-		console.error("Error in PATCH /me:", error);
-		return c.json({ success: false, error: "Internal server error" }, 500);
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const body = await c.req.json();
+	const result = UpdateMeSchema.safeParse(body);
+	if (!result.success) {
+		const error = result.error;
+		const issues = error.issues || [];
+		const message = issues[0]?.message || "Invalid request body";
+		return c.json(
+			{
+				success: false,
+				error: message,
+			},
+			400,
+		);
+	}
+
+	const { name, email, mobileNumber } = result.data;
+
+	console.log("PATCH /me - updating admin:", {
+		adminId: session.adminId,
+		name,
+		email,
+		mobileNumber,
+	});
+
+	if (email) {
+		const existing = await getAdminByEmail(c.env, email);
+		if (existing && existing.id !== session.adminId) {
+			return c.json({ success: false, error: "Email already in use" }, 400);
+		}
+	}
+
+	const updatedAdmin = await updateAdminById(c.env, session.adminId, {
+		name,
+		email,
+		mobileNumber,
+	});
+
+	console.log("PATCH /me - updatedAdmin:", updatedAdmin);
+
+	if (!updatedAdmin) {
+		return c.json({ success: false, error: "Failed to update profile" }, 500);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			id: updatedAdmin.id,
+			email: updatedAdmin.email,
+			name: updatedAdmin.name,
+			mobileNumber: updatedAdmin.mobileNumber,
+			image: updatedAdmin.image,
+			role: updatedAdmin.role,
+			createdAt: toWAT(updatedAdmin.createdAt) || "",
+		},
+	});
 });
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -1006,90 +997,85 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 
 adminRoute.openapi(updateProfilePictureRoute, async (c) => {
-	try {
-		const token = getSessionToken(c.req.raw.headers);
-		if (!token) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const session = await validateAdminSession(c.env, token);
-		if (!session) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const formData = await c.req.parseBody();
-		const file = formData.file as File | undefined;
-
-		if (!file) {
-			return c.json({ success: false, error: "No file provided" }, 400);
-		}
-
-		if (!file.type.startsWith("image/")) {
-			return c.json(
-				{ success: false, error: "Only image files are allowed" },
-				400,
-			);
-		}
-
-		if (file.size > MAX_FILE_SIZE) {
-			return c.json(
-				{ success: false, error: "File size must be less than 5MB" },
-				400,
-			);
-		}
-
-		const bucket =
-			c.env.NODE_ENV === "production"
-				? c.env.PRODUCTION_BUCKET
-				: c.env.STAGING_BUCKET;
-
-		if (!bucket) {
-			return c.json({ success: false, error: "Storage not configured" }, 500);
-		}
-
-		const id = crypto.randomUUID();
-		const ext = file.name.split(".").pop() || "jpg";
-		const r2Key = `admin-profiles/${session.adminId}/${id}.${ext}`;
-		const arrayBuffer = await file.arrayBuffer();
-
-		await bucket.put(r2Key, arrayBuffer, {
-			httpMetadata: {
-				contentType: file.type || "image/jpeg",
-			},
-			customMetadata: {
-				originalName: file.name,
-				adminId: session.adminId,
-			},
-		});
-
-		const baseUrl =
-			c.env.NODE_ENV === "production"
-				? "https://bucket.sportsdey.com"
-				: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
-
-		const imageUrl = `${baseUrl}/${r2Key}`;
-
-		const updatedAdmin = await updateAdminById(c.env, session.adminId, {
-			image: imageUrl,
-		});
-
-		if (!updatedAdmin) {
-			return c.json(
-				{ success: false, error: "Failed to update profile picture" },
-				500,
-			);
-		}
-
-		return c.json({
-			success: true,
-			data: {
-				image: updatedAdmin.image,
-			},
-		});
-	} catch (error) {
-		console.error("Error in PATCH /me/profile-picture:", error);
-		return c.json({ success: false, error: "Internal server error" }, 500);
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const formData = await c.req.parseBody();
+	const file = formData.file as File | undefined;
+
+	if (!file) {
+		return c.json({ success: false, error: "No file provided" }, 400);
+	}
+
+	if (!file.type.startsWith("image/")) {
+		return c.json(
+			{ success: false, error: "Only image files are allowed" },
+			400,
+		);
+	}
+
+	if (file.size > MAX_FILE_SIZE) {
+		return c.json(
+			{ success: false, error: "File size must be less than 5MB" },
+			400,
+		);
+	}
+
+	const bucket =
+		c.env.NODE_ENV === "production"
+			? c.env.PRODUCTION_BUCKET
+			: c.env.STAGING_BUCKET;
+
+	if (!bucket) {
+		return c.json({ success: false, error: "Storage not configured" }, 500);
+	}
+
+	const id = crypto.randomUUID();
+	const ext = file.name.split(".").pop() || "jpg";
+	const r2Key = `admin-profiles/${session.adminId}/${id}.${ext}`;
+	const arrayBuffer = await file.arrayBuffer();
+
+	await bucket.put(r2Key, arrayBuffer, {
+		httpMetadata: {
+			contentType: file.type || "image/jpeg",
+		},
+		customMetadata: {
+			originalName: file.name,
+			adminId: session.adminId,
+		},
+	});
+
+	const baseUrl =
+		c.env.NODE_ENV === "production"
+			? "https://bucket.sportsdey.com"
+			: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
+
+	const imageUrl = `${baseUrl}/${r2Key}`;
+
+	const updatedAdmin = await updateAdminById(c.env, session.adminId, {
+		image: imageUrl,
+	});
+
+	if (!updatedAdmin) {
+		return c.json(
+			{ success: false, error: "Failed to update profile picture" },
+			500,
+		);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			image: updatedAdmin.image,
+		},
+	});
 });
 
 const listAdminsRoute = createRoute({
