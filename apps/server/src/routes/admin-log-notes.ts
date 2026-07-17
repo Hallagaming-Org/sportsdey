@@ -16,6 +16,7 @@ const LogNoteSchema = z.object({
 	adminId: z.string(),
 	adminName: z.string(),
 	adminRole: z.string(),
+	adminEmail: z.string(),
 	note: z.string(),
 	createdAt: z.string(),
 });
@@ -179,7 +180,7 @@ adminLogNotesRoute.openapi(createLogNoteRoute, async (c) => {
 	}
 
 	const [adminRecord] = await db
-		.select({ name: schema.admin.name, role: schema.admin.role })
+		.select({ name: schema.admin.name, role: schema.admin.role, email: schema.admin.email })
 		.from(schema.admin)
 		.where(eq(schema.admin.id, session.adminId))
 		.limit(1);
@@ -218,11 +219,51 @@ adminLogNotesRoute.openapi(createLogNoteRoute, async (c) => {
 				adminId: created.adminId,
 				adminName: created.adminName,
 				adminRole: created.adminRole,
+				adminEmail: adminRecord.email,
 				note: created.note,
 				createdAt: toWAT(created.createdAt),
 			},
 		},
 	});
+});
+
+const deleteUserLogNotesRoute = createRoute({
+	method: "delete",
+	path: "/log-notes/user/{userId}",
+	tags: ["Admin - Log Notes"],
+	summary: "Delete all log notes for a user",
+	description:
+		"Deletes all log notes for a specific user. Super admin only.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+	},
+	responses: {
+		200: {
+			description: "Log notes deleted",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({ deleted: z.number() }),
+					),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden - super admin only",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		404: {
+			description: "User not found",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
 });
 
 adminLogNotesRoute.openapi(deleteLogNoteRoute, async (c) => {
@@ -269,6 +310,50 @@ adminLogNotesRoute.openapi(deleteLogNoteRoute, async (c) => {
 	return c.json({ success: true, data: { success: true as const } });
 });
 
+adminLogNotesRoute.openapi(deleteUserLogNotesRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	if (session.role !== "super_admin") {
+		return c.json(
+			{
+				success: false,
+				error: "Forbidden - super admin only",
+			},
+			403,
+		);
+	}
+
+	const { userId } = c.req.valid("param");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [userRecord] = await db
+		.select({ id: schema.user.id })
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!userRecord) {
+		return c.json({ success: false, error: "User not found" }, 404);
+	}
+
+	const result = await db
+		.delete(schema.adminLogNote)
+		.where(eq(schema.adminLogNote.userId, userId));
+
+	return c.json({
+		success: true,
+		data: { deleted: result.meta.changes },
+	});
+});
+
 adminLogNotesRoute.openapi(getUserLogNotesRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
@@ -284,8 +369,18 @@ adminLogNotesRoute.openapi(getUserLogNotesRoute, async (c) => {
 	const db = drizzle(c.env.DB, { schema });
 
 	const logNotes = await db
-		.select()
+		.select({
+			id: schema.adminLogNote.id,
+			userId: schema.adminLogNote.userId,
+			adminId: schema.adminLogNote.adminId,
+			adminName: schema.adminLogNote.adminName,
+			adminRole: schema.adminLogNote.adminRole,
+			adminEmail: schema.admin.email,
+			note: schema.adminLogNote.note,
+			createdAt: schema.adminLogNote.createdAt,
+		})
 		.from(schema.adminLogNote)
+		.innerJoin(schema.admin, eq(schema.adminLogNote.adminId, schema.admin.id))
 		.where(eq(schema.adminLogNote.userId, userId))
 		.orderBy(desc(schema.adminLogNote.createdAt));
 
@@ -298,6 +393,7 @@ adminLogNotesRoute.openapi(getUserLogNotesRoute, async (c) => {
 				adminId: n.adminId,
 				adminName: n.adminName,
 				adminRole: n.adminRole,
+				adminEmail: n.adminEmail,
 				note: n.note,
 				createdAt: toWAT(n.createdAt),
 			})),
