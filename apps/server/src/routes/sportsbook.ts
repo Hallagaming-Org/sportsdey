@@ -429,6 +429,20 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		: null;
 
 	if (!isFreebet) {
+		if (wallet.frozenBalance === wallet.balance) {
+			return c.json(
+				{
+					error: {
+						code: "not_enough_balance",
+						data: {
+							actual_balance: "0",
+						},
+					},
+				},
+				400,
+			);
+		}
+
 		const availableBalance = wallet.balance - wallet.frozenBalance;
 
 		if (availableBalance < stakeKobo) {
