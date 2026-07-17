@@ -213,7 +213,10 @@ sportsbookRoute.openapi(heartbeatRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -286,7 +289,10 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -553,7 +559,10 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -870,7 +879,10 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -1049,9 +1061,7 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 					: null;
 		return code ? supportedRestrictionCodes.has(code) : false;
 	});
-	const nextStatus = hasSupportedRestriction
-		? "place_error"
-		: "force_decline";
+	const nextStatus = hasSupportedRestriction ? "place_error" : "force_decline";
 
 	const betUpdate = await db
 		.update(schema.sportsbookBet)
@@ -1156,7 +1166,10 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -1324,11 +1337,13 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	}
 
 	const newStatus =
-		settleType === 2
-			? bet.status === "unsettled"
-				? "refunded_manually"
-				: "rolled_back"
-			: "settled";
+		settleType === 3
+			? "loss"
+			: settleType === 2
+				? bet.status === "unsettled"
+					? "refunded_manually"
+					: "rolled_back"
+				: "win";
 
 	const betUpdate = await db
 		.update(schema.sportsbookBet)
@@ -1457,7 +1472,10 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -1603,7 +1621,7 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 			.values({
 				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 				userId: bet.userId,
-				amount: -unsettleAmount,
+				amount: unsettleAmount,
 				type: "debit",
 				reference: `sb_unsettle_${result.data.bet_id}_${crypto.randomUUID()}`,
 				status: "success",
@@ -1720,7 +1738,10 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -1988,7 +2009,10 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as { session_id: string; [key: string]: unknown };
+	const foreignParams = JSON.parse(foreignParamsHeader) as {
+		session_id: string;
+		[key: string]: unknown;
+	};
 
 	const { session_id } = foreignParams;
 
@@ -2177,9 +2201,7 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 			})
 			.returning({ id: schema.walletTransaction.id });
 		if (!walletTxn?.id) {
-			console.error(
-				"Failed to record wallet transaction for cashout decline",
-			);
+			console.error("Failed to record wallet transaction for cashout decline");
 		}
 	}
 
@@ -2367,11 +2389,7 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(
-			"Data.Bet freebet create error:",
-			response.status,
-			errorText,
-		);
+		console.error("Data.Bet freebet create error:", response.status, errorText);
 		return c.json(
 			{
 				success: false as const,
@@ -3073,11 +3091,7 @@ sportsbookRoute.openapi(freebetUpdateRoute, async (c) => {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(
-			"Data.Bet freebet update error:",
-			response.status,
-			errorText,
-		);
+		console.error("Data.Bet freebet update error:", response.status, errorText);
 		return c.json(
 			{
 				success: false as const,
@@ -3201,11 +3215,7 @@ sportsbookRoute.openapi(freebetCancelRoute, async (c) => {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(
-			"Data.Bet freebet cancel error:",
-			response.status,
-			errorText,
-		);
+		console.error("Data.Bet freebet cancel error:", response.status, errorText);
 		if (response.status === 404) {
 			return c.json(
 				{
@@ -3457,11 +3467,7 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(
-			"Data.Bet bet-boost list error:",
-			response.status,
-			errorText,
-		);
+		console.error("Data.Bet bet-boost list error:", response.status, errorText);
 		return c.json(
 			{
 				success: false as const,
@@ -3581,11 +3587,7 @@ sportsbookRoute.openapi(betBoostGetRoute, async (c) => {
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(
-			"Data.Bet bet-boost get error:",
-			response.status,
-			errorText,
-		);
+		console.error("Data.Bet bet-boost get error:", response.status, errorText);
 		if (response.status === 404) {
 			return c.json(
 				{
@@ -3742,14 +3744,10 @@ sportsbookRoute.openapi(betBoostUpdateRoute, async (c) => {
 		apiRequestBody.expires_at = result.expires_at;
 	}
 
-	const response = await databetFetch(
-		c.env,
-		`/bet-boosts/${result.boost_id}`,
-		{
-			method: "PUT",
-			body: apiRequestBody,
-		},
-	);
+	const response = await databetFetch(c.env, `/bet-boosts/${result.boost_id}`, {
+		method: "PUT",
+		body: apiRequestBody,
+	});
 
 	if (!response.ok) {
 		const errorText = await response.text();
