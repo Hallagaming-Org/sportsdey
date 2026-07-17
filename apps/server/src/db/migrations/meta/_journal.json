@@ -148,6 +148,20 @@
       "when": 1783697449770,
       "tag": "0020_early_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784034124686,
+      "tag": "0021_right_jack_flag",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1784229729223,
+      "tag": "0022_burly_fat_cobra",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,7 @@ export const user = sqliteTable("user", {
 		.default("not_verified")
 		.notNull(),
 	suspended: integer("suspended", { mode: "boolean" }).default(false).notNull(),
+	lastLoginIp: text("last_login_ip"),
 });
 
 export const session = sqliteTable(
