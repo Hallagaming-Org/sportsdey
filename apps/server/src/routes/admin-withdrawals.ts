@@ -227,11 +227,7 @@ adminWithdrawalsRoute.openapi(getPendingRoute, async (c) => {
 
 	const formatted = transactions.map((tx) => {
 		let meta: Record<string, unknown> = {};
-		try {
-			meta = JSON.parse(tx.metadata || "{}");
-		} catch {
-			/* empty */
-		}
+		meta = JSON.parse(tx.metadata || "{}");
 		return {
 			id: tx.id,
 			userId: tx.userId,
@@ -293,11 +289,7 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 	}
 
 	let meta: Record<string, unknown> = {};
-	try {
-		meta = JSON.parse(txn.metadata || "{}");
-	} catch {
-		/* empty */
-	}
+	meta = JSON.parse(txn.metadata || "{}");
 
 	const bankCode = meta.bankCode as string | undefined;
 	const accountNumber = meta.accountNumber as string | undefined;
@@ -310,80 +302,67 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		);
 	}
 
-	try {
-		const recipient = await createTransferRecipient(
-			c.env.PAYSTACK_SECRET_KEY,
-			bankCode,
-			accountNumber,
-			accountName,
-			"NGN",
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
+	const recipient = await createTransferRecipient(
+		c.env.PAYSTACK_SECRET_KEY,
+		bankCode,
+		accountNumber,
+		accountName,
+		"NGN",
+		c.env.PROXY_URL,
+		c.env.PROXY_SECRET,
+	);
 
-		const transfer = await initiateTransfer(
-			c.env.PAYSTACK_SECRET_KEY,
-			txn.amount / 100,
-			recipient.recipient_code,
-			"balance",
-			"Withdrawal from wallet",
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
+	const transfer = await initiateTransfer(
+		c.env.PAYSTACK_SECRET_KEY,
+		txn.amount / 100,
+		recipient.recipient_code,
+		"balance",
+		"Withdrawal from wallet",
+		c.env.PROXY_URL,
+		c.env.PROXY_SECRET,
+	);
 
-		await db
-			.update(schema.walletTransaction)
-			.set({
-				status: transfer.status === "success" ? "success" : "processing",
-				paymentMethod: "paystack",
-				reference: transfer.reference,
-			})
-			.where(eq(schema.walletTransaction.id, id));
+	await db
+		.update(schema.walletTransaction)
+		.set({
+			status: transfer.status === "success" ? "success" : "processing",
+			paymentMethod: "paystack",
+			reference: transfer.reference,
+		})
+		.where(eq(schema.walletTransaction.id, id));
 
-		await db.insert(schema.userNotification).values({
-			id: `notif_${crypto.randomUUID()}`,
+	await db.insert(schema.userNotification).values({
+		id: `notif_${crypto.randomUUID()}`,
+		userId: txn.userId,
+		title: "Withdrawal Approved",
+		message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been approved and is being processed.`,
+	});
+
+	trackWebengageEvent(
+		c.env,
+		{
 			userId: txn.userId,
-			title: "Withdrawal Approved",
-			message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been approved and is being processed.`,
-		});
-
-		trackWebengageEvent(
-			c.env,
-			{
-				userId: txn.userId,
-				eventName: "withdrawal_completed",
-				eventData: {
-					amount: txn.amount / 100,
-					transaction_id: transfer.reference,
-					bank: bankCode,
-					wallet_balance_after: (txn.balance ?? 0) / 100,
-					"account number": accountNumber,
-					"account name": accountName ?? "",
-				},
+			eventName: "withdrawal_completed",
+			eventData: {
+				amount: txn.amount / 100,
+				transaction_id: transfer.reference,
+				bank: bankCode,
+				wallet_balance_after: (txn.balance ?? 0) / 100,
+				"account number": accountNumber,
+				"account name": accountName ?? "",
 			},
-			c.executionCtx,
-		);
+		},
+		c.executionCtx,
+	);
 
 
-		return c.json({
-			success: true,
-			data: {
-				message: "Withdrawal approved and processing",
-				transferReference: transfer.reference,
-			},
-		});
-	} catch (error) {
-		return c.json(
-			{
-				success: false,
-				error:
-					error instanceof Error
-						? error.message
-						: "Failed to process withdrawal",
-			},
-			400,
-		);
-	}
+	return c.json({
+		success: true,
+		data: {
+			message: "Withdrawal approved and processing",
+			transferReference: transfer.reference,
+		},
+	});
 });
 
 adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
@@ -432,11 +411,7 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 	}
 
 	let existingMeta: Record<string, unknown> = {};
-	try {
-		existingMeta = JSON.parse(txn.metadata || "{}");
-	} catch {
-		/* empty */
-	}
+	existingMeta = JSON.parse(txn.metadata || "{}");
 
 	const [wallet] = await db
 		.select()

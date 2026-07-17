@@ -89,50 +89,40 @@ lagosRushRoute.openapi(launcherRoute, async (c) => {
 		operatorAlias: "SPORTDEY",
 	};
 
-	try {
-		const response = await fetch(`${baseUrl}/api/v1/launcher`, {
-			method: "POST",
-			headers: {
-				"x-api-key": apiKey,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(payload),
-		});
+	const response = await fetch(`${baseUrl}/api/v1/launcher`, {
+		method: "POST",
+		headers: {
+			"x-api-key": apiKey,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(payload),
+	});
 
-		const data = (await response.json()) as {
-			success: boolean;
-			data?: { gameUrl: string };
-			error?: string;
-		};
+	const data = (await response.json()) as {
+		success: boolean;
+		data?: { gameUrl: string };
+		error?: string;
+	};
 
-		if (!response.ok || !data.success) {
-			return c.json(
-				{
-					success: false,
-					error: "Failed to launch game",
-				},
-				400,
-			);
-		}
-
-		return c.json(
-			{
-				success: true,
-				data: {
-					url: data.data?.gameUrl || "",
-				},
-			},
-			200,
-		);
-	} catch (error) {
+	if (!response.ok || !data.success) {
 		return c.json(
 			{
 				success: false,
-				error: "Failed to connect to game provider",
+				error: "Failed to launch game",
 			},
-			500,
+			400,
 		);
 	}
+
+	return c.json(
+		{
+			success: true,
+			data: {
+				url: data.data?.gameUrl || "",
+			},
+		},
+		200,
+	);
 });
 
 export default lagosRushRoute;
