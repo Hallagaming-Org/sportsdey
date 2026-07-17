@@ -94,6 +94,7 @@ const AdminSignInResponseSchema = z.object({
 	admin: AdminResponseSchema,
 	token: z.string().openapi({
 		description: "Admin session token for bearer auth",
+		example: "sess_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
 	}),
 });
 
@@ -101,6 +102,7 @@ const AdminMeResponseSchema = z.object({
 	admin: AdminResponseSchema,
 	token: z.string().openapi({
 		description: "Current admin session token",
+		example: "sess_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
 	}),
 });
 
@@ -1224,7 +1226,7 @@ const forceLogoutAdminRoute = createRoute({
 				"application/json": {
 					schema: successResponseSchema(
 						z.object({
-							sessionsRevoked: z.number(),
+							sessionsRevoked: z.number().openapi({ example: 3 }),
 						}),
 					),
 				},
@@ -1369,8 +1371,23 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	// fetch all matching transactions (without date constraints) and apply
 	// date filtering + pagination in-memory
 	const transactions = await db
-		.select()
+		.select({
+			id: schema.walletTransaction.id,
+			userId: schema.walletTransaction.userId,
+			amount: schema.walletTransaction.amount,
+			type: schema.walletTransaction.type,
+			reference: schema.walletTransaction.reference,
+			status: schema.walletTransaction.status,
+			paymentMethod: schema.walletTransaction.paymentMethod,
+			recipientWalletId: schema.walletTransaction.recipientWalletId,
+			recipientName: schema.walletTransaction.recipientName,
+			balance: schema.walletTransaction.balance,
+			metadata: schema.walletTransaction.metadata,
+			createdAt: schema.walletTransaction.createdAt,
+			userEmail: schema.user.email,
+		})
 		.from(schema.walletTransaction)
+		.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
 		.where(whereClause)
 		.orderBy(desc(schema.walletTransaction.createdAt));
 
@@ -1407,6 +1424,8 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 
 		return {
 			transaction_id: tx.id,
+			user_id: tx.userId,
+			user_email: tx.userEmail ?? "Unknown",
 			date_time: formatDateTime(new Date(tx.createdAt)),
 			type: txType,
 			payment_method: tx.paymentMethod,
