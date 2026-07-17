@@ -18,14 +18,14 @@ const bottomBarItems: {
 	icon: React.FC<React.SVGProps<SVGSVGElement> & { title?: string }>;
 }[] = [
 	{ id: 1, item: "scores", label: "Home", icon: Home },
-	{ id: 2, item: "betting", label: "Sportsbetting", icon: Sports },
+	{ id: 2, item: "betting", label: "Sports", icon: Sports },
 	{ id: 3, item: "games", label: "Casino", icon: Games },
 	{ id: 4, item: "news", label: "News", icon: News },
 	{ id: 5, item: "favourites", label: "Wallet", icon: WalletIcon },
 ];
 const Footer = () => {
 	const currentSport = useCurrentSport();
-		const { tab, setTab } = useActiveTab();
+	const { tab, setTab } = useActiveTab();
 	const router = useRouter();
 	const trackCategory = (name: string) =>
 		trackWebengageEvent("Category", { Name: name });
