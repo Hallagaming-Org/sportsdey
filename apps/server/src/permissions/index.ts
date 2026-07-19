@@ -13,6 +13,7 @@ export const adminPermissions = [
 	"payments",
 	"view_kyc_document",
 	"create_log_note",
+	"manual_credit_debit",
 ] as const;
 
 export type AdminPermission = (typeof adminPermissions)[number];
@@ -32,4 +33,5 @@ export const permissionLabels: Record<AdminPermission, string> = {
 	payments: "Payments",
 	view_kyc_document: "View KYC document",
 	create_log_note: "Create log note",
+	manual_credit_debit: "Manual Credit/Debit",
 };
