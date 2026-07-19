@@ -49,11 +49,9 @@ const RecentSessionSchema = z
 		ipAddresses: z
 			.array(z.string())
 			.openapi({ description: "IP addresses from the last 3 active sessions" }),
-		devices: z
-			.array(z.string())
-			.openapi({
-				description: "Device/browser info from the last 3 active sessions",
-			}),
+		devices: z.array(z.string()).openapi({
+			description: "Device/browser info from the last 3 active sessions",
+		}),
 	})
 	.openapi("RecentSession");
 
@@ -77,11 +75,9 @@ const UserResponseSchema = z
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
-		recentSessions: z
-			.array(RecentSessionSchema)
-			.openapi({
-				description: "Last 3 active sessions with device and IP info",
-			}),
+		recentSessions: z.array(RecentSessionSchema).openapi({
+			description: "Last 3 active sessions with device and IP info",
+		}),
 	})
 	.openapi("UserResponse");
 
@@ -297,7 +293,6 @@ userRoute.openapi(getUserRoute, async (c) => {
 		updatedAt: existingUser.updatedAt,
 		verificationStatus: existingUser.verificationStatus,
 	};
-
 
 	return c.json(
 		{
@@ -543,12 +538,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// in-memory after fetching results so admin endpoints control date
 	// filtering at the application layer.
 
-	const orderByClause =
-		tab === "recent"
-			? desc(schema.user.createdAt)
-			: sort === "desc"
-				? desc(schema.user.name)
-				: asc(schema.user.name);
+	const orderByClause = desc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory
@@ -792,11 +782,9 @@ const UserProfileResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "Last top-up date" }),
-		recentSessions: z
-					.array(RecentSessionSchema)
-					.openapi({
-						description: "Last 3 active sessions with device and IP info",
-					}),
+		recentSessions: z.array(RecentSessionSchema).openapi({
+			description: "Last 3 active sessions with device and IP info",
+		}),
 	})
 	.openapi("UserProfile");
 
@@ -963,30 +951,29 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 		.orderBy(desc(schema.walletTransaction.createdAt))
 		.limit(1);
 
-
 	const recentSessionsRows = await db
-			.select({
-				ipAddress: schema.session.ipAddress,
-				device: schema.session.userAgent,
-			})
-			.from(schema.session)
-			.where(
-				and(
-					eq(schema.session.userId, userId),
-					gt(schema.session.expiresAt, new Date()),
-				),
-			)
-			.orderBy(desc(schema.session.createdAt))
-			.limit(3);
+		.select({
+			ipAddress: schema.session.ipAddress,
+			device: schema.session.userAgent,
+		})
+		.from(schema.session)
+		.where(
+			and(
+				eq(schema.session.userId, userId),
+				gt(schema.session.expiresAt, new Date()),
+			),
+		)
+		.orderBy(desc(schema.session.createdAt))
+		.limit(3);
 
-		const recentSessions = {
-			ipAddresses: recentSessionsRows
-				.map((s) => s.ipAddress)
-				.filter(Boolean) as string[],
-			devices: recentSessionsRows
-				.map((s) => s.device)
-				.filter(Boolean) as string[],
-		};
+	const recentSessions = {
+		ipAddresses: recentSessionsRows
+			.map((s) => s.ipAddress)
+			.filter(Boolean) as string[],
+		devices: recentSessionsRows
+			.map((s) => s.device)
+			.filter(Boolean) as string[],
+	};
 
 	return c.json(
 		{
@@ -1005,7 +992,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 					balance: (wallet?.balance ?? 0) / 100,
 				},
 				lastTopUp: toWAT(lastTopUpTransaction?.createdAt) ?? null,
-				recentSessions
+				recentSessions,
 			},
 		},
 		200,
@@ -1530,7 +1517,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	}
 	if (
 		session.role !== "super_admin" &&
-		!requirePermission(session, "view_player_details")
+		!requirePermission(session, "manual_credit_debit")
 	) {
 		return c.json(
 			{
