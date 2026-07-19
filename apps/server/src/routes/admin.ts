@@ -156,7 +156,7 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.optional()
 		.openapi({ description: "Filter by transaction type" }),
 	status: z
-		.enum(["won", "pending", "failed", "refund"])
+		.enum(["success", "pending", "failed", "refund"])
 		.optional()
 		.openapi({ description: "Filter by transaction status" }),
 	page: z.coerce
@@ -1294,7 +1294,10 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		!requirePermission(session, "transaction_read")
 	) {
 		return c.json(
-			{ success: false, error: "Forbidden - transaction read permission required" },
+			{
+				success: false,
+				error: "Forbidden - transaction read permission required",
+			},
 			403,
 		);
 	}
@@ -1347,7 +1350,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		);
 	}
 
-	if (status === "won") {
+	if (status === "success") {
 		conditions.push(
 			inArray(schema.walletTransaction.status, ["success", "completed"]),
 		);
@@ -1667,9 +1670,10 @@ adminRoute.openapi(listAdminPermissionsRoute, async (c) => {
 		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
 
-	const permissions = Object.entries(permissionLabels).map(
-		([key, label]) => ({ key, label }),
-	);
+	const permissions = Object.entries(permissionLabels).map(([key, label]) => ({
+		key,
+		label,
+	}));
 
 	return c.json({
 		success: true,
