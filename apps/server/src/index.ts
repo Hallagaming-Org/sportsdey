@@ -16,13 +16,11 @@ import type { CloudflareBindings } from "./types";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-let authCache: ReturnType<typeof createAuth> | null = null;
-
-function getAuth(env: CloudflareBindings) {
-	if (!authCache) {
-		authCache = createAuth(env);
-	}
-	return authCache;
+function getAuth(
+	env: CloudflareBindings,
+	executionCtx?: { waitUntil: (promise: Promise<unknown>) => void },
+) {
+	return createAuth(env, executionCtx);
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
@@ -99,7 +97,7 @@ app.use(
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
-	const auth = getAuth(c.env);
+	const auth = getAuth(c.env, c.executionCtx);
 	const response = await auth.handler(c.req.raw);
 
 	const setCookies: string[] = [];
@@ -151,7 +149,7 @@ app.use("*", async (c, next) => {
 	) {
 		return next();
 	}
-	const auth = getAuth(c.env);
+	const auth = getAuth(c.env, c.executionCtx);
 	const sessionResult = await auth.api.getSession({
 		headers: c.req.raw.headers,
 	});
