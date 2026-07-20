@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import { createHashCookie, getCookiePrefix } from "@/auth";
+import { queueAffnookCustomerSync } from "@/services/affnook";
 import type { CloudflareBindings } from "../types";
 
 const phoneAuthRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -373,25 +374,26 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		signedInUser = newUser;
 	}
 
+	if (!signedInUser) {
+		return c.json(
+			{ success: false as const, error: "Failed to create or load user" },
+			500,
+		);
+	}
+
 	const token = createSessionToken();
 	const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-	const session = await db
-		.insert(schema.session)
-		.values({
-			id: `${crypto.randomUUID()}`,
-			token,
-			expiresAt,
-			userId: signedInUser.id,
-			ipAddress: c.req.header("cf-connecting-ip") || null,
-			userAgent: c.req.header("user-agent") || null,
-		})
-		.returning();
-	if (!session) {
-		c.json();
-	}
+	await db.insert(schema.session).values({
+		id: `${crypto.randomUUID()}`,
+		token,
+		expiresAt,
+		userId: signedInUser.id,
+		ipAddress: c.req.header("cf-connecting-ip") || null,
+		userAgent: c.req.header("user-agent") || null,
+	});
 
-	const prefix = getCookiePrefix(c.env.NODE_ENV);
+	const prefix = getCookiePrefix();
 	const secure =
 		c.env.NODE_ENV === "production" || c.env.NODE_ENV === "staging";
 	const secureFlag = secure ? "; Secure" : "";
@@ -406,6 +408,8 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 	c.header("Set-Cookie", hashCookie, {
 		append: true,
 	});
+
+	queueAffnookCustomerSync(c.env, signedInUser, c.executionCtx);
 
 	return c.json(
 		{
