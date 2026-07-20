@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
+import { Phone } from "lucide-react";
 
 export const Route = createFileRoute("/auth/sign-up")({
 	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/auth/sign-up")({
 
 export default function SignUpPage() {
 	const { returnTo } = Route.useSearch();
+	const navigate = useNavigate();
 
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
@@ -57,6 +59,16 @@ export default function SignUpPage() {
 
 				<div className="space-y-3">
 					<button
+						type="button"
+						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
+					>
+						<Phone className="h-5 w-5 text-gray-700" />
+						<span className="font-medium text-gray-700">
+							Sign up with phone number
+						</span>
+					</button>
+					<button
 						onClick={() => handleSocialSignUp("google")}
 						disabled={isLoading}
 						className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -84,7 +96,7 @@ export default function SignUpPage() {
 						</span>
 					</button>
 
-					{/*<button
+					<button
 						onClick={() => handleSocialSignUp("apple")}
 						disabled={isLoading}
 						className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -108,7 +120,7 @@ export default function SignUpPage() {
 						<span className="font-medium text-gray-700">
 							Continue with Facebook
 						</span>
-					</button>*/}
+					</button>
 				</div>
 
 				<p className="mt-6 text-center text-gray-500 text-sm">
