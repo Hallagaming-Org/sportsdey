@@ -8,6 +8,7 @@ import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
 import type { CloudflareBindings } from "../types";
+import { getFixtureTitlesByIds } from "@/utils/fixtures";
 
 const adminTicketsRoute = new OpenAPIHono<{
 	Bindings: CloudflareBindings;
@@ -1054,48 +1055,17 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			rawSelections = [];
 		}
 
-		const apiKey = c.env.API_SPORTS_KEY;
-		const uniqueMatchIds = Array.from(
+		const sportEventIds = Array.from(
 			new Set(rawSelections.map((s) => s.match_id).filter(Boolean)),
-		);
-		const matchNameById = new Map<string, { home: string; away: string }>();
+		) as string[];
 
-		if (apiKey && uniqueMatchIds.length > 0) {
-			await Promise.all(
-				uniqueMatchIds.map(async (matchId) => {
-					try {
-						const res = await fetchWithTimeout(
-							`https://v3.football.api-sports.io/fixtures?id=${matchId}`,
-							{
-								headers: {
-									"x-rapidapi-host": "v3.football.api-sports.io",
-									"x-rapidapi-key": apiKey,
-									Accept: "application/json",
-								},
-							},
-							8000,
-						);
-						if (!res.ok) return;
-						const data = (await res.json()) as any;
-						const fixture = data.response?.[0];
-						if (fixture?.teams?.home?.name && fixture?.teams?.away?.name) {
-							matchNameById.set(matchId, {
-								home: fixture.teams.home.name,
-								away: fixture.teams.away.name,
-							});
-						}
-					} catch {
-						// swallowd 
-					}
-				}),
-			);
-		}
+		const titleById = await getFixtureTitlesByIds(c.env, sportEventIds);
 
 		const selections = rawSelections.map((s) => {
-			const names = s.match_id ? matchNameById.get(s.match_id) : undefined;
+			const title = s.match_id ? titleById.get(s.match_id) : undefined;
 			return {
 				matchId: s.match_id ?? null,
-				match: names ? `${names.home} vs ${names.away}` : (s.match_id ?? "Unknown match"),
+				match: title ?? (s.match_id ?? "Unknown match"),
 				marketId: s.market_id ?? null,
 				oddId: s.odd_id ?? null,
 				odds: s.odd_ratio ?? null,
