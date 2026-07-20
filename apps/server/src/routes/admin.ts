@@ -1399,6 +1399,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		"lucky games",
 		"lagos rush",
 		"thndr games",
+		"sportsbook",
 	];
 
 	const filtered = transactions.filter((tx) => {
