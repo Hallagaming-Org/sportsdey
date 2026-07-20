@@ -197,77 +197,59 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const token = getSessionToken(c.req.raw.headers);
-			const session = await validateAdminSession(c.env, token || "");
+		const token = getSessionToken(c.req.raw.headers);
+		const session = await validateAdminSession(c.env, token || "");
 
-			if (
-				!session ||
-				(session.role !== "admin" && session.role !== "super_admin")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - admin only",
-						details: null,
-					},
-					403,
-				);
-			}
-
-			if (
-				session.role !== "super_admin" &&
-				!requirePermission(session, "post_upload_content")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - post_upload_content permission required",
-					},
-					403,
-				);
-			}
-
-			const client = getSanityClient(c.env);
-			const authors = await client.fetch<Array<SanityAuthor>>(
-				`*[_type == "author"] | order(name asc) {
-					_id,
-					name
-				}`,
-			);
-
-			const uniqueAuthors = Array.from(
-				new Map(
-					authors
-						.filter((author) => author.name?.trim())
-						.map((author) => [author.name.trim().toLowerCase(), author]),
-				).values(),
-			);
-
-			return c.json(
-				{
-					success: true as const,
-					data: uniqueAuthors,
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error fetching CMS authors:", error);
+		if (
+			!session ||
+			(session.role !== "admin" && session.role !== "super_admin")
+		) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
-					details: [
-						{
-							field: "server",
-							message: "An unexpected error occurred while fetching authors",
-							code: "internal_error",
-						},
-					],
+					error: "Forbidden - admin only",
+					details: null,
 				},
-				500,
+				403,
 			);
 		}
+
+		if (
+			session.role !== "super_admin" &&
+			!requirePermission(session, "post_upload_content")
+		) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Forbidden - post_upload_content permission required",
+				},
+				403,
+			);
+		}
+
+		const client = getSanityClient(c.env);
+		const authors = await client.fetch<Array<SanityAuthor>>(
+			`*[_type == "author"] | order(name asc) {
+				_id,
+				name
+			}`,
+		);
+
+		const uniqueAuthors = Array.from(
+			new Map(
+				authors
+					.filter((author) => author.name?.trim())
+					.map((author) => [author.name.trim().toLowerCase(), author]),
+			).values(),
+		);
+
+		return c.json(
+			{
+				success: true as const,
+				data: uniqueAuthors,
+			},
+			200,
+		);
 	},
 );
 
@@ -302,118 +284,100 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const { search, type, sortBy, page, fromDate, toDate } =
-				c.req.valid("query");
-			const client = getSanityClient(c.env);
+		const { search, type, sortBy, page, fromDate, toDate } =
+			c.req.valid("query");
+		const client = getSanityClient(c.env);
 
-			const pageSize = 10;
-			const start = (page - 1) * pageSize;
-			const end = start + pageSize;
+		const pageSize = 10;
+		const start = (page - 1) * pageSize;
+		const end = start + pageSize;
 
-			let filterConditions = '_type == "news" && !(_id in path("drafts.**"))';
-			const params: Record<string, unknown> = {};
+		let filterConditions = '_type == "news" && !(_id in path("drafts.**"))';
+		const params: Record<string, unknown> = {};
 
-			if (search && search.trim()) {
-				filterConditions +=
-					" && (title match $search || author->name match $search)";
-				params.search = `*${search.trim()}*`;
-			}
-
-			if (type && type !== "all") {
-				if (type === "news") {
-					filterConditions += ' && (category != "videos" && category != "ads")';
-				} else {
-					filterConditions += " && category == $type";
-					params.type = type;
-				}
-			}
-
-			const { fromDate: fromBoundary, toDate: toBoundary } =
-				parseQueryDateRange({
-					fromDate,
-					toDate,
-				}) as { fromDate?: number; toDate?: number };
-
-			const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
-
-			const finalQuery = `*[${filterConditions}] | order(${sortOrder}) {
-				_id,
-				title,
-				publishedAt,
-				category,
-				"image": image.asset->url,
-				"author": author->{_id, name, image}
-			}`;
-
-			const allContent = await client.fetch<Array<SanityContent>>(
-				finalQuery,
-				params,
-			);
-
-			const filteredContent = allContent.filter((item) => {
-				const publishedAt = new Date(item.publishedAt);
-				if (Number.isNaN(publishedAt.getTime())) return false;
-				const publishedMs = publishedAt.getTime();
-				if (fromBoundary && publishedMs < fromBoundary) return false;
-				if (toBoundary && publishedMs > toBoundary) return false;
-				return true;
-			});
-			const paginatedContent = filteredContent.slice(start, end);
-
-			const transformedContent = paginatedContent.map((item: SanityContent) => {
-				const category = item.category;
-				const type =
-					category === "videos" || category === "ads" ? category : "news";
-				return {
-					_id: item._id,
-					title: item.title,
-					image: item.image || null,
-					author: {
-						name: item.author?.name || "",
-						image: item.author?.image
-							? urlFor(c.env, item.author.image).width(200).url()
-							: null,
-					},
-					type,
-					dateUploaded: formatDate(item.publishedAt),
-					status: "verified" as const,
-				};
-			});
-
-			const total = filteredContent.length;
-			const totalPages = Math.ceil(total / pageSize);
-
-			return c.json(
-				{
-					success: true as const,
-					data: {
-						content: transformedContent,
-						total,
-						page,
-						limit: pageSize,
-						totalPages,
-					},
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error fetching CMS content:", error);
-			return c.json(
-				{
-					success: false as const,
-					error: "Internal server error",
-					details: [
-						{
-							field: "server",
-							message: "An unexpected error occurred while fetching content",
-							code: "internal_error",
-						},
-					],
-				},
-				500,
-			);
+		if (search && search.trim()) {
+			filterConditions +=
+				" && (title match $search || author->name match $search)";
+			params.search = `*${search.trim()}*`;
 		}
+
+		if (type && type !== "all") {
+			if (type === "news") {
+				filterConditions += ' && (category != "videos" && category != "ads")';
+			} else {
+				filterConditions += " && category == $type";
+				params.type = type;
+			}
+		}
+
+		const { fromDate: fromBoundary, toDate: toBoundary } =
+			parseQueryDateRange({
+				fromDate,
+				toDate,
+			}) as { fromDate?: number; toDate?: number };
+
+		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
+
+		const finalQuery = `*[${filterConditions}] | order(${sortOrder}) {
+			_id,
+			title,
+			publishedAt,
+			category,
+			"image": image.asset->url,
+			"author": author->{_id, name, image}
+		}`;
+
+		const allContent = await client.fetch<Array<SanityContent>>(
+			finalQuery,
+			params,
+		);
+
+		const filteredContent = allContent.filter((item) => {
+			const publishedAt = new Date(item.publishedAt);
+			if (Number.isNaN(publishedAt.getTime())) return false;
+			const publishedMs = publishedAt.getTime();
+			if (fromBoundary && publishedMs < fromBoundary) return false;
+			if (toBoundary && publishedMs > toBoundary) return false;
+			return true;
+		});
+		const paginatedContent = filteredContent.slice(start, end);
+
+		const transformedContent = paginatedContent.map((item: SanityContent) => {
+			const category = item.category;
+			const type =
+				category === "videos" || category === "ads" ? category : "news";
+			return {
+				_id: item._id,
+				title: item.title,
+				image: item.image || null,
+				author: {
+					name: item.author?.name || "",
+					image: item.author?.image
+						? urlFor(c.env, item.author.image).width(200).url()
+						: null,
+				},
+				type,
+				dateUploaded: formatDate(item.publishedAt),
+				status: "verified" as const,
+			};
+		});
+
+		const total = filteredContent.length;
+		const totalPages = Math.ceil(total / pageSize);
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					content: transformedContent,
+					total,
+					page,
+					limit: pageSize,
+					totalPages,
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -457,148 +421,130 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const token = getSessionToken(c.req.raw.headers);
-			const session = await validateAdminSession(c.env, token || "");
+		const token = getSessionToken(c.req.raw.headers);
+		const session = await validateAdminSession(c.env, token || "");
 
-			if (
-				!session ||
-				(session.role !== "admin" && session.role !== "super_admin")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - admin only",
-						details: null,
-					},
-					403,
-				);
-			}
-
-			if (
-				session.role !== "super_admin" &&
-				!requirePermission(session, "post_upload_content")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - post_upload_content permission required",
-					},
-					403,
-				);
-			}
-
-			const { search, type, sortBy, page, fromDate, toDate } =
-				c.req.valid("query");
-			const { fromDate: fromBoundary, toDate: toBoundary } =
-				parseQueryDateRange({
-					fromDate,
-					toDate,
-				}) as { fromDate?: number; toDate?: number };
-			const client = getSanityClient(c.env);
-
-			const pageSize = 10;
-			const start = (page - 1) * pageSize;
-			const end = start + pageSize;
-			const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
-
-			let filterConditions = '_type == "news"';
-			const params: Record<string, unknown> = {};
-
-			if (search && search.trim()) {
-				filterConditions +=
-					" && (title match $search || author->name match $search)";
-				params.search = `*${search.trim()}*`;
-			}
-
-			if (type && type !== "all") {
-				if (type === "news") {
-					filterConditions += ' && (category != "videos" && category != "ads")';
-				} else {
-					filterConditions += " && category == $type";
-					params.type = type;
-				}
-			}
-
-			const query = `*[${filterConditions}] | order(${sortOrder}) {
-				_id,
-				title,
-				publishedAt,
-				category,
-				image,
-				"author": author->{_id, name, image}
-			}`;
-
-			const allContent = await client.fetch<Array<SanityContent>>(
-				query,
-				params,
-			);
-
-			const filteredContent = allContent.filter((item) => {
-				const publishedAt = new Date(item.publishedAt);
-				if (Number.isNaN(publishedAt.getTime())) return false;
-				const publishedMs = publishedAt.getTime();
-				if (fromBoundary && publishedMs < fromBoundary) return false;
-				if (toBoundary && publishedMs > toBoundary) return false;
-				return true;
-			});
-			const paginatedContent = filteredContent.slice(start, end);
-
-			const transformedContent = paginatedContent.map((item: SanityContent) => {
-				const category = item.category;
-				const type =
-					category === "videos" || category === "ads" ? category : "news";
-				return {
-					_id: item._id,
-					title: item.title,
-					image: item.image || null,
-					author: {
-						name: item.author?.name || "",
-						image: item.author?.image
-							? urlFor(c.env, item.author.image).width(200).url()
-							: null,
-					},
-					type,
-					dateUploaded: formatDate(item.publishedAt),
-					status: isDraft(item._id)
-						? ("pending" as const)
-						: ("verified" as const),
-				};
-			});
-
-			const total = filteredContent.length;
-			const totalPages = Math.ceil(total / pageSize);
-
-			return c.json(
-				{
-					success: true as const,
-					data: {
-						content: transformedContent,
-						total,
-						page,
-						limit: pageSize,
-						totalPages,
-					},
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error fetching all CMS content:", error);
+		if (
+			!session ||
+			(session.role !== "admin" && session.role !== "super_admin")
+		) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
-					details: [
-						{
-							field: "server",
-							message: "An unexpected error occurred while fetching content",
-							code: "internal_error",
-						},
-					],
+					error: "Forbidden - admin only",
+					details: null,
 				},
-				500,
+				403,
 			);
 		}
+
+		if (
+			session.role !== "super_admin" &&
+			!requirePermission(session, "post_upload_content")
+		) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Forbidden - post_upload_content permission required",
+				},
+				403,
+			);
+		}
+
+		const { search, type, sortBy, page, fromDate, toDate } =
+			c.req.valid("query");
+		const { fromDate: fromBoundary, toDate: toBoundary } =
+			parseQueryDateRange({
+				fromDate,
+				toDate,
+			}) as { fromDate?: number; toDate?: number };
+		const client = getSanityClient(c.env);
+
+		const pageSize = 10;
+		const start = (page - 1) * pageSize;
+		const end = start + pageSize;
+		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
+
+		let filterConditions = '_type == "news"';
+		const params: Record<string, unknown> = {};
+
+		if (search && search.trim()) {
+			filterConditions +=
+				" && (title match $search || author->name match $search)";
+			params.search = `*${search.trim()}*`;
+		}
+
+		if (type && type !== "all") {
+			if (type === "news") {
+				filterConditions += ' && (category != "videos" && category != "ads")';
+			} else {
+				filterConditions += " && category == $type";
+				params.type = type;
+			}
+		}
+
+		const query = `*[${filterConditions}] | order(${sortOrder}) {
+			_id,
+			title,
+			publishedAt,
+			category,
+			image,
+			"author": author->{_id, name, image}
+		}`;
+
+		const allContent = await client.fetch<Array<SanityContent>>(
+			query,
+			params,
+		);
+
+		const filteredContent = allContent.filter((item) => {
+			const publishedAt = new Date(item.publishedAt);
+			if (Number.isNaN(publishedAt.getTime())) return false;
+			const publishedMs = publishedAt.getTime();
+			if (fromBoundary && publishedMs < fromBoundary) return false;
+			if (toBoundary && publishedMs > toBoundary) return false;
+			return true;
+		});
+		const paginatedContent = filteredContent.slice(start, end);
+
+		const transformedContent = paginatedContent.map((item: SanityContent) => {
+			const category = item.category;
+			const type =
+				category === "videos" || category === "ads" ? category : "news";
+			return {
+				_id: item._id,
+				title: item.title,
+				image: item.image || null,
+				author: {
+					name: item.author?.name || "",
+					image: item.author?.image
+						? urlFor(c.env, item.author.image).width(200).url()
+						: null,
+				},
+				type,
+				dateUploaded: formatDate(item.publishedAt),
+				status: isDraft(item._id)
+					? ("pending" as const)
+					: ("verified" as const),
+			};
+		});
+
+		const total = filteredContent.length;
+		const totalPages = Math.ceil(total / pageSize);
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					content: transformedContent,
+					total,
+					page,
+					limit: pageSize,
+					totalPages,
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -634,94 +580,76 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const { id } = c.req.valid("param");
-			const client = getSanityClient(c.env);
+		const { id } = c.req.valid("param");
+		const client = getSanityClient(c.env);
 
-			const content = await client.fetch<SanityContentDetail | null>(
-				`*[_type == "news" && _id == $id][0]{
-					_id,
-					title,
-					slug,
-					body,
-					category,
-					publishedAt,
-					image,
-					"author": author->{_id, name, image}
-				}`,
-				{ id },
-			);
+		const content = await client.fetch<SanityContentDetail | null>(
+			`*[_type == "news" && _id == $id][0]{
+				_id,
+				title,
+				slug,
+				body,
+				category,
+				publishedAt,
+				image,
+				"author": author->{_id, name, image}
+			}`,
+			{ id },
+		);
 
-			if (!content) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Content not found",
-						details: [
-							{
-								field: "id",
-								message: "No CMS content found for the provided ID",
-								code: "not_found",
-							},
-						],
-					},
-					404,
-				);
-			}
-
-			const message =
-				content.body
-					?.flatMap((block) => block.children ?? [])
-					.map((child) => child.text?.trim() ?? "")
-					.filter(Boolean)
-					.join("\n") ?? "";
-
-			const category = content.category;
-			const type =
-				category === "videos" || category === "ads" ? category : "news";
-
-			return c.json(
-				{
-					success: true as const,
-					data: {
-						_id: content._id,
-						title: content.title,
-						slug: content.slug?.current ?? null,
-						message,
-						image: content.image ? urlFor(c.env, content.image).url() : null,
-						author: {
-							_id: content.author?._id ?? null,
-							name: content.author?.name ?? "",
-							image: content.author?.image
-								? urlFor(c.env, content.author.image).width(200).url()
-								: null,
-						},
-						type,
-						publishedAt: content.publishedAt,
-						status: isDraft(content._id)
-							? ("pending" as const)
-							: ("verified" as const),
-					},
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error fetching CMS content by ID:", error);
+		if (!content) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
+					error: "Content not found",
 					details: [
 						{
-							field: "server",
-							message: "An unexpected error occurred while fetching content",
-							code: "internal_error",
+							field: "id",
+							message: "No CMS content found for the provided ID",
+							code: "not_found",
 						},
 					],
 				},
-				500,
+				404,
 			);
 		}
+
+		const message =
+			content.body
+				?.flatMap((block) => block.children ?? [])
+				.map((child) => child.text?.trim() ?? "")
+				.filter(Boolean)
+				.join("\n") ?? "";
+
+		const category = content.category;
+		const type =
+			category === "videos" || category === "ads" ? category : "news";
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					_id: content._id,
+					title: content.title,
+					slug: content.slug?.current ?? null,
+					message,
+					image: content.image ? urlFor(c.env, content.image).url() : null,
+					author: {
+						_id: content.author?._id ?? null,
+						name: content.author?.name ?? "",
+						image: content.author?.image
+							? urlFor(c.env, content.author.image).width(200).url()
+							: null,
+					},
+					type,
+					publishedAt: content.publishedAt,
+					status: isDraft(content._id)
+						? ("pending" as const)
+						: ("verified" as const),
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -784,174 +712,152 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const token = getSessionToken(c.req.raw.headers);
-			const session = await validateAdminSession(c.env, token || "");
+		const token = getSessionToken(c.req.raw.headers);
+		const session = await validateAdminSession(c.env, token || "");
 
-			if (
-				!session ||
-				(session.role !== "admin" && session.role !== "super_admin")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - admin only",
-						details: null,
-					},
-					403,
-				);
-			}
-
-			if (
-				session.role !== "super_admin" &&
-				!requirePermission(session, "post_upload_content")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - post_upload_content permission required",
-					},
-					403,
-				);
-			}
-
-			const { title, message, contentType, bannerImage, authorName } =
-				c.req.valid("json");
-
-			const client = getSanityServerClient(c.env);
-
-			const authorQuery = `*[_type == "author" && (name == $authorName || slug.current == $slugifiedName)][0]{
-				_id,
-				name
-			}`;
-
-			const author = await client.fetch<{ _id: string; name: string }>(
-				authorQuery,
-				{
-					authorName,
-					slugifiedName: slugify(authorName),
-				},
-			);
-
-			if (!author) {
-				const errorResponse = {
-					success: false as const,
-					error: "Author not found",
-					details: [
-						{
-							field: "authorName",
-							message: "Author with the provided name does not exist",
-							code: "not_found",
-						},
-					],
-				};
-				return c.json(errorResponse, 400);
-			}
-
-			let imageAsset:
-				| {
-						_type: "image";
-						asset: { _type: "reference"; _ref: string };
-				  }
-				| undefined;
-			if (bannerImage) {
-				try {
-					const base64Data = bannerImage.replace(
-						/^data:image\/\w+;base64,/,
-						"",
-					);
-					const buffer = Buffer.from(base64Data, "base64");
-					const asset = await client.assets.upload("image", buffer, {
-						filename: `${slugify(title)}.jpg`,
-					});
-					imageAsset = {
-						_type: "image",
-						asset: {
-							_type: "reference",
-							_ref: asset._id,
-						},
-					};
-				} catch (imageError) {
-					console.error("Error uploading image:", imageError);
-				}
-			}
-
-			const doc: {
-				_id?: string;
-				_type: string;
-				title: string;
-				slug: { _type: string; current: string };
-				body: Array<{
-					_type: string;
-					children: Array<{ _type: string; text: string }>;
-				}>;
-				category: string;
-				author: { _type: string; _ref: string };
-				publishedAt: string;
-				image?: {
-					_type: "image";
-					asset: { _type: "reference"; _ref: string };
-				};
-			} = {
-				_type: "news",
-				title,
-				slug: {
-					_type: "slug",
-					current: slugify(title),
-				},
-				body: [
-					{
-						_type: "block",
-						children: [
-							{
-								_type: "span",
-								text: message,
-							},
-						],
-					},
-				],
-				category: contentType,
-				author: {
-					_type: "reference",
-					_ref: author._id,
-				},
-				publishedAt: toWAT(new Date()),
-			};
-
-			if (imageAsset) {
-				doc.image = imageAsset;
-			}
-
-			const createdDoc = await client.create(doc);
-
-			return c.json(
-				{
-					success: true as const,
-					data: {
-						_id: createdDoc._id,
-						title: createdDoc.title as string,
-						status: "pending",
-					},
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error creating CMS content:", error);
+		if (
+			!session ||
+			(session.role !== "admin" && session.role !== "super_admin")
+		) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
-					details: [
-						{
-							field: "server",
-							message: "An unexpected error occurred while creating content",
-							code: "internal_error",
-						},
-					],
+					error: "Forbidden - admin only",
+					details: null,
 				},
-				500,
+				403,
 			);
 		}
+
+		if (
+			session.role !== "super_admin" &&
+			!requirePermission(session, "post_upload_content")
+		) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Forbidden - post_upload_content permission required",
+				},
+				403,
+			);
+		}
+
+		const { title, message, contentType, bannerImage, authorName } =
+			c.req.valid("json");
+
+		const client = getSanityServerClient(c.env);
+
+		const authorQuery = `*[_type == "author" && (name == $authorName || slug.current == $slugifiedName)][0]{
+			_id,
+			name
+		}`;
+
+		const author = await client.fetch<{ _id: string; name: string }>(
+			authorQuery,
+			{
+				authorName,
+				slugifiedName: slugify(authorName),
+			},
+		);
+
+		if (!author) {
+			const errorResponse = {
+				success: false as const,
+				error: "Author not found",
+				details: [
+					{
+						field: "authorName",
+						message: "Author with the provided name does not exist",
+						code: "not_found",
+					},
+				],
+			};
+			return c.json(errorResponse, 400);
+		}
+
+		let imageAsset:
+			| {
+					_type: "image";
+					asset: { _type: "reference"; _ref: string };
+			  }
+			| undefined;
+		if (bannerImage) {
+			const base64Data = bannerImage.replace(
+				/^data:image\/\w+;base64,/,
+				"",
+			);
+			const buffer = Buffer.from(base64Data, "base64");
+			const asset = await client.assets.upload("image", buffer, {
+				filename: `${slugify(title)}.jpg`,
+			});
+			imageAsset = {
+				_type: "image",
+				asset: {
+					_type: "reference",
+					_ref: asset._id,
+				},
+			};
+		}
+
+		const doc: {
+			_id?: string;
+			_type: string;
+			title: string;
+			slug: { _type: string; current: string };
+			body: Array<{
+				_type: string;
+				children: Array<{ _type: string; text: string }>;
+			}>;
+			category: string;
+			author: { _type: string; _ref: string };
+			publishedAt: string;
+			image?: {
+				_type: "image";
+				asset: { _type: "reference"; _ref: string };
+			};
+		} = {
+			_type: "news",
+			title,
+			slug: {
+				_type: "slug",
+				current: slugify(title),
+			},
+			body: [
+				{
+					_type: "block",
+					children: [
+						{
+							_type: "span",
+							text: message,
+						},
+					],
+				},
+			],
+			category: contentType,
+			author: {
+				_type: "reference",
+				_ref: author._id,
+			},
+			publishedAt: toWAT(new Date()),
+		};
+
+		if (imageAsset) {
+			doc.image = imageAsset;
+		}
+
+		const createdDoc = await client.create(doc);
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					_id: createdDoc._id,
+					title: createdDoc.title as string,
+					status: "pending",
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -1026,265 +932,243 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const token = getSessionToken(c.req.raw.headers);
-			const session = await validateAdminSession(c.env, token || "");
+		const token = getSessionToken(c.req.raw.headers);
+		const session = await validateAdminSession(c.env, token || "");
 
-			if (
-				!session ||
-				(session.role !== "admin" && session.role !== "super_admin")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - admin only",
-						details: null,
-					},
-					403,
-				);
-			}
+		if (
+			!session ||
+			(session.role !== "admin" && session.role !== "super_admin")
+		) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Forbidden - admin only",
+					details: null,
+				},
+				403,
+			);
+		}
 
-			if (
-				session.role !== "super_admin" &&
-				!requirePermission(session, "post_upload_content")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - post_upload_content permission required",
-					},
-					403,
-				);
-			}
+		if (
+			session.role !== "super_admin" &&
+			!requirePermission(session, "post_upload_content")
+		) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Forbidden - post_upload_content permission required",
+				},
+				403,
+			);
+		}
 
-			const { id } = c.req.valid("param");
-			const body = c.req.valid("json");
+		const { id } = c.req.valid("param");
+		const body = c.req.valid("json");
 
-			if (!id || !id.trim()) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Bad request",
-						details: [
-							{
-								field: "id",
-								message: "Content ID is required",
-								code: "invalid_param",
-							},
-						],
-					},
-					400,
-				);
-			}
+		if (!id || !id.trim()) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Bad request",
+					details: [
+						{
+							field: "id",
+							message: "Content ID is required",
+							code: "invalid_param",
+						},
+					],
+				},
+				400,
+			);
+		}
 
-			const hasUpdate =
-				body.title !== undefined ||
-				body.message !== undefined ||
-				body.contentType !== undefined ||
-				body.bannerImage !== undefined ||
-				body.authorName !== undefined;
+		const hasUpdate =
+			body.title !== undefined ||
+			body.message !== undefined ||
+			body.contentType !== undefined ||
+			body.bannerImage !== undefined ||
+			body.authorName !== undefined;
 
-			if (!hasUpdate) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Bad request",
-						details: [
-							{
-								field: "body",
-								message:
-									"Provide at least one field to update the CMS content",
-								code: "invalid_body",
-							},
-						],
-					},
-					400,
-				);
-			}
+		if (!hasUpdate) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Bad request",
+					details: [
+						{
+							field: "body",
+							message:
+								"Provide at least one field to update the CMS content",
+							code: "invalid_body",
+						},
+					],
+				},
+				400,
+			);
+		}
 
-			const client = getSanityServerClient(c.env);
-			const existingDoc = await client.fetch<{
-				_id: string;
-				title: string;
-				category?: string;
-				publishedAt: string;
-				image?: unknown;
-				author?: { _id?: string; name?: string };
-			} | null>(
-				`*[_type == "news" && _id == $id][0]{
+		const client = getSanityServerClient(c.env);
+		const existingDoc = await client.fetch<{
+			_id: string;
+			title: string;
+			category?: string;
+			publishedAt: string;
+			image?: unknown;
+			author?: { _id?: string; name?: string };
+		} | null>(
+			`*[_type == "news" && _id == $id][0]{
+				_id,
+				title,
+				category,
+				publishedAt,
+				image,
+				"author": author->{_id, name}
+			}`,
+			{ id },
+		);
+
+		if (!existingDoc) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Content not found",
+					details: [
+						{
+							field: "id",
+							message: "No content found with the provided ID",
+							code: "not_found",
+						},
+					],
+				},
+				404,
+			);
+		}
+
+		const patch: Record<string, unknown> = {};
+		const unsetFields: string[] = [];
+
+		if (body.title !== undefined) {
+			patch.title = body.title;
+			patch.slug = {
+				_type: "slug",
+				current: slugify(body.title),
+			};
+		}
+
+		if (body.message !== undefined) {
+			patch.body = [
+				{
+					_type: "block",
+					children: [
+						{
+							_type: "span",
+							text: body.message,
+						},
+					],
+				},
+			];
+		}
+
+		if (body.contentType !== undefined) {
+			patch.category = body.contentType;
+		}
+
+		if (body.authorName !== undefined) {
+			const author = await client.fetch<{ _id: string; name: string } | null>(
+				`*[_type == "author" && (name == $authorName || slug.current == $slugifiedName)][0]{
 					_id,
-					title,
-					category,
-					publishedAt,
-					image,
-					"author": author->{_id, name}
+					name
 				}`,
-				{ id },
+				{
+					authorName: body.authorName,
+					slugifiedName: slugify(body.authorName),
+				},
 			);
 
-			if (!existingDoc) {
+			if (!author) {
 				return c.json(
 					{
 						success: false as const,
-						error: "Content not found",
+						error: "Author not found",
 						details: [
 							{
-								field: "id",
-								message: "No content found with the provided ID",
+								field: "authorName",
+								message: "Author with the provided name does not exist",
 								code: "not_found",
 							},
 						],
 					},
-					404,
-				);
-			}
-
-			const patch: Record<string, unknown> = {};
-			const unsetFields: string[] = [];
-
-			if (body.title !== undefined) {
-				patch.title = body.title;
-				patch.slug = {
-					_type: "slug",
-					current: slugify(body.title),
-				};
-			}
-
-			if (body.message !== undefined) {
-				patch.body = [
-					{
-						_type: "block",
-						children: [
-							{
-								_type: "span",
-								text: body.message,
-							},
-						],
-					},
-				];
-			}
-
-			if (body.contentType !== undefined) {
-				patch.category = body.contentType;
-			}
-
-			if (body.authorName !== undefined) {
-				const author = await client.fetch<{ _id: string; name: string } | null>(
-					`*[_type == "author" && (name == $authorName || slug.current == $slugifiedName)][0]{
-						_id,
-						name
-					}`,
-					{
-						authorName: body.authorName,
-						slugifiedName: slugify(body.authorName),
-					},
-				);
-
-				if (!author) {
-					return c.json(
-						{
-							success: false as const,
-							error: "Author not found",
-							details: [
-								{
-									field: "authorName",
-									message: "Author with the provided name does not exist",
-									code: "not_found",
-								},
-							],
-						},
-						400,
-					);
-				}
-
-				patch.author = {
-					_type: "reference",
-					_ref: author._id,
-				};
-			}
-
-			if (body.bannerImage !== undefined) {
-				if (body.bannerImage === null) {
-					unsetFields.push("image");
-				} else {
-					try {
-						const base64Data = body.bannerImage.replace(
-							/^data:image\/\w+;base64,/,
-							"",
-						);
-						const buffer = Buffer.from(base64Data, "base64");
-						const asset = await client.assets.upload("image", buffer, {
-							filename: `${slugify(body.title ?? existingDoc.title)}.jpg`,
-						});
-						patch.image = {
-							_type: "image",
-							asset: {
-								_type: "reference",
-								_ref: asset._id,
-							},
-						};
-					} catch (imageError) {
-						console.error("Error uploading image:", imageError);
-					}
-				}
-			}
-
-			if (Object.keys(patch).length === 0 && unsetFields.length === 0) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Bad request",
-						details: [
-							{
-								field: "body",
-								message:
-									"Unable to apply the requested update. Try changing at least one field.",
-								code: "invalid_body",
-							},
-						],
-					},
 					400,
 				);
 			}
 
-			const patchRequest = client.patch(id);
-			if (Object.keys(patch).length > 0) {
-				patchRequest.set(patch);
-			}
-			if (unsetFields.length > 0) {
-				patchRequest.unset(unsetFields);
-			}
+			patch.author = {
+				_type: "reference",
+				_ref: author._id,
+			};
+		}
 
-			await patchRequest.commit();
-
-			return c.json(
-				{
-					success: true as const,
-					data: {
-						_id: id,
-						title: (body.title ?? existingDoc.title) as string,
-						status: isDraft(id) ? ("pending" as const) : ("verified" as const),
+		if (body.bannerImage !== undefined) {
+			if (body.bannerImage === null) {
+				unsetFields.push("image");
+			} else {
+				const base64Data = body.bannerImage.replace(
+					/^data:image\/\w+;base64,/,
+					"",
+				);
+				const buffer = Buffer.from(base64Data, "base64");
+				const asset = await client.assets.upload("image", buffer, {
+					filename: `${slugify(body.title ?? existingDoc.title)}.jpg`,
+				});
+				patch.image = {
+					_type: "image",
+					asset: {
+						_type: "reference",
+						_ref: asset._id,
 					},
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error updating CMS content:", error);
+				};
+			}
+		}
+
+		if (Object.keys(patch).length === 0 && unsetFields.length === 0) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
+					error: "Bad request",
 					details: [
 						{
-							field: "server",
-							message: "An unexpected error occurred while updating content",
-							code: "internal_error",
+							field: "body",
+							message:
+								"Unable to apply the requested update. Try changing at least one field.",
+							code: "invalid_body",
 						},
 					],
 				},
-				500,
+				400,
 			);
 		}
+
+		const patchRequest = client.patch(id);
+		if (Object.keys(patch).length > 0) {
+			patchRequest.set(patch);
+		}
+		if (unsetFields.length > 0) {
+			patchRequest.unset(unsetFields);
+		}
+
+		await patchRequest.commit();
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					_id: id,
+					title: (body.title ?? existingDoc.title) as string,
+					status: isDraft(id) ? ("pending" as const) : ("verified" as const),
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -1345,106 +1229,88 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		try {
-			const token = getSessionToken(c.req.raw.headers);
-			const session = await validateAdminSession(c.env, token || "");
+		const token = getSessionToken(c.req.raw.headers);
+		const session = await validateAdminSession(c.env, token || "");
 
-			if (
-				!session ||
-				(session.role !== "admin" && session.role !== "super_admin")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - admin only",
-						details: null,
-					},
-					403,
-				);
-			}
-
-			if (
-				session.role !== "super_admin" &&
-				!requirePermission(session, "post_upload_content")
-			) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Forbidden - post_upload_content permission required",
-					},
-					403,
-				);
-			}
-
-			const { id } = c.req.valid("param");
-
-			if (!id || !id.trim()) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Bad request",
-						details: [
-							{
-								field: "id",
-								message: "Content ID is required",
-								code: "invalid_param",
-							},
-						],
-					},
-					400,
-				);
-			}
-
-			const client = getSanityServerClient(c.env);
-
-			const existingDoc = await client.fetch<{ _id: string }>(
-				`*[_type == "news" && _id == $id][0]{_id}`,
-				{ id },
-			);
-
-			if (!existingDoc) {
-				return c.json(
-					{
-						success: false as const,
-						error: "Content not found",
-						details: [
-							{
-								field: "id",
-								message: "No content found with the provided ID",
-								code: "not_found",
-							},
-						],
-					},
-					404,
-				);
-			}
-
-			await client.delete(id);
-
-			return c.json(
-				{
-					success: true as const,
-					data: { deletedId: id },
-				},
-				200,
-			);
-		} catch (error) {
-			console.error("Error deleting CMS content:", error);
+		if (
+			!session ||
+			(session.role !== "admin" && session.role !== "super_admin")
+		) {
 			return c.json(
 				{
 					success: false as const,
-					error: "Internal server error",
+					error: "Forbidden - admin only",
+					details: null,
+				},
+				403,
+			);
+		}
+
+		if (
+			session.role !== "super_admin" &&
+			!requirePermission(session, "post_upload_content")
+		) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Forbidden - post_upload_content permission required",
+				},
+				403,
+			);
+		}
+
+		const { id } = c.req.valid("param");
+
+		if (!id || !id.trim()) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Bad request",
 					details: [
 						{
-							field: "server",
-							message: "An unexpected error occurred while deleting content",
-							code: "internal_error",
+							field: "id",
+							message: "Content ID is required",
+							code: "invalid_param",
 						},
 					],
 				},
-				500,
+				400,
 			);
 		}
+
+		const client = getSanityServerClient(c.env);
+
+		const existingDoc = await client.fetch<{ _id: string }>(
+			`*[_type == "news" && _id == $id][0]{_id}`,
+			{ id },
+		);
+
+		if (!existingDoc) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Content not found",
+					details: [
+						{
+							field: "id",
+							message: "No content found with the provided ID",
+							code: "not_found",
+						},
+					],
+				},
+				404,
+			);
+		}
+
+		await client.delete(id);
+
+		return c.json(
+			{
+				success: true as const,
+				data: { deletedId: id },
+			},
+			200,
+		);
 	},
 );
 

@@ -354,6 +354,7 @@ slotegratorRoute.post("/", async (c) => {
 		const transactionId = params.get("transaction_id") || "";
 		const sessionId = params.get("session_id") || "";
 		const type = params.get("type") || "bet";
+		const round_id = params.get("round_id");
 
 		if (
 			!playerId ||
@@ -485,6 +486,7 @@ slotegratorRoute.post("/", async (c) => {
 				currency,
 				gameId: gameUuid,
 				sessionId,
+				roundId: round_id,
 			})
 			.returning();
 
@@ -511,6 +513,7 @@ slotegratorRoute.post("/", async (c) => {
 		const transactionId = params.get("transaction_id") || "";
 		const sessionId = params.get("session_id") || "";
 		const type = params.get("type") || "win";
+		const round_id = params.get("round_id");
 
 		if (!playerId || isNaN(amount) || !transactionId || !sessionId) {
 			return c.json(
@@ -615,6 +618,7 @@ slotegratorRoute.post("/", async (c) => {
 				currency,
 				gameId: gameUuid,
 				sessionId,
+				roundId: round_id,
 			})
 			.returning();
 
@@ -642,6 +646,7 @@ slotegratorRoute.post("/", async (c) => {
 		const sessionId = params.get("session_id") || "";
 		const betTransactionId = params.get("bet_transaction_id") || "";
 		const type = params.get("type") || "refund";
+		const round_id = params.get("round_id");
 
 		console.log("REFUND");
 
@@ -737,6 +742,7 @@ slotegratorRoute.post("/", async (c) => {
 					currency,
 					gameId: gameUuid,
 					sessionId,
+					roundId: round_id,
 				})
 				.returning();
 
@@ -826,6 +832,7 @@ slotegratorRoute.post("/", async (c) => {
 				gameId: gameUuid,
 				sessionId,
 				originalTransactionId: betTransactionId,
+				roundId: round_id,
 			})
 			.returning();
 
@@ -849,6 +856,7 @@ slotegratorRoute.post("/", async (c) => {
 		const gameUuid = params.get("game_uuid") || "";
 		const transactionId = params.get("transaction_id") || "";
 		const sessionId = params.get("session_id") || "";
+		const roundId = params.get("round_id");
 
 		console.log("ROLLBACK");
 		console.log("all params entries:", [...params.entries()]);
@@ -1018,6 +1026,7 @@ slotegratorRoute.post("/", async (c) => {
 				currency,
 				gameId: gameUuid,
 				sessionId,
+				roundId,
 			})
 			.returning();
 

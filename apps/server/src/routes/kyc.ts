@@ -364,35 +364,27 @@ kycRoute.openapi(submitKycRoute, async (c) => {
 	let frontFileId: string | null = null;
 	let frontR2Key: string | null = null;
 
-	try {
-		const frontFiles = await db
-			.insert(schema.userFile)
-			.values({
-				id: frontUpload.id,
-				userId: user.id,
-				fileName: `front_document_${kycId}`,
-				originalName: frontDocument.name,
-				purpose: filePurpose.ID_CARD_FRONT,
-				r2Key: frontUpload.r2Key,
-				url: frontUpload.url,
-				mimeType: frontDocument.type,
-				size: frontDocument.size,
-			})
-			.returning();
+	const frontFiles = await db
+		.insert(schema.userFile)
+		.values({
+			id: frontUpload.id,
+			userId: user.id,
+			fileName: `front_document_${kycId}`,
+			originalName: frontDocument.name,
+			purpose: filePurpose.ID_CARD_FRONT,
+			r2Key: frontUpload.r2Key,
+			url: frontUpload.url,
+			mimeType: frontDocument.type,
+			size: frontDocument.size,
+		})
+		.returning();
 
-		if (!frontFiles[0]) {
-			throw new Error("Failed to save front document");
-		}
-
-		frontFileId = frontFiles[0].id;
-		frontR2Key = frontFiles[0].r2Key;
-	} catch (err) {
-		await deleteFileFromR2(bucket, frontUpload.r2Key);
-		return c.json(
-			{ success: false, error: "Failed to save front document" },
-			500,
-		);
+	if (!frontFiles[0]) {
+		throw new Error("Failed to save front document");
 	}
+
+	frontFileId = frontFiles[0].id;
+	frontR2Key = frontFiles[0].r2Key;
 
 	const backUpload = await uploadFileToR2(
 		bucket,
@@ -416,72 +408,50 @@ kycRoute.openapi(submitKycRoute, async (c) => {
 	let backFileId: string | null = null;
 	let backR2Key: string | null = null;
 
-	try {
-		const backFiles = await db
-			.insert(schema.userFile)
-			.values({
-				id: backUpload.id,
-				userId: user.id,
-				fileName: `back_document_${kycId}`,
-				originalName: backDocument.name,
-				purpose: filePurpose.ID_CARD_BACK,
-				r2Key: backUpload.r2Key,
-				url: backUpload.url,
-				mimeType: backDocument.type,
-				size: backDocument.size,
-			})
-			.returning();
+	const backFiles = await db
+		.insert(schema.userFile)
+		.values({
+			id: backUpload.id,
+			userId: user.id,
+			fileName: `back_document_${kycId}`,
+			originalName: backDocument.name,
+			purpose: filePurpose.ID_CARD_BACK,
+			r2Key: backUpload.r2Key,
+			url: backUpload.url,
+			mimeType: backDocument.type,
+			size: backDocument.size,
+		})
+		.returning();
 
-		if (!backFiles[0]) {
-			throw new Error("Failed to save back document");
-		}
-
-		backFileId = backFiles[0].id;
-		backR2Key = backFiles[0].r2Key;
-	} catch (err) {
-		await deleteFileFromR2(bucket, frontR2Key!);
-		await deleteFileFromR2(bucket, backUpload.r2Key);
-		await db
-			.delete(schema.userFile)
-			.where(eq(schema.userFile.id, frontFileId!));
-		return c.json(
-			{ success: false, error: "Failed to save back document" },
-			500,
-		);
+	if (!backFiles[0]) {
+		throw new Error("Failed to save back document");
 	}
 
-	try {
-		const [kycRecord] = await db
-			.insert(schema.kyc)
-			.values({
-				id: kycId,
-				userId: user.id,
-				fullName,
-				identificationType,
-				frontDocumentId: frontFileId,
-				backDocumentId: backFileId,
-				status: "pending_review",
-				submittedAt,
-			})
-			.returning();
+	backFileId = backFiles[0].id;
+	backR2Key = backFiles[0].r2Key;
 
-		if (!kycRecord?.id) {
-			throw new Error("Failed to create KYC record");
-		}
+	const [kycRecord] = await db
+		.insert(schema.kyc)
+		.values({
+			id: kycId,
+			userId: user.id,
+			fullName,
+			identificationType,
+			frontDocumentId: frontFileId,
+			backDocumentId: backFileId,
+			status: "pending_review",
+			submittedAt,
+		})
+		.returning();
 
-		await db
-			.update(schema.user)
-			.set({ verificationStatus: "pending_review" })
-			.where(eq(schema.user.id, user.id));
-	} catch {
-		await deleteFileFromR2(bucket, frontR2Key!);
-		await deleteFileFromR2(bucket, backR2Key!);
-		await db
-			.delete(schema.userFile)
-			.where(eq(schema.userFile.id, frontFileId!));
-		await db.delete(schema.userFile).where(eq(schema.userFile.id, backFileId!));
-		return c.json({ success: false, error: "Failed to submit KYC" }, 500);
+	if (!kycRecord?.id) {
+		throw new Error("Failed to create KYC record");
 	}
+
+	await db
+		.update(schema.user)
+		.set({ verificationStatus: "pending_review" })
+		.where(eq(schema.user.id, user.id));
 
 	return c.json(
 		{
@@ -735,21 +705,17 @@ kycRoute.openapi(getAllKycRoute, async (c) => {
 	const offset = (page - 1) * limit;
 
 	let total = 0;
-	try {
-		const countQuery = db
-			.select({ count: sql<number>`count(*)` })
-			.from(schema.kyc)
-			.innerJoin(schema.user, eq(schema.kyc.userId, schema.user.id));
+	const countQuery = db
+		.select({ count: sql<number>`count(*)` })
+		.from(schema.kyc)
+		.innerJoin(schema.user, eq(schema.kyc.userId, schema.user.id));
 
-		const countResult =
-			conditions.length > 0
-				? await countQuery.where(and(...conditions))
-				: await countQuery;
+	const countResult =
+		conditions.length > 0
+			? await countQuery.where(and(...conditions))
+			: await countQuery;
 
-		total = countResult[0]?.count ?? 0;
-	} catch {
-		total = 0;
-	}
+	total = countResult[0]?.count ?? 0;
 
 	const rawData = await query
 		.orderBy(sql`${schema.kyc.submittedAt} desc`)

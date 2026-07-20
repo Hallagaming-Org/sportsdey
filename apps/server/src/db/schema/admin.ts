@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { user } from "../schema";
 
 export const adminRoles = ["super_admin", "admin", "csr-admin"] as const;
 export type AdminRole = (typeof adminRoles)[number];
@@ -49,6 +50,7 @@ export const adminSession = sqliteTable(
 
 export const adminRelations = relations(admin, ({ many }) => ({
 	sessions: many(adminSession),
+	logNotes: many(adminLogNote),
 }));
 
 export const adminSessionRelations = relations(adminSession, ({ one }) => ({
@@ -82,3 +84,30 @@ export const adminNotificationRelations = relations(
 		}),
 	}),
 );
+
+export const adminLogNote = sqliteTable("admin_log_note", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	adminId: text("admin_id")
+		.notNull()
+		.references(() => admin.id, { onDelete: "cascade" }),
+	adminName: text("admin_name").notNull(),
+	adminRole: text("admin_role").notNull(),
+	note: text("note").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+});
+
+export const adminLogNoteRelations = relations(adminLogNote, ({ one }) => ({
+	user: one(user, {
+		fields: [adminLogNote.userId],
+		references: [user.id],
+	}),
+	admin: one(admin, {
+		fields: [adminLogNote.adminId],
+		references: [admin.id],
+	}),
+}));

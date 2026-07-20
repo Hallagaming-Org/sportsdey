@@ -41,11 +41,7 @@ export async function sendOtpWithAfricaTalking(opts: {
 	);
 
 	let body: AfricaTalkingResponse | null = null;
-	try {
-		body = (await response.json()) as AfricaTalkingResponse;
-	} catch {
-		body = null;
-	}
+	body = (await response.json()) as AfricaTalkingResponse;
 
 	const recipients = body?.SMSMessageData?.Recipients ?? [];
 	const accepted = recipients.some((r) =>

@@ -1,12 +1,8 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, lte, notInArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import {
-	generateSessionToken,
-	getSessionToken,
-	validateAdminSession,
-} from "@/auth/admin";
+import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
@@ -48,6 +44,17 @@ const UpdateUserSchema = z
 	})
 	.openapi("UpdateUser");
 
+const RecentSessionSchema = z
+	.object({
+		ipAddresses: z
+			.array(z.string())
+			.openapi({ description: "IP addresses from the last 3 active sessions" }),
+		devices: z.array(z.string()).openapi({
+			description: "Device/browser info from the last 3 active sessions",
+		}),
+	})
+	.openapi("RecentSession");
+
 const UserResponseSchema = z
 	.object({
 		id: z.string().openapi({ description: "User ID" }),
@@ -68,6 +75,9 @@ const UserResponseSchema = z
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
+		recentSessions: z.array(RecentSessionSchema).openapi({
+			description: "Last 3 active sessions with device and IP info",
+		}),
 	})
 	.openapi("UserResponse");
 
@@ -143,6 +153,10 @@ const UserListItemSchema = z
 		status: z.string().openapi({ description: "Verification status" }),
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		registeredDate: z.string().openapi({ description: "Registration date" }),
+		registeredIpAddress: z
+			.string()
+			.nullable()
+			.openapi({ description: "Latest IP address from active session" }),
 	})
 	.openapi("UserListItem");
 
@@ -283,7 +297,9 @@ userRoute.openapi(getUserRoute, async (c) => {
 	return c.json(
 		{
 			success: true as const,
-			data: userResponse,
+			data: {
+				...userResponse,
+			},
 		},
 		200,
 	);
@@ -501,6 +517,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 			status: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
 			registeredDate: schema.user.createdAt,
+			registeredIpAddress: schema.user.lastLoginIp,
 		})
 		.from(schema.user)
 		.leftJoin(schema.wallet, eq(schema.wallet.userId, schema.user.id));
@@ -521,12 +538,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// in-memory after fetching results so admin endpoints control date
 	// filtering at the application layer.
 
-	const orderByClause =
-		tab === "recent"
-			? desc(schema.user.createdAt)
-			: sort === "desc"
-				? desc(schema.user.name)
-				: asc(schema.user.name);
+	const orderByClause = desc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory
@@ -540,6 +552,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		status: u.status,
 		suspended: u.suspended,
 		registeredDate: u.registeredDate,
+		registeredIpAddress: u.registeredIpAddress ?? null,
 	}));
 
 	// apply search and date filters in memory
@@ -769,6 +782,9 @@ const UserProfileResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "Last top-up date" }),
+		recentSessions: z.array(RecentSessionSchema).openapi({
+			description: "Last 3 active sessions with device and IP info",
+		}),
 	})
 	.openapi("UserProfile");
 
@@ -935,6 +951,30 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 		.orderBy(desc(schema.walletTransaction.createdAt))
 		.limit(1);
 
+	const recentSessionsRows = await db
+		.select({
+			ipAddress: schema.session.ipAddress,
+			device: schema.session.userAgent,
+		})
+		.from(schema.session)
+		.where(
+			and(
+				eq(schema.session.userId, userId),
+				gt(schema.session.expiresAt, new Date()),
+			),
+		)
+		.orderBy(desc(schema.session.createdAt))
+		.limit(3);
+
+	const recentSessions = {
+		ipAddresses: recentSessionsRows
+			.map((s) => s.ipAddress)
+			.filter(Boolean) as string[],
+		devices: recentSessionsRows
+			.map((s) => s.device)
+			.filter(Boolean) as string[],
+	};
+
 	return c.json(
 		{
 			success: true as const,
@@ -952,6 +992,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 					balance: (wallet?.balance ?? 0) / 100,
 				},
 				lastTopUp: toWAT(lastTopUpTransaction?.createdAt) ?? null,
+				recentSessions,
 			},
 		},
 		200,
@@ -1337,8 +1378,11 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 
 	const userId = c.req.param("userId");
 	const query = c.req.valid("query");
-	const page = Math.max(1, parseInt(query.page || "1", 10));
-	const limit = Math.min(100, Math.max(1, parseInt(query.limit || "10", 10)));
+	const page = Math.max(1, Number.parseInt(query.page || "1", 10));
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.parseInt(query.limit || "10", 10)),
+	);
 	const offset = (page - 1) * limit;
 	const { fromDate, toDate } = parseQueryDateRange({
 		fromDate: query.fromDate,
@@ -1409,8 +1453,6 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	);
 });
 
-// ─── Manual Credit/Debit ──────────────────────────────────────────────────────
-
 const ManualTransactionSchema = z
 	.object({
 		type: z.enum(["credit", "debit"]),
@@ -1475,7 +1517,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	}
 	if (
 		session.role !== "super_admin" &&
-		!requirePermission(session, "view_player_details")
+		!requirePermission(session, "manual_credit_debit")
 	) {
 		return c.json(
 			{

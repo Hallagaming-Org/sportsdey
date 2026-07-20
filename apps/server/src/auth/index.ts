@@ -1,6 +1,7 @@
 import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { bearer, openAPI } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
@@ -52,13 +53,13 @@ export const createAuth = (
 				clientId: env.FACEBOOK_CLIENT_ID || "",
 				clientSecret: env.FACEBOOK_CLIENT_SECRET || "",
 			},
-			apple: {
-				clientId: env.APPLE_CLIENT_ID || "",
-				clientSecret: env.APPLE_CLIENT_SECRET || "",
-				teamId: env.APPLE_TEAM_ID || "",
-				keyId: env.APPLE_KEY_ID || "",
-				privateKey: env.APPLE_PRIVATE_KEY || "",
-			},
+			// apple: {
+			// 	clientId: env.APPLE_CLIENT_ID || "",
+			// 	clientSecret: env.APPLE_CLIENT_SECRET || "",
+			// 	// teamId: env.APPLE_TEAM_ID || "",
+			// 	keyId: env.APPLE_KEY_ID || "",
+			// 	privateKey: env.APPLE_PRIVATE_KEY || "",
+			// },
 		},
 		plugins: [expo(), openAPI(), bearer()],
 		databaseHooks: {
@@ -110,13 +111,14 @@ export const createAuth = (
 					required: false,
 					fieldName: "verification_status",
 				},
+				lastLoginIp: {
+					type: "string",
+					required: false,
+					fieldName: "last_login_ip",
+				},
 			},
 			deleteUser: {
 				enabled: true,
-			},
-			facebook: {
-				clientId: env.FACEBOOK_CLIENT_ID,
-				clientSecret: env.FACEBOOK_CLIENT_SECRET,
 			},
 		},
 		baseURL: env.BETTER_AUTH_URL,
@@ -129,6 +131,21 @@ export const createAuth = (
 				secure: env.NODE_ENV !== "development",
 				path: "/",
 			},
+			ipAddress: {
+				ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for", "x-real-ip"],
+			},
+		},
+		hooks: {
+			after: createAuthMiddleware(async (ctx) => {
+				const userId = ctx.context.newSession?.user?.id;
+				const ipAddress = ctx.context.newSession?.session?.ipAddress;
+				if (userId && ipAddress) {
+					await db
+						.update(schema.user)
+						.set({ lastLoginIp: ipAddress })
+						.where(eq(schema.user.id, userId));
+				}
+			}),
 		},
 	});
 };

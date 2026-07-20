@@ -2,10 +2,10 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq, gt, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import * as schema from "@/db/schema";
-import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import { createHashCookie, getCookiePrefix } from "@/auth";
+import * as schema from "@/db/schema";
 import { queueAffnookCustomerSync } from "@/services/affnook";
+import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import type { CloudflareBindings } from "../types";
 
 const phoneAuthRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -303,12 +303,11 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		);
 	}
 
-	let payload: { otpHash?: string; attempts?: number; consumed?: boolean } = {};
-	try {
-		payload = JSON.parse(otpRecord.value);
-	} catch {
-		return c.json({ success: false as const, error: "Invalid OTP state" }, 400);
-	}
+	const payload = JSON.parse(otpRecord.value) as {
+		otpHash?: string;
+		attempts?: number;
+		consumed?: boolean;
+	};
 
 	if (payload.consumed) {
 		return c.json({ success: false as const, error: "OTP already used" }, 401);
@@ -383,15 +382,21 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 
 	const token = createSessionToken();
 	const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+	const loginIp = c.req.header("cf-connecting-ip") || null;
 
 	await db.insert(schema.session).values({
 		id: `${crypto.randomUUID()}`,
 		token,
 		expiresAt,
 		userId: signedInUser.id,
-		ipAddress: c.req.header("cf-connecting-ip") || null,
+		ipAddress: loginIp,
 		userAgent: c.req.header("user-agent") || null,
 	});
+
+	await db
+		.update(schema.user)
+		.set({ lastLoginIp: loginIp })
+		.where(eq(schema.user.id, signedInUser.id));
 
 	const prefix = getCookiePrefix();
 	const secure =

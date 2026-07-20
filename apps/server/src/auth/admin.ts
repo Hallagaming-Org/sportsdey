@@ -452,15 +452,11 @@ export function parsePermissions(
 	if (!permissionsStr) {
 		return [];
 	}
-	try {
-		const parsed = JSON.parse(permissionsStr);
-		if (Array.isArray(parsed)) {
-			return parsed.filter((p): p is AdminPermission => typeof p === "string");
-		}
-		return [];
-	} catch {
-		return [];
+	const parsed = JSON.parse(permissionsStr);
+	if (Array.isArray(parsed)) {
+		return parsed.filter((p): p is AdminPermission => typeof p === "string");
 	}
+	return [];
 }
 
 export function hasPermission(

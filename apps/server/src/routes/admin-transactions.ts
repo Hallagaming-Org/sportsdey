@@ -162,12 +162,7 @@ adminTransactionsRoute.openapi(getTransactionSummaryRoute, async (c) => {
 		);
 	}
 
-	let meta: Record<string, unknown> = {};
-	try {
-		meta = JSON.parse(txn.metadata || "{}");
-	} catch {
-		/* empty */
-	}
+	const meta: Record<string, unknown> = JSON.parse(txn.metadata || "{}");
 
 	const amount = (txn.amount ?? 0) / 100;
 
