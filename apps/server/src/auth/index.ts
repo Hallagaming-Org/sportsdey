@@ -40,7 +40,6 @@ export const createAuth = (env: CloudflareBindings) => {
 		basePath: "/auth",
 		database: drizzleAdapter(db, { provider: "sqlite" }),
 		emailAndPassword: { enabled: true },
-		// plugins: [expo()],
 		socialProviders: {
 			google: {
 				clientId: env.GOOGLE_CLIENT_ID || "",
@@ -93,7 +92,7 @@ export const createAuth = (env: CloudflareBindings) => {
 		trustedOrigins,
 		advanced: {
 			cookiePrefix: "ba",
-			cookieOptions: {
+			defaultCookieAttributes: {
 				sameSite: "none",
 				secure: env.NODE_ENV !== "development",
 				path: "/",

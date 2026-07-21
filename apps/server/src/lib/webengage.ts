@@ -1,3 +1,4 @@
+import type { ExecutionContext } from "hono";
 import type { CloudflareBindings } from "../types";
 
 function getConfig(env: CloudflareBindings) {
