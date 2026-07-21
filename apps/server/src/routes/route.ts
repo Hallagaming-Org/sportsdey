@@ -1,4 +1,5 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
+import affnookRoute from "./affnook";
 import basketballRoute from "./basketball";
 import casinoRoute from "./casino";
 import hashcodexRoute from "./hashcodex";
@@ -22,6 +23,7 @@ import userRoute from "./user";
 import walletRoute from "./wallet";
 const routes = new OpenAPIHono();
 
+routes.route("/affnook", affnookRoute);
 routes.route("/football", footballRoute);
 routes.route("/basketball", basketballRoute);
 routes.route("/tennis", tennisRoute);

@@ -4,11 +4,12 @@ import { Camera, Edit, Loader2, User } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { syncAffnookCustomer } from "@/lib/affnook";
 import { apiRequest } from "@/lib/api";
 import { changeEmail, useSession } from "@/lib/auth/client";
 import {
 	loginWebengageUser,
-	setWebengageUserAttributes,
+	trackWebengageEvent,
 } from "@/lib/webengage";
 
 export const Route = createFileRoute("/account")({
@@ -38,6 +39,7 @@ function AccountPage() {
 		email: "",
 		country: "",
 		mobileNumbers: "",
+		referralCode: "",
 		referralId: "",
 	});
 	const [isEditing, setIsEditing] = useState(false);
@@ -56,36 +58,75 @@ function AccountPage() {
 	}, [session?.user?.email, session?.user?.id, session?.user?.name]);
 
 	const updateUserMutation = useMutation({
-		mutationFn: (data: {
+		mutationFn: async (data: {
 			name: string;
 			country?: string;
 			mobileNumber?: string;
-		}) =>
-			apiRequest<UpdateUserResponse>("user/", {
+			referralCode?: string;
+		}) => {
+			const referral = data.referralCode?.trim();
+			let affnookMessage: string | undefined;
+
+			// Affnook first so referral sync is not blocked by profile PATCH.
+			if (referral) {
+				const affnook = await syncAffnookCustomer({
+					event: "registration",
+					promocode: referral,
+					country: data.country || "NG",
+				});
+				affnookMessage = affnook.message;
+			}
+
+			const user = await apiRequest<UpdateUserResponse>("user", {
 				method: "PATCH",
 				credentials: "include",
-				body: JSON.stringify(data),
-			}),
-		onSuccess: (data) => {
+				body: JSON.stringify({
+					name: data.name,
+					country: data.country,
+					mobileNumber: data.mobileNumber,
+				}),
+			});
+
+			return {
+				user,
+				referralSynced: Boolean(referral),
+				affnookMessage,
+			};
+		},
+		onSuccess: ({ user, referralSynced, affnookMessage }) => {
 			setIsEditing(false);
 			refetchSession();
 			setFormState((prev) => ({
 				...prev,
-				fullName: data.name,
-				country: data.country ?? "",
-				mobileNumbers: data.mobileNumber ?? "",
+				fullName: user.name,
+				country: user.country ?? "",
+				mobileNumbers: user.mobileNumber ?? "",
+				referralId: referralSynced
+					? prev.referralCode.trim() || prev.referralId
+					: prev.referralId,
+				referralCode: "",
 			}));
-			const nameParts = data.name.trim().split(/\s+/);
+			const nameParts = user.name.trim().split(/\s+/);
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
-			trackWebengageEvent("Profile Completed", {
+			trackWebengageEvent(import.meta.env.VITE_SERVER_URL, {
+				userId: session?.user?.id ?? "",
+				eventName: "Profile Completed",
 				"First Name": firstName,
 				"Last Name": lastName,
-				Mobile: (userMobile as string) || "",
-				Country: "",
-				"Reference Id": referralId,
+				Mobile: user.mobileNumber ?? "",
+				Country: user.country ?? "",
+				"Reference Id": formState.referralCode || formState.referralId || "",
 			});
-			toast.success("Profile updated successfully");
+			if (referralSynced) {
+				if (affnookMessage) {
+					toast.success(affnookMessage);
+				} else {
+					toast.error("Referral code could not be synced, but profile updated");
+				}
+			} else {
+				toast.success("Profile updated successfully");
+			}
 		},
 		onError: (error) => {
 			toast.error(
@@ -124,6 +165,7 @@ function AccountPage() {
 			name: formState.fullName,
 			country: formState.country || undefined,
 			mobileNumber: formState.mobileNumbers || undefined,
+			referralCode: formState.referralCode || undefined,
 		});
 	};
 
@@ -136,6 +178,7 @@ function AccountPage() {
 		email: "account-email",
 		country: "account-country",
 		mobileNumbers: "account-mobile",
+		referralCode: "account-referral-code",
 		referralId: "account-referral-id",
 	};
 
@@ -214,7 +257,7 @@ function AccountPage() {
 						</div>
 						<div className="mb-10 flex justify-center">
 							<p className="text-[10px] md:text-sm text-gray-500 dark:text-[#8C8F8F]">
-								user id: {session?.user?.id || ""}
+								{session?.user?.name || ""}
 							</p>
 						</div>
 
@@ -304,7 +347,28 @@ function AccountPage() {
 											updateField("mobileNumbers", event.target.value)
 										}
 										disabled={!isEditing}
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+									/>
+								</div>
+
+								{/* Referral Code Field */}
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+									<label
+										htmlFor={inputIds.referralCode}
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+									>
+										Referral code:
+									</label>
+									<Input
+										id={inputIds.referralCode}
+										type="text"
+										value={formState.referralCode}
+										onChange={(event) =>
+											updateField("referralCode", event.target.value)
+										}
+										disabled={!isEditing}
+										placeholder="Enter referral code"
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 

@@ -1,13 +1,9 @@
 const resolveApiBaseUrl = () =>
-	import.meta.env.DEV
-		? "http://localhost:3000/"
-		: import.meta.env.VITE_SERVER_URL ||
-			import.meta.env.VITE_API_URL ||
-			"https://staging-api.sportsdey.com/";
+	import.meta.env.VITE_SERVER_URL ||
+	import.meta.env.VITE_API_URL ||
+	"https://staging-api.sportsdey.com/";
 
-// const resolveApiBaseUrl = () => import.meta.env.VITE_API_URL || "https://staging-api.sportsdey.com/"
 const API_BASE_URL = resolveApiBaseUrl();
-// const API_BASE_URL = "/api/";
 
 type ApiSuccessResponse<T> = {
 	data: T;
@@ -76,17 +72,21 @@ export async function apiRequest<T>(
 				};
 			}
 
-			// User-friendly error messages based on status code
-			let userMessage = data.error || "An error occurred. Try again later.";
+			let userMessage =
+				typeof data.error === "string" && data.error.trim()
+					? data.error
+					: "An error occurred. Try again later.";
 
-			if (response.status >= 500) {
-				userMessage = "Server error. Please try again later.";
-			} else if (response.status === 404) {
-				userMessage = "Resource not found.";
-			} else if (response.status === 401 || response.status === 403) {
-				userMessage = "Unauthorized access.";
-			} else if (response.status === 400) {
-				userMessage = data.error || "Invalid request.";
+			if (!(typeof data.error === "string" && data.error.trim())) {
+				if (response.status >= 500) {
+					userMessage = "Server error. Please try again later.";
+				} else if (response.status === 404) {
+					userMessage = "Resource not found.";
+				} else if (response.status === 401 || response.status === 403) {
+					userMessage = "Unauthorized access.";
+				} else if (response.status === 400) {
+					userMessage = "Invalid request.";
+				}
 			}
 
 			throw new ApiError(userMessage, response.status, data.details, false);
