@@ -9,8 +9,18 @@ import {
 	isAffnookConfigured,
 	recordAffnookCustomerLogin,
 } from "@/services/affnook";
+import { extractAffnookMessage } from "@/services/affnook/client";
 import { parseUserAgentMeta } from "@/utils/affnook";
 import type { CloudflareBindings } from "../types";
+
+function affnookResultMessage(
+	result: { data?: unknown; error?: string; message?: string },
+	fallback: string,
+) {
+	if (result.message?.trim()) return result.message;
+	if (result.error?.trim()) return result.error;
+	return extractAffnookMessage(result.data, fallback);
+}
 
 const affnookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -129,7 +139,10 @@ affnookRoute.openapi(syncRoute, async (c) => {
 			return c.json(
 				{
 					success: false as const,
-					error: result.error || "Failed to sync registration to Affnook",
+					error: affnookResultMessage(
+						result,
+						"Failed to sync registration to Affnook",
+					),
 					details: result.data ?? null,
 				},
 				502,
@@ -142,7 +155,10 @@ affnookRoute.openapi(syncRoute, async (c) => {
 				data: {
 					event,
 					synced: true,
-					message: "Registration synced to Affnook",
+					message: affnookResultMessage(
+						result,
+						"Registration synced to Affnook",
+					),
 				},
 			},
 			200,
@@ -164,7 +180,10 @@ affnookRoute.openapi(syncRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: loginResult.error || "Failed to sync login to Affnook",
+				error: affnookResultMessage(
+					loginResult,
+					"Failed to sync login to Affnook",
+				),
 				details: loginResult.data ?? null,
 			},
 			502,
@@ -177,7 +196,7 @@ affnookRoute.openapi(syncRoute, async (c) => {
 			data: {
 				event,
 				synced: true,
-				message: "Login synced to Affnook",
+				message: affnookResultMessage(loginResult, "Login synced to Affnook"),
 			},
 		},
 		200,
