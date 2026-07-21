@@ -82,7 +82,7 @@ export default function SignInPage() {
 						</span>
 					</button>
 
-					{/*<button
+					<button
 						onClick={() => handleSocialSignIn("facebook")}
 						disabled={isLoading}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -93,7 +93,7 @@ export default function SignInPage() {
 						<span className="font-medium text-gray-700">
 							Continue with Facebook
 						</span>
-					</button>*/}
+					</button>
 				</div>
 
 				<p className="mt-6 text-center text-gray-500 text-sm">

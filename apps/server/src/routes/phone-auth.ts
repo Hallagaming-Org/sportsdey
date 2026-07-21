@@ -221,6 +221,15 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 	const otpHash = hashOtp(otp);
 	const message = `Your SportsDey verification code is ${otp}. It expires in 5 minutes.`;
 
+
+	//  To be the deleted
+	// console.log("AT env check:", {
+	// 	username: c.env.AFRICASTALKING_USERNAME,
+	// 	apiKeyLength: c.env.AFRICASTALKING_API_KEY?.length,
+	// 	apiKeyPreview: c.env.AFRICASTALKING_API_KEY?.slice(0, 10),
+	// });
+
+
 	const providerResult = await sendOtpWithAfricaTalking({
 		apiKey: c.env.AFRICASTALKING_API_KEY,
 		username: c.env.AFRICASTALKING_USERNAME,

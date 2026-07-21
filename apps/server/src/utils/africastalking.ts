@@ -15,33 +15,51 @@ type AfricaTalkingResponse = {
 
 const ACCEPTED_STATUS_CODES = new Set([100, 101, 102]);
 
+
+
 export async function sendOtpWithAfricaTalking(opts: {
 	apiKey: string;
 	username: string;
-	senderId?: string;
+	senderId?: string;	
 	phoneNumber: string;
 	message: string;
 }) {
-	const response = await fetch(
-		"https://api.africastalking.com/version1/messaging/bulk",
-		{
-			method: "POST",
-			headers: {
-				Accept: "application/json",
-				"Content-Type": "application/json",
-				apiKey: opts.apiKey,
-			},
-			body: JSON.stringify({
-				username: opts.username,
-				message: opts.message,
-				senderId: opts.senderId,
-				phoneNumbers: [opts.phoneNumber],
-			}),
-		},
-	);
+	const baseUrl =
+		opts.username === "sandbox"
+			? "https://api.sandbox.africastalking.com/version1/messaging"
+			: "https://api.africastalking.com/version1/messaging";
 
+	const params = new URLSearchParams();
+	params.append("username", opts.username);
+	params.append("to", opts.phoneNumber);
+	params.append("message", opts.message);
+	if (opts.senderId) {
+		params.append("from", opts.senderId);
+	}
+
+	const response = await fetch(baseUrl, {
+		method: "POST",
+		headers: {
+			Accept: "application/json",
+			"Content-Type": "application/x-www-form-urlencoded",
+			apiKey: opts.apiKey,
+		},
+		body: params.toString(),
+	});
+
+	const rawText = await response.text();
 	let body: AfricaTalkingResponse | null = null;
-	body = (await response.json()) as AfricaTalkingResponse;
+	try {
+		body = JSON.parse(rawText) as AfricaTalkingResponse;
+	} catch {
+		console.error("Africa's Talking non-JSON response:", response.status, rawText);
+		return {
+			ok: false,
+			status: response.status,
+			recipients: [],
+			raw: rawText,
+		};
+	}
 
 	const recipients = body?.SMSMessageData?.Recipients ?? [];
 	const accepted = recipients.some((r) =>
