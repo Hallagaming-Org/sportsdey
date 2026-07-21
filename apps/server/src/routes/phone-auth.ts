@@ -237,6 +237,7 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 				details: {
 					providerStatus: providerResult.status,
 					recipients: providerResult.recipients,
+					providerError: providerResult.error,
 				},
 			},
 			502,
@@ -372,27 +373,29 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		signedInUser = newUser;
 	}
 
+	if (!signedInUser) {
+		return c.json(
+			{ success: false as const, error: "Failed to create or load user" },
+			500,
+		);
+	}
+
 	const token = createSessionToken();
 	const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+	const loginIp = c.req.header("cf-connecting-ip") || null;
 
-	const session = await db
-		.insert(schema.session)
-		.values({
-			id: `${crypto.randomUUID()}`,
-			token,
-			expiresAt,
-			userId: signedInUser.id,
-			ipAddress: c.req.header("cf-connecting-ip") || null,
-			userAgent: c.req.header("user-agent") || null,
-		})
-		.returning();
-	if (!session) {
-		c.json({});
-	}
+	await db.insert(schema.session).values({
+		id: `${crypto.randomUUID()}`,
+		token,
+		expiresAt,
+		userId: signedInUser.id,
+		ipAddress: loginIp,
+		userAgent: c.req.header("user-agent") || null,
+	});
 
 	await db
 		.update(schema.user)
-		.set({ lastLoginIp: c.req.header("cf-connecting-ip") || null })
+		.set({ lastLoginIp: loginIp })
 		.where(eq(schema.user.id, signedInUser.id));
 
 	const prefix = getCookiePrefix();
