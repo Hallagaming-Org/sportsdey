@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
 import { type KeyboardEvent, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import z from "zod";
 import { syncAffnookCustomer } from "@/lib/affnook";
 import { verifyPhoneOtp } from "@/lib/auth/client";
@@ -68,13 +69,21 @@ function OtpPage() {
 			const trimmedReferral = referralCode?.trim();
 			if (trimmedReferral) {
 				try {
-					await syncAffnookCustomer({
+					const affnook = await syncAffnookCustomer({
 						event: "registration",
 						promocode: trimmedReferral,
 						country: "NG",
 					});
+					if (affnook.message) {
+						toast.success(affnook.message);
+					}
 				} catch (affnookError) {
 					console.error("Affnook referral sync failed:", affnookError);
+					toast.error(
+						affnookError instanceof Error
+							? affnookError.message
+							: "Referral code sync failed",
+					);
 				}
 			}
 

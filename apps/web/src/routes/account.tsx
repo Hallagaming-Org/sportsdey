@@ -65,14 +65,16 @@ function AccountPage() {
 			referralCode?: string;
 		}) => {
 			const referral = data.referralCode?.trim();
+			let affnookMessage: string | undefined;
 
 			// Affnook first so referral sync is not blocked by profile PATCH.
 			if (referral) {
-				await syncAffnookCustomer({
+				const affnook = await syncAffnookCustomer({
 					event: "registration",
 					promocode: referral,
 					country: data.country || "NG",
 				});
+				affnookMessage = affnook.message;
 			}
 
 			const user = await apiRequest<UpdateUserResponse>("user", {
@@ -85,9 +87,13 @@ function AccountPage() {
 				}),
 			});
 
-			return { user, referralSynced: Boolean(referral) };
+			return {
+				user,
+				referralSynced: Boolean(referral),
+				affnookMessage,
+			};
 		},
-		onSuccess: ({ user, referralSynced }) => {
+		onSuccess: ({ user, referralSynced, affnookMessage }) => {
 			setIsEditing(false);
 			refetchSession();
 			setFormState((prev) => ({
@@ -112,11 +118,15 @@ function AccountPage() {
 				Country: user.country ?? "",
 				"Reference Id": formState.referralCode || formState.referralId || "",
 			});
-			toast.success(
-				referralSynced
-					? "Referral code synced and profile updated"
-					: "Profile updated successfully",
-			);
+			if (referralSynced) {
+				if (affnookMessage) {
+					toast.success(affnookMessage);
+				} else {
+					toast.error("Referral code could not be synced, but profile updated");
+				}
+			} else {
+				toast.success("Profile updated successfully");
+			}
 		},
 		onError: (error) => {
 			toast.error(
