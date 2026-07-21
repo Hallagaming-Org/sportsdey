@@ -40,8 +40,23 @@ export async function sendOtpWithAfricaTalking(opts: {
 		},
 	);
 
+	const text = await response.text();
 	let body: AfricaTalkingResponse | null = null;
-	body = (await response.json()) as AfricaTalkingResponse;
+
+	if (text) {
+		try {
+			body = JSON.parse(text) as AfricaTalkingResponse;
+		} catch {
+			console.error("Africa's Talking non-JSON response:", response.status, text);
+			return {
+				ok: false,
+				status: response.status,
+				recipients: [] as AfricaTalkingRecipient[],
+				raw: null,
+				error: text.trim() || `Africa's Talking request failed (${response.status})`,
+			};
+		}
+	}
 
 	const recipients = body?.SMSMessageData?.Recipients ?? [];
 	const accepted = recipients.some((r) =>
@@ -53,5 +68,10 @@ export async function sendOtpWithAfricaTalking(opts: {
 		status: response.status,
 		recipients,
 		raw: body,
+		error:
+			response.ok && accepted
+				? undefined
+				: body?.SMSMessageData?.Message ||
+					`Africa's Talking request failed (${response.status})`,
 	};
 }
