@@ -15,50 +15,52 @@ type AfricaTalkingResponse = {
 
 const ACCEPTED_STATUS_CODES = new Set([100, 101, 102]);
 
-
-
 export async function sendOtpWithAfricaTalking(opts: {
 	apiKey: string;
 	username: string;
-	senderId?: string;	
+	senderId?: string;
 	phoneNumber: string;
 	message: string;
 }) {
-	const baseUrl =
-		opts.username === "sandbox"
-			? "https://api.sandbox.africastalking.com/version1/messaging"
-			: "https://api.africastalking.com/version1/messaging";
+	const payload: Record<string, unknown> = {
+		username: opts.username,
+		message: opts.message,
+		phoneNumbers: [opts.phoneNumber],
+	};
 
-	const params = new URLSearchParams();
-	params.append("username", opts.username);
-	params.append("to", opts.phoneNumber);
-	params.append("message", opts.message);
-	if (opts.senderId) {
-		params.append("from", opts.senderId);
+	if (opts.senderId?.trim()) {
+		payload.senderId = opts.senderId.trim();
 	}
 
-	const response = await fetch(baseUrl, {
-		method: "POST",
-		headers: {
-			Accept: "application/json",
-			"Content-Type": "application/x-www-form-urlencoded",
-			apiKey: opts.apiKey,
+	const response = await fetch(
+		"https://api.africastalking.com/version1/messaging/bulk",
+		{
+			method: "POST",
+			headers: {
+				Accept: "application/json",
+				"Content-Type": "application/json",
+				apiKey: opts.apiKey,
+			},
+			body: JSON.stringify(payload),
 		},
-		body: params.toString(),
-	});
+	);
 
-	const rawText = await response.text();
+	const text = await response.text();
 	let body: AfricaTalkingResponse | null = null;
-	try {
-		body = JSON.parse(rawText) as AfricaTalkingResponse;
-	} catch {
-		console.error("Africa's Talking non-JSON response:", response.status, rawText);
-		return {
-			ok: false,
-			status: response.status,
-			recipients: [],
-			raw: rawText,
-		};
+
+	if (text) {
+		try {
+			body = JSON.parse(text) as AfricaTalkingResponse;
+		} catch {
+			console.error("Africa's Talking non-JSON response:", response.status, text);
+			return {
+				ok: false,
+				status: response.status,
+				recipients: [] as AfricaTalkingRecipient[],
+				raw: null,
+				error: text.trim() || `Africa's Talking request failed (${response.status})`,
+			};
+		}
 	}
 
 	const recipients = body?.SMSMessageData?.Recipients ?? [];
@@ -71,5 +73,10 @@ export async function sendOtpWithAfricaTalking(opts: {
 		status: response.status,
 		recipients,
 		raw: body,
+		error:
+			response.ok && accepted
+				? undefined
+				: body?.SMSMessageData?.Message ||
+					`Africa's Talking request failed (${response.status})`,
 	};
 }

@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Phone } from "lucide-react";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/auth/sign-in")({
 });
 
 export default function SignInPage() {
+	const navigate = useNavigate();
 	const { returnTo } = Route.useSearch();
 
 	const [isLoading, setIsLoading] = useState(false);
@@ -82,7 +84,7 @@ export default function SignInPage() {
 						</span>
 					</button>
 
-					<button
+					{/* <button
 						onClick={() => handleSocialSignIn("facebook")}
 						disabled={isLoading}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -92,6 +94,21 @@ export default function SignInPage() {
 						</svg>
 						<span className="font-medium text-gray-700">
 							Continue with Facebook
+						</span>
+					</button> */}
+
+					<button
+						onClick={() =>
+							navigate({
+								to: "/auth/phone-sign-in",
+							})
+						}
+						disabled={isLoading}
+						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
+					>
+						<Phone className="h-5 w-5 text-gray-700" />
+						<span className="font-medium text-gray-700">
+							Continue with Phone Number
 						</span>
 					</button>
 				</div>
