@@ -22,6 +22,16 @@ export async function sendOtpWithAfricaTalking(opts: {
 	phoneNumber: string;
 	message: string;
 }) {
+	const payload: Record<string, unknown> = {
+		username: opts.username,
+		message: opts.message,
+		phoneNumbers: [opts.phoneNumber],
+	};
+
+	if (opts.senderId?.trim()) {
+		payload.senderId = opts.senderId.trim();
+	}
+
 	const response = await fetch(
 		"https://api.africastalking.com/version1/messaging/bulk",
 		{
@@ -31,12 +41,7 @@ export async function sendOtpWithAfricaTalking(opts: {
 				"Content-Type": "application/json",
 				apiKey: opts.apiKey,
 			},
-			body: JSON.stringify({
-				username: opts.username,
-				message: opts.message,
-				senderId: opts.senderId,
-				phoneNumbers: [opts.phoneNumber],
-			}),
+			body: JSON.stringify(payload),
 		},
 	);
 
