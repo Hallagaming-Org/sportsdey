@@ -131,6 +131,13 @@ export type AffnookUserLike = {
 	updatedAt?: Date | string | number | null;
 };
 
+export type AffnookSyncOptions = {
+	promocode?: string;
+	trackingToken?: string;
+	country?: string;
+	currency?: string;
+};
+
 /**
  * Queue Affnook customer create asynchronously (does not block auth).
  */
@@ -138,6 +145,7 @@ export function queueAffnookCustomerSync(
 	env: CloudflareBindings,
 	user: AffnookUserLike,
 	executionCtx?: { waitUntil: (promise: Promise<unknown>) => void },
+	options?: AffnookSyncOptions,
 ) {
 	if (!isAffnookConfigured(env) || !user?.id) return;
 
@@ -149,8 +157,9 @@ export function queueAffnookCustomerSync(
 			toUnixSeconds(user.createdAt) ??
 			toUnixSeconds(user.updatedAt) ??
 			getAffnookTimestamp(),
-		country: "NG",
-		currency: "NGN",
+		country: options?.country || "NG",
+		currency: options?.currency || "NGN",
+		promocode: options?.promocode,
 	})
 		.then((result) => {
 			if (!result.ok) {
