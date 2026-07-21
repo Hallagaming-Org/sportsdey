@@ -11,6 +11,7 @@ const API_BASE_URL = resolveApiBaseUrl();
 
 type ApiSuccessResponse<T> = {
 	data: T;
+	[key: string]: unknown;
 };
 
 type ApiErrorResponse = {
@@ -116,6 +117,83 @@ export async function apiRequest<T>(
 		}
 
 		// Unknown errors
+		throw new ApiError(
+			"An unexpected error occurred. Please try again.",
+			undefined,
+			undefined,
+			false,
+		);
+	}
+}
+
+export async function apiRequestFull<T>(
+	endpoint: string,
+	options: RequestInit = {},
+): Promise<T> {
+	const url = `${API_BASE_URL}${endpoint}`;
+
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+	const config: RequestInit = {
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options.headers,
+		},
+		signal: controller.signal,
+	};
+
+	try {
+		const response = await fetch(url, config);
+		clearTimeout(timeoutId);
+
+		if (!response.ok) {
+			let data: ApiErrorResponse;
+			try {
+				data = (await response.json()) as ApiErrorResponse;
+			} catch (jsonError) {
+				data = {
+					error: `Unexpected server response (${response.status} ${response.statusText})`,
+					details: [] as any,
+				};
+			}
+
+			let userMessage = data.error || "An error occurred. Try again later.";
+
+			if (response.status >= 500) {
+				userMessage = "Server error. Please try again later.";
+			} else if (response.status === 404) {
+				userMessage = "Resource not found.";
+			} else if (response.status === 401 || response.status === 403) {
+				userMessage = "Unauthorized access.";
+			} else if (response.status === 400) {
+				userMessage = data.error || "Invalid request.";
+			}
+
+			throw new ApiError(userMessage, response.status, data.details, false);
+		}
+
+		return (await response.json()) as T;
+	} catch (error) {
+		clearTimeout(timeoutId);
+		if (
+			error instanceof TypeError ||
+			error instanceof DOMException ||
+			(error instanceof Error && error.name === "AbortError")
+		) {
+			throw new ApiError(
+				"Network error or timeout. Please check your connection and try again.",
+				undefined,
+				undefined,
+				true,
+			);
+		}
+
+		if (error instanceof ApiError) {
+			throw error;
+		}
+
 		throw new ApiError(
 			"An unexpected error occurred. Please try again.",
 			undefined,

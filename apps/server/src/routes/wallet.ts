@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, gte, lt, lte } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
@@ -798,12 +798,27 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 		}
 	}
 
+	const page = query.page ?? 1;
+	const limit = query.limit ?? 50;
+	const offset = (page - 1) * limit;
+
+	const whereClause = and(...filters);
+
+	const [countResult] = await db
+		.select({ value: count() })
+		.from(schema.walletTransaction)
+		.where(whereClause);
+
+	const total = countResult?.value ?? 0;
+	const totalPages = Math.ceil(total / limit);
+
 	const transactions = await db
 		.select()
 		.from(schema.walletTransaction)
-		.where(and(...filters))
+		.where(whereClause)
 		.orderBy(desc(schema.walletTransaction.createdAt))
-		.limit(50);
+		.limit(limit)
+		.offset(offset);
 
 	const transactionsInNaira = transactions.map((tx) => ({
 		...tx,
@@ -821,6 +836,13 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 		{
 			success: true as const,
 			data: transactionsInNaira,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages,
+				hasMore: page < totalPages,
+			},
 		},
 		200,
 	);
@@ -933,7 +955,9 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							.where(eq(schema.wallet.userId, transaction.userId));
 					}
 
-					let existingMeta: Record<string, unknown> = JSON.parse(transaction.metadata || "{}");
+					let existingMeta: Record<string, unknown> = JSON.parse(
+						transaction.metadata || "{}",
+					);
 
 					const auth = tx.authorization;
 					if (transaction.type === "credit") {
@@ -1839,8 +1863,6 @@ walletRoute.openapi(transferRoute, async (c) => {
 			status: "completed",
 			paymentMethod: "wallet_transfer",
 			balance: recipientWallet.balance + amount * 100,
-			recipientWalletId,
-			recipientName,
 			metadata: JSON.stringify({
 				transferType: "incoming",
 				senderName: user.name || "Unknown",
@@ -2114,20 +2136,20 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		.where(eq(schema.gameWallet.id, gameWallet.id))
 		.limit(1);
 
-	trackWebengageEvent(
-		c.env,
-		{
-			userId: user.id,
-			eventName: "transfer_funds completed",
-			eventData: {
-				"wallet id": "game_wallet",
-				amount,
-				transaction_id: reference,
-				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
-			},
-		},
-		c.executionCtx,
-	);
+	// trackWebengageEvent(
+	// 	c.env,
+	// 	{
+	// 		userId: user.id,
+	// 		eventName: "transfer_funds completed",
+	// 		eventData: {
+	// 			"wallet id": "game_wallet",
+	// 			amount,
+	// 			transaction_id: reference,
+	// 			wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+	// 		},
+	// 	},
+	// 	c.executionCtx,
+	// );
 
 	return c.json(
 		{
