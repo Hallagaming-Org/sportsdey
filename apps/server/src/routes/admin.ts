@@ -146,6 +146,25 @@ const CreateAdminSchema = z.object({
 		.openapi({ description: "Admin role" }),
 });
 
+const ResetAdminPasswordSchema = z.object({
+	email: z.string().email().openapi({
+		description: "Admin email address",
+		example: "admin@sportsdey.com",
+	}),
+	name: z
+		.string()
+		.min(1)
+		.optional()
+		.openapi({ description: "Admin full name (optional)", example: "John Doe" }),
+	role: z
+		.enum(["super_admin", "admin", "csr-admin"])
+		.openapi({ description: "Admin role" }),
+	password: z.string().min(6).openapi({
+		description: "New password (min 6 characters)",
+		example: "newpassword123",
+	}),
+});
+
 const GetWalletTransactionsQuerySchema = z.object({
 	search: z
 		.string()
@@ -199,6 +218,7 @@ const TransactionResponseSchema = z.object({
 		.number()
 		.openapi({ description: "Wallet balance after transaction" }),
 	status: z.string().openapi({ description: "Transaction status" }),
+	metadata: z.any().nullable(),
 });
 
 const signInRoute = createRoute({
@@ -497,6 +517,74 @@ const deleteAdminRoute = createRoute({
 		},
 		403: {
 			description: "Forbidden - super_admin only",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+const resetAdminPasswordRoute = createRoute({
+	method: "post",
+	path: "/admins/reset-password",
+	tags: ["Admin - Management"],
+	summary: "Reset admin password",
+	description:
+		"Reset an admin's password by email. Requires super_admin role or reset_password permission.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: ResetAdminPasswordSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Admin password reset successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(
+						z.object({
+							id: z.string(),
+							email: z.string(),
+							name: z.string(),
+							role: z.enum(["super_admin", "admin", "csr-admin"]),
+						}),
+					),
+				},
+			},
+		},
+		400: {
+			description: "Invalid request body",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		403: {
+			description: "Forbidden - reset_password permission required",
+			content: {
+				"application/json": {
+					schema: ErrorResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Admin not found with the given email",
 			content: {
 				"application/json": {
 					schema: ErrorResponseSchema,
@@ -1436,6 +1524,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 			amount: tx.amount / 100,
 			balance_after: tx.balance / 100,
 			status: tx.status,
+			metadata: JSON.parse(tx.metadata || ""),
 		};
 	});
 
@@ -1748,6 +1837,74 @@ adminRoute.openapi(updateAdminPermissionsRoute, async (c) => {
 		data: {
 			id,
 			permissions: result.data.permissions,
+		},
+	});
+});
+
+adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session || !requirePermission(session, "reset_password")) {
+		return c.json(
+			{ success: false, error: "Forbidden - reset_password permission required" },
+			403,
+		);
+	}
+
+	const body = await c.req.json();
+	const result = ResetAdminPasswordSchema.safeParse(body);
+	if (!result.success) {
+		return c.json({ success: false, error: "Invalid request body" }, 400);
+	}
+
+	const { email, name, role, password } = result.data;
+
+	const existing = await getAdminByEmail(c.env, email);
+	if (!existing) {
+		return c.json(
+			{ success: false, error: "Admin not found with this email" },
+			404,
+		);
+	}
+
+	if (name !== undefined && existing.name !== name) {
+		return c.json(
+			{ success: false, error: "Admin name does not match" },
+			400,
+		);
+	}
+
+	if (existing.role !== role) {
+		return c.json(
+			{ success: false, error: "Admin role does not match" },
+			400,
+		);
+	}
+
+	const passwordHash = await hashPassword(password);
+
+	const updated = await updateAdminById(c.env, existing.id, {
+		passwordHash,
+	});
+
+	if (!updated) {
+		return c.json(
+			{ success: false, error: "Failed to update admin" },
+			500,
+		);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			id: updated.id,
+			email: updated.email,
+			name: updated.name,
+			role: updated.role,
 		},
 	});
 });
