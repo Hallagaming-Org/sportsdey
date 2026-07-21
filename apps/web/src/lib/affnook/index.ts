@@ -5,7 +5,8 @@ export {
 	type AffnookAttribution,
 } from "./attribution";
 export {
-	resolveAffnookAuthEvent,
-	syncAffnookAuthEvent,
+	syncAffnookCustomer,
 	type AffnookSyncEvent,
-} from "./sync";
+	type AffnookSyncPayload,
+	type AffnookSyncResult,
+} from "./client";
