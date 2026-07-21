@@ -2,7 +2,7 @@ import type { CloudflareBindings } from "../../types";
 import { getAffnookConfig } from "./config";
 import type { AffnookApiResult } from "./types";
 
-function extractErrorMessage(parsed: unknown, fallback: string) {
+export function extractAffnookMessage(parsed: unknown, fallback: string) {
 	if (typeof parsed !== "object" || parsed === null) return fallback;
 
 	const record = parsed as {
@@ -11,19 +11,21 @@ function extractErrorMessage(parsed: unknown, fallback: string) {
 		error?: string | { message?: string; code?: string };
 	};
 
-	if (typeof record.error === "object" && record.error?.message) {
+	if (typeof record.error === "object" && record.error?.message?.trim()) {
 		return record.error.message;
 	}
-	if (typeof record.error === "string") return record.error;
-	if (typeof record.message === "string") return record.message;
-	if (typeof record.type === "string") return record.type;
+	if (typeof record.error === "string" && record.error.trim()) {
+		return record.error;
+	}
+	if (typeof record.message === "string" && record.message.trim()) {
+		return record.message;
+	}
+	if (typeof record.type === "string" && record.type.trim()) {
+		return record.type;
+	}
 	return fallback;
 }
 
-/**
- * Affnook admin calls authenticate with `x-api-key` only.
- * Customer create / login / activities do not use OAuth auth_code tokens.
- */
 export async function affnookRequest<T = unknown>(
 	env: CloudflareBindings,
 	path: string,
@@ -70,7 +72,7 @@ export async function affnookRequest<T = unknown>(
 			return {
 				ok: false,
 				status: response.status || 400,
-				error: extractErrorMessage(
+				error: extractAffnookMessage(
 					parsed,
 					text || `Affnook request failed (${response.status})`,
 				),
@@ -82,6 +84,7 @@ export async function affnookRequest<T = unknown>(
 			ok: true,
 			status: response.status,
 			data: parsed as T,
+			message: extractAffnookMessage(parsed, ""),
 		};
 	} catch (error) {
 		return {
