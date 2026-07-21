@@ -34,6 +34,9 @@ export async function verifyPhoneOtp(phoneNumber: string, otp: string) {
 	}>("phone-auth/verify-otp", {
 		method: "POST",
 		credentials: "include",
-		body: JSON.stringify({ phoneNumber, otp }),
+		body: JSON.stringify({
+			phoneNumber,
+			otp,
+		}),
 	});
 }
