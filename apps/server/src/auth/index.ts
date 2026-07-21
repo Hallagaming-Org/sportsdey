@@ -6,13 +6,9 @@ import { bearer, openAPI } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { queueAffnookCustomerSync } from "@/services/affnook";
 import type { CloudflareBindings } from "../../worker-configuration";
 
-export const createAuth = (
-	env: CloudflareBindings,
-	executionCtx?: { waitUntil: (promise: Promise<unknown>) => void },
-) => {
+export const createAuth = (env: CloudflareBindings) => {
 	const db = drizzle(env.DB, { schema });
 	const toOrigin = (value?: string) => {
 		if (!value) return "";
@@ -62,36 +58,6 @@ export const createAuth = (
 			// },
 		},
 		plugins: [expo(), openAPI(), bearer()],
-		databaseHooks: {
-			session: {
-				create: {
-					after: async (session) => {
-						try {
-							const [user] = await db
-								.select({
-									id: schema.user.id,
-									name: schema.user.name,
-									email: schema.user.email,
-									createdAt: schema.user.createdAt,
-									updatedAt: schema.user.updatedAt,
-								})
-								.from(schema.user)
-								.where(eq(schema.user.id, session.userId))
-								.limit(1);
-
-							if (user) {
-								queueAffnookCustomerSync(env, user, executionCtx);
-							}
-						} catch (error) {
-							console.error(
-								"Affnook session hook failed:",
-								error instanceof Error ? error.message : error,
-							);
-						}
-					},
-				},
-			},
-		},
 		user: {
 			changeEmail: {
 				enabled: true,
@@ -126,7 +92,7 @@ export const createAuth = (
 		trustedOrigins,
 		advanced: {
 			cookiePrefix: "ba",
-			cookieOptions: {
+			defaultCookieAttributes: {
 				sameSite: "none",
 				secure: env.NODE_ENV !== "development",
 				path: "/",
