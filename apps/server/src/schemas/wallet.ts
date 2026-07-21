@@ -115,6 +115,14 @@ export const GetTransactionsQuerySchema = z
 			description: "Filter transactions up to this date in YYYY-MM-DD format",
 			example: "2026-06-30",
 		}),
+		page: z.coerce.number().int().min(1).default(1).openapi({
+			description: "Page number for pagination (default: 1)",
+			example: 1,
+		}),
+		limit: z.coerce.number().int().min(1).max(50).default(50).openapi({
+			description: "Number of transactions per page (max: 50, default: 50)",
+			example: 50,
+		}),
 	})
 	.openapi("GetTransactionsQuery");
 
@@ -124,6 +132,15 @@ export const GetTransactionsResponseSchema = z
 		data: z
 			.array(TransactionResponseSchema)
 			.openapi({ description: "Transactions" }),
+		pagination: z
+			.object({
+				page: z.number().openapi({ description: "Current page number" }),
+				limit: z.number().openapi({ description: "Items per page" }),
+				total: z.number().openapi({ description: "Total number of transactions" }),
+				totalPages: z.number().openapi({ description: "Total number of pages" }),
+				hasMore: z.boolean().openapi({ description: "Whether more pages exist" }),
+			})
+			.openapi({ description: "Pagination metadata" }),
 	})
 	.openapi("GetTransactionsResponse");
 

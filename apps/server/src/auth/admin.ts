@@ -111,7 +111,7 @@ export async function createAdminSession(
 ): Promise<string> {
 	const database = getDb(bindings);
 	const token = generateSessionToken();
-	const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+	const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 	const { browser, deviceName } = parseUserAgent(userAgent);
 
 	await database.insert(adminSession).values({
@@ -361,6 +361,7 @@ export async function updateAdminById(
 		mobileNumber?: string | null;
 		image?: string | null;
 		passwordHash?: string;
+		role?: AdminRole;
 	},
 ): Promise<{
 	id: string;
@@ -388,6 +389,9 @@ export async function updateAdminById(
 	}
 	if (data.passwordHash !== undefined) {
 		updates.passwordHash = data.passwordHash;
+	}
+	if (data.role !== undefined) {
+		updates.role = data.role;
 	}
 
 	console.log("updateAdminById:", { id, updates });
@@ -500,7 +504,7 @@ export const getSessionToken = (headers: Headers): string | undefined => {
 export const setSessionCookie = (token: string, env?: string): string => {
 	const isProdOrStaging = !env || env === "staging" || env === "production";
 	const secureFlag = isProdOrStaging ? "; Secure" : "";
-	return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=${7 * 24 * 60 * 60}`;
+	return `admin_session=${token}; Path=/; HttpOnly; SameSite=Lax${secureFlag}; Max-Age=${30 * 60}`;
 };
 
 export const clearSessionCookie = (): string => {
