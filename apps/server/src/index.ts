@@ -19,11 +19,8 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-function getAuth(
-	env: CloudflareBindings,
-	executionCtx?: { waitUntil: (promise: Promise<unknown>) => void },
-) {
-	return createAuth(env, executionCtx);
+function getAuth(env: CloudflareBindings) {
+	return createAuth(env);
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
@@ -100,7 +97,7 @@ app.use(
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
-	const auth = getAuth(c.env, c.executionCtx);
+	const auth = getAuth(c.env);
 	const response = await auth.handler(c.req.raw);
 
 	const setCookies: string[] = [];
@@ -152,7 +149,7 @@ app.use("*", async (c, next) => {
 	) {
 		return next();
 	}
-	const auth = getAuth(c.env, c.executionCtx);
+	const auth = getAuth(c.env);
 	const sessionResult = await auth.api.getSession({
 		headers: c.req.raw.headers,
 	});
