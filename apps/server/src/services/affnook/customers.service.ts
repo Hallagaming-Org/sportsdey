@@ -8,22 +8,7 @@ import type {
 	AffnookCustomerLoginInput,
 } from "./types";
 
-function toUnixSeconds(
-	value?: Date | string | number | null,
-): number | undefined {
-	if (value == null) return undefined;
-	if (typeof value === "number") {
-		return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
-	}
-	const date = value instanceof Date ? value : new Date(value);
-	if (Number.isNaN(date.getTime())) return undefined;
-	return getAffnookTimestamp(date);
-}
 
-/**
- * POST /api/admin/v2/customers
- * Fire-and-forget friendly: duplicates are treated as success.
- */
 export async function createAffnookCustomer(
 	env: CloudflareBindings,
 	input: AffnookCreateCustomerInput,
@@ -62,7 +47,6 @@ export async function createAffnookCustomer(
 		body: payload,
 	});
 
-	// Idempotent: customer already exists on repeat login/register.
 	if (
 		!result.ok &&
 		typeof result.data === "object" &&
@@ -84,7 +68,7 @@ export async function createAffnookCustomer(
 				ok: true,
 				status: 200,
 				data: result.data,
-				error: undefined,
+				message: message || result.error,
 			};
 		}
 	}
@@ -121,61 +105,4 @@ export async function recordAffnookCustomerLogin(
 		method: "POST",
 		body: payload,
 	});
-}
-
-export type AffnookUserLike = {
-	id: string;
-	name?: string | null;
-	email?: string | null;
-	createdAt?: Date | string | number | null;
-	updatedAt?: Date | string | number | null;
-};
-
-export type AffnookSyncOptions = {
-	promocode?: string;
-	trackingToken?: string;
-	country?: string;
-	currency?: string;
-};
-
-/**
- * Queue Affnook customer create asynchronously (does not block auth).
- */
-export function queueAffnookCustomerSync(
-	env: CloudflareBindings,
-	user: AffnookUserLike,
-	executionCtx?: { waitUntil: (promise: Promise<unknown>) => void },
-	options?: AffnookSyncOptions,
-) {
-	if (!isAffnookConfigured(env) || !user?.id) return;
-
-	const promise = createAffnookCustomer(env, {
-		customerId: user.id,
-		customerName: user.name || user.email || user.id,
-		email: user.email || undefined,
-		timestamp:
-			toUnixSeconds(user.createdAt) ??
-			toUnixSeconds(user.updatedAt) ??
-			getAffnookTimestamp(),
-		country: options?.country || "NG",
-		currency: options?.currency || "NGN",
-		promocode: options?.promocode,
-	})
-		.then((result) => {
-			if (!result.ok) {
-				console.error(
-					"Affnook customer sync failed:",
-					result.status,
-					result.error,
-					result.data,
-				);
-			}
-		})
-		.catch((error) => {
-			console.error("Affnook customer sync error:", error);
-		});
-
-	if (executionCtx && typeof executionCtx.waitUntil === "function") {
-		executionCtx.waitUntil(promise);
-	}
 }
