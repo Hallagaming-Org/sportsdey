@@ -2,11 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
 import { type KeyboardEvent, useMemo, useRef, useState } from "react";
 import z from "zod";
+import { syncAffnookCustomer } from "@/lib/affnook";
 import { verifyPhoneOtp } from "@/lib/auth/client";
 import { loginWebengageUser } from "@/lib/webengage";
 
 const otpSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
+	referralCode: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/auth/otp")({
@@ -16,7 +18,7 @@ export const Route = createFileRoute("/auth/otp")({
 
 function OtpPage() {
 	const navigate = useNavigate();
-	const { phone } = Route.useSearch();
+	const { phone, referralCode } = Route.useSearch();
 	const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 	const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
 	const [error, setError] = useState("");
@@ -62,6 +64,20 @@ function OtpPage() {
 			const otp = otpDigits.join("");
 			const data = await verifyPhoneOtp(phone, otp);
 			loginWebengageUser(data.user.id);
+
+			const trimmedReferral = referralCode?.trim();
+			if (trimmedReferral) {
+				try {
+					await syncAffnookCustomer({
+						event: "registration",
+						promocode: trimmedReferral,
+						country: "NG",
+					});
+				} catch (affnookError) {
+					console.error("Affnook referral sync failed:", affnookError);
+				}
+			}
+
 			if (data.isFirstTimeSignIn) {
 				navigate({
 					to: "/auth/complete-profile",
@@ -70,7 +86,7 @@ function OtpPage() {
 				return;
 			}
 
-			navigate({ to: "/" });
+			navigate({ to: "/", search: { league: "sports", sports: "football" } });
 		} catch (err) {
 			setError(
 				err instanceof Error ? err.message : "Invalid OTP. Please try again.",
