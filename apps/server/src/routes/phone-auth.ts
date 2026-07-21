@@ -4,7 +4,6 @@ import { and, desc, eq, gt, gte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { createHashCookie, getCookiePrefix } from "@/auth";
 import * as schema from "@/db/schema";
-import { queueAffnookCustomerSync } from "@/services/affnook";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import type { CloudflareBindings } from "../types";
 
@@ -238,6 +237,7 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 				details: {
 					providerStatus: providerResult.status,
 					recipients: providerResult.recipients,
+					providerError: providerResult.error,
 				},
 			},
 			502,
@@ -413,8 +413,6 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 	c.header("Set-Cookie", hashCookie, {
 		append: true,
 	});
-
-	queueAffnookCustomerSync(c.env, signedInUser, c.executionCtx);
 
 	return c.json(
 		{
