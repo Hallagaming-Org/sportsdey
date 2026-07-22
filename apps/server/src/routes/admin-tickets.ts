@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, like, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -1034,6 +1034,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 	if (bet) {
 		const events = await db
 			.select({
+				eventType: schema.sportsbookBetEvent.eventType,
 				balanceBefore: schema.sportsbookBetEvent.balanceBefore,
 				balanceAfter: schema.sportsbookBetEvent.balanceAfter,
 				createdAt: schema.sportsbookBetEvent.createdAt,
@@ -1042,6 +1043,8 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			.where(eq(schema.sportsbookBetEvent.betId, id))
 			.orderBy(schema.sportsbookBetEvent.createdAt);
 
+
+		const wasCashedOut = events.some((e) => e.eventType === "cash_out_accepted");
 		const balanceBefore = events[0]?.balanceBefore ?? null;
 		const balanceAfter = events[events.length - 1]?.balanceAfter ?? null;
 
@@ -1091,7 +1094,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 				actualPayout: actualPayout != null ? formatAmount(actualPayout) : null,
 				profit: profit != null ? formatAmount(profit) : null,
 				totalOdds: bet.totalOdds,
-				cashedOut: bet.cashOutOrderIds != null,
+				cashedOut: wasCashedOut,
 				createdAt: formatDate(bet.createdAt),
 				settledAt: bet.status !== "created" && bet.status !== "accepted" ? formatDate(bet.updatedAt) : null,
 				player: {
@@ -1217,6 +1220,26 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					.limit(1);
 				gameName = g?.name ?? null;
 			}
+			const isWin = source.winTypes.includes(row.outcomeType);
+    		let stakeAmount = row.betAmount;
+
+		if (isWin) {
+			const [priorBet] = await db
+				.select({ amount: source.amountCol })
+				.from(source.table)
+				.where(
+					and(
+						eq(source.userIdCol, row.userId),
+						eq(source.table.sessionToken, row.sessionToken),
+						eq(source.typeCol, "BET"), // 
+						lt(source.createdAtCol, row.createdAt),
+					),
+				)
+				.orderBy(desc(source.createdAtCol))
+				.limit(1);
+
+			if (priorBet) stakeAmount = priorBet.amount;
+		}
 
 			return c.json({
 				success: true,
@@ -1226,13 +1249,13 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					status: row.outcomeType,
 					betType: null,
 					outcome: mapCasinoOutcome(row.outcomeType),
-					stake: formatAmount(row.betAmount),
+					stake: formatAmount(row.stakeAmount),
 					potentialWin: null,
 					actualPayout: source.winTypes.includes(row.outcomeType)
 						? formatAmount(row.betAmount)
 						: null,
 					profit: source.winTypes.includes(row.outcomeType)
-						? formatAmount(row.betAmount)
+						? formatAmount(row.betAmount - stakeAmount)
 						: null,
 					totalOdds: null,
 					cashedOut: false,

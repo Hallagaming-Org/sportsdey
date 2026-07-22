@@ -13,7 +13,6 @@ export const Route = createFileRoute("/auth/sign-in")({
 });
 
 export default function SignInPage() {
-	const navigate = useNavigate();
 	const { returnTo } = Route.useSearch();
 	const navigate = useNavigate();
 
