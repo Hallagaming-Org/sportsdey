@@ -1,12 +1,12 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Camera, Edit, Loader2, User } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { syncAffnookCustomer } from "@/lib/affnook";
-import { apiRequest } from "@/lib/api";
-import { changeEmail, useSession } from "@/lib/auth/client";
+import { syncAffnookRegistrationReferral } from "@/lib/affnook";
+import { apiRequest, apiUploadFile } from "@/lib/api";
+import { useSession } from "@/lib/auth/client";
 import {
 	loginWebengageUser,
 	trackWebengageEvent,
@@ -16,7 +16,10 @@ export const Route = createFileRoute("/account")({
 	component: AccountPage,
 });
 
-type UpdateUserResponse = {
+const PROFILE_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+type UserProfile = {
 	id: string;
 	name: string;
 	email: string;
@@ -34,6 +37,7 @@ function AccountPage() {
 		isPending: isSessionLoading,
 		refetch: refetchSession,
 	} = useSession();
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [formState, setFormState] = useState({
 		fullName: "",
 		email: "",
@@ -43,49 +47,74 @@ function AccountPage() {
 		referralId: "",
 	});
 	const [isEditing, setIsEditing] = useState(false);
-	const [isChangingEmail, setIsChangingEmail] = useState(false);
-	const [newEmail, setNewEmail] = useState("");
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+	const {
+		data: profile,
+		isPending: isProfileLoading,
+		refetch: refetchProfile,
+	} = useQuery({
+		queryKey: ["account-profile", session?.user?.id],
+		enabled: Boolean(session?.user?.id),
+		queryFn: () => apiRequest<UserProfile>("user", { credentials: "include" }),
+	});
 
 	useEffect(() => {
 		if (session?.user?.id) {
 			loginWebengageUser(session.user.id);
 		}
+	}, [session?.user?.id]);
+
+	useEffect(() => {
+		if (!profile) return;
 		setFormState((prev) => ({
 			...prev,
-			fullName: session?.user?.name ?? "",
-			email: session?.user?.email ?? "",
+			fullName: profile.name ?? "",
+			email: profile.email ?? "",
+			country: profile.country ?? "",
+			mobileNumbers: profile.mobileNumber ?? "",
 		}));
-	}, [session?.user?.email, session?.user?.id, session?.user?.name]);
+		setPreviewImage(null);
+	}, [profile]);
 
 	const updateUserMutation = useMutation({
 		mutationFn: async (data: {
 			name: string;
+			email?: string;
 			country?: string;
 			mobileNumber?: string;
 			referralCode?: string;
 		}) => {
 			const referral = data.referralCode?.trim();
-			let affnookMessage: string | undefined;
 
-			// Affnook first so referral sync is not blocked by profile PATCH.
+			const payload: Record<string, string> = {
+				name: data.name,
+			};
+			if (data.email?.trim()) {
+				payload.email = data.email.trim();
+			}
+			if (data.country !== undefined) {
+				payload.country = data.country;
+			}
+			if (data.mobileNumber?.trim()) {
+				payload.mobileNumber = data.mobileNumber.trim();
+			}
+
+			// Profile first — Affnook only after name/details are saved.
+			const user = await apiRequest<UserProfile>("user", {
+				method: "PATCH",
+				credentials: "include",
+				body: JSON.stringify(payload),
+			});
+
+			let affnookMessage: string | undefined;
 			if (referral) {
-				const affnook = await syncAffnookCustomer({
-					event: "registration",
+				const affnook = await syncAffnookRegistrationReferral({
 					promocode: referral,
-					country: data.country || "NG",
+					country: data.country,
 				});
 				affnookMessage = affnook.message;
 			}
-
-			const user = await apiRequest<UpdateUserResponse>("user", {
-				method: "PATCH",
-				credentials: "include",
-				body: JSON.stringify({
-					name: data.name,
-					country: data.country,
-					mobileNumber: data.mobileNumber,
-				}),
-			});
 
 			return {
 				user,
@@ -96,9 +125,11 @@ function AccountPage() {
 		onSuccess: ({ user, referralSynced, affnookMessage }) => {
 			setIsEditing(false);
 			refetchSession();
+			refetchProfile();
 			setFormState((prev) => ({
 				...prev,
 				fullName: user.name,
+				email: user.email,
 				country: user.country ?? "",
 				mobileNumbers: user.mobileNumber ?? "",
 				referralId: referralSynced
@@ -109,9 +140,8 @@ function AccountPage() {
 			const nameParts = user.name.trim().split(/\s+/);
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
-			trackWebengageEvent(import.meta.env.VITE_SERVER_URL, {
+			trackWebengageEvent("Profile Completed", {
 				userId: session?.user?.id ?? "",
-				eventName: "Profile Completed",
 				"First Name": firstName,
 				"Last Name": lastName,
 				Mobile: user.mobileNumber ?? "",
@@ -135,36 +165,84 @@ function AccountPage() {
 		},
 	});
 
-	const changeEmailMutation = useMutation({
-		mutationFn: async (email: string) => {
-			const { error } = await changeEmail({
-				newEmail: email,
-				callbackURL: "/account",
+	const uploadAvatarMutation = useMutation({
+		mutationFn: async (file: File) => {
+			if (!file.type.startsWith("image/")) {
+				throw new Error("Please choose an image file");
+			}
+			if (file.size > PROFILE_IMAGE_MAX_BYTES) {
+				throw new Error("Image must be 5MB or smaller");
+			}
+
+			const uploaded = await apiUploadFile({
+				endpoint: "files/upload",
+				file,
+				fields: {
+					purpose: "profile_pic",
+					fileName: "profile-picture",
+				},
 			});
-			if (error) {
-				throw new Error(error.message);
+
+			const currentName =
+				formState.fullName.trim() || profile?.name || session?.user?.name;
+			if (!currentName) {
+				throw new Error("Unable to update profile picture without a name");
+			}
+
+			return apiRequest<UserProfile>("user", {
+				method: "PATCH",
+				credentials: "include",
+				body: JSON.stringify({
+					name: currentName,
+					image: uploaded.url,
+				}),
+			});
+		},
+		onSuccess: (user) => {
+			setPreviewImage(null);
+			refetchSession();
+			refetchProfile();
+			toast.success("Profile picture updated");
+			if (user.image) {
+				setPreviewImage(user.image);
 			}
 		},
-		onSuccess: () => {
-			setIsChangingEmail(false);
-			setNewEmail("");
-			toast.success("Verification email sent to your new email address");
-		},
 		onError: (error) => {
+			setPreviewImage(null);
 			toast.error(
 				error instanceof Error
 					? error.message
-					: "Failed to send verification email",
+					: "Failed to update profile picture",
 			);
 		},
 	});
+
+	const handleAvatarClick = () => {
+		if (uploadAvatarMutation.isPending) return;
+		fileInputRef.current?.click();
+	};
+
+	const handleAvatarSelected = (event: ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		event.target.value = "";
+		if (!file) return;
+
+		const objectUrl = URL.createObjectURL(file);
+		setPreviewImage(objectUrl);
+		uploadAvatarMutation.mutate(file, {
+			onSettled: () => {
+				URL.revokeObjectURL(objectUrl);
+			},
+		});
+	};
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		updateUserMutation.mutate({
 			name: formState.fullName,
-			country: formState.country || undefined,
-			mobileNumber: formState.mobileNumbers || undefined,
+			email: formState.email.trim() || undefined,
+			country: formState.country,
+			mobileNumber: formState.mobileNumbers.trim() || undefined,
 			referralCode: formState.referralCode || undefined,
 		});
 	};
@@ -182,7 +260,7 @@ function AccountPage() {
 		referralId: "account-referral-id",
 	};
 
-	if (isSessionLoading) {
+	if (isSessionLoading || (session?.user && isProfileLoading)) {
 		return (
 			<div className="flex h-64 items-center justify-center">
 				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -194,8 +272,9 @@ function AccountPage() {
 		return <Navigate to="/auth/sign-in" />;
 	}
 
-	const profileImage = session?.user?.image;
-	const displayName = session?.user?.name || "User";
+	const profileImage =
+		previewImage || profile?.image || session.user.image || null;
+	const displayName = profile?.name || session.user.name || "User";
 	const initials = displayName
 		.split(" ")
 		.map((n: string) => n[0])
@@ -237,7 +316,20 @@ function AccountPage() {
 
 						{/* Profile photo - centered circle */}
 						<div className="mb-3 mt-6 flex justify-center">
-							<div className="relative">
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept={PROFILE_IMAGE_ACCEPT}
+								className="sr-only"
+								onChange={handleAvatarSelected}
+							/>
+							<button
+								type="button"
+								onClick={handleAvatarClick}
+								disabled={uploadAvatarMutation.isPending || !isEditing}
+								aria-label="Update profile picture"
+								className="relative cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-wait"
+							>
 								{profileImage ? (
 									<img
 										src={profileImage}
@@ -249,15 +341,18 @@ function AccountPage() {
 										{initials}
 									</div>
 								)}
-								{/* Camera icon overlay */}
-								<div className="absolute right-1 bottom-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-white shadow-md dark:border dark:border-[#2F3033] dark:bg-[#1C1D1F]">
-									<Camera className="h-4 w-4 text-gray-600 dark:text-[#8C8F8F]" />
+								<div className="absolute right-1 bottom-1 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md dark:border dark:border-[#2F3033] dark:bg-[#1C1D1F]">
+									{uploadAvatarMutation.isPending ? (
+										<Loader2 className="h-4 w-4 animate-spin text-gray-600 dark:text-[#8C8F8F]" />
+									) : (
+										<Camera className="h-4 w-4 text-gray-600 dark:text-[#8C8F8F]" />
+									)}
 								</div>
-							</div>
+							</button>
 						</div>
 						<div className="mb-10 flex justify-center">
 							<p className="text-[10px] md:text-sm text-gray-500 dark:text-[#8C8F8F]">
-								{session?.user?.name || ""}
+								{displayName}
 							</p>
 						</div>
 
@@ -292,23 +387,16 @@ function AccountPage() {
 									>
 										Email address:
 									</label>
-									<div className="flex flex-1 items-center gap-2">
-										<Input
-											id={inputIds.email}
-											type="email"
-											value={formState.email}
-											disabled={true}
-											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-										/>
-										{/* <button
-											type="button"
-											onClick={() => setIsChangingEmail(true)}
-											className="flex shrink-0 cursor-pointer items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-primary dark:text-[#8C8F8F] dark:hover:text-white"
-										>
-											<Mail className="h-4 w-4" />
-											<span className="hidden sm:inline">Change</span>
-										</button> */}
-									</div>
+									<Input
+										id={inputIds.email}
+										type="email"
+										value={formState.email}
+										onChange={(event) =>
+											updateField("email", event.target.value)
+										}
+										disabled={!isEditing}
+										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+									/>
 								</div>
 
 								{/* Country Field */}
@@ -407,58 +495,6 @@ function AccountPage() {
 					</div>
 				</div>
 			</div>
-			{/* Email Change Modal */}
-			{isChangingEmail && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-					<div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
-						<h3 className="mb-4 font-semibold text-lg text-primary">
-							Change Email
-						</h3>
-						<p className="mb-4 text-muted-foreground text-sm">
-							Enter your new email address. A verification link will be sent to
-							your new email.
-						</p>
-						<div className="mb-4">
-							<Input
-								type="email"
-								placeholder="New email address"
-								value={newEmail}
-								onChange={(e) => setNewEmail(e.target.value)}
-								disabled={changeEmailMutation.isPending}
-							/>
-						</div>
-						<div className="flex gap-3">
-							<button
-								type="button"
-								onClick={() => {
-									setIsChangingEmail(false);
-									setNewEmail("");
-								}}
-								disabled={changeEmailMutation.isPending}
-								className="flex-1 cursor-pointer rounded-lg bg-[#EBEBEB] px-4 py-2.5 font-medium text-primary text-sm transition-colors hover:bg-[#E0E0E0] disabled:cursor-default disabled:opacity-70 dark:bg-[#333] dark:hover:bg-[#3a3a3a]"
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								onClick={() => {
-									if (newEmail && newEmail !== session?.user?.email) {
-										changeEmailMutation.mutate(newEmail);
-									} else {
-										toast.error("Please enter a different email address");
-									}
-								}}
-								disabled={!newEmail || changeEmailMutation.isPending}
-								className="flex-1 cursor-pointer rounded-lg bg-accent px-4 py-2.5 font-medium text-sm text-white transition-colors hover:bg-accent/90 disabled:cursor-default disabled:opacity-70"
-							>
-								{changeEmailMutation.isPending
-									? "Sending..."
-									: "Send Verification"}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }
