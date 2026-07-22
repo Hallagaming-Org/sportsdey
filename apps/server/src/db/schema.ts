@@ -109,7 +109,6 @@ export const userRelations = relations(user, ({ many }) => ({
 	userFiles: many(userFile),
 	slotitegrationSessions: many(slotitegrationSessions),
 	slotitegrationTransactions: many(slotitegrationTransactions),
-	scorpioPlayers: many(scorpioPlayers),
 	kycRecords: many(kyc),
 	notifications: many(userNotification),
 }));
@@ -488,31 +487,6 @@ export const pocketsTransactions = sqliteTable("pockets_transactions", {
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
 });
-
-export const scorpioPlayers = sqliteTable(
-	"scorpio_players",
-	{
-		userId: text("user_id")
-			.primaryKey()
-			.references(() => user.id, { onDelete: "cascade" }),
-		playerCode: integer("player_code").notNull(),
-		createdAt: integer("created_at", { mode: "timestamp_ms" })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
-	},
-	(table) => [index("scorpio_players_playerCode_idx").on(table.playerCode)],
-);
-
-export const scorpioPlayersRelations = relations(scorpioPlayers, ({ one }) => ({
-	user: one(user, {
-		fields: [scorpioPlayers.userId],
-		references: [user.id],
-	}),
-}));
 
 export const pocketsTransactionsRelations = relations(
 	pocketsTransactions,
