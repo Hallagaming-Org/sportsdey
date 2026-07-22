@@ -1,11 +1,12 @@
 export {
-	captureAffnookAttributionFromUrl,
-	clearAffnookAttribution,
-	getAffnookAttribution,
-	type AffnookAttribution,
-} from "./attribution";
+	clearPendingReferralCode,
+	getPendingReferralCode,
+	storePendingReferralCode,
+} from "./pending-referral";
 export {
+	DEFAULT_AFFNOOK_COUNTRY,
 	syncAffnookCustomer,
+	syncAffnookRegistrationReferral,
 	type AffnookSyncEvent,
 	type AffnookSyncPayload,
 	type AffnookSyncResult,

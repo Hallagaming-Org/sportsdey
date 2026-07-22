@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
 import { type KeyboardEvent, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import z from "zod";
-import { syncAffnookCustomer } from "@/lib/affnook";
-import { verifyPhoneOtp } from "@/lib/auth/client";
+import { storePendingReferralCode } from "@/lib/affnook";
+import { authClient, verifyPhoneOtp } from "@/lib/auth/client";
+import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
 import { loginWebengageUser } from "@/lib/webengage";
 
 const otpSearchSchema = z.object({
@@ -63,34 +63,30 @@ function OtpPage() {
 
 		try {
 			const otp = otpDigits.join("");
-			const data = await verifyPhoneOtp(phone, otp);
+			const data = await verifyPhoneOtp(phone, otp);			
+			await authClient.getSession();
+			authClient.$store.notify("$sessionSignal");
+
 			loginWebengageUser(data.user.id);
 
 			const trimmedReferral = referralCode?.trim();
-			if (trimmedReferral) {
-				try {
-					const affnook = await syncAffnookCustomer({
-						event: "registration",
-						promocode: trimmedReferral,
-						country: "NG",
-					});
-					if (affnook.message) {
-						toast.success(affnook.message);
-					}
-				} catch (affnookError) {
-					console.error("Affnook referral sync failed:", affnookError);
-					toast.error(
-						affnookError instanceof Error
-							? affnookError.message
-							: "Referral code sync failed",
-					);
-				}
+			if (trimmedReferral) {			
+				storePendingReferralCode(trimmedReferral);
 			}
 
-			if (data.isFirstTimeSignIn) {
+			if (
+				needsPhoneProfileCompletion({
+					...data.user,
+					isFirstTimeSignIn: data.isFirstTimeSignIn,
+					needsProfileCompletion: data.needsProfileCompletion,
+				})
+			) {
 				navigate({
 					to: "/auth/complete-profile",
-					search: { phone },
+					search: {
+						phone,
+						referralCode: trimmedReferral || undefined,
+					},
 				});
 				return;
 			}

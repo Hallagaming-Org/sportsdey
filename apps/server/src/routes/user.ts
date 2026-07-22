@@ -9,6 +9,11 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
+function toIsoTimestamp(value: Date | string | number): string {
+	if (value instanceof Date) return value.toISOString();
+	return String(value);
+}
+
 const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 	"sportsbook",
 	"thndr games",
@@ -26,21 +31,32 @@ const UpdateUserSchema = z
 			description: "User's full name",
 			example: "John Doe",
 		}),
+		email: z.string().email().optional().openapi({
+			description: "User's email address",
+			example: "john@example.com",
+		}),
+		image: z.string().url().optional().openapi({
+			description: "Profile image URL",
+			example: "https://cdn.example.com/avatar.jpg",
+		}),
 		country: z.string().optional().openapi({
 			description: "User's country",
 			example: "Nigeria",
 		}),
-		mobileNumber: z
-			.string()
-			.regex(
-				/^(0|\+?234)[789][01]\d{8}$/,
-				"Invalid Nigerian phone number format",
-			)
-			.optional()
-			.openapi({
-				description: "User's mobile number",
-				example: "08012345678",
-			}),
+		mobileNumber: z.preprocess(
+			(value) => (value === "" || value === null ? undefined : value),
+			z
+				.string()
+				.regex(
+					/^(0|\+?234)[789][01]\d{8}$/,
+					"Invalid Nigerian phone number format",
+				)
+				.optional(),
+		).openapi({
+			description:
+				"User's mobile number. Omit or leave empty to keep the existing number.",
+			example: "08012345678",
+		}),
 	})
 	.openapi("UpdateUser");
 
@@ -55,7 +71,7 @@ const RecentSessionSchema = z
 	})
 	.openapi("RecentSession");
 
-const UserResponseSchema = z
+const SelfUserResponseSchema = z
 	.object({
 		id: z.string().openapi({ description: "User ID" }),
 		name: z.string().openapi({ description: "User's name" }),
@@ -75,11 +91,12 @@ const UserResponseSchema = z
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
-		recentSessions: z.array(RecentSessionSchema).openapi({
-			description: "Last 3 active sessions with device and IP info",
-		}),
+		verificationStatus: z
+			.string()
+			.optional()
+			.openapi({ description: "Verification status" }),
 	})
-	.openapi("UserResponse");
+	.openapi("SelfUserResponse");
 
 const UpdateUserErrorSchema = z
 	.object({
@@ -92,9 +109,16 @@ const UpdateUserErrorSchema = z
 const UpdateUserResponseSchema = z
 	.object({
 		success: z.literal(true).openapi({ description: "Success status" }),
-		data: UserResponseSchema.openapi({ description: "User data" }),
+		data: SelfUserResponseSchema.openapi({ description: "User data" }),
 	})
 	.openapi("UpdateUserResponse");
+
+const AdminErrorSchema = z
+	.object({
+		success: z.literal(false),
+		error: z.string(),
+	})
+	.openapi("AdminError");
 
 const GetAllUsersQuerySchema = z
 	.object({
@@ -201,6 +225,14 @@ const getUserRoute = createRoute({
 				},
 			},
 		},
+		404: {
+			description: "User not found",
+			content: {
+				"application/json": {
+					schema: UpdateUserErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -245,6 +277,14 @@ const updateUserRoute = createRoute({
 				},
 			},
 		},
+		404: {
+			description: "User not found",
+			content: {
+				"application/json": {
+					schema: UpdateUserErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -280,25 +320,21 @@ userRoute.openapi(getUserRoute, async (c) => {
 		);
 	}
 
-	const userResponse = {
-		id: existingUser.id,
-		name: existingUser.name,
-		email: existingUser.email,
-		emailVerified: existingUser.emailVerified,
-		image: existingUser.image,
-		country: existingUser.country,
-		mobileNumber: existingUser.mobileNumber,
-		suspended: existingUser.suspended,
-		createdAt: existingUser.createdAt,
-		updatedAt: existingUser.updatedAt,
-		verificationStatus: existingUser.verificationStatus,
-	};
-
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				...userResponse,
+				id: existingUser.id,
+				name: existingUser.name,
+				email: existingUser.email,
+				emailVerified: existingUser.emailVerified,
+				image: existingUser.image,
+				country: existingUser.country,
+				mobileNumber: existingUser.mobileNumber,
+				suspended: existingUser.suspended,
+				createdAt: toIsoTimestamp(existingUser.createdAt),
+				updatedAt: toIsoTimestamp(existingUser.updatedAt),
+				verificationStatus: existingUser.verificationStatus,
 			},
 		},
 		200,
@@ -318,28 +354,74 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const result = UpdateUserSchema.safeParse(await c.req.json());
-	if (!result.success) {
+	const { name, email, image, country, mobileNumber } = c.req.valid("json");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select()
+		.from(schema.user)
+		.where(eq(schema.user.id, user.id))
+		.limit(1);
+
+	if (!existingUser) {
 		return c.json(
 			{
 				success: false as const,
-				error: "Invalid request",
+				error: "User not found",
 				details: null,
 			},
-			400,
+			404,
 		);
 	}
 
-	const { name, country, mobileNumber } = result.data;
-	const db = drizzle(c.env.DB, { schema });
+	const nextEmail = email?.trim().toLowerCase();
+	const updates: {
+		name: string;
+		country?: string | null;
+		mobileNumber?: string | null;
+		email?: string;
+		emailVerified?: boolean;
+		image?: string | null;
+	} = {
+		name,
+	};
+
+	// Partial update: never wipe country/mobile when the client omits them.
+	if (country !== undefined) {
+		updates.country = country.trim() ? country.trim() : null;
+	}
+	if (mobileNumber !== undefined && mobileNumber.trim() !== "") {
+		updates.mobileNumber = mobileNumber.trim();
+	}
+	if (image !== undefined) {
+		updates.image = image.trim() ? image.trim() : null;
+	}
+
+	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
+		const [emailTaken] = await db
+			.select({ id: schema.user.id })
+			.from(schema.user)
+			.where(eq(schema.user.email, nextEmail))
+			.limit(1);
+
+		if (emailTaken && emailTaken.id !== existingUser.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Email already in use",
+					details: null,
+				},
+				400,
+			);
+		}
+
+		updates.email = nextEmail;
+		updates.emailVerified = false;
+	}
 
 	const [updatedUser] = await db
 		.update(schema.user)
-		.set({
-			name,
-			country: country ?? null,
-			mobileNumber: mobileNumber ?? null,
-		})
+		.set(updates)
 		.where(eq(schema.user.id, user.id))
 		.returning();
 
@@ -353,19 +435,6 @@ userRoute.openapi(updateUserRoute, async (c) => {
 			404,
 		);
 	}
-
-	const userResponse = {
-		id: updatedUser.id,
-		name: updatedUser.name,
-		email: updatedUser.email,
-		emailVerified: updatedUser.emailVerified,
-		image: updatedUser.image,
-		country: updatedUser.country,
-		mobileNumber: updatedUser.mobileNumber,
-		suspended: updatedUser.suspended,
-		createdAt: updatedUser.createdAt,
-		updatedAt: updatedUser.updatedAt,
-	};
 
 	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
 	const firstName = nameParts[0] || "";
@@ -386,7 +455,18 @@ userRoute.openapi(updateUserRoute, async (c) => {
 	return c.json(
 		{
 			success: true as const,
-			data: userResponse,
+			data: {
+				id: updatedUser.id,
+				name: updatedUser.name,
+				email: updatedUser.email,
+				emailVerified: updatedUser.emailVerified,
+				image: updatedUser.image,
+				country: updatedUser.country,
+				mobileNumber: updatedUser.mobileNumber,
+				suspended: updatedUser.suspended,
+				createdAt: toIsoTimestamp(updatedUser.createdAt),
+				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
+			},
 		},
 		200,
 	);
@@ -538,7 +618,8 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// in-memory after fetching results so admin endpoints control date
 	// filtering at the application layer.
 
-	const orderByClause = desc(schema.user.createdAt);
+	const orderByClause =
+		sort === "asc" ? asc(schema.user.createdAt) : desc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory
@@ -683,11 +764,21 @@ userRoute.openapi(
 					},
 				},
 			},
+			403: {
+				description: "Forbidden - admin only",
+				content: {
+					"application/json": {
+						schema: z.object({
+							success: z.literal(false),
+							error: z.string(),
+						}),
+					},
+				},
+			},
 		},
 	}),
 	async (c) => {
 		const token = getSessionToken(c.req.raw.headers);
-		console.log(token);
 		if (!token) {
 			return c.json({ success: false as const, error: "Unauthorized" }, 401);
 		}
@@ -700,15 +791,7 @@ userRoute.openapi(
 			);
 		}
 
-		const result = CreateUserSchema.safeParse(await c.req.json());
-		if (!result.success) {
-			return c.json(
-				{ success: false as const, error: "Invalid request body" },
-				400,
-			);
-		}
-
-		const { name, email, country, mobileNumber } = result.data;
+		const { name, email, country, mobileNumber } = c.req.valid("json");
 		const db = drizzle(c.env.DB, { schema });
 
 		const existingUser = await db
@@ -737,6 +820,13 @@ userRoute.openapi(
 			})
 			.returning();
 
+		if (!newUser) {
+			return c.json(
+				{ success: false as const, error: "Failed to create user" },
+				400,
+			);
+		}
+
 		return c.json(
 			{
 				success: true as const,
@@ -746,7 +836,10 @@ userRoute.openapi(
 					email: newUser.email,
 					emailVerified: newUser.emailVerified,
 					verificationStatus: newUser.verificationStatus,
-					createdAt: newUser.createdAt,
+					createdAt:
+						newUser.createdAt instanceof Date
+							? newUser.createdAt.getTime()
+							: Number(newUser.createdAt),
 				},
 			},
 			201,
@@ -782,7 +875,7 @@ const UserProfileResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "Last top-up date" }),
-		recentSessions: z.array(RecentSessionSchema).openapi({
+		recentSessions: RecentSessionSchema.openapi({
 			description: "Last 3 active sessions with device and IP info",
 		}),
 	})
@@ -796,13 +889,6 @@ const GetUserProfileResponseSchema = z
 		}),
 	})
 	.openapi("GetUserProfileResponse");
-
-const ToggleSuspendedSchema = z.object({
-	userId: z.string().min(1).openapi({
-		description: "User ID to toggle suspension",
-		example: "user_123",
-	}),
-});
 
 const getUserProfileRoute = createRoute({
 	method: "get",
@@ -849,6 +935,17 @@ const getUserProfileRoute = createRoute({
 		},
 		404: {
 			description: "User not found",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Invalid request",
 			content: {
 				"application/json": {
 					schema: z.object({
@@ -1140,6 +1237,10 @@ userRoute.openapi(
 			.where(eq(schema.user.id, userId))
 			.returning();
 
+		if (!updatedUser) {
+			return c.json({ success: false as const, error: "User not found" }, 404);
+		}
+
 		return c.json(
 			{
 				success: true as const,
@@ -1184,6 +1285,14 @@ const getWalletOverviewRoute = createRoute({
 		200: {
 			description: "Wallet overview retrieved successfully",
 			content: { "application/json": { schema: WalletOverviewResponseSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
 });
@@ -1340,6 +1449,14 @@ const getWalletTransactionsRoute = createRoute({
 				"application/json": { schema: WalletTransactionsResponseSchema },
 			},
 		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
 	},
 });
 
@@ -1401,12 +1518,12 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	if (fromDate) filters.push(gte(schema.walletTransaction.createdAt, fromDate));
 	if (toDate) filters.push(lte(schema.walletTransaction.createdAt, toDate));
 
-	const [{ count }] = await db
+	const [countRow] = await db
 		.select({ count: sql<number>`COUNT(*)` })
 		.from(schema.walletTransaction)
 		.where(and(...filters));
 
-	const total = Number(count);
+	const total = Number(countRow?.count ?? 0);
 	const totalPages = Math.ceil(total / limit);
 
 	const rows = await db
@@ -1491,6 +1608,22 @@ const postManualTransactionRoute = createRoute({
 			content: {
 				"application/json": { schema: ManualTransactionResponseSchema },
 			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		404: {
+			description: "Not found",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		400: {
+			description: "Invalid request",
+			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
 });
@@ -1578,7 +1711,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 		balance: newBalance,
 		metadata: JSON.stringify({
 			reason: body.reason,
-			processedBy: session.id,
+			processedBy: session.adminId,
 			description: `Manual ${body.type} - ${body.reason}`,
 		}),
 		createdAt: new Date(),
