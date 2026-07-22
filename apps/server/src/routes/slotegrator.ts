@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { verifySlotitegrationSignature } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -423,15 +424,9 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		const newBalance = wallet.balance - amountInKobo;
+		const updatedWallet = await debitWallet(db, playerId, amountInKobo);
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
-
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -440,6 +435,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		const newBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -554,16 +550,10 @@ slotegratorRoute.post("/", async (c) => {
 			.limit(1);
 
 		const amountInKobo = Math.round(amount * 100);
-		const currentBalance = wallet?.balance ?? 0;
-		const newBalance = currentBalance + amountInKobo;
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const updatedWallet = await creditWallet(db, playerId, amountInKobo);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -572,6 +562,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		const newBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -766,16 +757,10 @@ slotegratorRoute.post("/", async (c) => {
 			.limit(1);
 
 		const amountInKobo = Math.round(amount * 100);
-		const currentBalance = wallet?.balance ?? 0;
-		const newBalance = currentBalance + amountInKobo;
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const updatedWallet = await creditWallet(db, playerId, amountInKobo);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -784,6 +769,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		const newBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -970,13 +956,13 @@ slotegratorRoute.post("/", async (c) => {
 			}
 		}
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: currentBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const netAdjustment = currentBalance - wallet.balance;
+		const updatedWallet =
+			netAdjustment >= 0
+				? await creditWallet(db, playerId, netAdjustment)
+				: await debitWallet(db, playerId, -netAdjustment);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -985,6 +971,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		currentBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)

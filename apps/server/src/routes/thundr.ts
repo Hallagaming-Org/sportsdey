@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import {
 	ThundrBalanceQuerySchema,
@@ -330,16 +331,12 @@ thundrRoute.post("/transactions", async (c) => {
 			);
 		}
 		txAmountKobo = tx.amount;
-		newBalanceKobo = currentBalanceKobo - txAmountKobo;
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalanceKobo })
-			.where(eq(schema.wallet.userId, session.userId))
-			.returning();
+		const updatedWallet = await debitWallet(db, session.userId, txAmountKobo);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json({ success: false, error: "Failed to update wallet" }, 500);
 		}
+		newBalanceKobo = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -369,16 +366,12 @@ thundrRoute.post("/transactions", async (c) => {
 		}
 	} else if (tx.type === "WIN" || tx.type === "DRAW") {
 		txAmountKobo = tx.amount;
-		newBalanceKobo = currentBalanceKobo + txAmountKobo;
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalanceKobo })
-			.where(eq(schema.wallet.userId, session.userId))
-			.returning();
+		const updatedWallet = await creditWallet(db, session.userId, txAmountKobo);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json({ success: false, error: "Failed to update wallet" }, 500);
 		}
+		newBalanceKobo = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -417,19 +410,19 @@ thundrRoute.post("/transactions", async (c) => {
 
 		if (originalTx && originalTx.type === "BET") {
 			txAmountKobo = originalTx.amount;
-			newBalanceKobo = currentBalanceKobo + txAmountKobo;
-			const [updatedWallet] = await db
-				.update(schema.wallet)
-				.set({ balance: newBalanceKobo })
-				.where(eq(schema.wallet.userId, session.userId))
-				.returning();
+			const updatedWallet = await creditWallet(
+				db,
+				session.userId,
+				txAmountKobo,
+			);
 
-			if (!updatedWallet?.id) {
+			if (!updatedWallet) {
 				return c.json(
 					{ success: false, error: "Failed to update wallet" },
 					500,
 				);
 			}
+			newBalanceKobo = updatedWallet.balance;
 
 			const [walletTxn] = await db
 				.insert(schema.walletTransaction)
