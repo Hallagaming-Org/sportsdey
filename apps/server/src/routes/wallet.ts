@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, count, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import {
 	setWebengageUserAttributes,
@@ -934,6 +935,20 @@ walletRoute.openapi(callbackRoute, async (c) => {
 
 			if (status === "success") {
 				if (transaction && transaction.status !== "success") {
+					const [claimed] = await db
+						.update(schema.walletTransaction)
+						.set({ status: "pending" })
+						.where(
+							and(
+								eq(schema.walletTransaction.reference, reference),
+								eq(schema.walletTransaction.status, transaction.status),
+							),
+						)
+						.returning({ id: schema.walletTransaction.id });
+					if (!claimed) {
+						return c.json({ success: true, data: { status } }, 200);
+					}
+
 					const [wallet] = await db
 						.select()
 						.from(schema.wallet)
@@ -942,17 +957,21 @@ walletRoute.openapi(callbackRoute, async (c) => {
 
 					let newBalance = wallet?.balance ?? 0;
 					if (wallet) {
-						newBalance =
+						const updatedWallet =
 							transaction.type === "credit"
-								? wallet.balance + transaction.amount
-								: wallet.balance - transaction.amount;
-
-						await db
-							.update(schema.wallet)
-							.set({
-								balance: newBalance,
-							})
-							.where(eq(schema.wallet.userId, transaction.userId));
+								? await creditWallet(db, transaction.userId, transaction.amount)
+								: await debitWallet(db, transaction.userId, transaction.amount);
+						if (!updatedWallet) {
+							await db
+								.update(schema.walletTransaction)
+								.set({ status: "failed" })
+								.where(eq(schema.walletTransaction.reference, reference));
+							return c.json(
+								{ success: false, error: "Wallet update failed" },
+								409,
+							);
+						}
+						newBalance = updatedWallet.balance;
 					}
 
 					let existingMeta: Record<string, unknown> = JSON.parse(
@@ -1617,7 +1636,7 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 	const amountInKobo = amount * 100;
-	const newBalance = wallet.balance - amountInKobo;
+	let newBalance = wallet.balance - amountInKobo;
 
 	const [withdrawalTxn] = await db
 		.insert(schema.walletTransaction)
@@ -1652,10 +1671,18 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 		);
 	}
 
+	const debitedWallet = await debitWallet(db, user.id, amountInKobo);
+	if (!debitedWallet) {
+		await db
+			.delete(schema.walletTransaction)
+			.where(eq(schema.walletTransaction.id, txnId));
+		return c.json({ success: false, error: "Insufficient balance" }, 400);
+	}
+	newBalance = debitedWallet.balance;
 	await db
-		.update(schema.wallet)
+		.update(schema.walletTransaction)
 		.set({ balance: newBalance })
-		.where(eq(schema.wallet.userId, user.id));
+		.where(eq(schema.walletTransaction.id, txnId));
 
 	trackWebengageEvent(
 		c.env,
@@ -1807,76 +1834,59 @@ walletRoute.openapi(transferRoute, async (c) => {
 	const recipientName = recipientUser?.name ?? "Unknown";
 
 	const reference = `trf_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const amountKobo = amount * 100;
 
-	await db
-		.update(schema.wallet)
-		.set({
-			balance: senderWallet.balance - amount * 100,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.wallet.id, senderWallet.id));
-
-	await db
-		.update(schema.wallet)
-		.set({
-			balance: recipientWallet.balance + amount * 100,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.wallet.id, recipientWallet.id));
-
-	const [senderTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			amount: amount * 100,
-			type: "debit",
-			reference: `${reference}_sender`,
-			status: "completed",
-			paymentMethod: "wallet_transfer",
-			balance: senderWallet.balance - amount * 100,
+	const batchResults = await c.env.DB.batch([
+		c.env.DB.prepare(
+			"UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
+		).bind(amountKobo, Date.now(), user.id, amountKobo),
+		c.env.DB.prepare(
+			"UPDATE wallet SET balance = balance + ?, updated_at = ? WHERE id = ?",
+		).bind(amountKobo, Date.now(), recipientWallet.id),
+		c.env.DB.prepare(
+			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, recipient_wallet_id, recipient_name, metadata) VALUES (?, ?, ?, 'debit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?, ?, ?)",
+		).bind(
+			generateUUIDv7(),
+			user.id,
+			amountKobo,
+			`${reference}_sender`,
+			user.id,
 			recipientWalletId,
 			recipientName,
-			metadata: JSON.stringify({
+			JSON.stringify({
 				transferType: "outgoing",
 				recipientName,
 				recipientWalletId,
 			}),
-		})
-		.returning();
-
-	if (!senderTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record sender transaction" },
-			500,
-		);
-	}
-
-	const [recipientTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: generateUUIDv7(),
-			userId: recipientWallet.userId,
-			amount: amount * 100,
-			type: "credit",
-			reference: `${reference}_recipient`,
-			status: "completed",
-			paymentMethod: "wallet_transfer",
-			balance: recipientWallet.balance + amount * 100,
-			metadata: JSON.stringify({
+		),
+		c.env.DB.prepare(
+			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, recipient_wallet_id, recipient_name, metadata) VALUES (?, ?, ?, 'credit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?, ?, ?)",
+		).bind(
+			generateUUIDv7(),
+			recipientWallet.userId,
+			amountKobo,
+			`${reference}_recipient`,
+			recipientWallet.userId,
+			recipientWalletId,
+			senderWallet.userId,
+			JSON.stringify({
 				transferType: "incoming",
 				senderName: user.name || "Unknown",
 				senderWalletId: senderWallet.id,
 			}),
-		})
-		.returning();
+		),
+	]);
 
-	if (!recipientTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record recipient transaction" },
-			500,
-		);
+	const debitResult = batchResults[0];
+	if (!debitResult || (debitResult as any).changes === 0) {
+		return c.json({ success: false, error: "Insufficient balance" }, 400);
 	}
+
+	const [updatedSenderWallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.id, senderWallet.id))
+		.limit(1);
 
 	trackWebengageEvent(
 		c.env,
@@ -1887,7 +1897,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 				"wallet id": recipientWalletId,
 				amount,
 				transaction_id: reference,
-				wallet_balance_after: senderWallet.balance / 100 - amount,
+				wallet_balance_after: (updatedSenderWallet?.balance ?? 0) / 100,
 			},
 		},
 		c.executionCtx,
@@ -2046,10 +2056,19 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 				balance: 0,
 			})
 			.returning();
+		if (!newGameWallet) {
+			return c.json(
+				{ success: false, error: "Failed to create game wallet" },
+				500,
+			);
+		}
 		gameWallet = newGameWallet;
 	}
 
 	const reference = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const now = new Date();
+	const nowMs = now.getTime();
+	const amountKobo = amount * 100;
 
 	trackWebengageEvent(
 		c.env,
@@ -2064,64 +2083,34 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		c.executionCtx,
 	);
 
-	await db
-		.update(schema.wallet)
-		.set({
-			balance: normalWallet.balance - amount * 100,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.wallet.id, normalWallet.id));
-
-	await db
-		.update(schema.gameWallet)
-		.set({
-			balance: gameWallet.balance + amount * 100,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.gameWallet.id, gameWallet.id));
-
-	const [normalTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			amount: amount * 100,
-			type: "debit",
-			reference: `${reference}_normal`,
-			status: "completed",
-			paymentMethod: "wallet_transfer",
-			balance: normalWallet.balance - amount * 100,
-			metadata: JSON.stringify({
+	const batchResults = await c.env.DB.batch([
+		c.env.DB.prepare(
+			"UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
+		).bind(amountKobo, nowMs, user.id, amountKobo),
+		c.env.DB.prepare(
+			"UPDATE game_wallet SET balance = balance + ?, updated_at = ? WHERE id = ?",
+		).bind(amountKobo, nowMs, gameWallet.id),
+		c.env.DB.prepare(
+			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, metadata) VALUES (?, ?, ?, 'debit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?)",
+		).bind(
+			generateUUIDv7(),
+			user.id,
+			amountKobo,
+			`${reference}_normal`,
+			user.id,
+			JSON.stringify({
 				transferType: "to_game_wallet",
 				gameWalletId: gameWallet.id,
 			}),
-		})
-		.returning();
+		),
+		c.env.DB.prepare(
+			"INSERT INTO game_wallet_transaction (id, user_id, amount, type, reference, status) VALUES (?, ?, ?, 'credit', ?, 'completed')",
+		).bind(generateUUIDv7(), user.id, amountKobo, `${reference}_game`),
+	]);
 
-	if (!normalTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record normal wallet transaction" },
-			500,
-		);
-	}
-
-	const [gameTxn] = await db
-		.insert(schema.gameWalletTransaction)
-		.values({
-			id: generateUUIDv7(),
-			userId: user.id,
-			amount: amount * 100,
-			type: "credit",
-			reference: `${reference}_game`,
-			status: "completed",
-		})
-		.returning();
-
-	if (!gameTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record game wallet transaction" },
-			500,
-		);
+	const debitResult = batchResults[0];
+	if (!debitResult || (debitResult as any).changes === 0) {
+		return c.json({ success: false, error: "Insufficient balance" }, 400);
 	}
 
 	const [updatedNormalWallet] = await db
