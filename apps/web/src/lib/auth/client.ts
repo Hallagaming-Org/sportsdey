@@ -1,16 +1,38 @@
 import { createAuthClient } from "better-auth/react";
 import { apiRequest } from "@/lib/api";
+import {
+	clearStoredSessionToken,
+	getStoredSessionToken,
+	storeSessionToken,
+} from "@/lib/auth/session-token";
 
 export const authClient = createAuthClient({
 	baseURL: import.meta.env.VITE_SERVER_URL,
 	basePath: "/auth",
 	fetchOptions: {
 		credentials: "include",
+		onRequest(context) {
+			const token = getStoredSessionToken();
+			if (token) {
+				const headers = new Headers(context.headers);
+				if (!headers.has("Authorization")) {
+					headers.set("Authorization", `Bearer ${token}`);
+				}
+				context.headers = headers;
+			}
+			return context;
+		},
 	},
 });
 
-export const { signIn, signOut, signUp, useSession, getSession, changeEmail } =
-	authClient;
+export const { signIn, signUp, useSession, getSession, changeEmail } = authClient;
+
+export async function signOut(
+	...args: Parameters<typeof authClient.signOut>
+) {
+	clearStoredSessionToken();
+	return authClient.signOut(...args);
+}
 
 export async function requestPhoneOtp(phoneNumber: string) {
 	return apiRequest<{ message: string }>("phone-auth/request-otp", {
@@ -20,17 +42,22 @@ export async function requestPhoneOtp(phoneNumber: string) {
 	});
 }
 
+export type PhoneOtpUser = {
+	id: string;
+	name: string;
+	email: string;
+	mobileNumber: string | null;
+};
+
 export async function verifyPhoneOtp(phoneNumber: string, otp: string) {
-	return apiRequest<{
+	const data = await apiRequest<{
 		message: string;
+		/** Raw session token used as Authorization Bearer (server re-signs when needed). */
 		token: string;
-		user: {
-			id: string;
-			name: string;
-			email: string;
-			mobileNumber: string | null;
-		};
+		expiresAt?: string;
+		user: PhoneOtpUser;
 		isFirstTimeSignIn?: boolean;
+		needsProfileCompletion?: boolean;
 	}>("phone-auth/verify-otp", {
 		method: "POST",
 		credentials: "include",
@@ -39,4 +66,10 @@ export async function verifyPhoneOtp(phoneNumber: string, otp: string) {
 			otp,
 		}),
 	});
+
+	if (data.token) {
+		storeSessionToken(data.token);
+	}
+
+	return data;
 }
