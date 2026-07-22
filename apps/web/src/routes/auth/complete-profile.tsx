@@ -11,6 +11,7 @@ import {
 import { apiRequest } from "@/lib/api";
 import { authClient, useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
+import { getStoredSessionToken } from "@/lib/auth/session-token";
 import {
 	loginWebengageUser,
 	setWebengageUserAttributes,
@@ -74,6 +75,12 @@ function CompleteProfilePage() {
 		setIsSubmitting(true);
 
 		try {
+			if (!getStoredSessionToken()) {
+				throw new Error(
+					"Your session expired. Please verify your phone number again.",
+				);
+			}
+
 			const patchBody: {
 				name: string;
 				email: string;

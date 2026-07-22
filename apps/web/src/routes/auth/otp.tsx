@@ -63,7 +63,12 @@ function OtpPage() {
 
 		try {
 			const otp = otpDigits.join("");
-			const data = await verifyPhoneOtp(phone, otp);			
+			const data = await verifyPhoneOtp(phone, otp);
+			if (!data.token) {
+				throw new Error(
+					"Sign-in succeeded but session was not established. Please try again.",
+				);
+			}
 			await authClient.getSession();
 			authClient.$store.notify("$sessionSignal");
 
