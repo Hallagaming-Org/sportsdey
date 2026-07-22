@@ -11,7 +11,7 @@ export function getAffnookConfig(env: CloudflareBindings) {
 		productId: env.AFFNOOK_PRODUCT_ID || "",
 		currency: (env.AFFNOOK_CURRENCY || "NGN").toUpperCase(),
 		defaultCountry: (env.AFFNOOK_DEFAULT_COUNTRY || "NG").toUpperCase(),
-		defaultPromocode: env.AFFNOOK_DEFAULT_PROMOCODE || "TSTTTAB",
+		defaultPromocode: env.AFFNOOK_DEFAULT_PROMOCODE || "",
 	};
 }
 
