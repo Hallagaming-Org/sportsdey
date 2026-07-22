@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, ChevronDown, Mail, User } from "lucide-react";
+import { CalendarDays, Mail, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -209,8 +209,7 @@ function CompleteProfilePage() {
 							onChange={(event) => setDob(event.target.value)}
 							placeholder="DD/MM/YYYY"
 							className="w-full bg-transparent text-[#666] text-sm outline-none placeholder:text-[#8d8d8d]"
-						/>
-						<ChevronDown className="h-5 w-5 text-[#b6b6b6]" />
+						/>						
 					</label>
 				</div>
 				{error ? (

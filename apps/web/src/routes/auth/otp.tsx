@@ -1,11 +1,19 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
-import { type KeyboardEvent, useMemo, useRef, useState } from "react";
+import {
+	type KeyboardEvent,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import z from "zod";
 import { storePendingReferralCode } from "@/lib/affnook";
-import { authClient, verifyPhoneOtp } from "@/lib/auth/client";
+import { authClient, requestPhoneOtp, verifyPhoneOtp } from "@/lib/auth/client";
 import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
 import { loginWebengageUser } from "@/lib/webengage";
+
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
 const otpSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -24,12 +32,22 @@ function OtpPage() {
 	const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
 	const [error, setError] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
-	const secondsLeft = 44;
+	const [isResending, setIsResending] = useState(false);
+	const [secondsLeft, setSecondsLeft] = useState(OTP_RESEND_COOLDOWN_SECONDS);
 
 	const canVerify = useMemo(
 		() => otpDigits.every((digit) => digit.length === 1),
 		[otpDigits],
 	);
+	const canResend = secondsLeft <= 0 && !isResending;
+
+	useEffect(() => {
+		if (secondsLeft <= 0) return;
+		const timer = window.setTimeout(() => {
+			setSecondsLeft((prev) => prev - 1);
+		}, 1000);
+		return () => window.clearTimeout(timer);
+	}, [secondsLeft]);
 
 	const handleInput = (index: number, value: string) => {
 		const cleanedValue = value.replace(/\D/g, "").slice(-1);
@@ -47,6 +65,32 @@ function OtpPage() {
 	) => {
 		if (event.key === "Backspace" && !otpDigits[index] && index > 0) {
 			inputsRef.current[index - 1]?.focus();
+		}
+	};
+
+	const handleResend = async () => {
+		if (!canResend) return;
+		if (!phone) {
+			setError("Phone number missing. Please start again.");
+			navigate({ to: "/auth/phone-sign-in" });
+			return;
+		}
+
+		setError("");
+		setIsResending(true);
+		try {
+			await requestPhoneOtp(phone);
+			setSecondsLeft(OTP_RESEND_COOLDOWN_SECONDS);
+			setOtpDigits(["", "", "", "", "", ""]);
+			inputsRef.current[0]?.focus();
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to resend code. Please try again.",
+			);
+		} finally {
+			setIsResending(false);
 		}
 	};
 
@@ -75,7 +119,7 @@ function OtpPage() {
 			loginWebengageUser(data.user.id);
 
 			const trimmedReferral = referralCode?.trim();
-			if (trimmedReferral) {			
+			if (trimmedReferral) {
 				storePendingReferralCode(trimmedReferral);
 			}
 
@@ -154,7 +198,20 @@ function OtpPage() {
 
 				<div className="mx-auto mt-10 flex w-full max-w-[420px] items-center gap-3 text-[#2a302d] text-sm">
 					<div className="h-px flex-1 bg-[#b7b7b7]" />
-					<span>Resend code in 0:{String(secondsLeft).padStart(2, "0")}</span>
+					{canResend ? (
+						<button
+							type="button"
+							onClick={handleResend}
+							disabled={isResending}
+							className="font-medium text-[#17b000] transition-opacity disabled:opacity-60"
+						>
+							{isResending ? "Sending..." : "Resend code"}
+						</button>
+					) : (
+						<span>
+							Resend code in 0:{String(secondsLeft).padStart(2, "0")}
+						</span>
+					)}
 					<div className="h-px flex-1 bg-[#b7b7b7]" />
 				</div>
 			</div>
