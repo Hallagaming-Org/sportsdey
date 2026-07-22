@@ -1,5 +1,7 @@
 import { apiRequest } from "@/lib/api";
 
+export const DEFAULT_AFFNOOK_COUNTRY = "NG";
+
 export type AffnookSyncEvent = "registration" | "login";
 
 export type AffnookSyncPayload = {
@@ -24,8 +26,28 @@ export async function syncAffnookCustomer(payload: AffnookSyncPayload) {
 		body: JSON.stringify({
 			event: payload.event,
 			promocode: payload.promocode?.trim() || undefined,
-			country: payload.country || "NG",
+			trackingToken: payload.trackingToken?.trim() || undefined,
+			country: payload.country || DEFAULT_AFFNOOK_COUNTRY,
 			city: payload.city,
 		}),
+	});
+}
+
+/** Registration referral sync used after profile completion / account update. */
+export async function syncAffnookRegistrationReferral({
+	promocode,
+	country = DEFAULT_AFFNOOK_COUNTRY,
+}: {
+	promocode: string;
+	country?: string;
+}) {
+	const trimmed = promocode.trim();
+	if (!trimmed) {
+		throw new Error("Referral code is required");
+	}
+	return syncAffnookCustomer({
+		event: "registration",
+		promocode: trimmed,
+		country,
 	});
 }
