@@ -13,9 +13,7 @@ const STATIC_ALLOWED_ORIGINS = [
 ] as const;
 
 export const CORS_ALLOW_METHODS = "GET, POST, PATCH, OPTIONS, DELETE";
-export const CORS_ALLOW_HEADERS =
-	"Authorization, Content-Type, set-auth-token";
-export const CORS_EXPOSE_HEADERS = "set-auth-token, Set-Auth-Token";
+export const CORS_ALLOW_HEADERS = "Authorization, Content-Type";
 
 /** Build the allowlist for browser + native app origins. */
 export function getAllowedCorsOrigins(corsOriginEnv?: string): Set<string> {
