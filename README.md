@@ -61,12 +61,7 @@ SERVER_URL={your-production-server-domain}
 # apps/server/.env
 CORS_ORIGIN={your-production-web-domain}
 BETTER_AUTH_URL={your-production-server-domain}
-COOKIE_DOMAIN=sportsdey.com
 ```
-- Set `COOKIE_DOMAIN` to the shared parent domain for all web-facing subdomains, for example `sportsdey.com`. Do not set it to the API host or a full URL.
-- In `apps/server/src/auth/index.ts`, `advanced.crossSubDomainCookies` now uses `COOKIE_DOMAIN` so auth cookies are shared across subdomains without hardcoding the server URL.
-
-
 
 
 ## Deployment (Cloudflare Wrangler)

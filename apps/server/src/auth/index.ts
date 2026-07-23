@@ -19,18 +19,16 @@ const COOKIE_PREFIX = "ba";
 type SessionCookieOptions = {
 	nodeEnv?: string;
 	authUrl?: string;
-	cookieDomain?: string;
 };
 
 type AuthCookiePolicy = {
 	/** True when Better Auth is served over localhost HTTP (e.g. wrangler --env staging locally). */
 	isLocalHttp: boolean;
 	useSecureCookies: boolean;
-	cookieDomain?: string;
 	sameSite: "lax" | "none";
 };
 
-/** localhost / 127.0.0.1 over http — Secure + Domain cookies will not stick. */
+/** localhost / 127.0.0.1 over http — Secure cookies will not stick. */
 export function isLocalHttpAuthUrl(authUrl?: string): boolean {
 	if (!authUrl) return false;
 	try {
@@ -47,7 +45,7 @@ export function isLocalHttpAuthUrl(authUrl?: string): boolean {
 /**
  * Cookie policy for Better Auth + phone OTP.
  * Prefer auth URL over NODE_ENV so `wrangler dev --env staging` on localhost
- * does not emit Secure/Domain=sportsdey.com cookies (OAuth state mismatch).
+ * does not emit Secure cookies (OAuth state mismatch).
  */
 export function getAuthCookiePolicy(
 	opts: SessionCookieOptions = {},
@@ -57,7 +55,6 @@ export function getAuthCookiePolicy(
 		return {
 			isLocalHttp: true,
 			useSecureCookies: false,
-			cookieDomain: undefined,
 			sameSite: "lax",
 		};
 	}
@@ -67,15 +64,9 @@ export function getAuthCookiePolicy(
 		opts.nodeEnv === "production" ||
 		opts.nodeEnv === "staging";
 
-	const cookieDomain =
-		useSecureCookies && opts.cookieDomain
-			? opts.cookieDomain.replace(/^\./, "")
-			: undefined;
-
 	return {
 		isLocalHttp: false,
 		useSecureCookies,
-		cookieDomain,
 		sameSite: useSecureCookies ? "none" : "lax",
 	};
 }
@@ -99,11 +90,6 @@ export async function signSessionToken(
 	);
 	const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
 	return `${token}.${signatureB64}`;
-}
-
-/** Raw phone-OTP bearer tokens have no HMAC suffix (`token.signature`). */
-export function isRawSessionBearer(token: string): boolean {
-	return !token.includes(".");
 }
 
 export const createAuth = (env: CloudflareBindings) => {
@@ -137,9 +123,6 @@ export const createAuth = (env: CloudflareBindings) => {
 	const cookiePolicy = getAuthCookiePolicy({
 		nodeEnv: env.NODE_ENV,
 		authUrl: env.BETTER_AUTH_URL,
-		cookieDomain: env.BETTER_AUTH_URL
-			? new URL(env.BETTER_AUTH_URL).hostname
-			: undefined,
 	});
 
 	return betterAuth({
@@ -228,95 +211,32 @@ export function getSessionCookieName(
 }
 
 /**
- * Build a Better Auth–compatible signed session cookie.
- * Phone auth must use this; unsigned cookies are ignored by getSession().
+ * Build a Better Auth–compatible signed HttpOnly session cookie for phone OTP.
  */
 export async function createSignedSessionCookieString(
 	token: string,
 	secret: string,
 	opts: SessionCookieOptions = {},
-): Promise<{ cookie: string; signedToken: string }> {
+): Promise<string> {
 	const policy = getAuthCookiePolicy(opts);
 	const name = getSessionCookieName(opts.nodeEnv, opts.authUrl);
-
 	const signedToken = await signSessionToken(token, secret);
 	const signedValue = encodeURIComponent(signedToken);
 	const parts = [`${name}=${signedValue}`, "Path=/", "HttpOnly"];
 	parts.push(`SameSite=${policy.sameSite === "none" ? "None" : "Lax"}`);
 	if (policy.useSecureCookies) parts.push("Secure");
-	if (policy.cookieDomain) parts.push(`Domain=${policy.cookieDomain}`);
 	parts.push(`Max-Age=${SESSION_MAX_AGE_SECONDS}`);
-	return { cookie: parts.join("; "), signedToken };
-}
-
-function stripSessionCookies(cookieHeader: string): string {
-	return cookieHeader
-		.split(";")
-		.map((part) => part.trim())
-		.filter(Boolean)
-		.filter(
-			(part) =>
-				!part.startsWith(`${SESSION_COOKIE_NAME}=`) &&
-				!part.startsWith(`${SECURE_SESSION_COOKIE_NAME}=`),
-		)
-		.join("; ");
-}
-
-/** Build headers with a signed session cookie — does not touch the request body. */
-export async function withSignedSessionHeaders(
-	request: Request,
-	rawToken: string,
-	secret: string,
-	opts: Pick<SessionCookieOptions, "nodeEnv" | "authUrl"> = {},
-): Promise<Headers> {
-	const signedToken = await signSessionToken(rawToken, secret);
-	const name = getSessionCookieName(opts.nodeEnv, opts.authUrl);
-	const headers = new Headers(request.headers);
-	const cleaned = stripSessionCookies(headers.get("cookie") || "");
-	const nextCookie = cleaned
-		? `${cleaned}; ${name}=${encodeURIComponent(signedToken)}`
-		: `${name}=${encodeURIComponent(signedToken)}`;
-	headers.set("cookie", nextCookie);
-	return headers;
-}
-
-/**
- * Inject a signed session cookie into a request for Better Auth handlers.
- * Prefer {@link withSignedSessionHeaders} when you only need headers — cloning
- * a Request transfers/locks the body stream and breaks later JSON parsing.
- */
-export async function withSignedSessionCookie(
-	request: Request,
-	rawToken: string,
-	secret: string,
-	opts: Pick<SessionCookieOptions, "nodeEnv" | "authUrl"> = {},
-): Promise<Request> {
-	const headers = await withSignedSessionHeaders(
-		request,
-		rawToken,
-		secret,
-		opts,
-	);
-	return new Request(request, { headers });
-}
-
-export function extractBearerToken(request: Request): string | null {
-	const header = request.headers.get("authorization");
-	if (!header) return null;
-	const match = header.match(/^Bearer\s+(.+)$/i);
-	return match?.[1]?.trim() || null;
+	return parts.join("; ");
 }
 
 export function createHashCookie(
 	token: string,
 	nodeEnv?: string,
-	cookieDomain?: string,
 	authUrl?: string,
 ): string {
-	const policy = getAuthCookiePolicy({ nodeEnv, authUrl, cookieDomain });
+	const policy = getAuthCookiePolicy({ nodeEnv, authUrl });
 	const prefix = policy.useSecureCookies ? "__Secure-ba" : COOKIE_PREFIX;
 	const secureFlag = policy.useSecureCookies ? "; Secure" : "";
-	const domain = policy.cookieDomain ? `; Domain=${policy.cookieDomain}` : "";
 	const sameSite = policy.sameSite === "none" ? "None" : "Lax";
-	return `${prefix}.session_token_hash=${token}; Path=/${domain}; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
+	return `${prefix}.session_token_hash=${token}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }

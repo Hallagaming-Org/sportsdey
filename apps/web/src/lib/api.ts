@@ -1,12 +1,12 @@
-import { getStoredSessionToken } from "@/lib/auth/session-token";
+import { resolveServerUrl } from "@/lib/server-url";
 
 const DEFAULT_API_BASE_URL = "https://staging-api.sportsdey.com/";
 const API_REQUEST_TIMEOUT_MS = 10_000;
 
-const resolveApiBaseUrl = () =>
-	import.meta.env.VITE_SERVER_URL ||
-	import.meta.env.VITE_API_URL ||
-	DEFAULT_API_BASE_URL;
+const resolveApiBaseUrl = () => {
+	const serverUrl = resolveServerUrl();
+	return serverUrl ? `${serverUrl}/` : DEFAULT_API_BASE_URL;
+};
 
 const API_BASE_URL = resolveApiBaseUrl();
 
@@ -79,13 +79,9 @@ export async function apiRequest<T>(
 		API_REQUEST_TIMEOUT_MS,
 	);
 
-	const sessionToken = getStoredSessionToken();
 	const headers = new Headers(options.headers);
 	if (!headers.has("Content-Type")) {
 		headers.set("Content-Type", "application/json");
-	}
-	if (sessionToken && !headers.has("Authorization")) {
-		headers.set("Authorization", `Bearer ${sessionToken}`);
 	}
 
 	const config: RequestInit = {
@@ -245,16 +241,9 @@ export async function apiUploadFile({
 		formData.append(key, value);
 	}
 
-	const sessionToken = getStoredSessionToken();
-	const headers = new Headers();
-	if (sessionToken) {
-		headers.set("Authorization", `Bearer ${sessionToken}`);
-	}
-
 	const response = await fetch(url, {
 		method: "POST",
 		credentials: "include",
-		headers,
 		body: formData,
 	});
 
