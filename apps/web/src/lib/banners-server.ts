@@ -30,5 +30,9 @@ export interface BannerData {
 }
 
 export async function getBanners(): Promise<BannerData[]> {
-	return apiRequest<BannerData[]>("cms/public/banners");
+	try {
+		return await apiRequest<BannerData[]>("cms/public/banners");
+	} catch {
+		return [];
+	}
 }
