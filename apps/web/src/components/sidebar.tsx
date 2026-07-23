@@ -212,12 +212,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
-			isActive:
-				isItemActive(
-					"p2p",
-					location.pathname.startsWith("/games") &&
-						params.get("category") === "pvp",
-				) || expandedItems["p2p"],
+			isActive: isItemActive(
+				"p2p",
+				location.pathname.startsWith("/games") &&
+					params.get("category") === "pvp",
+			),
 			subItems: [
 				{
 					id: "pvp-casino",
