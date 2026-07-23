@@ -28,6 +28,7 @@ import { Route as FaqsRouteImport } from './routes/faqs'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as BoxingRouteImport } from './routes/boxing'
 import { Route as BettingRouteImport } from './routes/betting'
+import { Route as BetHistoryRouteImport } from './routes/bet-history'
 import { Route as BasketballRouteImport } from './routes/basketball'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AboutRouteImport } from './routes/about'
@@ -161,6 +162,11 @@ const BoxingRoute = BoxingRouteImport.update({
 const BettingRoute = BettingRouteImport.update({
   id: '/betting',
   path: '/betting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BetHistoryRoute = BetHistoryRouteImport.update({
+  id: '/bet-history',
+  path: '/bet-history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BasketballRoute = BasketballRouteImport.update({
@@ -367,6 +373,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
   '/basketball': typeof BasketballRouteWithChildren
+  '/bet-history': typeof BetHistoryRoute
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
   '/faq': typeof FaqRoute
@@ -426,6 +433,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
+  '/bet-history': typeof BetHistoryRoute
   '/betting': typeof BettingRoute
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
@@ -480,6 +488,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
   '/basketball': typeof BasketballRouteWithChildren
+  '/bet-history': typeof BetHistoryRoute
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
   '/faq': typeof FaqRoute
@@ -542,6 +551,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/account'
     | '/basketball'
+    | '/bet-history'
     | '/betting'
     | '/boxing'
     | '/faq'
@@ -601,6 +611,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/account'
+    | '/bet-history'
     | '/betting'
     | '/faq'
     | '/faqs'
@@ -654,6 +665,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/account'
     | '/basketball'
+    | '/bet-history'
     | '/betting'
     | '/boxing'
     | '/faq'
@@ -715,6 +727,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   AccountRoute: typeof AccountRoute
   BasketballRoute: typeof BasketballRouteWithChildren
+  BetHistoryRoute: typeof BetHistoryRoute
   BettingRoute: typeof BettingRoute
   BoxingRoute: typeof BoxingRouteWithChildren
   FaqRoute: typeof FaqRoute
@@ -884,6 +897,13 @@ declare module '@tanstack/react-router' {
       path: '/betting'
       fullPath: '/betting'
       preLoaderRoute: typeof BettingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bet-history': {
+      id: '/bet-history'
+      path: '/bet-history'
+      fullPath: '/bet-history'
+      preLoaderRoute: typeof BetHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/basketball': {
@@ -1307,6 +1327,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   AccountRoute: AccountRoute,
   BasketballRoute: BasketballRouteWithChildren,
+  BetHistoryRoute: BetHistoryRoute,
   BettingRoute: BettingRoute,
   BoxingRoute: BoxingRouteWithChildren,
   FaqRoute: FaqRoute,

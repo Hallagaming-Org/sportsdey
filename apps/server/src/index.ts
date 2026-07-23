@@ -97,7 +97,21 @@ app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
 app.use("*", async (c, next) => {
 	if (c.req.method === "OPTIONS") {
 		const origin = c.req.header("origin") || "";
-		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
+		const corsOrigin = c.env.CORS_ORIGIN || "https://sportsdey.com";
+		const allowedOrigins = new Set([
+			corsOrigin,
+			"http://localhost:3001",
+			"http://localhost:3002",
+			"http://localhost:4173",
+			"http://localhost:8787",
+			"sportsdey-mobile://",
+			"exp://172.20.10.9:8081",
+			"https://admin.sportsdey.com",
+			"https://staging-admin.sportsdey.com",
+			"https://binary.sportsdey.com",
+		]);
+
+		console.log(allowedOrigins.has(origin) ? origin : "");
 
 		if (allowedOrigins.has(origin)) {
 			return c.text("", 204 as ContentfulStatusCode, {
@@ -119,7 +133,19 @@ app.use(
 	cors({
 		origin: (origin, c) => {
 			if (!origin) return "";
-			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
+			const allowedOrigins = new Set([
+				corsOrigin,
+				"http://localhost:3001",
+				"http://localhost:3002",
+				"http://localhost:4173",
+				"http://localhost:8787",
+				"sportsdey-mobile://",
+				"exp://172.20.10.9:8081",
+				"https://admin.sportsdey.com",
+				"https://staging-admin.sportsdey.com",
+				"https://binary.sportsdey.com",
+			]);
+			console.log(allowedOrigins.has(origin) ? origin : "");
 			return allowedOrigins.has(origin) ? origin : "";
 		},
 		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
