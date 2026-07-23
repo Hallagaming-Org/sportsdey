@@ -132,3 +132,81 @@ export const ScorpioSuccessDataSchema = z
 		data: z.any(),
 	})
 	.openapi("ScorpioSuccessData");
+
+export const ScorpioCallbackBalanceSchema = z
+	.object({
+		command: z.literal("balance"),
+		playerId: z.string().min(1),
+		currency: z.string().min(1),
+		timestamp: z.number(),
+	})
+	.openapi("ScorpioCallbackBalance");
+
+export const ScorpioCallbackBetSchema = z
+	.object({
+		command: z.literal("bet"),
+		transactionId: z.string().min(1),
+		playerId: z.string().min(1),
+		roundId: z.string().min(1),
+		providerId: z.number(),
+		providerName: z.string(),
+		gameCode: z.string().min(1),
+		gameName: z.string(),
+		currency: z.string().min(1),
+		amount: z.number(),
+		isRoundFinished: z.boolean(),
+		isCall: z.boolean(),
+		timestamp: z.number(),
+	})
+	.openapi("ScorpioCallbackBet");
+
+export const ScorpioCallbackWinSchema = z
+	.object({
+		command: z.literal("win"),
+		transactionId: z.string().min(1),
+		playerId: z.string().min(1),
+		roundId: z.string().min(1),
+		providerId: z.number(),
+		providerName: z.string(),
+		gameCode: z.string().min(1),
+		gameName: z.string(),
+		currency: z.string().min(1),
+		amount: z.number(),
+		isRoundFinished: z.boolean(),
+		isCall: z.boolean(),
+		timestamp: z.number(),
+	})
+	.openapi("ScorpioCallbackWin");
+
+export const ScorpioCallbackCancelSchema = z
+	.object({
+		command: z.literal("cancel"),
+		transactionId: z.string().min(1),
+		referenceId: z.string().min(1),
+		playerId: z.string().min(1),
+		roundId: z.string().min(1),
+		providerId: z.number(),
+		providerName: z.string(),
+		gameCode: z.string().min(1),
+		gameName: z.string(),
+		currency: z.string().min(1),
+		amount: z.number(),
+		timestamp: z.number(),
+	})
+	.openapi("ScorpioCallbackCancel");
+
+export const ScorpioCallbackRequestSchema = z
+	.discriminatedUnion("command", [
+		ScorpioCallbackBalanceSchema,
+		ScorpioCallbackBetSchema,
+		ScorpioCallbackWinSchema,
+		ScorpioCallbackCancelSchema,
+	])
+	.openapi("ScorpioCallbackRequest");
+
+export const ScorpioCallbackResponseSchema = z
+	.object({
+		balance: z.number().optional(),
+		statusCode: z.string(),
+	})
+	.openapi("ScorpioCallbackResponse");

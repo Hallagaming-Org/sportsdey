@@ -32,6 +32,6 @@ These are **Scorpio-hosted** endpoints. We **call** them; we do **not** mount `/
 
 **HTTP pattern:** plain `fetch` / `fetchWithTimeout` inside `utils/scorpio.ts` (like `utils/paystack.ts`), Bearer token from env — **no** shared HTTP client class exists.
 
-**Env (proposed, matching Wrangler style):** `SCORPIO_API_URL`, `SCORPIO_API_TOKEN` (+ later `SCORPIO_CALLBACK_SECRET` for seamless wallet).
+**Env (Wrangler / `.env`):** `SCORPIO_API_URL` (or `SCORPIO_BASE_URL`), `SCORPIO_API_TOKEN`, `SCORPIO_CALLBACK_URL`, `SCORPIO_SERVER_IP`, `SCORPIO_ALLOWED_IPS`. Callback: `POST /scorpio/callback`.
 
 Details: [casino-provider.md — Scorpio Main API placement](./casino-provider.md#scorpio-play-main-api-where-each-endpoint-belongs).
