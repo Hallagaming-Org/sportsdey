@@ -216,6 +216,8 @@ export async function apiRequestFull<T>(
 			message: "An unexpected error occurred. Please try again.",
 		});
 	}
+}
+
 type UploadedFile = {
 	id: string;
 	url: string;
