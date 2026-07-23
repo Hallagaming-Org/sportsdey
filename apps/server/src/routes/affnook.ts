@@ -6,6 +6,7 @@ import {
 } from "@/schemas/affnook";
 import {
 	createAffnookCustomer,
+	getAffnookConfig,
 	isAffnookConfigured,
 	recordAffnookCustomerLogin,
 } from "@/services/affnook";
@@ -101,19 +102,9 @@ affnookRoute.openapi(syncRoute, async (c) => {
 		);
 	}
 
-	const parsed = AffnookSyncRequestSchema.safeParse(await c.req.json());
-	if (!parsed.success) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Invalid request body",
-				details: parsed.error.flatten(),
-			},
-			400,
-		);
-	}
-
-	const { event, trackingToken, promocode, country, city } = parsed.data;
+	const { event, trackingToken, promocode, country, city } =
+		c.req.valid("json");
+	const { defaultCountry, currency } = getAffnookConfig(c.env);
 	const userAgent = c.req.header("user-agent") || undefined;
 	const ip =
 		c.req.header("cf-connecting-ip") ||
@@ -128,8 +119,8 @@ affnookRoute.openapi(syncRoute, async (c) => {
 			email: user.email,
 			trackingToken,
 			promocode,
-			country: country || "NG",
-			currency: "NGN",
+			country: country || defaultCountry,
+			currency,
 			ip,
 			city,
 		});
