@@ -19,8 +19,10 @@ import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
+import ScoresIcon from "@/logos/scores.svg?react";
 import Video from "@/logos/Video";
 import { useActiveTab } from "./active-tab-context";
+
 
 type MenuItem = {
 	id: string;
@@ -187,7 +189,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "scores",
 			label: "Scores",
-			icon: Soccer,
+			icon: ScoresIcon,
 			isActive: isItemActive(
 				"scores",
 				location.pathname.includes("matches"),
