@@ -108,12 +108,12 @@ function OtpPage() {
 		try {
 			const otp = otpDigits.join("");
 			const data = await verifyPhoneOtp(phone, otp);
-			if (!data.token) {
+			const session = await authClient.getSession();
+			if (!session?.data?.session) {
 				throw new Error(
 					"Sign-in succeeded but session was not established. Please try again.",
 				);
 			}
-			await authClient.getSession();
 			authClient.$store.notify("$sessionSignal");
 
 			loginWebengageUser(data.user.id);
