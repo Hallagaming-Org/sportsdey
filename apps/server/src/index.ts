@@ -3,19 +3,10 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import {
-	createAuth,
-	createHashCookie,
-	extractBearerToken,
-	getAuthCookiePolicy,
-	isRawSessionBearer,
-	withSignedSessionCookie,
-	withSignedSessionHeaders,
-} from "./auth";
+import { createAuth, createHashCookie, getAuthCookiePolicy } from "./auth";
 import {
 	CORS_ALLOW_HEADERS,
 	CORS_ALLOW_METHODS,
-	CORS_EXPOSE_HEADERS,
 	getAllowedCorsOrigins,
 } from "./constants/cors";
 import {
@@ -41,52 +32,6 @@ function getAuth(env: CloudflareBindings) {
 	return createAuth(env);
 }
 
-type AuthContext = {
-	env: CloudflareBindings;
-	req: { raw: Request };
-};
-
-function getRawBearerToken(request: Request): string | null {
-	const bearer = extractBearerToken(request);
-	if (bearer && isRawSessionBearer(bearer)) return bearer;
-	return null;
-}
-
-async function resolveAuthRequest(c: AuthContext) {
-	const rawBearer = getRawBearerToken(c.req.raw);
-	// Phone OTP returns a raw session token; inject a signed cookie so Better Auth
-	// getSession accepts it even when the browser drops cross-origin Set-Cookie.
-	if (rawBearer) {
-		return withSignedSessionCookie(
-			c.req.raw,
-			rawBearer,
-			c.env.BETTER_AUTH_SECRET,
-			{
-				nodeEnv: c.env.NODE_ENV,
-				authUrl: c.env.BETTER_AUTH_URL,
-			},
-		);
-	}
-	return c.req.raw;
-}
-
-/** Headers-only auth resolution — safe for middleware that must not consume the body. */
-async function resolveAuthHeaders(c: AuthContext) {
-	const rawBearer = getRawBearerToken(c.req.raw);
-	if (rawBearer) {
-		return withSignedSessionHeaders(
-			c.req.raw,
-			rawBearer,
-			c.env.BETTER_AUTH_SECRET,
-			{
-				nodeEnv: c.env.NODE_ENV,
-				authUrl: c.env.BETTER_AUTH_URL,
-			},
-		);
-	}
-	return c.req.raw.headers;
-}
-
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
 	type: "http",
 	scheme: "bearer",
@@ -105,7 +50,6 @@ app.use("*", async (c, next) => {
 				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
 				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
 				"Access-Control-Allow-Credentials": "true",
-				"Access-Control-Expose-Headers": CORS_EXPOSE_HEADERS,
 			});
 		}
 		return c.text("", 204 as ContentfulStatusCode);
@@ -123,16 +67,14 @@ app.use(
 			return allowedOrigins.has(origin) ? origin : "";
 		},
 		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
-		allowHeaders: ["Authorization", "Content-Type", "set-auth-token"],
-		exposeHeaders: ["set-auth-token", "Set-Auth-Token"],
+		allowHeaders: ["Authorization", "Content-Type"],
 		credentials: true,
 	}),
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
 	const auth = getAuth(c.env);
-	const request = await resolveAuthRequest(c);
-	const response = await auth.handler(request);
+	const response = await auth.handler(c.req.raw);
 
 	const setCookies: string[] = [];
 	response.headers.forEach((value, key) => {
@@ -153,7 +95,6 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 			const hashCookie = createHashCookie(
 				token,
 				c.env.NODE_ENV,
-				c.env.COOKIE_DOMAIN,
 				c.env.BETTER_AUTH_URL,
 			);
 			response.headers.append("Set-Cookie", hashCookie);
@@ -161,18 +102,14 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 			const policy = getAuthCookiePolicy({
 				nodeEnv: c.env.NODE_ENV,
 				authUrl: c.env.BETTER_AUTH_URL,
-				cookieDomain: c.env.COOKIE_DOMAIN,
 			});
 			const secureFlag = policy.useSecureCookies ? "; Secure" : "";
-			const domain = policy.cookieDomain
-				? `; Domain=${policy.cookieDomain}`
-				: "";
 			const actualPrefix = tokenCookie.startsWith("__Secure-")
 				? "__Secure-ba"
 				: "ba";
 			response.headers.append(
 				"Set-Cookie",
-				`${actualPrefix}.session_token_hash=; Path=/${domain}; HttpOnly; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
+				`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
 			);
 		}
 	}
@@ -192,11 +129,8 @@ app.use("*", async (c, next) => {
 		return next();
 	}
 	const auth = getAuth(c.env);
-	// Only mutate headers — never clone the Request here or PATCH/POST JSON bodies
-	// become empty ("Malformed JSON in request body").
-	const headers = await resolveAuthHeaders(c);
 	const sessionResult = await auth.api.getSession({
-		headers,
+		headers: c.req.raw.headers,
 	});
 	c.set("session", sessionResult?.session ?? null);
 	c.set("user", sessionResult?.user ?? null);
