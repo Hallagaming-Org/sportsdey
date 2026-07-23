@@ -179,7 +179,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Sports",
 			icon: SportsIcon,
 			isActive: isItemActive(
-				"Sports",
+				"betting",
 				location.pathname.startsWith("/sportsbetting"),
 			),
 			onClick: goToSportsbook,
@@ -190,7 +190,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Soccer,
 			isActive: isItemActive(
 				"scores",
-				location.pathname.startsWith("/sportsbetting"),
+				location.pathname.includes("matches"),
 			),
 			onClick: goToScores,
 		},
