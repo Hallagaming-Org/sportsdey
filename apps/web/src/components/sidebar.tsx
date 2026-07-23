@@ -179,7 +179,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Sports",
 			icon: SportsIcon,
 			isActive: isItemActive(
-				"Sports",
+				"betting",
 				location.pathname.startsWith("/sportsbetting"),
 			),
 			onClick: goToSportsbook,
@@ -190,7 +190,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Soccer,
 			isActive: isItemActive(
 				"scores",
-				location.pathname.startsWith("/sportsbetting"),
+				location.pathname.includes("matches"),
 			),
 			onClick: goToScores,
 		},
@@ -212,12 +212,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
-			isActive:
-				isItemActive(
-					"p2p",
-					location.pathname.startsWith("/games") &&
-						params.get("category") === "pvp",
-				) || expandedItems["p2p"],
+			isActive: isItemActive(
+				"p2p",
+				location.pathname.startsWith("/games") &&
+					params.get("category") === "pvp",
+			),
 			subItems: [
 				{
 					id: "pvp-casino",
