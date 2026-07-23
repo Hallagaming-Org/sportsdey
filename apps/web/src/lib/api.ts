@@ -195,7 +195,7 @@ export async function apiRequestFull<T>(
 				userMessage = data.error || "Invalid request.";
 			}
 
-			throw new ApiError(userMessage, response.status, data.details, false);
+			throw new ApiError({ message: userMessage, status: response.status, details: data.details });
 		}
 
 		return (await response.json()) as T;
@@ -206,24 +206,19 @@ export async function apiRequestFull<T>(
 			error instanceof DOMException ||
 			(error instanceof Error && error.name === "AbortError")
 		) {
-			throw new ApiError(
-				"Network error or timeout. Please check your connection and try again.",
-				undefined,
-				undefined,
-				true,
-			);
+			throw new ApiError({
+				message: "Network error or timeout. Please check your connection and try again.",
+				isNetworkError: true,
+			});
 		}
 
 		if (error instanceof ApiError) {
 			throw error;
 		}
 
-		throw new ApiError(
-			"An unexpected error occurred. Please try again.",
-			undefined,
-			undefined,
-			false,
-		);
+		throw new ApiError({
+			message: "An unexpected error occurred. Please try again.",
+		});
 	}
 type UploadedFile = {
 	id: string;
