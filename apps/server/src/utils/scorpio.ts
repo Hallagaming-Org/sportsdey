@@ -1,4 +1,8 @@
 import { fetchWithTimeout, isTimeoutError } from "@/utils/fetch-with-timeout";
+import {
+	assertScorpioSettings,
+	loadScorpioSettings,
+} from "@/utils/scorpio-config";
 
 export const SCORPIO_ERROR_CODES = [
 	"UNDER_MAINTENANCE",
@@ -181,11 +185,17 @@ async function scorpioRequest<T>(
 
 export function getScorpioConfig(env: {
 	SCORPIO_API_URL?: string;
+	SCORPIO_BASE_URL?: string;
 	SCORPIO_API_TOKEN?: string;
+	SCORPIO_CALLBACK_URL?: string;
+	SCORPIO_SERVER_IP?: string;
+	SCORPIO_ALLOWED_IPS?: string;
 }): ScorpioConfig {
+	const settings = loadScorpioSettings(env);
+	assertScorpioSettings(settings);
 	return {
-		apiUrl: env.SCORPIO_API_URL || "",
-		apiToken: env.SCORPIO_API_TOKEN || "",
+		apiUrl: settings.apiUrl,
+		apiToken: settings.apiToken,
 	};
 }
 

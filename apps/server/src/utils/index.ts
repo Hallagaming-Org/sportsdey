@@ -102,3 +102,19 @@ export {
 	listGames,
 	listProviders,
 } from "./scorpio";
+export {
+	assertScorpioSettings,
+	getAllowedIps,
+	getConfiguredServerIp,
+	loadScorpioSettings,
+	ScorpioConfigError,
+} from "./scorpio-config";
+export {
+	assertScorpioCallbackIp,
+	computeScorpioSignature,
+	isIpAllowed,
+	ScorpioIpForbiddenError,
+	ScorpioSignatureError,
+	verifyScorpioSignature,
+} from "./scorpio-security";
+export { processScorpioCallback } from "./scorpio-callback";

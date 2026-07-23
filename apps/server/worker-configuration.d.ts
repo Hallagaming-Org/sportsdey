@@ -49,8 +49,11 @@ declare namespace Cloudflare {
 		SLOTITEGRATION_MERCHANT_KEY: string;
 		SLOTEGRATOR_API_URL: string;
 		SCORPIO_API_URL: string;
+		SCORPIO_BASE_URL: string;
 		SCORPIO_API_TOKEN: string;
-		SCORPIO_CALLBACK_SECRET: string;
+		SCORPIO_CALLBACK_URL: string;
+		SCORPIO_SERVER_IP: string;
+		SCORPIO_ALLOWED_IPS: string;
 		DATABET_CERT: Fetcher;
 		AFRICASTALKING_API_KEY: string;
 		AFRICASTALKING_USERNAME: string;

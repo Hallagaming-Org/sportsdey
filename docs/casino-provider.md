@@ -583,8 +583,24 @@ Env (Wrangler secrets / `.env`, same style as `SLOTEGRATOR_*` / `LAGOS_RUSH_*`):
 | Variable | Purpose |
 |----------|---------|
 | `SCORPIO_API_URL` | Base URL for Main API (e.g. `https://…`) |
-| `SCORPIO_API_TOKEN` | `Authorization: Bearer …` |
-| `SCORPIO_CALLBACK_SECRET` | Later — seamless wallet `X-Request-Signature` (not Main API) |
+| `SCORPIO_BASE_URL` | Alias for `SCORPIO_API_URL` |
+| `SCORPIO_API_TOKEN` | Bearer token **and** HMAC key for `X-Request-Signature` |
+| `SCORPIO_CALLBACK_URL` | Public Seamless callback URL registered with Scorpio (e.g. `https://api.example.com/scorpio/callback`) |
+| `SCORPIO_SERVER_IP` | Operator public server IP (informational / Scorpio portal) |
+| `SCORPIO_ALLOWED_IPS` | Comma-separated allowlist for callback source IPs (empty = disabled) |
+
+### Seamless Wallet callback
+
+| Piece | Location |
+|-------|----------|
+| Endpoint | `POST /scorpio/callback` |
+| Config | `utils/scorpio-config.ts` |
+| Signature + IP | `utils/scorpio-security.ts` (HMAC-SHA512 Base64, `timingSafeEqual`) |
+| Wallet logic | `utils/scorpio-callback.ts` (`balance` / `bet` / `win` / `cancel`) |
+| Ledger | `scorpio_transactions` |
+
+Callbacks always respond **HTTP 200** with `{ balance?, statusCode }` per Scorpio Seamless protocol. Invalid signature → `ERR_INTEGRITY_CHECK_FAILED`; blocked IP → `ERR_NOT_AUTHENTICATED`. Secrets and signatures are never logged.
+
 
 ### Per Scorpio endpoint
 
@@ -685,7 +701,7 @@ Implemented in-repo (Hono + Drizzle, matching Slotegrator/Lagos Rush):
 | Routes | `apps/server/src/routes/scorpio.ts` mounted at `/scorpio` |
 | Player map | `scorpio_players` table (`user_id` → `player_code`) |
 | Migration | `apps/server/src/db/migrations/0023_scorpio_players.sql` |
-| Env | `SCORPIO_API_URL`, `SCORPIO_API_TOKEN` (+ `SCORPIO_CALLBACK_SECRET` reserved) |
+| Env | `SCORPIO_API_URL` / `SCORPIO_BASE_URL`, `SCORPIO_API_TOKEN`, `SCORPIO_CALLBACK_URL`, `SCORPIO_SERVER_IP`, `SCORPIO_ALLOWED_IPS` |
 
 **Our routes → Scorpio Main API**
 
@@ -707,6 +723,25 @@ Implemented in-repo (Hono + Drizzle, matching Slotegrator/Lagos Rush):
 Player launch flow persists `playerCode` in `scorpio_players`. Errors map documented Scorpio codes via `ScorpioApiError`. Logging uses `console.log` (same as other routes); tokens are never logged.
 
 Apply migration: `cd apps/server && pnpm run db:push` (or Wrangler D1 migrations). Set secrets before calling.
+
+### Catalog integration audit (2026-07-22)
+
+**Verdict: ❌ Scorpio games are not integrated into the lobby/catalog.**
+
+Verified in-repo:
+
+| Source | Scorpio games? |
+|--------|----------------|
+| Live Scorpio `GET /v1/game/list/:providerId` | Source of truth — **not snapshotted in repo**; no local credentials to count |
+| `cli/sync-games.ts` | **Slotegrator only** |
+| `cli/seed-games.ts` | 11 hardcoded non-Scorpio games |
+| `cli/casino_games.json` | Category name lists (~1055 unique) — **not Scorpio API payloads** |
+| `game` table schema | `id, name, code, image_url, enabled` — **no provider / scorpio fields** |
+| SQL migrations | Only `scorpio_players` (user↔playerCode), **no game rows** |
+| `GET /games` | Returns our `game` table — **no Scorpio filter/marker** |
+| Frontend launch | LuckyWorld / Lagos Rush / Thndr / **default Slotegrator** — **never `/scorpio/launch`** |
+
+**Counts:** Total Scorpio games = unknown without API credentials. Integrated Scorpio catalog games = **0**. Missing = **all**.
 
 ---
 

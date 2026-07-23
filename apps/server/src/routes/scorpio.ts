@@ -5,6 +5,8 @@ import * as schema from "@/db/schema";
 import {
 	ScorpioBonusCancelSchema,
 	ScorpioBonusRegisterSchema,
+	ScorpioCallbackRequestSchema,
+	ScorpioCallbackResponseSchema,
 	ScorpioErrorResponseSchema,
 	ScorpioIssueIdParamSchema,
 	ScorpioKickRequestSchema,
@@ -16,6 +18,18 @@ import {
 	ScorpioSuccessDataSchema,
 	ScorpioTransactionListQuerySchema,
 } from "@/schemas/scorpio";
+import { processScorpioCallback } from "@/utils/scorpio-callback";
+import {
+	loadScorpioSettings,
+	ScorpioConfigError,
+} from "@/utils/scorpio-config";
+import {
+	assertScorpioCallbackIp,
+	ScorpioIpForbiddenError,
+	ScorpioSignatureError,
+	verifyScorpioSignature,
+} from "@/utils/scorpio-security";
+import { getClientIp } from "@/utils/request";
 import {
 	cancelBonusCall,
 	createOperator,
@@ -38,6 +52,7 @@ import {
 	updateOperator,
 } from "@/utils/scorpio";
 import type { CloudflareBindings } from "../types";
+import { generateUUIDv7 } from "@/utils/uuid";
 
 const scorpioRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -50,6 +65,17 @@ function scorpioErrorJson(error: unknown): {
 	};
 	status: 400 | 401 | 402 | 404 | 500 | 502 | 503 | 504;
 } {
+	if (error instanceof ScorpioConfigError) {
+		return {
+			body: {
+				success: false,
+				error: error.message,
+				code: "VALIDATION_ERROR",
+				details: null,
+			},
+			status: 500,
+		};
+	}
 	if (error instanceof ScorpioApiError) {
 		const status = scorpioErrorToHttpStatus(error.code);
 		const allowed = [400, 401, 402, 404, 500, 502, 503, 504] as const;
@@ -780,6 +806,185 @@ scorpioRoute.openapi(bonusDetailRoute, async (c) => {
 		const mapped = scorpioErrorJson(error);
 		return c.json(mapped.body, mapped.status);
 	}
+});
+
+const callbackRoute = createRoute({
+	method: "post",
+	path: "/callback",
+	tags: ["Scorpio Play"],
+	summary: "Scorpio Seamless Wallet callback",
+	description:
+		"Receives balance/bet/win/cancel callbacks. Always responds HTTP 200 with statusCode per Scorpio docs.",
+	request: {
+		body: {
+			content: {
+				"application/json": { schema: ScorpioCallbackRequestSchema },
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Callback processed (check statusCode)",
+			content: {
+				"application/json": { schema: ScorpioCallbackResponseSchema },
+			},
+		},
+		400: {
+			description: "Malformed request",
+			content: {
+				"application/json": { schema: ScorpioCallbackResponseSchema },
+			},
+		},
+		415: {
+			description: "Unsupported content type",
+			content: {
+				"application/json": { schema: ScorpioCallbackResponseSchema },
+			},
+		},
+	},
+});
+
+const callbackHealthRoute = createRoute({
+	method: "get",
+	path: "/callback",
+	tags: ["Scorpio Play"],
+	summary: "Scorpio callback health check",
+	description:
+		"Browser/portal reachability check. Scorpio wallet traffic must use POST.",
+	responses: {
+		200: {
+			description: "Callback endpoint is reachable",
+			content: {
+				"application/json": {
+					schema: z.object({
+						ok: z.literal(true),
+						endpoint: z.string(),
+						methods: z.array(z.string()),
+					}),
+				},
+			},
+		},
+	},
+});
+
+scorpioRoute.openapi(callbackHealthRoute, async (c) => {
+	return c.json(
+		{
+			ok: true as const,
+			endpoint: "POST /scorpio/callback",
+			methods: ["POST"],
+		},
+		200,
+	);
+});
+
+scorpioRoute.openapi(callbackRoute, async (c) => {
+	const started = Date.now();
+	const requestId = c.req.header("cf-ray") || generateUUIDv7();
+	const remoteIp = getClientIp(c);
+	const contentType = c.req.header("content-type") || "";
+
+	if (!contentType.toLowerCase().includes("application/json")) {
+		console.log("scorpio callback rejected", {
+			timestamp: new Date().toISOString(),
+			endpoint: "POST /scorpio/callback",
+			remoteIp,
+			requestId,
+			command: null,
+			latencyMs: Date.now() - started,
+			responseStatus: 415,
+			reason: "unsupported_content_type",
+		});
+		return c.json({ statusCode: "ERR_UNKNOWN" }, 415);
+	}
+
+	let body: Record<string, unknown>;
+	try {
+		body = (await c.req.json()) as Record<string, unknown>;
+	} catch {
+		console.log("scorpio callback rejected", {
+			timestamp: new Date().toISOString(),
+			endpoint: "POST /scorpio/callback",
+			remoteIp,
+			requestId,
+			command: null,
+			latencyMs: Date.now() - started,
+			responseStatus: 400,
+			reason: "malformed_json",
+		});
+		// Scorpio expects 200 for wallet protocol errors; malformed JSON before parse uses 400
+		return c.json({ statusCode: "ERR_UNKNOWN" }, 400);
+	}
+
+	const command = typeof body.command === "string" ? body.command : null;
+	const settings = loadScorpioSettings(c.env);
+	const signature = c.req.header("X-Request-Signature") || undefined;
+
+	try {
+		assertScorpioCallbackIp(remoteIp, settings);
+		verifyScorpioSignature(body, signature, settings.apiToken);
+	} catch (error) {
+		const isSignature = error instanceof ScorpioSignatureError;
+		const isIp = error instanceof ScorpioIpForbiddenError;
+		const statusCode = isSignature
+			? "ERR_INTEGRITY_CHECK_FAILED"
+			: isIp
+				? "ERR_NOT_AUTHENTICATED"
+				: "ERR_UNKNOWN";
+		// Semantic HTTP mapping for operators/logs: signature → 401, IP → 403.
+		// Scorpio Seamless Wallet requires HTTP 200 with statusCode in the body.
+		const semanticHttpStatus = isSignature ? 401 : isIp ? 403 : 401;
+
+		console.log("scorpio callback security failure", {
+			timestamp: new Date().toISOString(),
+			endpoint: "POST /scorpio/callback",
+			remoteIp,
+			requestId,
+			command,
+			latencyMs: Date.now() - started,
+			responseStatus: 200,
+			semanticHttpStatus,
+			statusCode,
+			reason: error instanceof Error ? error.name : "security_error",
+		});
+
+		return c.json({ statusCode }, 200);
+	}
+
+	const parsed = ScorpioCallbackRequestSchema.safeParse(body);
+	if (!parsed.success) {
+		console.log("scorpio callback rejected", {
+			timestamp: new Date().toISOString(),
+			endpoint: "POST /scorpio/callback",
+			remoteIp,
+			requestId,
+			command,
+			latencyMs: Date.now() - started,
+			responseStatus: 200,
+			statusCode: "ERR_UNKNOWN",
+			reason: "validation_error",
+		});
+		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+	const result = await processScorpioCallback(
+		db,
+		parsed.data as unknown as Record<string, unknown>,
+	);
+
+	console.log("scorpio callback", {
+		timestamp: new Date().toISOString(),
+		endpoint: "POST /scorpio/callback",
+		remoteIp,
+		requestId,
+		command,
+		latencyMs: Date.now() - started,
+		responseStatus: 200,
+		statusCode: result.statusCode,
+	});
+
+	return c.json(result, 200);
 });
 
 export default scorpioRoute;
