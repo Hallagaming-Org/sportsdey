@@ -844,6 +844,40 @@ const callbackRoute = createRoute({
 	},
 });
 
+const callbackHealthRoute = createRoute({
+	method: "get",
+	path: "/callback",
+	tags: ["Scorpio Play"],
+	summary: "Scorpio callback health check",
+	description:
+		"Browser/portal reachability check. Scorpio wallet traffic must use POST.",
+	responses: {
+		200: {
+			description: "Callback endpoint is reachable",
+			content: {
+				"application/json": {
+					schema: z.object({
+						ok: z.literal(true),
+						endpoint: z.string(),
+						methods: z.array(z.string()),
+					}),
+				},
+			},
+		},
+	},
+});
+
+scorpioRoute.openapi(callbackHealthRoute, async (c) => {
+	return c.json(
+		{
+			ok: true as const,
+			endpoint: "POST /scorpio/callback",
+			methods: ["POST"],
+		},
+		200,
+	);
+});
+
 scorpioRoute.openapi(callbackRoute, async (c) => {
 	const started = Date.now();
 	const requestId = c.req.header("cf-ray") || generateUUIDv7();
