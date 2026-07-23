@@ -35,6 +35,8 @@
 		"framer-motion": "^12.40.0",
 		"html-to-image": "^1.11.13",
 		"iconsax-reactjs": "^0.0.8",
+		"jspdf": "^4.2.1",
+		"jspdf-autotable": "^5.0.8",
 		"lucide-react": "^0.525.0",
 		"next-themes": "^0.4.6",
 		"radix-ui": "^1.4.2",
