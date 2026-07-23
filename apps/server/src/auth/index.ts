@@ -194,12 +194,6 @@ export const createAuth = (env: CloudflareBindings) => {
 		advanced: {
 			cookiePrefix: COOKIE_PREFIX,
 			useSecureCookies: cookiePolicy.useSecureCookies,
-			crossSubDomainCookies: cookiePolicy.cookieDomain
-				? {
-						enabled: true,
-						domain: cookiePolicy.cookieDomain,
-					}
-				: undefined,
 			defaultCookieAttributes: {
 				sameSite: cookiePolicy.sameSite,
 				secure: cookiePolicy.useSecureCookies,
@@ -225,7 +219,10 @@ export const createAuth = (env: CloudflareBindings) => {
 };
 
 /** Cookie name Better Auth expects for the session token. */
-export function getSessionCookieName(nodeEnv?: string, authUrl?: string): string {
+export function getSessionCookieName(
+	nodeEnv?: string,
+	authUrl?: string,
+): string {
 	const { useSecureCookies } = getAuthCookiePolicy({ nodeEnv, authUrl });
 	return useSecureCookies ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME;
 }
@@ -319,9 +316,7 @@ export function createHashCookie(
 	const policy = getAuthCookiePolicy({ nodeEnv, authUrl, cookieDomain });
 	const prefix = policy.useSecureCookies ? "__Secure-ba" : COOKIE_PREFIX;
 	const secureFlag = policy.useSecureCookies ? "; Secure" : "";
-	const domain = policy.cookieDomain
-		? `; Domain=${policy.cookieDomain}`
-		: "";
+	const domain = policy.cookieDomain ? `; Domain=${policy.cookieDomain}` : "";
 	const sameSite = policy.sameSite === "none" ? "None" : "Lax";
 	return `${prefix}.session_token_hash=${token}; Path=/${domain}; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }
