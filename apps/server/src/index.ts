@@ -54,8 +54,7 @@ function getRawBearerToken(request: Request): string | null {
 
 async function resolveAuthRequest(c: AuthContext) {
 	const rawBearer = getRawBearerToken(c.req.raw);
-	// Phone OTP returns a raw session token; inject a signed cookie so Better Auth
-	// getSession accepts it even when the browser drops cross-origin Set-Cookie.
+	
 	if (rawBearer) {
 		return withSignedSessionCookie(
 			c.req.raw,

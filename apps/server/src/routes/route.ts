@@ -22,7 +22,12 @@ import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
+import betHistoryRoute from "./bet-history";
 const routes = new OpenAPIHono();
+
+
+
+
 
 routes.route("/affnook", affnookRoute);
 routes.route("/football", footballRoute);
@@ -47,5 +52,6 @@ routes.route("/games", gamesRoute);
 routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
+routes.route("/bet-history", betHistoryRoute);
 
 export default routes;
