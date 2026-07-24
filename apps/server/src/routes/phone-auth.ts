@@ -3,7 +3,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { createHashCookie, createSignedSessionCookieString } from "@/auth";
-import { SESSION_TTL_MS, SET_AUTH_TOKEN_HEADER } from "@/constants/session";
+import { SESSION_TTL_MS } from "@/constants/session";
 import * as schema from "@/db/schema";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import {
@@ -45,8 +45,6 @@ const VerifySuccessSchema = z.object({
 	success: z.literal(true),
 	data: z.object({
 		message: z.string(),
-		token: z.string(),
-		authToken: z.string().optional(),
 		expiresAt: z.string(),
 		user: z.object({
 			id: z.string(),
@@ -534,24 +532,19 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		.set({ lastLoginIp: loginIp })
 		.where(eq(schema.user.id, signedInUser.id));
 
-	const { cookie: sessionCookie, signedToken } =
-		await createSignedSessionCookieString(token, c.env.BETTER_AUTH_SECRET, {
+	const sessionCookie = await createSignedSessionCookieString(
+		token,
+		c.env.BETTER_AUTH_SECRET,
+		{
 			nodeEnv: c.env.NODE_ENV,
 			authUrl: c.env.BETTER_AUTH_URL,
-			cookieDomain: c.env.COOKIE_DOMAIN,
-		});
-	c.header("Set-Cookie", sessionCookie, { append: true });
-	// Expose signed token for clients that cannot rely on cross-origin cookies.
-	c.header(SET_AUTH_TOKEN_HEADER, signedToken);
-	c.header(
-		"Access-Control-Expose-Headers",
-		`${SET_AUTH_TOKEN_HEADER}, Set-Auth-Token`,
+		},
 	);
+	c.header("Set-Cookie", sessionCookie, { append: true });
 
 	const hashCookie = createHashCookie(
 		token,
 		c.env.NODE_ENV,
-		c.env.COOKIE_DOMAIN,
 		c.env.BETTER_AUTH_URL,
 	);
 	c.header("Set-Cookie", hashCookie, { append: true });
@@ -561,8 +554,6 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 			success: true as const,
 			data: {
 				message: "Phone number verified. Sign-in successful.",
-				token,
-				authToken: signedToken,
 				expiresAt: expiresAt.toISOString(),
 				user: {
 					id: signedInUser.id,

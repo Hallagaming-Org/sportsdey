@@ -396,7 +396,11 @@ return (
 									<div className="flex items-center gap-3">
 										<Icon
 											className={cn(
-												"h-4 w-4 shrink-0",
+												"h-4 w-4 shrink-0 transition-all",
+												!isMobile &&
+													item.isActive &&
+													"text-white fill-white stroke-white [filter:brightness(0)_invert(1)] opacity-100",
+												isMobile && item.isActive && "text-accent fill-accent stroke-accent opacity-100",
 												isMobile &&
 													!item.isActive &&
 													"text-gray-500 dark:text-[#8C8F8F]",

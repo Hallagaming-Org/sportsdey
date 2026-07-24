@@ -52,7 +52,7 @@
 		"zod": "catalog:"
 	},
 	"devDependencies": {
-		"@cloudflare/vite-plugin": "^1.13.8",
+		"@cloudflare/vite-plugin": "1.13.8",
 		"@tanstack/react-query-devtools": "^5.85.5",
 		"@tanstack/react-router-devtools": "^1.132.31",
 		"@testing-library/dom": "^10.4.0",
