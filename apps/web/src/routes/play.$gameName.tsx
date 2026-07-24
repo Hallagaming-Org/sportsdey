@@ -2,47 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { apiRequest } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import {
+	fetchScorpioLobbyGames,
+	launchScorpioGame,
+	type ScorpioLobbyGame,
+} from "@/lib/scorpio-catalog";
 import { cn } from "@/lib/utils";
-
-type Category = {
-	id: string;
-	name: string;
-	slug: string;
-};
-
-type Game = {
-	id: string;
-	name: string;
-	code: string;
-	imageUrl: string | null;
-	categories: Category[];
-	enabled: boolean;
-};
-
-type LaunchResponse = {
-	success: boolean;
-	data: { url?: string } | undefined;
-	error?: string;
-};
 
 export const Route = createFileRoute("/play/$gameName")({
 	component: PlayGamePage,
 });
-
-const KNOWN_GAMES_LIST = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-	"XCAPEHB",
-	"EAGLEHB",
-	"LUCKYRISEHB",
-	"LAGOSRUSH",
-];
 
 function PlayGamePage() {
 	const { gameName } = Route.useParams();
@@ -54,13 +25,13 @@ function PlayGamePage() {
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const { data: games = [], isLoading: isGamesLoading } = useQuery<Game[]>({
-		queryKey: ["games"],
-		queryFn: async () => {
-			const data = await apiRequest<Game[]>("games");
-			return data.filter((g) => g.enabled);
-		},
+	const { data: games = [], isLoading: isGamesLoading } = useQuery<
+		ScorpioLobbyGame[]
+	>({
+		queryKey: ["scorpio-games"],
+		queryFn: fetchScorpioLobbyGames,
 		enabled: !!session?.user,
+		staleTime: 60_000,
 	});
 
 	useEffect(() => {
@@ -80,7 +51,8 @@ function PlayGamePage() {
 		(g) =>
 			g.name.toLowerCase() === searchName ||
 			g.name.toLowerCase().includes(searchName) ||
-			g.code.toLowerCase() === searchCode
+			g.code.toLowerCase() === searchCode ||
+			g.code.toLowerCase() === decodedGameName.toLowerCase(),
 	);
 
 	useEffect(() => {
@@ -93,64 +65,37 @@ function PlayGamePage() {
 			}
 
 			try {
-				let url: string;
-				let body: Record<string, unknown>;
-
-				const isKnownGame = KNOWN_GAMES_LIST.includes(targetGame.code);
-
-				if (isKnownGame) {
-					if (["XCAPEHB", "EAGLEHB", "LUCKYRISEHB"].includes(targetGame.code)) {
-						url = `${import.meta.env.VITE_SERVER_URL}casino/play/${targetGame.code}`;
-						body = {};
-					} else if (targetGame.code === "LAGOSRUSH") {
-						url = `${import.meta.env.VITE_SERVER_URL}lagos-rush/launcher`;
-						body = { game: targetGame.code };
-					} else {
-						url = `${import.meta.env.VITE_SERVER_URL}thndr/play/${targetGame.code}`;
-						body = {};
-					}
-				} else {
-					url = `${import.meta.env.VITE_SERVER_URL}slotegrator/launch`;
-					body = { game_uuid: targetGame.code };
-				}
-
-				const response = await fetch(url, {
-					method: "POST",
-					credentials: "include",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(body),
+				const launch = await launchScorpioGame({
+					providerId: targetGame.providerId,
+					gameCode: targetGame.code,
+					returnUrl: `${window.location.origin}/games`,
 				});
 
-				const data: LaunchResponse = await response.json();
-
-				if (!response.ok || data.success === false) {
-					if (data.error === "Unauthorized" || response.status === 401) {
-						if (isMounted) navigate({ to: "/auth/sign-in" });
-						return;
-					}
-					throw new Error(data.error || "Failed to launch game");
-				}
-
-				if (!data.data?.url) {
-					throw new Error("Missing launch URL in response");
-				}
-
 				if (isMounted) {
-					setGameUrl(data.data.url);
+					setGameUrl(launch.url);
 					// Fallback to remove loader if iframe fails to trigger onLoad
 					setTimeout(() => {
 						if (isMounted) setIsIframeLoading(false);
 					}, 5000);
 				}
-			} catch (err: any) {
+			} catch (err) {
+				if (
+					err instanceof ApiError &&
+					(err.status === 401 || err.status === 403)
+				) {
+					if (isMounted) navigate({ to: "/auth/sign-in" });
+					return;
+				}
 				if (isMounted) {
-					setError(err.message || "Something went wrong.");
+					setError(
+						err instanceof Error ? err.message : "Something went wrong.",
+					);
 				}
 			}
 		};
 
 		if (isPlayClicked && targetGame && !gameUrl && !error) {
-			launchGame();
+			void launchGame();
 		}
 
 		return () => {
@@ -178,8 +123,11 @@ function PlayGamePage() {
 	if (!targetGame && !error) {
 		return (
 			<div className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-4">
-				<p className="text-red-500 text-lg">Game "{formattedGameName}" not found.</p>
+				<p className="text-red-500 text-lg">
+					Game "{formattedGameName}" not found.
+				</p>
 				<button
+					type="button"
 					onClick={() => navigate({ to: "/games" })}
 					className="rounded-lg bg-[#1BAA04] px-6 py-2 font-medium text-white transition-colors hover:bg-[#158a03]"
 				>
@@ -194,6 +142,7 @@ function PlayGamePage() {
 			<div className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-4">
 				<p className="text-red-500 text-lg">{error}</p>
 				<button
+					type="button"
 					onClick={() => navigate({ to: "/games" })}
 					className="rounded-lg bg-[#1BAA04] px-6 py-2 font-medium text-white transition-colors hover:bg-[#158a03]"
 				>
@@ -216,7 +165,9 @@ function PlayGamePage() {
 							/>
 						) : (
 							<div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
-								<p className="text-xl font-bold text-white/50">{targetGame?.name}</p>
+								<p className="text-xl font-bold text-white/50">
+									{targetGame?.name}
+								</p>
 							</div>
 						)}
 						<div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-transparent to-transparent opacity-90" />
@@ -238,13 +189,17 @@ function PlayGamePage() {
 						<h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-white sm:text-5xl">
 							{targetGame?.name}
 						</h1>
-						{/* {targetGame?.category && (
+						{targetGame?.providerName && (
 							<p className="mb-8 text-sm font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-								{targetGame.category}
+								{targetGame.providerName}
+								{targetGame.categories[0]
+									? ` · ${targetGame.categories.find((c) => c.id.startsWith("type-"))?.name ?? targetGame.categories[0].name}`
+									: ""}
 							</p>
-						)} */}
+						)}
 
 						<button
+							type="button"
 							onClick={() => setIsPlayClicked(true)}
 							className="cursor-pointer group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-[#1BAA04] px-12 py-4 font-bold text-white transition-all hover:scale-105 hover:bg-[#158a03] hover:shadow-[0_0_20px_rgba(27,170,4,0.4)] active:scale-95"
 						>
@@ -255,8 +210,14 @@ function PlayGamePage() {
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor"
+									aria-hidden="true"
 								>
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2.5}
+										d="M14 5l7 7m0 0l-7 7m7-7H3"
+									/>
 								</svg>
 							</span>
 						</button>
@@ -269,17 +230,18 @@ function PlayGamePage() {
 	const router = useRouter();
 
 	return (
-		<div className="relative h-full w-full flex flex-col bg-[#121212] overflow-hidden rounded-xl mt-4 border border-gray-800">
-			<div className="flex items-center px-4 py-3 shrink-0">
-				<button 
+		<div className="relative mt-4 flex h-full w-full flex-col overflow-hidden rounded-xl border border-gray-800 bg-[#121212]">
+			<div className="flex shrink-0 items-center px-4 py-3">
+				<button
+					type="button"
 					onClick={() => router.history.back()}
-					className="flex items-center gap-2 text-white hover:text-[#1BAA04] transition-colors cursor-pointer font-medium"
+					className="flex cursor-pointer items-center gap-2 font-medium text-white transition-colors hover:text-[#1BAA04]"
 				>
 					<ArrowLeft className="h-5 w-5" />
 					<span>Back</span>
 				</button>
 			</div>
-			<div className="relative flex-1 w-full">
+			<div className="relative w-full flex-1">
 				{isIframeLoading && (
 					<div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#121212]/90 backdrop-blur-sm">
 						<Loader2 className="mb-4 h-12 w-12 animate-spin text-[#1BAA04]" />
@@ -307,4 +269,3 @@ function PlayGamePage() {
 		</div>
 	);
 }
-

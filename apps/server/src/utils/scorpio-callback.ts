@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { generateUUIDv7 } from "@/utils/uuid";
@@ -30,6 +30,15 @@ export function koboToScorpioBalance(kobo: number): number {
 	return kobo / 100;
 }
 
+/** SQLite / D1 unique violations — same class of errors Thndr/Pockets rely on unique tx ids for. */
+export function isUniqueConstraintError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		message.includes("UNIQUE constraint failed") ||
+		(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
+	);
+}
+
 async function getWalletKobo(db: Db, userId: string): Promise<number> {
 	const [wallet] = await db
 		.select()
@@ -46,6 +55,29 @@ async function ensureUserExists(db: Db, userId: string): Promise<boolean> {
 		.where(eq(schema.user.id, userId))
 		.limit(1);
 	return Boolean(user);
+}
+
+async function findByTransactionId(db: Db, transactionId: string) {
+	const [row] = await db
+		.select()
+		.from(schema.scorpioTransactions)
+		.where(eq(schema.scorpioTransactions.transactionId, transactionId))
+		.limit(1);
+	return row ?? null;
+}
+
+async function idempotentOk(
+	db: Db,
+	playerId: string,
+	transactionId: string,
+): Promise<ScorpioCallbackResult> {
+	const existing = await findByTransactionId(db, transactionId);
+	return {
+		balance: koboToScorpioBalance(
+			existing?.balanceAfter ?? (await getWalletKobo(db, playerId)),
+		),
+		statusCode: "OK",
+	};
 }
 
 export async function handleScorpioBalance(
@@ -78,22 +110,11 @@ export async function handleScorpioBet(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_NOT_AUTHENTICATED" };
+		return { statusCode: "ERR_INVALID_PLAYER_ID" };
 	}
 
-	const [existing] = await db
-		.select()
-		.from(schema.scorpioTransactions)
-		.where(eq(schema.scorpioTransactions.transactionId, input.transactionId))
-		.limit(1);
-
-	if (existing) {
-		return {
-			balance: koboToScorpioBalance(
-				existing.balanceAfter ?? (await getWalletKobo(db, input.playerId)),
-			),
-			statusCode: "OK",
-		};
+	if (await findByTransactionId(db, input.transactionId)) {
+		return idempotentOk(db, input.playerId, input.transactionId);
 	}
 
 	const amountKobo = scorpioAmountToKobo(input.amount);
@@ -112,11 +133,60 @@ export async function handleScorpioBet(
 	}
 
 	const newBalance = oldBalance - amountKobo;
+	const ledgerId = generateUUIDv7();
 
-	await db
+	// Claim unique transactionId first (race winner), matching unique-index idempotency.
+	try {
+		await db.insert(schema.scorpioTransactions).values({
+			id: ledgerId,
+			transactionId: input.transactionId,
+			userId: input.playerId,
+			type: "BET",
+			amount: amountKobo,
+			balanceBefore: oldBalance,
+			balanceAfter: newBalance,
+			roundId: input.roundId,
+			providerId: input.providerId,
+			gameCode: input.gameCode,
+			currency: input.currency,
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			return idempotentOk(db, input.playerId, input.transactionId);
+		}
+		throw error;
+	}
+
+	const [updated] = await db
 		.update(schema.wallet)
-		.set({ balance: newBalance })
-		.where(eq(schema.wallet.userId, input.playerId));
+		.set({ balance: sql`${schema.wallet.balance} - ${amountKobo}` })
+		.where(
+			and(
+				eq(schema.wallet.userId, input.playerId),
+				gte(schema.wallet.balance, amountKobo),
+			),
+		)
+		.returning();
+
+	if (!updated) {
+		await db
+			.delete(schema.scorpioTransactions)
+			.where(eq(schema.scorpioTransactions.transactionId, input.transactionId));
+		const balance = await getWalletKobo(db, input.playerId);
+		return {
+			balance: koboToScorpioBalance(balance),
+			statusCode: "ERR_NOT_ENOUGH_MONEY",
+		};
+	}
+
+	const balanceAfter = updated.balance;
+	await db
+		.update(schema.scorpioTransactions)
+		.set({
+			balanceBefore: balanceAfter + amountKobo,
+			balanceAfter,
+		})
+		.where(eq(schema.scorpioTransactions.transactionId, input.transactionId));
 
 	await db.insert(schema.walletTransaction).values({
 		id: generateUUIDv7(),
@@ -126,7 +196,7 @@ export async function handleScorpioBet(
 		reference: null,
 		status: "success",
 		paymentMethod: "scorpio",
-		balance: newBalance,
+		balance: balanceAfter,
 		metadata: JSON.stringify({
 			provider: "scorpio",
 			action: "bet",
@@ -136,22 +206,8 @@ export async function handleScorpioBet(
 		}),
 	});
 
-	await db.insert(schema.scorpioTransactions).values({
-		id: generateUUIDv7(),
-		transactionId: input.transactionId,
-		userId: input.playerId,
-		type: "BET",
-		amount: amountKobo,
-		balanceBefore: oldBalance,
-		balanceAfter: newBalance,
-		roundId: input.roundId,
-		providerId: input.providerId,
-		gameCode: input.gameCode,
-		currency: input.currency,
-	});
-
 	return {
-		balance: koboToScorpioBalance(newBalance),
+		balance: koboToScorpioBalance(balanceAfter),
 		statusCode: "OK",
 	};
 }
@@ -170,22 +226,11 @@ export async function handleScorpioWin(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_NOT_AUTHENTICATED" };
+		return { statusCode: "ERR_INVALID_PLAYER_ID" };
 	}
 
-	const [existing] = await db
-		.select()
-		.from(schema.scorpioTransactions)
-		.where(eq(schema.scorpioTransactions.transactionId, input.transactionId))
-		.limit(1);
-
-	if (existing) {
-		return {
-			balance: koboToScorpioBalance(
-				existing.balanceAfter ?? (await getWalletKobo(db, input.playerId)),
-			),
-			statusCode: "OK",
-		};
+	if (await findByTransactionId(db, input.transactionId)) {
+		return idempotentOk(db, input.playerId, input.transactionId);
 	}
 
 	const amountKobo = scorpioAmountToKobo(input.amount);
@@ -198,18 +243,71 @@ export async function handleScorpioWin(
 	const oldBalance = wallet?.balance ?? 0;
 	const newBalance = oldBalance + amountKobo;
 
+	try {
+		await db.insert(schema.scorpioTransactions).values({
+			id: generateUUIDv7(),
+			transactionId: input.transactionId,
+			userId: input.playerId,
+			type: "WIN",
+			amount: amountKobo,
+			balanceBefore: oldBalance,
+			balanceAfter: newBalance,
+			roundId: input.roundId,
+			providerId: input.providerId,
+			gameCode: input.gameCode,
+			currency: input.currency,
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			return idempotentOk(db, input.playerId, input.transactionId);
+		}
+		throw error;
+	}
+
 	if (wallet) {
-		await db
+		const [updated] = await db
 			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, input.playerId));
-	} else {
-		await db.insert(schema.wallet).values({
+			.set({ balance: sql`${schema.wallet.balance} + ${amountKobo}` })
+			.where(eq(schema.wallet.userId, input.playerId))
+			.returning();
+		const balanceAfter = updated?.balance ?? newBalance;
+		await db
+			.update(schema.scorpioTransactions)
+			.set({
+				balanceBefore: balanceAfter - amountKobo,
+				balanceAfter,
+			})
+			.where(eq(schema.scorpioTransactions.transactionId, input.transactionId));
+
+		await db.insert(schema.walletTransaction).values({
 			id: generateUUIDv7(),
 			userId: input.playerId,
-			balance: newBalance,
+			amount: amountKobo,
+			type: "credit",
+			reference: null,
+			status: "success",
+			paymentMethod: "scorpio",
+			balance: balanceAfter,
+			metadata: JSON.stringify({
+				provider: "scorpio",
+				action: "win",
+				transactionId: input.transactionId,
+				roundId: input.roundId,
+				gameCode: input.gameCode,
+			}),
 		});
+
+		return {
+			balance: koboToScorpioBalance(balanceAfter),
+			statusCode: "OK",
+		};
 	}
+
+	await db.insert(schema.wallet).values({
+		id: generateUUIDv7(),
+		userId: input.playerId,
+		balance: newBalance,
+	});
 
 	await db.insert(schema.walletTransaction).values({
 		id: generateUUIDv7(),
@@ -227,20 +325,6 @@ export async function handleScorpioWin(
 			roundId: input.roundId,
 			gameCode: input.gameCode,
 		}),
-	});
-
-	await db.insert(schema.scorpioTransactions).values({
-		id: generateUUIDv7(),
-		transactionId: input.transactionId,
-		userId: input.playerId,
-		type: "WIN",
-		amount: amountKobo,
-		balanceBefore: oldBalance,
-		balanceAfter: newBalance,
-		roundId: input.roundId,
-		providerId: input.providerId,
-		gameCode: input.gameCode,
-		currency: input.currency,
 	});
 
 	return {
@@ -264,23 +348,11 @@ export async function handleScorpioCancel(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_NOT_AUTHENTICATED" };
+		return { statusCode: "ERR_INVALID_PLAYER_ID" };
 	}
 
-	const [duplicateCancel] = await db
-		.select()
-		.from(schema.scorpioTransactions)
-		.where(eq(schema.scorpioTransactions.transactionId, input.transactionId))
-		.limit(1);
-
-	if (duplicateCancel) {
-		return {
-			balance: koboToScorpioBalance(
-				duplicateCancel.balanceAfter ??
-					(await getWalletKobo(db, input.playerId)),
-			),
-			statusCode: "OK",
-		};
+	if (await findByTransactionId(db, input.transactionId)) {
+		return idempotentOk(db, input.playerId, input.transactionId);
 	}
 
 	const [original] = await db
@@ -319,7 +391,15 @@ export async function handleScorpioCancel(
 		};
 	}
 
-	const amountKobo = scorpioAmountToKobo(input.amount);
+	// Same rule as casino-provider rollback_spribe: BET refunds, other types reverse.
+	if (original.type !== "BET" && original.type !== "WIN") {
+		return {
+			balance: koboToScorpioBalance(await getWalletKobo(db, input.playerId)),
+			statusCode: "ERR_UNKNOWN",
+		};
+	}
+
+	const amountKobo = original.amount;
 	const [wallet] = await db
 		.select()
 		.from(schema.wallet)
@@ -327,16 +407,88 @@ export async function handleScorpioCancel(
 		.limit(1);
 
 	const oldBalance = wallet?.balance ?? 0;
-	// Cancel refunds a prior BET
-	const newBalance =
-		original.type === "BET" ? oldBalance + amountKobo : oldBalance - amountKobo;
+	const adjustment = original.type === "BET" ? amountKobo : -amountKobo;
+	const newBalance = oldBalance + adjustment;
+
+	if (original.type === "WIN" && (!wallet || oldBalance < amountKobo)) {
+		return {
+			balance: koboToScorpioBalance(oldBalance),
+			statusCode: "ERR_NOT_ENOUGH_MONEY",
+		};
+	}
+
+	try {
+		await db.insert(schema.scorpioTransactions).values({
+			id: generateUUIDv7(),
+			transactionId: input.transactionId,
+			referenceId: input.referenceId,
+			userId: input.playerId,
+			type: "CANCEL",
+			amount: amountKobo,
+			balanceBefore: oldBalance,
+			balanceAfter: newBalance,
+			roundId: input.roundId,
+			providerId: input.providerId,
+			gameCode: input.gameCode,
+			currency: input.currency,
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			return idempotentOk(db, input.playerId, input.transactionId);
+		}
+		throw error;
+	}
 
 	if (wallet) {
+		if (original.type === "BET") {
+			await db
+				.update(schema.wallet)
+				.set({ balance: sql`${schema.wallet.balance} + ${amountKobo}` })
+				.where(eq(schema.wallet.userId, input.playerId));
+		} else {
+			const [updated] = await db
+				.update(schema.wallet)
+				.set({ balance: sql`${schema.wallet.balance} - ${amountKobo}` })
+				.where(
+					and(
+						eq(schema.wallet.userId, input.playerId),
+						gte(schema.wallet.balance, amountKobo),
+					),
+				)
+				.returning();
+			if (!updated) {
+				await db
+					.delete(schema.scorpioTransactions)
+					.where(
+						eq(schema.scorpioTransactions.transactionId, input.transactionId),
+					);
+				return {
+					balance: koboToScorpioBalance(await getWalletKobo(db, input.playerId)),
+					statusCode: "ERR_NOT_ENOUGH_MONEY",
+				};
+			}
+		}
+	} else if (original.type === "BET") {
+		await db.insert(schema.wallet).values({
+			id: generateUUIDv7(),
+			userId: input.playerId,
+			balance: amountKobo,
+		});
+	} else {
 		await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, input.playerId));
+			.delete(schema.scorpioTransactions)
+			.where(eq(schema.scorpioTransactions.transactionId, input.transactionId));
+		return {
+			balance: 0,
+			statusCode: "ERR_NOT_ENOUGH_MONEY",
+		};
 	}
+
+	const balanceAfter = await getWalletKobo(db, input.playerId);
+	await db
+		.update(schema.scorpioTransactions)
+		.set({ balanceBefore: oldBalance, balanceAfter })
+		.where(eq(schema.scorpioTransactions.transactionId, input.transactionId));
 
 	await db.insert(schema.walletTransaction).values({
 		id: generateUUIDv7(),
@@ -346,7 +498,7 @@ export async function handleScorpioCancel(
 		reference: null,
 		status: "success",
 		paymentMethod: "scorpio",
-		balance: newBalance,
+		balance: balanceAfter,
 		metadata: JSON.stringify({
 			provider: "scorpio",
 			action: "cancel",
@@ -354,26 +506,12 @@ export async function handleScorpioCancel(
 			referenceId: input.referenceId,
 			roundId: input.roundId,
 			gameCode: input.gameCode,
+			originalType: original.type,
 		}),
 	});
 
-	await db.insert(schema.scorpioTransactions).values({
-		id: generateUUIDv7(),
-		transactionId: input.transactionId,
-		referenceId: input.referenceId,
-		userId: input.playerId,
-		type: "CANCEL",
-		amount: amountKobo,
-		balanceBefore: oldBalance,
-		balanceAfter: newBalance,
-		roundId: input.roundId,
-		providerId: input.providerId,
-		gameCode: input.gameCode,
-		currency: input.currency,
-	});
-
 	return {
-		balance: koboToScorpioBalance(newBalance),
+		balance: koboToScorpioBalance(balanceAfter),
 		statusCode: "OK",
 	};
 }

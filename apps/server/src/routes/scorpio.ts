@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
 	ScorpioBonusCancelSchema,
@@ -9,7 +10,6 @@ import {
 	ScorpioCallbackResponseSchema,
 	ScorpioErrorResponseSchema,
 	ScorpioIssueIdParamSchema,
-	ScorpioKickRequestSchema,
 	ScorpioLaunchRequestSchema,
 	ScorpioLaunchResponseSchema,
 	ScorpioProviderIdParamSchema,
@@ -156,6 +156,29 @@ const unauthorized = {
 	details: null,
 };
 
+const forbidden = {
+	success: false as const,
+	error: "Forbidden - admin or super_admin only",
+	code: "PERMISSION_ERROR",
+	details: null,
+};
+
+async function requireAdmin(c: {
+	env: CloudflareBindings;
+	req: { raw: { headers: Headers } };
+}) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) return null;
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return null;
+	}
+	return session;
+}
+
 const launchRoute = createRoute({
 	method: "post",
 	path: "/launch",
@@ -257,14 +280,8 @@ const kickRoute = createRoute({
 	path: "/kick",
 	tags: ["Scorpio Play"],
 	summary: "Kick player from active Scorpio game session",
+	description: "Kicks the authenticated user's own Scorpio session",
 	security: [{ BearerAuth: [] }],
-	request: {
-		body: {
-			content: {
-				"application/json": { schema: ScorpioKickRequestSchema },
-			},
-		},
-	},
 	responses: {
 		200: {
 			description: "Kicked",
@@ -285,15 +302,9 @@ scorpioRoute.openapi(kickRoute, async (c) => {
 		return c.json(unauthorized, 401);
 	}
 
-	const body = ScorpioKickRequestSchema.safeParse(
-		(await c.req.json().catch(() => ({}))) ?? {},
-	);
-	const playerExternalId = body.success
-		? body.data.playerExternalId || user.id
-		: user.id;
-
+	// Only allow kicking the authenticated player's own session (same as launch).
 	try {
-		const data = await kickPlayer(getScorpioConfig(c.env), playerExternalId);
+		const data = await kickPlayer(getScorpioConfig(c.env), user.id);
 		return c.json({ success: true as const, data: data ?? null }, 200);
 	} catch (error) {
 		const mapped = scorpioErrorJson(error);
@@ -530,13 +541,19 @@ const operatorCreateRoute = createRoute({
 				"application/json": { schema: ScorpioErrorResponseSchema },
 			},
 		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": { schema: ScorpioErrorResponseSchema },
+			},
+		},
 	},
 });
 
 scorpioRoute.openapi(operatorCreateRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(unauthorized, 401);
+	const admin = await requireAdmin(c);
+	if (!admin) {
+		return c.json(forbidden, 403);
 	}
 	try {
 		const data = await createOperator(
@@ -567,13 +584,19 @@ const operatorUpdateRoute = createRoute({
 				"application/json": { schema: ScorpioErrorResponseSchema },
 			},
 		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": { schema: ScorpioErrorResponseSchema },
+			},
+		},
 	},
 });
 
 scorpioRoute.openapi(operatorUpdateRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(unauthorized, 401);
+	const admin = await requireAdmin(c);
+	if (!admin) {
+		return c.json(forbidden, 403);
 	}
 	try {
 		const data = await updateOperator(
@@ -892,10 +915,11 @@ scorpioRoute.openapi(callbackRoute, async (c) => {
 			requestId,
 			command: null,
 			latencyMs: Date.now() - started,
-			responseStatus: 415,
+			responseStatus: 200,
+			statusCode: "ERR_UNKNOWN",
 			reason: "unsupported_content_type",
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 415);
+		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
 	}
 
 	let body: Record<string, unknown>;
@@ -909,11 +933,11 @@ scorpioRoute.openapi(callbackRoute, async (c) => {
 			requestId,
 			command: null,
 			latencyMs: Date.now() - started,
-			responseStatus: 400,
+			responseStatus: 200,
+			statusCode: "ERR_UNKNOWN",
 			reason: "malformed_json",
 		});
-		// Scorpio expects 200 for wallet protocol errors; malformed JSON before parse uses 400
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 400);
+		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
 	}
 
 	const command = typeof body.command === "string" ? body.command : null;
