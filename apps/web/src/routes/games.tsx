@@ -1,19 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiRequest } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import {
+	buildScorpioCategoryTabs,
+	fetchScorpioLobbyGames,
+	launchScorpioGame,
+	type ScorpioLobbyGame,
+} from "@/lib/scorpio-catalog";
 import { cn } from "@/lib/utils";
 import FilerAToZ from "@/logos/FilerAToZ";
-import BlackjackLogo from "../logos/blackjack.svg?react";
-import BlocksLogo from "../logos/blocks.svg?react";
-import PlinkoLogo from "../logos/plinko.svg?react";
-import SlotsLogo from "../logos/slots.svg?react";
-import SolitaireLogo from "../logos/solitaire.svg?react";
-import TwentyOneLogo from "../logos/twentyone.svg?react";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
@@ -22,218 +22,13 @@ export const Route = createFileRoute("/games")({
 	}),
 });
 
-const CATEGORIES = [
-	"popular",
-	"crash-games",
-	"original",
-	"pvp",
-	"slots",
-	"tablecardgames",
-	"arcade",
-	"classic",
-	"bingo",
-	"dice",
-	"jackpot",
-	"lottery",
-	"others",
-	"roulette",
-	"scratch",
-] as const;
-
-const CATEGORY_EMOJIS: Record<string, string> = {
-	popular: "🔥",
-	"crash-games": "🚀",
-	original: "🎯",
-	pvp: "⚔️",
-	slots: "🎰",
-	tablecardgames: "🃏",
-	arcade: "🕹️",
-	classic: "👑",
-	bingo: "🎱",
-	dice: "🎲",
-	jackpot: "💰",
-	lottery: "🎟️",
-	others: "🧩",
-	roulette: "🎡",
-	scratch: "🎫",
-};
-
-type Category = {
-	id: string;
-	name: string;
-	slug: string;
-};
-
-type Game = {
-	id: string;
-	name: string;
-	code: string;
-	imageUrl: string | null;
-	categories: Category[];
-	enabled: boolean;
-	createdAt: number;
-	updatedAt: number;
-};
-
-type LaunchResponse = {
-	success: boolean;
-	data:
-		| {
-				url?: string;
-		  }
-		| undefined;
-	error?: string;
-};
-
-const POPULAR_GAME_NAMES = [
-	"Aviator",
-	"Lagos Rush",
-	"Penalty Shoot Out",
-	"Sweet Bonanza",
-	"Mines",
-	"Plinko",
-	"Gates of Olympus",
-	"High Flyer",
-	"Keno",
-	"Big Bass Splash",
-	"Baccarat",
-	"JetX",
-	"Helicopter X",
-	"Balloon",
-	"Xcape",
-	"Hi Lo",
-	"Blocks",
-	"Eagle",
-	"Avia Rush",
-	"Avia Masters",
-	"Roulette",
-	"Space",
-	"Wild Fortune",
-	"Mystic Fortune",
-	"Football X",
-	"Greyhound",
-	"Car Racing",
-	"Crash X",
-];
-
-const PRIORITY_GAMES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-	"XCAPEHB",
-	"EAGLEHB",
-	"LUCKYRISEHB",
-	"LAGOSRUSH",
-];
-
-const THUNDR_CODES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-];
-
-const ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash"];
-
-const SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
-
-const KNOWN_GAMES: Record<
-	string,
-	{
-		subtitle: string;
-		icon?: React.ComponentType<{ className?: string }>;
-		image?: string;
-		gradient: string;
-	}
-> = {
-	solitaire: {
-		subtitle: "classic card game",
-		icon: SolitaireLogo,
-		gradient: "linear-gradient(to bottom, #1e3a5f, #2d5a87, #4a90d9)",
-	},
-	blocks: {
-		subtitle: "puzzle game",
-		icon: BlocksLogo,
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-	twentyone: {
-		subtitle: "card game",
-		icon: TwentyOneLogo,
-		gradient: "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)",
-	},
-	blackjack: {
-		subtitle: "card game",
-		icon: BlackjackLogo,
-		gradient: "linear-gradient(to bottom, #2d2d2d, #4a4a4a, #6b6b6b)",
-	},
-	slots: {
-		subtitle: "slot machine",
-		icon: SlotsLogo,
-		gradient: "linear-gradient(to bottom, #7b1fa2, #9c27b0, #ba68c8)",
-	},
-	plinko: {
-		subtitle: "lucky drop",
-		icon: PlinkoLogo,
-		gradient: "linear-gradient(to bottom, #00897b, #26a69a, #4db6ac)",
-	},
-	XCAPEHB: {
-		subtitle: "fulfilling games",
-		image: "/xcape-thumbnail-16x9.jpg",
-		gradient: "linear-gradient(to bottom, #1fe0c8, #7a5cff, #c43cff)",
-	},
-	EAGLEHB: {
-		subtitle: "fulfilling games",
-		image: "/eagle-thumbnail-16x9.jpg",
-		gradient: "linear-gradient(to bottom, #d9f27c, #8bbf4f, #5f9e7a)",
-	},
-	LUCKYRISEHB: {
-		subtitle: "fulfilling games",
-		image: "/luckyrise-thumbnail-16x9.png",
-		gradient: "linear-gradient(to bottom, #0E0E2B, #1f3a5f, #d4a017)",
-	},
-	LAGOSRUSH: {
-		subtitle: "fulfilling games",
-		image: "/lagos-rush.png",
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-	"sportsdey-crash": {
-		subtitle: "sportsdey original",
-		image: "/sportsdey-crash.jpeg",
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-};
+type Game = ScorpioLobbyGame;
 
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
 const PAGE_SIZE = 24;
-
-const getUniquePopularGames = (games: Game[], limit: number) => {
-	const result: Game[] = [];
-	const addedIds = new Set<string>();
-	for (const popName of POPULAR_GAME_NAMES) {
-		if (result.length >= limit) break;
-		const match = games.find(
-			(g) =>
-				!addedIds.has(g.id) &&
-				g.name.toLowerCase().includes(popName.toLowerCase()),
-		);
-		if (match) {
-			result.push(match);
-			addedIds.add(match.id);
-		}
-	}
-	return result;
-};
-
-const isThundrGame = (code: string) => {
-	return THUNDR_CODES.includes(code);
-};
+const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 
 function GamesPage() {
 	const navigate = useNavigate({ from: "/games" });
@@ -244,6 +39,7 @@ function GamesPage() {
 	const [search, setSearch] = useState("");
 	const [sortAsc, setSortAsc] = useState<boolean | null>(null);
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+	const [launchError, setLaunchError] = useState<string | null>(null);
 
 	useEffect(() => {
 		setSelectedCategory(category || null);
@@ -294,103 +90,65 @@ function GamesPage() {
 		data: allGames = [],
 		isLoading,
 		error,
+		refetch,
+		isFetching,
 	} = useQuery<Game[]>({
-		queryKey: ["games"],
-		queryFn: async () => {
-			const games = await apiRequest<Game[]>("games");
-			return games.filter((game) => game.enabled);
-		},
+		queryKey: ["scorpio-games"],
+		enabled: !isSessionLoading && Boolean(session?.user),
+		queryFn: fetchScorpioLobbyGames,
+		staleTime: 60_000,
 	});
 
-	const categoryCounts =
-		allGames.length > 0
-			? CATEGORIES.reduce<Record<string, number>>((acc, cat) => {
-					if (SPECIAL_CATEGORIES.includes(cat)) {
-						let count: number;
-						switch (cat) {
-							case "popular":
-								count = getUniquePopularGames(allGames, Infinity).length;
-								break;
-							case "pvp":
-								count = allGames.filter((g) =>
-									THUNDR_CODES.includes(g.code),
-								).length;
-								break;
-							case "crash-games":
-								count = allGames.filter((g) =>
-									g.name.toLowerCase().includes("aviator"),
-								).length;
-								break;
-							case "original":
-								count = allGames.filter((g) =>
-									ORIGINALS_CODES.includes(g.code),
-								).length;
-								break;
-							default:
-								count = 0;
-						}
-						acc[cat] = count;
-					} else {
-						acc[cat] = allGames.filter((g) =>
-							g.categories?.some((c) => c.slug === cat),
-						).length;
-					}
-					return acc;
-				}, {})
-			: {};
+	const categoryTabs = useMemo(
+		() => buildScorpioCategoryTabs(allGames),
+		[allGames],
+	);
 
-	let filteredGames = allGames;
+	const categoryCounts = useMemo(() => {
+		const counts: Record<string, number> = {};
+		for (const cat of categoryTabs) {
+			counts[cat.slug] = allGames.filter((g) =>
+				g.categories.some((c) => c.slug === cat.slug),
+			).length;
+		}
+		return counts;
+	}, [allGames, categoryTabs]);
 
-	if (selectedCategory) {
-		if (SPECIAL_CATEGORIES.includes(selectedCategory)) {
-			switch (selectedCategory) {
-				case "popular":
-					filteredGames = getUniquePopularGames(allGames, Infinity);
-					break;
-				case "pvp":
-					filteredGames = allGames.filter((g) => THUNDR_CODES.includes(g.code));
-					break;
-				case "crash-games":
-					filteredGames = allGames.filter((g) =>
-						g.name.toLowerCase().includes("aviator"),
-					);
-					break;
-				case "original":
-					filteredGames = allGames.filter((g) =>
-						ORIGINALS_CODES.includes(g.code),
-					);
-					break;
-			}
-		} else {
-			filteredGames = allGames.filter((g) =>
-				g.categories?.some((c) => c.slug === selectedCategory),
+	const filteredGames = useMemo(() => {
+		let list = allGames;
+
+		if (selectedCategory) {
+			list = list.filter((g) =>
+				g.categories.some((c) => c.slug === selectedCategory),
 			);
 		}
-	}
 
-	if (search) {
-		const q = search.toLowerCase();
-		filteredGames = filteredGames.filter((g) =>
-			g.name.toLowerCase().includes(q),
-		);
-	}
+		if (search) {
+			const q = search.toLowerCase();
+			list = list.filter((g) => {
+				const inName = g.name.toLowerCase().includes(q);
+				const inProvider = g.providerName.toLowerCase().includes(q);
+				const inCategory = g.categories.some(
+					(c) =>
+						c.name.toLowerCase().includes(q) ||
+						c.slug.toLowerCase().includes(q),
+				);
+				return inName || inProvider || inCategory;
+			});
+		}
 
-	const sortedGames = [...filteredGames].sort((a, b) => {
-		const aAviator = a.name.toLowerCase().includes("aviator");
-		const bAviator = b.name.toLowerCase().includes("aviator");
-		if (aAviator && !bAviator) return -1;
-		if (!aAviator && bAviator) return 1;
+		return list;
+	}, [allGames, selectedCategory, search]);
 
-		if (sortAsc === true) return a.name.localeCompare(b.name);
-		if (sortAsc === false) return b.name.localeCompare(a.name);
-
-		const aPriority = PRIORITY_GAMES.indexOf(a.code);
-		const bPriority = PRIORITY_GAMES.indexOf(b.code);
-		if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
-		if (aPriority !== -1) return -1;
-		if (bPriority !== -1) return 1;
-		return a.name.localeCompare(b.name);
-	});
+	const sortedGames = useMemo(() => {
+		const list = [...filteredGames];
+		list.sort((a, b) => {
+			if (sortAsc === true) return a.name.localeCompare(b.name);
+			if (sortAsc === false) return b.name.localeCompare(a.name);
+			return a.name.localeCompare(b.name);
+		});
+		return list;
+	}, [filteredGames, sortAsc]);
 
 	const displayGames = sortedGames.slice(0, displayCount);
 	const hasMore = sortedGames.length > displayCount;
@@ -419,78 +177,43 @@ function GamesPage() {
 
 	const handleGameClick = async (game: Game) => {
 		if (!session?.user) {
-			navigate({ to: "/auth/sign-in" });
-			return;
-		}
-
-		if (game.code === "sportsdey-crash") {
-			window.open(
-				"https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino",
-				"_blank",
-			);
-			return;
-		}
-
-		setLoadingGame(game.code);
-		try {
-			const knownGame = KNOWN_GAMES[game.code];
-			const isKnownGame = !!knownGame;
-
-			let url: string;
-			let body: Record<string, unknown>;
-
-			if (isKnownGame) {
-				if (["XCAPEHB", "EAGLEHB", "LUCKYRISEHB"].includes(game.code)) {
-					url = `${import.meta.env.VITE_SERVER_URL}casino/play/${game.code}`;
-					body = {};
-				} else if (game.code === "LAGOSRUSH") {
-					url = `${import.meta.env.VITE_SERVER_URL}lagos-rush/launcher`;
-					body = { game: game.code };
-				} else {
-					url = `${import.meta.env.VITE_SERVER_URL}thndr/play/${game.code}`;
-					body = {};
-				}
-			} else {
-				url = `${import.meta.env.VITE_SERVER_URL}slotegrator/launch`;
-				body = { game_uuid: game.code };
-			}
-
-			const response = await fetch(url, {
-				method: "POST",
-				credentials: "include",
-				headers: {
-					"Content-Type": "application/json",
+			navigate({
+				to: "/auth/sign-in",
+				search: {
+					returnTo: window.location.pathname + window.location.search,
 				},
-				body: JSON.stringify(body),
 			});
+			return;
+		}
 
-			const data: LaunchResponse = await response.json();
-
-			if (!response.ok || data.success === false) {
-				if (data.error === "Unauthorized" || response.status === 401) {
-					navigate({ to: "/auth/sign-in" });
-					return;
-				}
-				throw new Error(data.error || "Failed to launch game");
-			}
-
-			if (!data.data) {
-				throw new Error("Missing response data");
-			}
-
-			const gameUrl = data.data?.url;
-
-			if (!gameUrl) {
-				throw new Error("Missing launch URL in response");
-			}
+		setLaunchError(null);
+		setLoadingGame(game.id);
+		try {
+			const { url: gameUrl } = await launchScorpioGame({
+				providerId: game.providerId,
+				gameCode: game.code,
+				returnUrl: `${window.location.origin}/games`,
+			});
 
 			navigate({
 				to: "/game/$gameId",
 				params: { gameId: game.code },
 				search: { category: selectedCategory || undefined },
-				state: { gameUrl } as any,
+				state: { gameUrl } as never,
 			});
-		} catch (error) {
+		} catch (err) {
+			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+				navigate({
+					to: "/auth/sign-in",
+					search: {
+						returnTo: window.location.pathname + window.location.search,
+					},
+				});
+				return;
+			}
+			setLaunchError(
+				err instanceof Error ? err.message : "Failed to launch game",
+			);
 		} finally {
 			setLoadingGame(null);
 		}
@@ -504,18 +227,20 @@ function GamesPage() {
 	};
 
 	const getGameDisplay = (game: Game) => {
-		const knownGame = KNOWN_GAMES[game.code];
-
+		const typeCategory = game.categories.find((c) => c.id.startsWith("type-"));
+		const categoryLabel =
+			typeCategory?.name ??
+			game.categories.find((c) => c.id !== String(game.providerId))?.name;
 		return {
 			name: game.name,
-			subtitle: knownGame?.subtitle ?? "Play now",
-			icon: knownGame?.icon,
-			image: game.imageUrl ?? knownGame?.image ?? "/lagos-rush.png",
-			gradient: knownGame?.gradient ?? DEFAULT_GRADIENT,
+			subtitle: [game.providerName, categoryLabel].filter(Boolean).join(" · "),
+			image: game.imageUrl || PLACEHOLDER_IMAGE,
+			gradient: DEFAULT_GRADIENT,
+			enabled: game.enabled,
 		};
 	};
 
-	if (isSessionLoading || isLoading) {
+	if (isSessionLoading || (session?.user && isLoading)) {
 		return (
 			<div className="min-h-screen dark:bg-[#121212]">
 				<div className="container mx-auto px-4 pb-8 relative">
@@ -560,10 +285,54 @@ function GamesPage() {
 		);
 	}
 
-	if (error) {
+	if (!session?.user) {
 		return (
-			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<p className="text-red-500">Failed to load games. Please try again.</p>
+			<div className="flex min-h-screen flex-col items-center justify-center gap-4 dark:bg-[#121212] px-4">
+				<p className="text-center text-gray-300">
+					Sign in to load the live Scorpio Play casino catalog.
+				</p>
+				<Link
+					to="/auth/sign-in"
+					search={{
+						returnTo: "/games",
+					}}
+					className="rounded-lg bg-[#1BAA04] px-4 py-2 text-sm font-medium text-white"
+				>
+					Sign in
+				</Link>
+			</div>
+		);
+	}
+
+	if (error) {
+		const unauthorized =
+			error instanceof ApiError &&
+			(error.status === 401 || error.status === 403);
+		return (
+			<div className="flex min-h-screen flex-col items-center justify-center gap-4 dark:bg-[#121212] px-4">
+				<p className="text-center text-red-500">
+					{unauthorized
+						? "Sign in to view casino games."
+						: "Failed to load games. Please try again."}
+				</p>
+				{unauthorized ? (
+					<Link
+						to="/auth/sign-in"
+						search={{ returnTo: "/games" }}
+						className="rounded-lg bg-[#1BAA04] px-4 py-2 text-sm font-medium text-white"
+					>
+						Sign in
+					</Link>
+				) : (
+					<button
+						type="button"
+						onClick={() => refetch()}
+						disabled={isFetching}
+						className="rounded-lg border border-[#1BAA04] px-4 py-2 text-sm text-white"
+					>
+						{isFetching ? "Retrying…" : "Retry"}
+					</button>
+				)}
 			</div>
 		);
 	}
@@ -581,7 +350,7 @@ function GamesPage() {
 							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
 								<input
 									type="text"
-									placeholder="Search games"
+									placeholder="Search games, providers, categories"
 									value={searchInput}
 									onChange={(e) => setSearchInput(e.target.value)}
 									className="w-full pl-4 pr-10 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
@@ -591,6 +360,7 @@ function GamesPage() {
 
 							{selectedCategory === null && (
 								<button
+									type="button"
 									onClick={() =>
 										setSortAsc((prev) =>
 											prev === null ? true : prev === true ? false : null,
@@ -608,8 +378,13 @@ function GamesPage() {
 						</div>
 					</div>
 
+					{launchError && (
+						<p className="mb-3 text-sm text-red-400">{launchError}</p>
+					)}
+
 					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
 						<button
+							type="button"
 							onClick={() =>
 								navigate({
 									search: (prev) => ({ ...prev, category: undefined }),
@@ -621,7 +396,7 @@ function GamesPage() {
 									: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
 							}`}
 						>
-							🎮 All
+							🎮 All Games
 							<span
 								className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
 									selectedCategory === null
@@ -632,51 +407,45 @@ function GamesPage() {
 								{allGames.length.toLocaleString()}
 							</span>
 						</button>
-						{CATEGORIES.map((cat) => {
-							const emoji = CATEGORY_EMOJIS[cat];
-							return (
-								<button
-									key={cat}
-									onClick={() =>
-										navigate({
-											search: (prev) => ({
-												...prev,
-												category: selectedCategory === cat ? undefined : cat,
-											}),
-										})
-									}
-									className={`flex items-center shrink-0 gap-2 text-white rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${
-										selectedCategory === cat
-											? "border-[#1BAA04] bg-[#1BAA04]"
-											: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
+						{categoryTabs.map((cat) => (
+							<button
+								type="button"
+								key={cat.slug}
+								onClick={() =>
+									navigate({
+										search: (prev) => ({
+											...prev,
+											category:
+												selectedCategory === cat.slug ? undefined : cat.slug,
+										}),
+									})
+								}
+								className={`flex items-center shrink-0 gap-2 text-white rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${
+									selectedCategory === cat.slug
+										? "border-[#1BAA04] bg-[#1BAA04]"
+										: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
+								}`}
+							>
+								<span className="capitalize">{cat.name}</span>
+								<span
+									className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
+										selectedCategory === cat.slug
+											? "bg-[#040C01] text-white"
+											: "bg-[#1B2722] text-gray-300"
 									}`}
 								>
-									{emoji && <span>{emoji}</span>}
-									<span className="capitalize">
-										{cat === "pvp"
-											? "PVP"
-											: cat === "tablecardgames"
-												? "Table Card Games"
-												: cat.replace("-", " ")}
-									</span>
-									<span
-										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
-											selectedCategory === cat
-												? "bg-[#040C01] text-white"
-												: "bg-[#1B2722] text-gray-300"
-										}`}
-									>
-										{categoryCounts[cat]?.toLocaleString() ?? 0}
-									</span>
-								</button>
-							);
-						})}
+									{categoryCounts[cat.slug]?.toLocaleString() ?? 0}
+								</span>
+							</button>
+						))}
 					</div>
 				</div>
 
 				{displayGames.length === 0 ? (
 					<p className="text-center text-gray-500">
-						No games found in this category.
+						{allGames.length === 0
+							? "No Scorpio games available right now."
+							: "No games found in this category."}
 					</p>
 				) : (
 					<>
@@ -693,11 +462,11 @@ function GamesPage() {
 										const display = getGameDisplay(game);
 										return (
 											<motion.div
-												key={game.code}
+												key={game.id}
 												variants={itemVariants}
 												className={cn(
 													"relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
-													loadingGame === game.code &&
+													loadingGame === game.id &&
 														"ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90",
 												)}
 												style={{
@@ -710,56 +479,33 @@ function GamesPage() {
 												role="button"
 												tabIndex={0}
 											>
-												{loadingGame === game.code && (
+												{loadingGame === game.id && (
 													<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
 												)}
 
-												{display.icon ? (
-													<div
-														className="absolute inset-0 flex items-center justify-center p-4"
-														style={{
-															opacity: loadingGame === game.code ? 0.35 : 1,
-														}}
-													>
-														{display.icon && (
-															<display.icon className="h-full w-full object-contain" />
-														)}
-													</div>
-												) : display.image ? (
-													<img
-														src={display.image}
-														alt={display.name}
-														loading="lazy"
-														className="absolute inset-0 h-full w-full object-cover transition-opacity"
-														style={{
-															opacity: loadingGame === game.code ? 0.35 : 1,
-														}}
-													/>
-												) : (
-													<div
-														className="absolute inset-0 flex items-center justify-center"
-														style={{
-															opacity: loadingGame === game.code ? 0.35 : 1,
-														}}
-													>
-														<span className="font-bold text-4xl text-white/50">
-															{display.name.charAt(0)}
-														</span>
-													</div>
-												)}
+												<img
+													src={display.image}
+													alt={display.name}
+													loading="lazy"
+													className="absolute inset-0 h-full w-full object-cover transition-opacity"
+													style={{
+														opacity: loadingGame === game.id ? 0.35 : 1,
+													}}
+													onError={(e) => {
+														e.currentTarget.src = PLACEHOLDER_IMAGE;
+													}}
+												/>
 
-												{isThundrGame(game.code) && (
-													<div className="relative z-[1] w-full text-center pb-2">
-														<p
-															className="truncate font-normal text-sm text-white"
-															style={{ fontFamily: "Luckiest Guy" }}
-														>
-															{display.name}
-														</p>
-													</div>
-												)}
+												<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pb-1.5 pt-6 text-center">
+													<p className="truncate text-[11px] font-medium text-white">
+														{display.name}
+													</p>
+													<p className="truncate text-[9px] text-white/70">
+														{display.subtitle}
+													</p>
+												</div>
 											</motion.div>
 										);
 									})}
@@ -777,11 +523,11 @@ function GamesPage() {
 								const display = getGameDisplay(game);
 								return (
 									<motion.div
-										key={game.code}
+										key={game.id}
 										variants={itemVariants}
 										className={cn(
 											"relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
-											loadingGame === game.code &&
+											loadingGame === game.id &&
 												"ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90",
 										)}
 										style={{ background: display.gradient }}
@@ -790,56 +536,33 @@ function GamesPage() {
 										role="button"
 										tabIndex={0}
 									>
-										{loadingGame === game.code && (
+										{loadingGame === game.id && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
 										)}
 
-										{display.icon ? (
-											<div
-												className="absolute inset-0 flex items-center justify-center p-4"
-												style={{
-													opacity: loadingGame === game.code ? 0.35 : 1,
-												}}
-											>
-												{display.icon && (
-													<display.icon className="h-full w-full object-contain" />
-												)}
-											</div>
-										) : display.image ? (
-											<img
-												src={display.image}
-												alt={display.name}
-												loading="lazy"
-												className="absolute inset-0 h-full w-full object-cover transition-opacity"
-												style={{
-													opacity: loadingGame === game.code ? 0.35 : 1,
-												}}
-											/>
-										) : (
-											<div
-												className="absolute inset-0 flex items-center justify-center"
-												style={{
-													opacity: loadingGame === game.code ? 0.35 : 1,
-												}}
-											>
-												<span className="font-bold text-4xl text-white/50">
-													{display.name.charAt(0)}
-												</span>
-											</div>
-										)}
+										<img
+											src={display.image}
+											alt={display.name}
+											loading="lazy"
+											className="absolute inset-0 h-full w-full object-cover transition-opacity"
+											style={{
+												opacity: loadingGame === game.id ? 0.35 : 1,
+											}}
+											onError={(e) => {
+												e.currentTarget.src = PLACEHOLDER_IMAGE;
+											}}
+										/>
 
-										{isThundrGame(game.code) && (
-											<div className="relative z-[1] w-full text-center pb-3">
-												<p
-													className="truncate font-normal text-base text-white"
-													style={{ fontFamily: "Luckiest Guy" }}
-												>
-													{display.name}
-												</p>
-											</div>
-										)}
+										<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pb-3 pt-8 text-center">
+											<p className="truncate text-sm font-medium text-white">
+												{display.name}
+											</p>
+											<p className="truncate text-xs text-white/70">
+												{display.subtitle}
+											</p>
+										</div>
 									</motion.div>
 								);
 							})}

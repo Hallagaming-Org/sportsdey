@@ -26,8 +26,8 @@
 		"gdrive:match": "node --import tsx src/cli/match-game-images.ts",
 		"dropbox:list": "node --import tsx src/cli/list-dropbox-files.ts",
 		"withdrawals:seed": "node --import tsx src/cli/seed-withdrawals.ts",
-		"test": "node --import tsx --test src/utils/scorpio-security.test.ts",
-		"test:scorpio": "node --import tsx --test src/utils/scorpio-security.test.ts"
+		"test": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts",
+		"test:scorpio": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1071.0",
