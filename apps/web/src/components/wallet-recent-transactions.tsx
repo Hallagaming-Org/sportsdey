@@ -64,6 +64,11 @@ function getTransactionAmountLabel(amount?: number | null): string {
 	})}`;
 }
 
+function truncateId(id: string): string {
+	if (id.length <= 16) return id;
+	return `${id.slice(0, 8)}...${id.slice(-4)}`;
+}
+
 export function WalletRecentTransactions({
 	transactions,
 	isLoading,
@@ -94,9 +99,30 @@ export function WalletRecentTransactions({
 
 	const getReceiptDetails = (tx: WalletTransaction): ReceiptDetail[] => {
 		const { iconType } = getTransactionDetails(tx);
+		const meta = tx.metadata as Record<string, string | undefined> | null;
 		const details: ReceiptDetail[] = [];
 
 		if (iconType === "transfer") {
+			const transferType = meta?.transferType;
+			if (transferType === "outgoing") {
+				details.push({
+					label: "Recipient Name",
+					value: meta?.recipientName || "N/A",
+				});
+				details.push({
+					label: "Recipient Wallet ID",
+					value: truncateId(String(meta?.recipientWalletId || "N/A")),
+				});
+			} else if (transferType === "incoming") {
+				details.push({
+					label: "Sender Name",
+					value: meta?.senderName || "N/A",
+				});
+				details.push({
+					label: "Sender Wallet ID",
+					value: truncateId(String(meta?.senderWalletId || "N/A")),
+				});
+			}
 			details.push({
 				label: "Amount",
 				value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
@@ -158,9 +184,10 @@ export function WalletRecentTransactions({
 			});
 		}
 
+		const txId = tx.reference || tx.id;
 		details.push({
 			label: "Transaction ID",
-			value: tx.reference || tx.id,
+			value: truncateId(txId),
 			copyable: true,
 		});
 		return details;

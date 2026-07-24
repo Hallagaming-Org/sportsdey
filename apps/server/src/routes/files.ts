@@ -26,7 +26,7 @@ const FileResponseSchema = z
 
 const FileUploadBodySchema = z
 	.object({
-		file: z.string().openapi({
+		file: z.instanceof(File).openapi({
 			type: "string",
 			format: "binary",
 			description: "Binary file contents to upload",

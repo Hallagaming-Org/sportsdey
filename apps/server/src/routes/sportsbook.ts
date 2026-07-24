@@ -1,7 +1,13 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
+import {
+	creditWallet,
+	debitWallet,
+	freezeWallet,
+	unfreezeWallet,
+} from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
@@ -426,12 +432,8 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 
 	const now = new Date();
 	if (!isFreebet) {
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({ frozenBalance: wallet.frozenBalance + stakeKobo })
-			.where(eq(schema.wallet.userId, session.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await freezeWallet(db, session.userId, stakeKobo);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -697,18 +699,22 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	balAfter = balanceBefore;
 
 	if (!bet.betFreebetId) {
-		const newBalance = wallet.balance - bet.stake;
-		const newFrozenBalance = wallet.frozenBalance - bet.stake;
-		balAfter = newBalance;
-
 		const walletUpdate = await db
 			.update(schema.wallet)
 			.set({
-				balance: newBalance,
-				frozenBalance: newFrozenBalance,
+				balance: sql`${schema.wallet.balance} - ${bet.stake}`,
+				frozenBalance: sql`${schema.wallet.frozenBalance} - ${bet.stake}`,
 			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
+			.where(
+				and(
+					eq(schema.wallet.userId, bet.userId),
+					gte(schema.wallet.frozenBalance, bet.stake),
+				),
+			)
+			.returning({
+				userId: schema.wallet.userId,
+				balance: schema.wallet.balance,
+			});
 		if (walletUpdate.length === 0) {
 			return c.json(
 				{
@@ -723,6 +729,8 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate[0]!.balance;
+		balAfter = newBalance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -992,15 +1000,9 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 
 	if (wallet && !bet.betFreebetId) {
 		if (bet.status === "created") {
-			const walletUpdate = await db
-				.update(schema.wallet)
-				.set({
-					frozenBalance: wallet.frozenBalance - bet.stake,
-				})
-				.where(eq(schema.wallet.userId, bet.userId))
-				.returning({ userId: schema.wallet.userId });
+			const walletUpdate = await unfreezeWallet(db, bet.userId, bet.stake);
 			console.log("wallet update", walletUpdate);
-			if (walletUpdate.length === 0) {
+			if (!walletUpdate) {
 				return c.json(
 					{
 						error: {
@@ -1015,16 +1017,9 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 				);
 			}
 		} else if (bet.status === "accepted") {
-			const newBalance = wallet.balance + bet.stake;
-			const walletUpdate = await db
-				.update(schema.wallet)
-				.set({
-					balance: newBalance,
-				})
-				.where(eq(schema.wallet.userId, bet.userId))
-				.returning({ userId: schema.wallet.userId });
+			const walletUpdate = await creditWallet(db, bet.userId, bet.stake);
 			console.log("wallet update", walletUpdate);
-			if (walletUpdate.length === 0) {
+			if (!walletUpdate) {
 				return c.json(
 					{
 						error: {
@@ -1049,7 +1044,7 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 					reference: `sb_decline_${bet.id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
-					balance: newBalance,
+					balance: walletUpdate.balance,
 					metadata: JSON.stringify({
 						action: "bet_declined",
 						betId: bet.id,
@@ -1293,6 +1288,49 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	);
 	const settleType = result.data.settle_type;
 
+	const newStatus =
+		settleType === 3
+			? "loss"
+			: settleType === 2
+				? bet.status === "unsettled"
+					? "refunded_manually"
+					: "rolled_back"
+				: "win";
+
+	const betClaim = await db
+		.update(schema.sportsbookBet)
+		.set({
+			status: newStatus,
+			settleAmount: settleAmount,
+			settleType: settleType,
+			betData: JSON.stringify(result.data),
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(schema.sportsbookBet.id, result.data.bet_id),
+				or(
+					eq(schema.sportsbookBet.status, "accepted"),
+					eq(schema.sportsbookBet.status, "unsettled"),
+				),
+			),
+		)
+		.returning({ id: schema.sportsbookBet.id });
+	if (betClaim.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "bet_already_settled",
+						current_status: bet.status,
+					},
+				},
+			},
+			400,
+		);
+	}
+
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
@@ -1301,15 +1339,8 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	const shouldCredit = !bet.betFreebetId || isFreebetWin;
 
 	if (wallet && shouldCredit) {
-		const newBalance = wallet.balance + settleAmount;
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await creditWallet(db, bet.userId, settleAmount);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -1323,6 +1354,7 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate.balance;
 
 		const settleTypeLabel =
 			settleType === 1 ? "win" : settleType === 2 ? "refund" : "settled";
@@ -1348,41 +1380,6 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		if (!walletTxn?.id) {
 			console.error("Failed to record wallet transaction for bet settle");
 		}
-	}
-
-	const newStatus =
-		settleType === 3
-			? "loss"
-			: settleType === 2
-				? bet.status === "unsettled"
-					? "refunded_manually"
-					: "rolled_back"
-				: "win";
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			status: newStatus,
-			settleAmount: settleAmount,
-			settleType: settleType,
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update bet settlement",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();
@@ -1602,20 +1599,47 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		? Math.round(Number.parseFloat(result.data.unsettle_amount) * 100)
 		: bet.settleAmount || 0;
 
+	const betClaim = await db
+		.update(schema.sportsbookBet)
+		.set({
+			status: "unsettled",
+			settleAmount: null,
+			settleType: null,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(schema.sportsbookBet.id, result.data.bet_id),
+				or(
+					eq(schema.sportsbookBet.status, "settled"),
+					eq(schema.sportsbookBet.status, "rolled_back"),
+					eq(schema.sportsbookBet.status, "refunded_manually"),
+				),
+			),
+		)
+		.returning({ id: schema.sportsbookBet.id });
+	if (betClaim.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "bet_already_unsettle",
+						current_status: bet.status,
+					},
+				},
+			},
+			400,
+		);
+	}
+
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
 
 	if (wallet) {
-		const newBalance = wallet.balance - unsettleAmount;
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await debitWallet(db, bet.userId, unsettleAmount);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -1629,6 +1653,7 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -1651,31 +1676,6 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		if (!walletTxn?.id) {
 			console.error("Failed to record wallet transaction for bet unsettle");
 		}
-	}
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			status: "unsettled",
-			settleAmount: null,
-			settleType: null,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to unsettle bet status",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();
@@ -1849,20 +1849,45 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		Number.parseFloat(result.data.refund_amount) * 100,
 	);
 
+	const existingOrderIds = bet.cashOutOrderIds
+		? JSON.parse(bet.cashOutOrderIds)
+		: [];
+	if (existingOrderIds.includes(result.data.cash_out_order_id)) {
+		return c.body(null, 204);
+	}
+	const newOrderIds = [...existingOrderIds, result.data.cash_out_order_id];
+
+	const betClaim = await db
+		.update(schema.sportsbookBet)
+		.set({
+			cashOutOrderIds: JSON.stringify(newOrderIds),
+			betData: JSON.stringify(result.data),
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
+		.returning({ id: schema.sportsbookBet.id });
+	if (betClaim.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "transaction_failed",
+						message: "Failed to update cashout acceptance state",
+					},
+				},
+			},
+			400,
+		);
+	}
+
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
 
 	if (wallet) {
-		const newBalance = wallet.balance + refundAmountKobo;
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await creditWallet(db, bet.userId, refundAmountKobo);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -1876,6 +1901,7 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -1901,35 +1927,6 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				"Failed to record wallet transaction for cashout acceptance",
 			);
 		}
-	}
-
-	const existingOrderIds = bet.cashOutOrderIds
-		? JSON.parse(bet.cashOutOrderIds)
-		: [];
-	const newOrderIds = [...existingOrderIds, result.data.cash_out_order_id];
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			cashOutOrderIds: JSON.stringify(newOrderIds),
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update cashout acceptance state",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();
@@ -2172,23 +2169,29 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		return sum + (acceptedRefundByOrderId.get(orderId) ?? 0);
 	}, 0);
 
-	if (wallet && refundAmountKobo > 0) {
-		const newBalance = wallet.balance - refundAmountKobo;
-		const walletUpdate = await db
-			.update(schema.wallet)
+	if (orderIdsToReverse.length > 0) {
+		const existingOrderIds = bet.cashOutOrderIds
+			? JSON.parse(bet.cashOutOrderIds)
+			: [];
+		const newOrderIds = [...existingOrderIds, ...orderIdsToReverse];
+
+		const betClaim = await db
+			.update(schema.sportsbookBet)
 			.set({
-				balance: newBalance,
+				cashOutOrderIds: JSON.stringify(newOrderIds),
+				betData: JSON.stringify(result.data),
+				updatedAt: new Date(),
 			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+			.where(eq(schema.sportsbookBet.id, result.data.bet_id))
+			.returning({ id: schema.sportsbookBet.id });
+		if (betClaim.length === 0) {
 			return c.json(
 				{
 					error: {
 						code: "custom_error",
 						data: {
 							code: "transaction_failed",
-							message: "Failed to reverse wallet credit for cashout decline",
+							message: "Failed to update cashout decline state",
 						},
 					},
 				},
@@ -2196,56 +2199,52 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 			);
 		}
 
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: bet.userId,
-				amount: -refundAmountKobo,
-				type: "debit",
-				reference: `sb_cashout_decline_${result.data.bet_id}_${crypto.randomUUID()}`,
-				status: "success",
-				paymentMethod: "sportsbook",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					action: "cash_out_declined",
-					betId: result.data.bet_id,
-					refundAmount: refundAmountKobo,
-				}),
-			})
-			.returning({ id: schema.walletTransaction.id });
-		if (!walletTxn?.id) {
-			console.error("Failed to record wallet transaction for cashout decline");
-		}
-	}
+		const wallet = await db.query.wallet.findFirst({
+			where: eq(schema.wallet.userId, bet.userId),
+		});
 
-	const existingOrderIds = bet.cashOutOrderIds
-		? JSON.parse(bet.cashOutOrderIds)
-		: [];
-	const newOrderIds = [...existingOrderIds, ...orderIdsToReverse];
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			cashOutOrderIds: JSON.stringify(newOrderIds),
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update cashout decline state",
+		if (wallet && refundAmountKobo > 0) {
+			const walletUpdate = await debitWallet(db, bet.userId, refundAmountKobo);
+			if (!walletUpdate) {
+				return c.json(
+					{
+						error: {
+							code: "custom_error",
+							data: {
+								code: "transaction_failed",
+								message: "Failed to reverse wallet credit for cashout decline",
+							},
+						},
 					},
-				},
-			},
-			400,
-		);
+					400,
+				);
+			}
+			const newBalance = walletUpdate.balance;
+
+			const [walletTxn] = await db
+				.insert(schema.walletTransaction)
+				.values({
+					id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+					userId: bet.userId,
+					amount: -refundAmountKobo,
+					type: "debit",
+					reference: `sb_cashout_decline_${result.data.bet_id}_${crypto.randomUUID()}`,
+					status: "success",
+					paymentMethod: "sportsbook",
+					balance: newBalance,
+					metadata: JSON.stringify({
+						action: "cash_out_declined",
+						betId: result.data.bet_id,
+						refundAmount: refundAmountKobo,
+					}),
+				})
+				.returning({ id: schema.walletTransaction.id });
+			if (!walletTxn?.id) {
+				console.error(
+					"Failed to record wallet transaction for cashout decline",
+				);
+			}
+		}
 	}
 
 	const now = new Date();

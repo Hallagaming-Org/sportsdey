@@ -2,7 +2,17 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { createAuth, createHashCookie } from "./auth";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { createAuth, createHashCookie, getAuthCookiePolicy } from "./auth";
+import {
+	CORS_ALLOW_HEADERS,
+	CORS_ALLOW_METHODS,
+	getAllowedCorsOrigins,
+} from "./constants/cors";
+import {
+	SECURE_SESSION_COOKIE_NAME,
+	SESSION_COOKIE_NAME,
+} from "./constants/session";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
 import adminLogNotesRoute from "./routes/admin-log-notes";
@@ -18,13 +28,8 @@ import type { CloudflareBindings } from "./types";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-let authCache: ReturnType<typeof createAuth> | null = null;
-
 function getAuth(env: CloudflareBindings) {
-	if (!authCache) {
-		authCache = createAuth(env);
-	}
-	return authCache;
+	return createAuth(env);
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
@@ -34,40 +39,20 @@ app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
 		"Enter the session token from /auth/sign-in/email or /auth/sign-in/oauth",
 });
 
-// app.use("*", async (c, next) => {
-// 	if (c.req.method === "OPTIONS") {
-// 		return c.text("", 204);
-// 	}
-// 	await next();
-// });
-
 app.use("*", async (c, next) => {
 	if (c.req.method === "OPTIONS") {
 		const origin = c.req.header("origin") || "";
-		const corsOrigin = c.env.CORS_ORIGIN || "https://sportsdey.com";
-		const allowedOrigins = new Set([
-			corsOrigin,
-			"http://localhost:3001",
-			"http://localhost:3002",
-			"http://localhost:8787",
-			"sportsdey-mobile://",
-			"exp://172.20.10.9:8081",
-			"https://admin.sportsdey.com",
-			"https://staging-admin.sportsdey.com",
-			"https://binary.sportsdey.com",
-		]);
-
-		console.log(allowedOrigins.has(origin) ? origin : "");
+		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
 
 		if (allowedOrigins.has(origin)) {
-			return c.text("", 204, {
+			return c.text("", 204 as ContentfulStatusCode, {
 				"Access-Control-Allow-Origin": origin,
-				"Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS, DELETE",
-				"Access-Control-Allow-Headers": "Authorization, Content-Type",
+				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
+				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
 				"Access-Control-Allow-Credentials": "true",
 			});
 		}
-		return c.text("", 204);
+		return c.text("", 204 as ContentfulStatusCode);
 	}
 	await next();
 });
@@ -77,21 +62,8 @@ app.use(
 	"/*",
 	cors({
 		origin: (origin, c) => {
-			const corsOrigin = c?.env?.CORS_ORIGIN || "https://sportsdey.com";
-			console.log("CORS_ORIGIN", corsOrigin);
 			if (!origin) return "";
-			const allowedOrigins = new Set([
-				corsOrigin,
-				"http://localhost:3001",
-				"http://localhost:3002",
-				"http://localhost:8787",
-				"sportsdey-mobile://",
-				"exp://172.20.10.9:8081",
-				"https://admin.sportsdey.com",
-				"https://staging-admin.sportsdey.com",
-				"https://binary.sportsdey.com",
-			]);
-			console.log(allowedOrigins.has(origin) ? origin : "");
+			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
 			return allowedOrigins.has(origin) ? origin : "";
 		},
 		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
@@ -112,29 +84,33 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 	});
 
 	const tokenCookie = setCookies.find(
-		(c) =>
-			c.startsWith("__Secure-ba.session_token=") ||
-			c.startsWith("ba.session_token="),
+		(cookie) =>
+			cookie.startsWith(`${SECURE_SESSION_COOKIE_NAME}=`) ||
+			cookie.startsWith(`${SESSION_COOKIE_NAME}=`),
 	);
 	if (tokenCookie) {
-		const actualPrefix = tokenCookie.startsWith("__Secure-")
-			? "__Secure-ba"
-			: "ba";
 		const match = tokenCookie.match(/=([^;]+)/);
-		if (match) {
-			const token = match[1];
-			console.log("session_token", token);
-			if (token) {
-				const hashCookie = createHashCookie(token, c.env.NODE_ENV);
-				response.headers.append("Set-Cookie", hashCookie);
-			} else {
-				const secure = c.env.NODE_ENV !== "development";
-				const secureFlag = secure ? "; Secure" : "";
-				response.headers.append(
-					"Set-Cookie",
-					`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; SameSite=None${secureFlag}; Domain=.sportsdey.com; Max-Age=0`,
-				);
-			}
+		const token = match?.[1];
+		if (token) {
+			const hashCookie = createHashCookie(
+				token,
+				c.env.NODE_ENV,
+				c.env.BETTER_AUTH_URL,
+			);
+			response.headers.append("Set-Cookie", hashCookie);
+		} else {
+			const policy = getAuthCookiePolicy({
+				nodeEnv: c.env.NODE_ENV,
+				authUrl: c.env.BETTER_AUTH_URL,
+			});
+			const secureFlag = policy.useSecureCookies ? "; Secure" : "";
+			const actualPrefix = tokenCookie.startsWith("__Secure-")
+				? "__Secure-ba"
+				: "ba";
+			response.headers.append(
+				"Set-Cookie",
+				`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
+			);
 		}
 	}
 
@@ -142,7 +118,6 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 });
 
 app.use("*", async (c, next) => {
-	console.log("Request to:", c.req.path);
 	const path = c.req.path;
 	if (
 		path.startsWith("/auth/") ||
@@ -160,12 +135,8 @@ app.use("*", async (c, next) => {
 	const sessionResult = await auth.api.getSession({
 		headers: c.req.raw.headers,
 	});
-	const session = sessionResult?.session ?? null;
-	const user = sessionResult?.user ?? null;
-	c.set("session", session);
-	c.set("user", user);
-	console.log("session", session);
-	console.log("user", user);
+	c.set("session", sessionResult?.session ?? null);
+	c.set("user", sessionResult?.user ?? null);
 	await next();
 });
 
