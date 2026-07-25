@@ -317,26 +317,16 @@ const providersRoute = createRoute({
 	path: "/providers",
 	tags: ["Scorpio Play"],
 	summary: "List Scorpio game providers",
-	security: [{ BearerAuth: [] }],
+	description: "Public catalog endpoint — no user session required",
 	responses: {
 		200: {
 			description: "Providers",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
 	},
 });
 
 scorpioRoute.openapi(providersRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(unauthorized, 401);
-	}
 	try {
 		const data = await listProviders(getScorpioConfig(c.env));
 		return c.json({ success: true as const, data }, 200);
@@ -425,27 +415,17 @@ const gamesRoute = createRoute({
 	path: "/games/{providerId}",
 	tags: ["Scorpio Play"],
 	summary: "List games for a Scorpio provider",
-	security: [{ BearerAuth: [] }],
+	description: "Public catalog endpoint — no user session required",
 	request: { params: ScorpioProviderIdParamSchema },
 	responses: {
 		200: {
 			description: "Games",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
 	},
 });
 
 scorpioRoute.openapi(gamesRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(unauthorized, 401);
-	}
 	const { providerId } = c.req.valid("param");
 	try {
 		const data = await listGames(getScorpioConfig(c.env), providerId);
