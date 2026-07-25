@@ -15,6 +15,10 @@ const BetHistoryItemSchema = z.object({
 	multiplier: z.number(),
 	status: z.enum(["success", "pending", "failed"]),
 	placedAt: z.string(),
+	totalOdds: z.string().nullable(),
+	potentialWin: z.number().nullable(),
+	actualPayout: z.number().nullable(),
+	settledAt: z.string().nullable(),
 });
 
 const BetHistoryResponseSchema = z
@@ -107,9 +111,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		baseFilters.push(eq(schema.sportsbookBet.status, "settled"));
 	}
 	if (filter === "unsettled") {
-		baseFilters.push(
-			sql`${schema.sportsbookBet.status} != 'settled'`,
-		);
+		baseFilters.push(sql`${schema.sportsbookBet.status} != 'settled'`);
 	}
 	if (search) {
 		baseFilters.push(
@@ -137,6 +139,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			settleAmount: schema.sportsbookBet.settleAmount,
 			betData: schema.sportsbookBet.betData,
 			createdAt: schema.sportsbookBet.createdAt,
+			updatedAt: schema.sportsbookBet.updatedAt,
 		})
 		.from(schema.sportsbookBet)
 		.where(and(...baseFilters))
@@ -144,16 +147,26 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.limit(limit)
 		.offset(offset);
 
-	const items = rows.map((row) => ({
-		id: row.id,
-		ticketId: row.id,
-		type: parseGameType(row.betData),
-		amount: row.stake / 100,
-		multiplier: row.totalOdds ? Number.parseFloat(row.totalOdds) : 0,
-		status: deriveStatus(row.status, row.settleAmount),
-		placedAt: toWAT(row.createdAt),
-	}));
+	const items = rows.map((row) => {
+		const isSettled = row.status === "settled";
+		const stakeNaira = row.stake / 100;
+		const oddsValue = row.totalOdds ? Number.parseFloat(row.totalOdds) : 0;
 
+		return {
+			id: row.id,
+			ticketId: row.id,
+			type: parseGameType(row.betData),
+			amount: stakeNaira,
+			multiplier: oddsValue,
+			status: deriveStatus(row.status, row.settleAmount),
+			placedAt: toWAT(row.createdAt),
+			totalOdds: row.totalOdds,
+			potentialWin: oddsValue > 0 ? stakeNaira * oddsValue : null,
+			actualPayout: isSettled ? (row.settleAmount ?? 0) / 100 : null,
+
+			settledAt: isSettled ? toWAT(row.updatedAt) : null,
+		};
+	});
 
 	const [allCountRow] = await db
 		.select({ count: sql<number>`COUNT(*)` })
