@@ -373,7 +373,8 @@ function HotCasinoPanel() {
 	} = useQuery<ScorpioLobbyGame[]>({
 		queryKey: ["scorpio-games"],
 		queryFn: fetchScorpioLobbyGames,
-		enabled: !isSessionLoading && Boolean(session?.user),
+		// Catalog is public; Play still requires sign-in
+		enabled: !isSessionLoading,
 		staleTime: 60_000,
 	});
 
@@ -434,31 +435,7 @@ function HotCasinoPanel() {
 		[goSignIn, navigate, session?.user],
 	);
 
-	if (isSessionLoading) {
-		return (
-			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
-				{Array.from({ length: 10 }).map((_, i) => (
-					<Skeleton
-						key={`casino-session-skel-${i}`}
-						className="h-[110px] w-full rounded-xl"
-					/>
-				))}
-			</div>
-		);
-	}
-
-	if (!session?.user) {
-		return (
-			<div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-gray-500 text-sm dark:text-gray-400">
-				<p>Sign in to browse live casino games.</p>
-				<Button size="sm" onClick={goSignIn}>
-					Sign in
-				</Button>
-			</div>
-		);
-	}
-
-	if (isLoading) {
+	if (isSessionLoading || isLoading) {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
 				{Array.from({ length: 10 }).map((_, i) => (

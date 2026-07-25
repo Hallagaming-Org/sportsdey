@@ -30,7 +30,7 @@ function PlayGamePage() {
 	>({
 		queryKey: ["scorpio-games"],
 		queryFn: fetchScorpioLobbyGames,
-		enabled: !!session?.user,
+		enabled: !isSessionLoading,
 		staleTime: 60_000,
 	});
 

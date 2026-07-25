@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "@/lib/api";
+import { resolveServerUrl } from "@/lib/server-url";
 
 export type ScorpioProvider = {
 	providerId: number;
@@ -11,7 +12,8 @@ export type ScorpioRemoteGame = {
 	gameID?: string;
 	gameCode?: string;
 	gameName?: string;
-	gameImage?: string;
+	/** Some providers (e.g. EGT) return a nested image object instead of a URL string. */
+	gameImage?: string | Record<string, unknown>;
 	gameType?: number;
 	inMaintenance?: boolean;
 	status?: number;
@@ -58,8 +60,48 @@ function gameTypeCategory(gameType: number | undefined): ScorpioCategory | null 
 }
 
 function resolveGameCode(game: ScorpioRemoteGame): string | null {
-	const code = game.gameID || game.gameCode;
-	return code?.trim() ? code : null;
+	const raw = game.gameID || game.gameCode;
+	if (raw == null) return null;
+	const code = String(raw).trim();
+	return code || null;
+}
+
+/** Normalize Scorpio thumbnail: plain URL string or nested provider image map. */
+function resolveGameImage(gameImage: ScorpioRemoteGame["gameImage"]): string | null {
+	if (typeof gameImage === "string") {
+		const trimmed = gameImage.trim();
+		return trimmed || null;
+	}
+	if (!gameImage || typeof gameImage !== "object") return null;
+
+	const img = gameImage as {
+		mobile?: {
+			squareTile?: string;
+			icon?: { small?: string; medium?: string };
+			verticalTile?: { small?: string; large?: string };
+		};
+		desktop?: {
+			landscapeTile?: string;
+			gameCover?: string;
+			banner?: { small?: string; medium?: string };
+		};
+	};
+	const candidates = [
+		img.mobile?.squareTile,
+		img.mobile?.icon?.medium,
+		img.mobile?.icon?.small,
+		img.desktop?.landscapeTile,
+		img.desktop?.gameCover,
+		img.desktop?.banner?.medium,
+		img.desktop?.banner?.small,
+		img.mobile?.verticalTile?.small,
+	];
+	for (const candidate of candidates) {
+		if (typeof candidate === "string" && candidate.trim()) {
+			return candidate.trim();
+		}
+	}
+	return null;
 }
 
 export function mapScorpioGame(
@@ -67,7 +109,8 @@ export function mapScorpioGame(
 	provider: ScorpioProvider,
 ): ScorpioLobbyGame | null {
 	const code = resolveGameCode(game);
-	const name = game.gameName?.trim();
+	const name =
+		typeof game.gameName === "string" ? game.gameName.trim() : null;
 	if (!code || !name) return null;
 
 	const providerCat: ScorpioCategory = {
@@ -87,7 +130,7 @@ export function mapScorpioGame(
 		id: `scorpio:${provider.providerId}:${code}`,
 		name,
 		code,
-		imageUrl: game.gameImage?.trim() || null,
+		imageUrl: resolveGameImage(game.gameImage),
 		categories,
 		enabled: !disabled,
 		createdAt: 0,
@@ -102,11 +145,97 @@ const scorpioAuthOpts: RequestInit = { credentials: "include" };
 
 /** Live Scorpio catalog: providers → games per provider → lobby Game[]. */
 export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
-	const providers = await apiRequest<ScorpioProvider[]>(
-		"scorpio/providers",
-		scorpioAuthOpts,
-	);
+	const started = Date.now();
+	const serverUrl = resolveServerUrl();
+	// #region agent log
+	fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-Debug-Session-Id": "17192a",
+		},
+		body: JSON.stringify({
+			sessionId: "17192a",
+			runId: "post-fix",
+			hypothesisId: "A",
+			location: "scorpio-catalog.ts:fetchScorpioLobbyGames:entry",
+			message: "catalog fetch start",
+			data: {
+				serverUrl,
+				viteServerUrl: import.meta.env.VITE_SERVER_URL ?? null,
+				viteApiUrl: import.meta.env.VITE_API_URL ?? null,
+				origin:
+					typeof window !== "undefined" ? window.location.origin : "ssr",
+			},
+			timestamp: Date.now(),
+		}),
+	}).catch(() => {});
+	// #endregion
+
+	let providers: ScorpioProvider[] = [];
+	try {
+		providers = await apiRequest<ScorpioProvider[]>(
+			"scorpio/providers",
+			scorpioAuthOpts,
+		);
+	} catch (error) {
+		// #region agent log
+		fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-Debug-Session-Id": "17192a",
+			},
+			body: JSON.stringify({
+				sessionId: "17192a",
+				runId: "post-fix",
+				hypothesisId: "A",
+				location: "scorpio-catalog.ts:fetchScorpioLobbyGames:providersError",
+				message: "providers request failed",
+				data: {
+					serverUrl,
+					status: error instanceof ApiError ? error.status : null,
+					isNetworkError:
+						error instanceof ApiError ? error.isNetworkError : false,
+					error: error instanceof Error ? error.message : "unknown",
+				},
+				timestamp: Date.now(),
+			}),
+		}).catch(() => {});
+		// #endregion
+		throw error;
+	}
+
 	const activeProviders = (providers || []).filter((p) => p.status !== 0);
+	// #region agent log
+	fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-Debug-Session-Id": "17192a",
+		},
+		body: JSON.stringify({
+			sessionId: "17192a",
+			runId: "post-fix",
+			hypothesisId: "C",
+			location: "scorpio-catalog.ts:fetchScorpioLobbyGames:providersOk",
+			message: "providers loaded",
+			data: {
+				rawCount: Array.isArray(providers) ? providers.length : -1,
+				activeCount: activeProviders.length,
+				isArray: Array.isArray(providers),
+				sample: activeProviders[0]
+					? {
+							providerId: activeProviders[0].providerId,
+							providerName: activeProviders[0].providerName,
+							status: activeProviders[0].status,
+						}
+					: null,
+			},
+			timestamp: Date.now(),
+		}),
+	}).catch(() => {});
+	// #endregion
 
 	const lists = await Promise.all(
 		activeProviders.map(async (provider) => {
@@ -115,12 +244,71 @@ export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
 					`scorpio/games/${provider.providerId}`,
 					scorpioAuthOpts,
 				);
-				return (games || [])
+				const mapped = (games || [])
 					.map((game) => mapScorpioGame(game, provider))
 					.filter((g): g is ScorpioLobbyGame => g !== null && g.enabled);
+				// #region agent log
+				fetch(
+					"http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23",
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							"X-Debug-Session-Id": "17192a",
+						},
+						body: JSON.stringify({
+							sessionId: "17192a",
+							runId: "post-fix",
+							hypothesisId: "B",
+							location:
+								"scorpio-catalog.ts:fetchScorpioLobbyGames:providerGamesOk",
+							message: "provider games mapped",
+							data: {
+								providerId: provider.providerId,
+								rawCount: Array.isArray(games) ? games.length : -1,
+								mappedCount: mapped.length,
+								dropped: Array.isArray(games)
+									? games.length - mapped.length
+									: null,
+								sampleKeys: games?.[0] ? Object.keys(games[0]) : [],
+							},
+							timestamp: Date.now(),
+						}),
+					},
+				).catch(() => {});
+				// #endregion
+				return mapped;
 			} catch (error) {
+				// #region agent log
+				fetch(
+					"http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23",
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							"X-Debug-Session-Id": "17192a",
+						},
+						body: JSON.stringify({
+							sessionId: "17192a",
+							runId: "post-fix",
+							hypothesisId: "E",
+							location:
+								"scorpio-catalog.ts:fetchScorpioLobbyGames:providerGamesError",
+							message: "provider games failed",
+							data: {
+								providerId: provider.providerId,
+								status: error instanceof ApiError ? error.status : null,
+								isNetworkError:
+									error instanceof ApiError ? error.isNetworkError : false,
+								error: error instanceof Error ? error.message : "unknown",
+							},
+							timestamp: Date.now(),
+						}),
+					},
+				).catch(() => {});
+				// #endregion
 				// One provider failing should not empty the whole casino
-				if (error instanceof ApiError && error.status === 401) throw error;
+				// (including 401 — catalog is public; a single bad response must not abort all)
 				console.log("scorpio provider games failed", {
 					providerId: provider.providerId,
 					error: error instanceof Error ? error.message : "unknown",
@@ -130,7 +318,30 @@ export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
 		}),
 	);
 
-	return lists.flat();
+	const flat = lists.flat();
+	// #region agent log
+	fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-Debug-Session-Id": "17192a",
+		},
+		body: JSON.stringify({
+			sessionId: "17192a",
+			runId: "post-fix",
+			hypothesisId: "D",
+			location: "scorpio-catalog.ts:fetchScorpioLobbyGames:exit",
+			message: "catalog fetch complete",
+			data: {
+				totalGames: flat.length,
+				durationMs: Date.now() - started,
+				serverUrl,
+			},
+			timestamp: Date.now(),
+		}),
+	}).catch(() => {});
+	// #endregion
+	return flat;
 }
 
 export function buildScorpioCategoryTabs(
@@ -172,7 +383,7 @@ export async function launchScorpioGame(
 	);
 
 	if (!data?.url) {
-		throw new ApiError("Failed to launch game");
+		throw new ApiError({ message: "Failed to launch game" });
 	}
 
 	return { url: data.url };

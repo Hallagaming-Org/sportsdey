@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -94,7 +94,8 @@ function GamesPage() {
 		isFetching,
 	} = useQuery<Game[]>({
 		queryKey: ["scorpio-games"],
-		enabled: !isSessionLoading && Boolean(session?.user),
+		// Catalog is public; only launch requires auth
+		enabled: !isSessionLoading,
 		queryFn: fetchScorpioLobbyGames,
 		staleTime: 60_000,
 	});
@@ -240,7 +241,7 @@ function GamesPage() {
 		};
 	};
 
-	if (isSessionLoading || (session?.user && isLoading)) {
+	if (isSessionLoading || isLoading) {
 		return (
 			<div className="min-h-screen dark:bg-[#121212]">
 				<div className="container mx-auto px-4 pb-8 relative">
@@ -285,54 +286,22 @@ function GamesPage() {
 		);
 	}
 
-	if (!session?.user) {
-		return (
-			<div className="flex min-h-screen flex-col items-center justify-center gap-4 dark:bg-[#121212] px-4">
-				<p className="text-center text-gray-300">
-					Sign in to load the live Scorpio Play casino catalog.
-				</p>
-				<Link
-					to="/auth/sign-in"
-					search={{
-						returnTo: "/games",
-					}}
-					className="rounded-lg bg-[#1BAA04] px-4 py-2 text-sm font-medium text-white"
-				>
-					Sign in
-				</Link>
-			</div>
-		);
-	}
-
 	if (error) {
-		const unauthorized =
-			error instanceof ApiError &&
-			(error.status === 401 || error.status === 403);
 		return (
 			<div className="flex min-h-screen flex-col items-center justify-center gap-4 dark:bg-[#121212] px-4">
 				<p className="text-center text-red-500">
-					{unauthorized
-						? "Sign in to view casino games."
+					{error instanceof ApiError
+						? error.message
 						: "Failed to load games. Please try again."}
 				</p>
-				{unauthorized ? (
-					<Link
-						to="/auth/sign-in"
-						search={{ returnTo: "/games" }}
-						className="rounded-lg bg-[#1BAA04] px-4 py-2 text-sm font-medium text-white"
-					>
-						Sign in
-					</Link>
-				) : (
-					<button
-						type="button"
-						onClick={() => refetch()}
-						disabled={isFetching}
-						className="rounded-lg border border-[#1BAA04] px-4 py-2 text-sm text-white"
-					>
-						{isFetching ? "Retrying…" : "Retry"}
-					</button>
-				)}
+				<button
+					type="button"
+					onClick={() => refetch()}
+					disabled={isFetching}
+					className="rounded-lg border border-[#1BAA04] px-4 py-2 text-sm text-white"
+				>
+					{isFetching ? "Retrying…" : "Retry"}
+				</button>
 			</div>
 		);
 	}
