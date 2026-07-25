@@ -43,6 +43,7 @@ let limit = 0; // 0 means all pages
 let dbName: string;
 let jsonPath: string | null = null;
 let categorize = false;
+let remote = false;
 
 const defaultJsonPath = path.resolve(
 	process.cwd(),
@@ -60,6 +61,8 @@ for (const arg of args) {
 		jsonPath = arg.replace("--json=", "");
 	} else if (arg === "--categorize") {
 		categorize = true;
+	} else if (arg === "--remote") {
+		remote = true;
 	}
 }
 
@@ -182,7 +185,7 @@ async function getExistingGameIds(): Promise<Set<string>> {
 
 	return new Promise((resolve) => {
 		process.exec(
-			`npx wrangler d1 execute ${dbName} --command "SELECT id FROM game" --remote --env ${env}`,
+			`npx wrangler d1 execute ${dbName} --command "SELECT id FROM game" ${remote ? "--remote" : "--local"}  --env ${env}`,
 			(error, stdout, stderr) => {
 				if (error) {
 					console.log(
@@ -301,7 +304,7 @@ async function main() {
 
 		try {
 			await new Promise((resolve, reject) => {
-				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env staging`;
+				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" ${remote ? "--remote" : "--local"} --env ${env}`;
 				exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
 					try {
 						fs.unlinkSync(tempFile);

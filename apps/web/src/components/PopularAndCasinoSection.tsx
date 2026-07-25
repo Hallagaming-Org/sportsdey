@@ -1,10 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
+import {
+	fetchScorpioLobbyGames,
+	launchScorpioGame,
+	type ScorpioLobbyGame,
+} from "@/lib/scorpio-catalog";
 import {
 	getSportsbookTheme,
 	isSportsbookConfigured,
@@ -12,165 +20,10 @@ import {
 	SPORTSBOOK_CONTAINER_ID,
 } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
-import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
-import BlackjackLogo from "@/logos/blackjack.svg?react";
-import BlocksLogo from "@/logos/blocks.svg?react";
-import PlinkoLogo from "@/logos/plinko.svg?react";
-import SlotsLogo from "@/logos/slots.svg?react";
-import SolitaireLogo from "@/logos/solitaire.svg?react";
-import TwentyOneLogo from "@/logos/twentyone.svg?react";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Category = {
-	id: string;
-	name: string;
-	slug: string;
-};
-
-type Game = {
-	id: string;
-	name: string;
-	code: string;
-	imageUrl: string | null;
-	enabled: boolean;
-	createdAt: number;
-	updatedAt: number;
-	categories: Category[];
-};
-
-type LaunchResponse = {
-	success: boolean;
-	data?: { url?: string };
-	error?: string;
-};
-
-// ─── Game Registry ────────────────────────────────────────────────────────────
-
-const KNOWN_GAMES: Record<
-	string,
-	{
-		subtitle: string;
-		icon?: React.ComponentType<{ className?: string }>;
-		image?: string;
-		gradient: string;
-	}
-> = {
-	solitaire: {
-		subtitle: "classic card game",
-		icon: SolitaireLogo,
-		gradient: "linear-gradient(to bottom, #1e3a5f, #2d5a87, #4a90d9)",
-	},
-	blocks: {
-		subtitle: "puzzle game",
-		icon: BlocksLogo,
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-	twentyone: {
-		subtitle: "card game",
-		icon: TwentyOneLogo,
-		gradient: "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)",
-	},
-	blackjack: {
-		subtitle: "card game",
-		icon: BlackjackLogo,
-		gradient: "linear-gradient(to bottom, #2d2d2d, #4a4a4a, #6b6b6b)",
-	},
-	slots: {
-		subtitle: "slot machine",
-		icon: SlotsLogo,
-		gradient: "linear-gradient(to bottom, #7b1fa2, #9c27b0, #ba68c8)",
-	},
-	plinko: {
-		subtitle: "lucky drop",
-		icon: PlinkoLogo,
-		gradient: "linear-gradient(to bottom, #00897b, #26a69a, #4db6ac)",
-	},
-	XCAPEHB: {
-		subtitle: "fulfilling games",
-		image: "/xcape-thumbnail-16x9.jpg",
-		gradient: "linear-gradient(to bottom, #1fe0c8, #7a5cff, #c43cff)",
-	},
-	EAGLEHB: {
-		subtitle: "fulfilling games",
-		image: "/eagle-thumbnail-16x9.jpg",
-		gradient: "linear-gradient(to bottom, #d9f27c, #8bbf4f, #5f9e7a)",
-	},
-	LUCKYRISEHB: {
-		subtitle: "fulfilling games",
-		image: "/luckyrise-thumbnail-16x9.png",
-		gradient: "linear-gradient(to bottom, #0E0E2B, #1f3a5f, #d4a017)",
-	},
-	LAGOSRUSH: {
-		subtitle: "fulfilling games",
-		image: "/lagos-rush.png",
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-};
 
 const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 const HOT_CASINO_LIMIT = 30;
-
-const PRIORITY_GAMES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-	"XCAPEHB",
-	"EAGLEHB",
-	"LUCKYRISEHB",
-	"LAGOSRUSH",
-];
-
-const POPULAR_GAME_NAMES = [
-	"Aviator",
-	"CrashX",
-	"High Flyer",
-	"Sweet Bonanza",
-	"Roulette",
-	"Mines",
-	"Plinko",
-	"Gates of Olympus",
-	"Blackjack",
-	"Space",
-	"Keno",
-	"Big Bass Splash",
-	"Baccarat",
-	"JetX",
-	"Helicopter X",
-	"Wild Fortune",
-	"Mystic Fortune",
-	"Balloon",
-	"Football X",
-	"Greyhound",
-	"Car Racing",
-];
-
-const getUniquePopularGames = (games: Game[], limit: number) => {
-	const result: Game[] = [];
-	const addedIds = new Set<string>();
-	for (const popName of POPULAR_GAME_NAMES) {
-		if (result.length >= limit) break;
-		const match = games.find(
-			(g) =>
-				!addedIds.has(g.id) &&
-				g.name.toLowerCase().includes(popName.toLowerCase()),
-		);
-		if (match) {
-			result.push(match);
-			addedIds.add(match.id);
-		}
-	}
-	return result;
-};
-
-const isThundrGame = (code: string) =>
-	["solitaire", "blocks", "twentyone", "blackjack", "slots", "plinko"].includes(code);
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
+const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
 type TabId = "popular" | "casino";
@@ -185,16 +38,15 @@ const TABS: TabConfig[] = [
 	{ id: "casino", label: "Hot Casino" },
 ];
 
-// ─── Root Section ─────────────────────────────────────────────────────────────
-
 export default function PopularAndCasinoSection() {
 	const [activeTab, setActiveTab] = useState<TabId>("popular");
 	const [isDark, setIsDark] = useState(true);
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
 	const [showBalanceModal, setShowBalanceModal] = useState(false);
-	const initRef = useRef(false);
 	const navigate = useNavigate();
+	const { data: session, isPending: isSessionLoading } = useSession();
+	const userId = session?.user?.id;
 
 	// Observe dark-mode class changes on <html>
 	useEffect(() => {
@@ -213,18 +65,23 @@ export default function PopularAndCasinoSection() {
 	const isDarkRef = useRef(isDark);
 	isDarkRef.current = isDark;
 
+	// Re-init when auth identity changes so the sportsbook token includes player_id after login.
 	useEffect(() => {
-		if (initRef.current) return;
-		initRef.current = true;
-
 		if (!isSportsbookConfigured()) {
 			setWidgetError(
 				"Sportsbook widget is not configured. Set VITE_DATABET_SPA_BOOTSTRAP_SCRIPT.",
 			);
+			setWidgetReady(true);
 			return;
 		}
 
+		// Wait for session resolution so we don't create a guest token then ignore login.
+		if (isSessionLoading) return;
+
 		let cancelled = false;
+		setWidgetReady(false);
+		setWidgetError(null);
+
 		const fallbackTimer = window.setTimeout(() => {
 			if (!cancelled) setWidgetReady(true);
 		}, WIDGET_LOAD_TIMEOUT_MS);
@@ -241,48 +98,52 @@ export default function PopularAndCasinoSection() {
 					data.token,
 					isDarkRef.current,
 					(bettingAPI) => {
-						if (!cancelled) setWidgetReady(true);
-						if (!cancelled) {
-							// Issue 1 fix: save current path before login redirect
-							// Issue 3 fix: scroll to top on event navigation
-							// Issue 8 fix: guard empty link
-							bettingAPI.subscribe("redirect", ({ destination, link }) => {
-								switch (destination) {
-									case "login": {
-										sessionStorage.setItem(
-											"post_login_redirect",
-											window.location.pathname + window.location.search,
-										);
-										navigate({ to: "/auth/sign-in" });
-										break;
-									}
-									case "logout": {
-										signOut().then(() => {
-											navigate({ to: "/auth/sign-in" });
-										});
-										break;
-									}
-									case "betting-page": {
-										if (link) {
-											const cleanLink = link.startsWith("/") ? link.slice(1) : link;
-											navigate({
-												to: "/sportsbetting/$",
-												params: { _splat: cleanLink },
-											});
-										} else {
-											navigate({ to: "/sportsbetting" });
-										}
-										window.scrollTo({ top: 0, behavior: "smooth" });
-										break;
-									}
-								}
-							});
+						if (cancelled) return;
+						setWidgetReady(true);
 
-							// Issue 2 fix: handle insufficient balance
-							bettingAPI.subscribe("handle-not-enough-balance", () => {
-								setShowBalanceModal(true);
-							});
-						}
+						bettingAPI.subscribe("redirect", ({ destination, link }) => {
+							switch (destination) {
+								case "login": {
+									sessionStorage.setItem(
+										"post_login_redirect",
+										window.location.pathname + window.location.search,
+									);
+									navigate({
+										to: "/auth/sign-in",
+										search: {
+											returnTo:
+												window.location.pathname + window.location.search,
+										},
+									});
+									break;
+								}
+								case "logout": {
+									signOut().then(() => {
+										navigate({ to: "/auth/sign-in" });
+									});
+									break;
+								}
+								case "betting-page": {
+									if (link) {
+										const cleanLink = link.startsWith("/")
+											? link.slice(1)
+											: link;
+										navigate({
+											to: "/sportsbetting/$",
+											params: { _splat: cleanLink },
+										});
+									} else {
+										navigate({ to: "/sportsbetting" });
+									}
+									window.scrollTo({ top: 0, behavior: "smooth" });
+									break;
+								}
+							}
+						});
+
+						bettingAPI.subscribe("handle-not-enough-balance", () => {
+							setShowBalanceModal(true);
+						});
 					},
 				);
 			} catch (err) {
@@ -300,7 +161,7 @@ export default function PopularAndCasinoSection() {
 			cancelled = true;
 			window.clearTimeout(fallbackTimer);
 		};
-	}, []);
+	}, [isSessionLoading, userId, navigate]);
 
 	return (
 		<section className="space-y-4">
@@ -310,6 +171,22 @@ export default function PopularAndCasinoSection() {
 				onTopUp={() => {
 					setShowBalanceModal(false);
 					navigate({ to: "/wallet" });
+				}}
+			/>
+
+			{/*
+			 * Keep the Databet root mount in the DOM for the lifetime of this section.
+			 * Unmounting it when switching to Hot Casino breaks betslip / widget state.
+			 */}
+			<div
+				id={SPORTSBOOK_CONTAINER_ID}
+				aria-hidden="true"
+				style={{
+					position: "absolute",
+					width: 0,
+					height: 0,
+					overflow: "visible",
+					pointerEvents: "none",
 				}}
 			/>
 
@@ -349,22 +226,20 @@ export default function PopularAndCasinoSection() {
 				aria-labelledby={`tab-${activeTab}`}
 				className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm sm:p-4 dark:border-0 dark:bg-card"
 			>
-				{activeTab === "popular" ? (
+				{/* Keep popular widget mounted so tab switches don't remount Databet widgets */}
+				<div className={cn(activeTab !== "popular" && "hidden")}>
 					<PopularMatchesPanel
 						widgetReady={widgetReady}
 						widgetError={widgetError}
 						widgetStyle={buildWidgetStyle(isDark)}
 						isDark={isDark}
 					/>
-				) : (
-					<HotCasinoPanel />
-				)}
+				</div>
+				{activeTab === "casino" && <HotCasinoPanel />}
 			</div>
 		</section>
 	);
 }
-
-// ─── Widget Style Builder ─────────────────────────────────────────────────────
 
 function buildWidgetStyle(isDark: boolean): React.CSSProperties {
 	const palette = getSportsbookTheme(isDark, 0).palette;
@@ -389,8 +264,6 @@ function buildWidgetStyle(isDark: boolean): React.CSSProperties {
 		"--bet-notification-warning": palette.notificationWarning,
 	} as React.CSSProperties;
 }
-
-// ─── Popular Matches Panel ────────────────────────────────────────────────────
 
 interface PopularMatchesPanelProps {
 	widgetReady: boolean;
@@ -467,36 +340,6 @@ function PopularMatchesPanel({
 
 	return (
 		<div ref={containerRef} className="relative min-h-[200px]">
-			{/*
-			 * CRITICAL FIX (Issue 7 — betslip not shown on odds click):
-			 *
-			 * This element is the widget's ROOT mount point. The DATA.BET widget
-			 * bootstraps itself by finding document.getElementById(SPORTSBOOK_CONTAINER_ID)
-			 * and attaches its internal DOM tree here, including the logic that
-			 * eventually populates #betting-betslip when an odd is clicked.
-			 *
-			 * It must be:
-			 *   ✅ Present in the DOM at all times
-			 *   ✅ NOT display:none  (widget can't mount into a hidden element)
-			 *   ✅ NOT sr-only       (sr-only uses clip + overflow:hidden which
-			 *                         prevents the widget's internal layout from working)
-			 *   ✅ Zero visual footprint so it doesn't affect your layout
-			 *
-			 * We use position:absolute with zero dimensions and no overflow clipping.
-			 * This keeps the element "real" to the browser while invisible to users.
-			 */}
-			<div
-				id={SPORTSBOOK_CONTAINER_ID}
-				aria-hidden="true"
-				style={{
-					position: "absolute",
-					width: 0,
-					height: 0,
-					overflow: "visible",  // must NOT be hidden — widget writes outside its bounds
-					pointerEvents: "none",
-				}}
-			/>
-
 			{showSkeleton && (
 				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 sm:p-2 dark:bg-card/80">
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -516,100 +359,130 @@ function PopularMatchesPanel({
 	);
 }
 
-// ─── Hot Casino Panel ─────────────────────────────────────────────────────────
-
 function HotCasinoPanel() {
 	const navigate = useNavigate();
-	const { data: session } = useSession();
-	const [loadingCode, setLoadingCode] = useState<string | null>(null);
+	const { data: session, isPending: isSessionLoading } = useSession();
+	const [loadingId, setLoadingId] = useState<string | null>(null);
 
-	const { data: games = [], isLoading } = useQuery<Game[]>({
-		queryKey: ["games"],
-		queryFn: async () => {
-			const all = await apiRequest<Game[]>("games");
-			return all.filter((game) => game.enabled);
-		},
+	const {
+		data: games = [],
+		isLoading,
+		isError,
+		refetch,
+		isFetching,
+	} = useQuery<ScorpioLobbyGame[]>({
+		queryKey: ["scorpio-games"],
+		queryFn: fetchScorpioLobbyGames,
+		enabled: !isSessionLoading && Boolean(session?.user),
+		staleTime: 60_000,
 	});
 
-	const sortedGames = [...games].sort((a, b) => {
-		const aIndex = PRIORITY_GAMES.indexOf(a.code);
-		const bIndex = PRIORITY_GAMES.indexOf(b.code);
-		if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-		if (aIndex !== -1) return -1;
-		if (bIndex !== -1) return 1;
-		return a.name.localeCompare(b.name);
-	});
+	const hotGames = useMemo(
+		() =>
+			[...games]
+				.filter((game) => game.enabled)
+				.sort((a, b) => a.name.localeCompare(b.name))
+				.slice(0, HOT_CASINO_LIMIT),
+		[games],
+	);
 
-	const hotGames = getUniquePopularGames(sortedGames, HOT_CASINO_LIMIT);
+	const goSignIn = useCallback(() => {
+		navigate({
+			to: "/auth/sign-in",
+			search: {
+				returnTo: window.location.pathname + window.location.search,
+			},
+		});
+	}, [navigate]);
 
 	const handleGameClick = useCallback(
-		async (game: Game) => {
-			setLoadingCode(game.code);
+		async (game: ScorpioLobbyGame) => {
+			if (!session?.user) {
+				goSignIn();
+				return;
+			}
+
+			setLoadingId(game.id);
 			try {
-				const knownGame = KNOWN_GAMES[game.code];
-				const isKnownGame = Boolean(knownGame);
-
-				let url: string;
-				let body: Record<string, unknown>;
-
-				if (isKnownGame) {
-					if (["XCAPEHB", "EAGLEHB", "LUCKYRISEHB"].includes(game.code)) {
-						url = `${import.meta.env.VITE_SERVER_URL}casino/play/${game.code}`;
-						body = {};
-					} else if (game.code === "LAGOSRUSH") {
-						url = `${import.meta.env.VITE_SERVER_URL}lagos-rush/launcher`;
-						body = { game: game.code };
-					} else {
-						url = `${import.meta.env.VITE_SERVER_URL}thndr/play/${game.code}`;
-						body = {};
-					}
-				} else {
-					url = `${import.meta.env.VITE_SERVER_URL}slotegrator/launch`;
-					body = { game_uuid: game.code };
-				}
-
-				const response = await fetch(url, {
-					method: "POST",
-					credentials: "include",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(body),
+				const launch = await launchScorpioGame({
+					providerId: game.providerId,
+					gameCode: game.code,
+					returnUrl: `${window.location.origin}/games`,
 				});
-
-				const data: LaunchResponse = await response.json();
-
-				if (!response.ok || data.success === false || !data.data?.url) {
-					if (data.error === "Unauthorized" || response.status === 401) {
-						if (!session?.user) {
-							navigate({ 
-								to: "/auth/sign-in",
-								search: { returnTo: window.location.pathname + window.location.search }
-							});
-							return;
-						}
-					}
-					throw new Error(data.error || "Failed to launch game");
-				}
 
 				navigate({
 					to: "/game/$gameId",
 					params: { gameId: game.code },
-					state: { gameUrl: data.data.url } as never,
+					state: { gameUrl: launch.url } as never,
 				});
 			} catch (error) {
-				// Errors are silently swallowed; add toast/logging here if needed
+				const message =
+					error instanceof Error ? error.message : "Failed to launch game";
+				if (
+					(error instanceof ApiError &&
+						(error.status === 401 || error.status === 403)) ||
+					message.toLowerCase().includes("unauthorized")
+				) {
+					goSignIn();
+					return;
+				}
+				toast.error(message);
 			} finally {
-				setLoadingCode(null);
+				setLoadingId(null);
 			}
 		},
-		[navigate, session?.user],
+		[goSignIn, navigate, session?.user],
 	);
+
+	if (isSessionLoading) {
+		return (
+			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
+				{Array.from({ length: 10 }).map((_, i) => (
+					<Skeleton
+						key={`casino-session-skel-${i}`}
+						className="h-[110px] w-full rounded-xl"
+					/>
+				))}
+			</div>
+		);
+	}
+
+	if (!session?.user) {
+		return (
+			<div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-gray-500 text-sm dark:text-gray-400">
+				<p>Sign in to browse live casino games.</p>
+				<Button size="sm" onClick={goSignIn}>
+					Sign in
+				</Button>
+			</div>
+		);
+	}
 
 	if (isLoading) {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
 				{Array.from({ length: 10 }).map((_, i) => (
-					<Skeleton key={`casino-skel-${i}`} className="h-[110px] w-full rounded-xl" />
+					<Skeleton
+						key={`casino-skel-${i}`}
+						className="h-[110px] w-full rounded-xl"
+					/>
 				))}
+			</div>
+		);
+	}
+
+	if (isError) {
+		return (
+			<div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-gray-500 text-sm dark:text-gray-400">
+				<p>Unable to load casino games right now.</p>
+				<Button
+					size="sm"
+					variant="outline"
+					disabled={isFetching}
+					onClick={() => void refetch()}
+				>
+					{isFetching ? "Retrying…" : "Retry"}
+				</Button>
 			</div>
 		);
 	}
@@ -625,69 +498,47 @@ function HotCasinoPanel() {
 	return (
 		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
 			{hotGames.map((game) => {
-				const known = KNOWN_GAMES[game.code];
-				const display = {
-					name: game.name,
-					subtitle: known?.subtitle ?? "Play now",
-					Icon: known?.icon,
-					image: game.imageUrl ?? known?.image ?? "/lagos-rush.png",
-					gradient: known?.gradient ?? DEFAULT_GRADIENT,
-				};
-				const isLoadingThis = loadingCode === game.code;
+				const isLoadingThis = loadingId === game.id;
 				return (
 					<button
-						key={game.code}
+						key={game.id}
 						type="button"
 						onClick={() => void handleGameClick(game)}
 						disabled={isLoadingThis}
 						className={cn(
-							"group relative flex w-full h-[110px] snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
+							"group relative flex h-[110px] w-full snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
 							isLoadingThis
-								? "ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90"
+								? "scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background"
 								: "disabled:cursor-not-allowed disabled:opacity-60",
 						)}
-						style={{ background: display.gradient }}
+						style={{ background: DEFAULT_GRADIENT }}
 					>
 						{isLoadingThis && (
 							<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 								<Loader2 className="h-6 w-6 animate-spin text-white" />
 							</div>
 						)}
-						{display.Icon ? (
-							<div
-								className="absolute inset-0 flex items-center justify-center p-4"
-								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
-							>
-								<display.Icon className="h-full w-full object-contain" />
-							</div>
-						) : display.image ? (
-							<img
-								src={display.image}
-								alt={display.name}
-								loading="lazy"
-								className="absolute inset-0 h-full w-full object-cover transition-opacity"
-								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
-							/>
-						) : (
-							<div
-								className="absolute inset-0 flex items-center justify-center"
-								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
-							>
-								<span className="font-bold text-4xl text-white/50">
-									{display.name.charAt(0)}
-								</span>
-							</div>
-						)}
-						{isThundrGame(game.code) && (
-							<div className="relative z-[1] w-full text-center pb-2">
-								<p
-									className="truncate font-normal text-sm text-white"
-									style={{ fontFamily: "Luckiest Guy" }}
-								>
-									{display.name}
-								</p>
-							</div>
-						)}
+						<img
+							src={game.imageUrl || PLACEHOLDER_IMAGE}
+							alt={game.name}
+							loading="lazy"
+							className="absolute inset-0 h-full w-full object-cover transition-opacity"
+							style={{ opacity: isLoadingThis ? 0.35 : 1 }}
+							onError={(e) => {
+								const img = e.currentTarget;
+								if (img.dataset.fallbackApplied === "1") return;
+								img.dataset.fallbackApplied = "1";
+								img.src = PLACEHOLDER_IMAGE;
+							}}
+						/>
+						<div className="relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
+							<p className="truncate font-semibold text-white text-xs">
+								{game.name}
+							</p>
+							<p className="truncate text-[10px] text-white/80">
+								{game.providerName}
+							</p>
+						</div>
 					</button>
 				);
 			})}

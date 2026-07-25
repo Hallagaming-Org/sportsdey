@@ -94,3 +94,27 @@ export function toWAT(date: Date | string | number | null | undefined): string {
 }
 
 export { verifySlotitegrationSignature } from "./slotegrator";
+export {
+	ScorpioApiError,
+	createPlayer,
+	getScorpioConfig,
+	launchGame,
+	listGames,
+	listProviders,
+} from "./scorpio";
+export {
+	assertScorpioSettings,
+	getAllowedIps,
+	getConfiguredServerIp,
+	loadScorpioSettings,
+	ScorpioConfigError,
+} from "./scorpio-config";
+export {
+	assertScorpioCallbackIp,
+	computeScorpioSignature,
+	isIpAllowed,
+	ScorpioIpForbiddenError,
+	ScorpioSignatureError,
+	verifyScorpioSignature,
+} from "./scorpio-security";
+export { processScorpioCallback } from "./scorpio-callback";

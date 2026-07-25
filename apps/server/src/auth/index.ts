@@ -202,7 +202,10 @@ export const createAuth = (env: CloudflareBindings) => {
 };
 
 /** Cookie name Better Auth expects for the session token. */
-export function getSessionCookieName(nodeEnv?: string, authUrl?: string): string {
+export function getSessionCookieName(
+	nodeEnv?: string,
+	authUrl?: string,
+): string {
 	const { useSecureCookies } = getAuthCookiePolicy({ nodeEnv, authUrl });
 	return useSecureCookies ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME;
 }

@@ -169,6 +169,9 @@ app.use("*", async (c, next) => {
 		path.startsWith("/docs") ||
 		path.startsWith("/openapi") ||
 		path.startsWith("/api/account/") ||
+		path.startsWith("/account/") ||
+		path.startsWith("/scorpio/callback") ||
+		path.startsWith("/api/scorpio/callback") ||
 		path.startsWith("/admin")
 	) {
 		return next();

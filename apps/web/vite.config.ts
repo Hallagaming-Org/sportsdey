@@ -53,6 +53,12 @@ export default defineConfig({
 		svgr(),
 	],
 	server: {
+		headers: {
+			// credentialless allows cross-origin casino thumbnails (Scorpio CDNs)
+			// without CORP headers, while keeping COOP for isolation.
+			"Cross-Origin-Opener-Policy": "same-origin",
+			"Cross-Origin-Embedder-Policy": "credentialless",
+		},
 		proxy: {
 			"/auth": proxyAuthToLocalApi(),
 			"/phone-auth": proxyToLocalApi(),

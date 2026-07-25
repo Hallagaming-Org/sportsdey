@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import {
 	AuthRequestSchema,
@@ -474,17 +475,12 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo - amountKobo;
+	const updatedWallet = await debitWallet(db, user_id, amountKobo);
 
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, user_id))
-		.returning();
-
-	if (!updatedWallet?.id) {
+	if (!updatedWallet) {
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
+	const newBalanceKobo = updatedWallet.balance;
 
 	const [walletTxn] = await db
 		.insert(schema.walletTransaction)
@@ -642,17 +638,12 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 	const amountKobo = Math.round(amount / 10);
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo + amountKobo;
+	const updatedWallet = await creditWallet(db, user_id, amountKobo);
 
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, user_id))
-		.returning();
-
-	if (!updatedWallet?.id) {
+	if (!updatedWallet) {
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
+	const newBalanceKobo = updatedWallet.balance;
 
 	const [walletTxn] = await db
 		.insert(schema.walletTransaction)
@@ -811,17 +802,15 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	const adjustment = existingTx.type === "BET" ? amountKobo : -amountKobo;
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	const newBalanceKobo = balanceKobo + adjustment;
+	const updatedWallet =
+		existingTx.type === "BET"
+			? await creditWallet(db, user_id, amountKobo)
+			: await debitWallet(db, user_id, amountKobo);
 
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, user_id))
-		.returning();
-
-	if (!updatedWallet?.id) {
+	if (!updatedWallet) {
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
+	const newBalanceKobo = updatedWallet.balance;
 
 	const [walletTxn] = await db
 		.insert(schema.walletTransaction)
