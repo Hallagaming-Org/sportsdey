@@ -137,6 +137,7 @@ gamesRoute.openapi(
 	}),
 	async (c) => {
 		const db = drizzle(c.env.DB, { schema });
+		const query = c.req.valid("query");
 
 		const games = await db.query.game.findMany({
 			with: {
@@ -148,30 +149,62 @@ gamesRoute.openapi(
 			},
 		});
 
+		let mapped = games.map((g) => ({
+			id: g.id,
+			name: g.name,
+			code: g.code,
+			imageUrl: g.imageUrl,
+			enabled: g.enabled,
+			createdAt: toWAT(g.createdAt),
+			updatedAt: toWAT(g.updatedAt),
+			categories: [
+				...new Map(
+					g.categories.map((gc) => [
+						gc.category.slug,
+						{
+							id: gc.category.id,
+							name: gc.category.name,
+							slug: gc.category.slug,
+						},
+					]),
+				).values(),
+			],
+		}));
+
+		if (query.category) {
+			const slug = query.category.toLowerCase();
+			mapped = mapped.filter((g) =>
+				g.categories.some((c) => c.slug.toLowerCase() === slug),
+			);
+		}
+
+		if (query.search) {
+			const q = query.search.toLowerCase();
+			mapped = mapped.filter(
+				(g) =>
+					g.name.toLowerCase().includes(q) ||
+					g.code.toLowerCase().includes(q),
+			);
+		}
+
+		if (query.sort === "asc") {
+			mapped.sort((a, b) => a.name.localeCompare(b.name));
+		} else if (query.sort === "desc") {
+			mapped.sort((a, b) => b.name.localeCompare(a.name));
+		}
+
+		const offset = query.offset ?? 0;
+		const limit = query.limit;
+		if (limit != null) {
+			mapped = mapped.slice(offset, offset + limit);
+		} else if (offset > 0) {
+			mapped = mapped.slice(offset);
+		}
+
 		return c.json(
 			{
 				success: true as const,
-				data: games.map((g) => ({
-					id: g.id,
-					name: g.name,
-					code: g.code,
-					imageUrl: g.imageUrl,
-					enabled: g.enabled,
-					createdAt: toWAT(g.createdAt),
-					updatedAt: toWAT(g.updatedAt),
-					categories: [
-						...new Map(
-							g.categories.map((gc) => [
-								gc.category.slug,
-								{
-									id: gc.category.id,
-									name: gc.category.name,
-									slug: gc.category.slug,
-								},
-							]),
-						).values(),
-					],
-				})),
+				data: mapped,
 			},
 			200,
 		);
