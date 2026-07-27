@@ -76,17 +76,10 @@ const slotegratorApiUrl =
 		: process.env.SLOTEGRATOR_API_URL ||
 			"https://staging.slotegrator.com/api/index.php/v1";
 
-const merchantKey =
-	env === "production"
-		? process.env.SLOTITEGRATION_MERCHANT_KEY
-		: process.env.SLOTITEGRATION_MERCHANT_KEY;
+const rawMerchantKey = process.env.SLOTITEGRATION_MERCHANT_KEY;
+const rawMerchantId = process.env.SLOTITEGRATION_MERCHANT_ID;
 
-const merchantId =
-	env === "production"
-		? process.env.SLOTITEGRATION_MERCHANT_ID
-		: process.env.SLOTITEGRATION_MERCHANT_ID;
-
-if (!merchantKey || !merchantId) {
+if (!rawMerchantKey || !rawMerchantId) {
 	console.error(
 		"Error: Missing SLOTITEGRATION_MERCHANT_KEY or SLOTITEGRATION_MERCHANT_ID",
 	);
@@ -95,6 +88,9 @@ if (!merchantKey || !merchantId) {
 	);
 	process.exit(1);
 }
+
+const merchantKey: string = rawMerchantKey;
+const merchantId: string = rawMerchantId;
 
 function escape(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) {
@@ -131,7 +127,8 @@ async function fetchGames(
 	const sortedKeys = Object.keys(queryParams).sort();
 	const params = new URLSearchParams();
 	for (const key of sortedKeys) {
-		params.set(key, queryParams[key]);
+		const value = queryParams[key];
+		if (value !== undefined) params.set(key, value);
 	}
 	const queryString = params.toString();
 
@@ -146,7 +143,8 @@ async function fetchGames(
 	const sortedAllKeys = Object.keys(allParams).sort();
 	const allParamsList = new URLSearchParams();
 	for (const key of sortedAllKeys) {
-		allParamsList.set(key, allParams[key]);
+		const value = allParams[key];
+		if (value !== undefined) allParamsList.set(key, value);
 	}
 	const allQueryString = allParamsList.toString();
 
@@ -186,7 +184,7 @@ async function getExistingGameIds(): Promise<Set<string>> {
 	return new Promise((resolve) => {
 		process.exec(
 			`npx wrangler d1 execute ${dbName} --command "SELECT id FROM game" ${remote ? "--remote" : "--local"}  --env ${env}`,
-			(error, stdout, stderr) => {
+			(error, stdout, _stderr) => {
 				if (error) {
 					console.log(
 						"Could not fetch existing games, proceeding without duplicate check",
@@ -260,17 +258,6 @@ async function main() {
 		return;
 	}
 
-	const now = Date.now();
-
-	const values = newGames
-		.map(
-			(game) =>
-				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${now}, ${now})`,
-		)
-		.join(",\n");
-
-	const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${values};`;
-
 	const batchSize = 100;
 	const timestamp = Date.now();
 	const usedDbName =
@@ -305,7 +292,7 @@ async function main() {
 		try {
 			await new Promise((resolve, reject) => {
 				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" ${remote ? "--remote" : "--local"} --env ${env}`;
-				exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
+				exec(cmd, { timeout: 120000 }, (error, stdout, _stderr) => {
 					try {
 						fs.unlinkSync(tempFile);
 					} catch {}
