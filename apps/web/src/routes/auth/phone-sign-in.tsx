@@ -78,8 +78,8 @@ function PhoneSignInPage() {
           <h1 className="font-bold text-2xl text-[#0a0f0d] leading-tight">
             Log in to your account
           </h1>
-          <p className="mt-3 text-[#232a27] text-base">
-            It's fun, easy, and enjoyable.
+          <p className="mt-3 text-[#0a0f0d] text-base font-medium">
+            It's quick, easy, and enjoyable.
           </p>
         </div>
 
@@ -121,8 +121,8 @@ function PhoneSignInPage() {
             checked={acceptedTerms}
             onChange={(event) => setAcceptedTerms(event.target.checked)}
           />
-          <span>
-            By continuing, you acknowledge that you understand and accept our{" "}
+          <span >
+            By continuing, you confirm that you are 18 years or older, understand and agree to our{" "}
             <Link to="/terms" className="font-medium text-[#18b100] underline">
               Terms & Conditions
             </Link>{" "}

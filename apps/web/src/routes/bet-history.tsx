@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BetTicketModal } from "@/components/bet-ticket-modal";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
-import { BetTicketModal } from "@/components/bet-ticket-modal";
 
 export const Route = createFileRoute("/bet-history")({
 	component: BetHistoryPage,
@@ -20,6 +20,10 @@ type BetHistoryItem = {
 	multiplier: number;
 	status: BetStatus;
 	placedAt: string;
+	totalOdds?: string | null;
+	potentialWin?: number | null;
+	actualPayout?: number | null;
+	settledAt?: string | null;
 };
 
 type BetHistoryResponse = {
@@ -30,37 +34,24 @@ type BetHistoryResponse = {
 };
 
 type FilterTab = "all" | "settled" | "unsettled";
-type TimePeriod = "Time period" | "Today" | "Last 7 days" | "Last 30 days";
-
-const MOCK_BET_HISTORY: BetHistoryItem[] = [
-	{ id: "1", ticketId: "2505150912345", type: "Bets - Sport", amount: 150000, multiplier: 17.84, status: "success", placedAt: "2025-08-08T22:42:00" },
-	{ id: "2", ticketId: "2505150912346", type: "Casino - Aviator", amount: 80000, multiplier: 17.84, status: "pending", placedAt: "2025-08-08T22:42:00" },
-	{ id: "3", ticketId: "2505150912347", type: "Bets - Trading", amount: 50000, multiplier: 17.84, status: "failed", placedAt: "2025-08-08T22:42:00" },
-	{ id: "4", ticketId: "2505150912348", type: "Casino - Under/Over", amount: 50000, multiplier: 17.84, status: "success", placedAt: "2025-08-08T22:42:00" },
-	{ id: "5", ticketId: "2505150912349", type: "Bets - Sport", amount: 50000, multiplier: 17.84, status: "pending", placedAt: "2025-08-08T22:42:00" },
-	{ id: "6", ticketId: "2505150912350", type: "Casino - Bingo", amount: 50000, multiplier: 17.84, status: "failed", placedAt: "2025-08-08T22:42:00" },
-	{ id: "7", ticketId: "2505150912351", type: "Bets - Prediction Ma...", amount: 50000, multiplier: 17.84, status: "success", placedAt: "2025-08-08T22:42:00" },
-	{ id: "8", ticketId: "2505150912352", type: "Casino - Lucky Rise", amount: 50000, multiplier: 17.84, status: "pending", placedAt: "2025-08-08T22:42:00" },
-];
-
-const USE_MOCK_DATA = true; // false once the real endpoint is ready
+type TimePeriod = "All time" | "Today" | "Last 7 days" | "Last 30 days";
 
 const STATUS_STYLES: Record<BetStatus, { label: string; className: string }> = {
 	success: {
 		label: "Success",
-		className: "bg-[#E6FFEF] text-[#009E2C]",
+		className: "bg-[#17351F] text-[#3DD26A]",
 	},
 	pending: {
 		label: "Pending",
-		className: "bg-[#FFFDD4] text-[#9A7900]",
+		className: "bg-[#3A3312] text-[#E8C547]",
 	},
 	failed: {
 		label: "Failed",
-		className: "bg-[#FFD9D4] text-[#C03320]",
+		className: "bg-[#3A1420] text-[#F0668A]",
 	},
 };
 
-const TIME_PERIODS: TimePeriod[] = ["Time period", "Today", "Last 7 days", "Last 30 days"];
+const TIME_PERIODS: TimePeriod[] = ["All time", "Today", "Last 7 days", "Last 30 days"];
 
 function formatDateTime(iso: string) {
 	const date = new Date(iso);
@@ -82,7 +73,7 @@ function formatAmount(value: number) {
 }
 
 function isWithinPeriod(iso: string, period: TimePeriod) {
-	if (period === "Time period") return true;
+	if (period === "All time") return true;
 	const placed = new Date(iso).getTime();
 	const now = Date.now();
 	const diffMs = now - placed;
@@ -123,7 +114,7 @@ function BetHistoryPage() {
 	const [search, setSearch] = useState("");
 	const [selectedCategory, setSelectedCategory] = useState("All categories");
 	const [isCategoryOpen, setIsCategoryOpen] = useState(false);
-	const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("Time period");
+	const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("All time");
 	const [isPeriodOpen, setIsPeriodOpen] = useState(false);
 	const [openRowMenu, setOpenRowMenu] = useState<string | null>(null);
 	const [selectedBet, setSelectedBet] = useState<BetHistoryItem | null>(null);
@@ -134,14 +125,12 @@ function BetHistoryPage() {
 	const { data, isLoading, isError } = useQuery({
 		queryKey: ["bet-history", activeTab, page, search],
 		queryFn: () => fetchBetHistory({ page, tab: activeTab, search }),
-		enabled: !USE_MOCK_DATA,
 	});
 
-	const baseRows = USE_MOCK_DATA ? MOCK_BET_HISTORY : (data?.items ?? []);
-	const loading = USE_MOCK_DATA ? false : isLoading;
-	const errored = USE_MOCK_DATA ? false : isError;
+	const baseRows = data?.items ?? [];
+	const loading = isLoading;
+	const errored = isError;
 
-	// Close dropdowns / row menu on outside click
 	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
 			const target = event.target as Node;
@@ -166,32 +155,23 @@ function BetHistoryPage() {
 
 	const filteredRows = useMemo(() => {
 		return baseRows.filter((bet) => {
-			if (activeTab === "settled" && bet.status === "pending") return false;
-			if (activeTab === "unsettled" && bet.status !== "pending") return false;
-
 			if (selectedCategory !== "All categories") {
 				const cat = bet.type.split(" - ")[0];
 				if (cat !== selectedCategory) return false;
 			}
-
 			if (!isWithinPeriod(bet.placedAt, selectedPeriod)) return false;
-
-			if (search.trim() && !bet.ticketId.toLowerCase().includes(search.trim().toLowerCase())) {
+			if (
+				search.trim() &&
+				!bet.ticketId.toLowerCase().includes(search.trim().toLowerCase())
+			) {
 				return false;
 			}
-
 			return true;
 		});
-	}, [baseRows, activeTab, selectedCategory, selectedPeriod, search]);
+	}, [baseRows, selectedCategory, selectedPeriod, search]);
 
-	const totalPages = USE_MOCK_DATA ? 10 : (data?.totalPages ?? 1);
-	const tabCounts = USE_MOCK_DATA
-		? {
-				all: baseRows.length,
-				settled: baseRows.filter((b) => b.status !== "pending").length,
-				unsettled: baseRows.filter((b) => b.status === "pending").length,
-			}
-		: data?.counts;
+	const totalPages = data?.totalPages ?? 1;
+	const tabCounts = data?.counts;
 
 	const tabs: { key: FilterTab; label: string; count?: number }[] = [
 		{ key: "all", label: "All", count: tabCounts?.all },
@@ -241,7 +221,7 @@ function BetHistoryPage() {
 										className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs ${
 											isActive
 												? "bg-[#2A2B2A]  text-white"
-												: "bg-[#2A2B2A] text-white"
+												: "bg-[#2A2B2A] text-[#8C8F8F]"
 										}`}
 									>
 										{tab.count}
@@ -260,7 +240,7 @@ function BetHistoryPage() {
 								setIsCategoryOpen((prev) => !prev);
 								setIsPeriodOpen(false);
 							}}
-							className="flex items-center gap-2 rounded-lg border border-white bg-[#141514] px-3 py-2 text-sm text-white hover:bg-[#1C1D1F]"
+							className="flex items-center gap-2 rounded-lg border border-[#2A2B2A] bg-[#141514] px-3 py-2 text-sm text-[#B5B7B5] hover:bg-[#1C1D1F]"
 						>
 							{selectedCategory}
 							<ChevronDown className="h-4 w-4" />
@@ -294,7 +274,7 @@ function BetHistoryPage() {
 								setIsPeriodOpen((prev) => !prev);
 								setIsCategoryOpen(false);
 							}}
-							className="flex items-center gap-2 rounded-lg border border-white bg-[#141514] px-3 py-2 text-sm text-white hover:bg-[#1C1D1F]"
+							className="flex items-center gap-2 rounded-lg border border-[#2A2B2A] bg-[#141514] px-3 py-2 text-sm text-[#B5B7B5] hover:bg-[#1C1D1F]"
 						>
 							<SlidersHorizontal className="h-4 w-4" />
 							{selectedPeriod}
@@ -356,8 +336,19 @@ function BetHistoryPage() {
 
 							{!loading && !errored && filteredRows.length === 0 && (
 								<tr>
-									<td colSpan={7} className="px-6 py-10 text-center text-[#6B6E6C]">
-										No bets match your filters.
+									<td colSpan={7} className="px-6 py-16 text-center">
+										<div className="flex flex-col items-center gap-2">
+											<span className="text-[#6B6E6C] text-sm">
+												{baseRows.length === 0
+													? "No bets placed yet"
+													: "No bets match your filters"}
+											</span>
+											{baseRows.length === 0 && (
+												<span className="text-[#4A4D4B] text-xs">
+													Your bet history will show up here once you place a bet.
+												</span>
+											)}
+										</div>
 									</td>
 								</tr>
 							)}
@@ -392,7 +383,7 @@ function BetHistoryPage() {
 											</td>
 											<td className="px-6 py-4">
 												<span
-													className={`inline-flex rounded-full px-3 py-1 font-bold text-xs ${status.className}`}
+													className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${status.className}`}
 												>
 													{status.label}
 												</span>
@@ -455,6 +446,7 @@ function BetHistoryPage() {
 					</div>
 				</div>
 			</div>
+
 			<BetTicketModal bet={selectedBet} onClose={() => setSelectedBet(null)} />
 		</div>
 	);

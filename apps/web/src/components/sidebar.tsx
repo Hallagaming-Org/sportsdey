@@ -19,8 +19,10 @@ import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
+import ScoresIcon from "@/logos/scores.svg?react";
 import Video from "@/logos/Video";
 import { useActiveTab } from "./active-tab-context";
+
 
 type MenuItem = {
 	id: string;
@@ -179,7 +181,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Sports",
 			icon: SportsIcon,
 			isActive: isItemActive(
-				"Sports",
+				"betting",
 				location.pathname.startsWith("/sportsbetting"),
 			),
 			onClick: goToSportsbook,
@@ -187,10 +189,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "scores",
 			label: "Scores",
-			icon: Soccer,
+			icon: ScoresIcon,
 			isActive: isItemActive(
 				"scores",
-				location.pathname.startsWith("/sportsbetting"),
+				location.pathname.includes("matches"),
 			),
 			onClick: goToScores,
 		},
@@ -212,12 +214,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
-			isActive:
-				isItemActive(
-					"p2p",
-					location.pathname.startsWith("/games") &&
-						params.get("category") === "pvp",
-				) || expandedItems["p2p"],
+			isActive: isItemActive(
+				"p2p",
+				location.pathname.startsWith("/games") &&
+					params.get("category") === "pvp",
+			),
 			subItems: [
 				{
 					id: "pvp-casino",
@@ -395,7 +396,11 @@ return (
 									<div className="flex items-center gap-3">
 										<Icon
 											className={cn(
-												"h-4 w-4 shrink-0",
+												"h-4 w-4 shrink-0 transition-all",
+												!isMobile &&
+													item.isActive &&
+													"text-white fill-white stroke-white [filter:brightness(0)_invert(1)] opacity-100",
+												isMobile && item.isActive && "text-accent fill-accent stroke-accent opacity-100",
 												isMobile &&
 													!item.isActive &&
 													"text-gray-500 dark:text-[#8C8F8F]",

@@ -32,6 +32,51 @@ function getAuth(env: CloudflareBindings) {
 	return createAuth(env);
 }
 
+type AuthContext = {
+	env: CloudflareBindings;
+	req: { raw: Request };
+};
+
+function getRawBearerToken(request: Request): string | null {
+	const bearer = extractBearerToken(request);
+	if (bearer && isRawSessionBearer(bearer)) return bearer;
+	return null;
+}
+
+async function resolveAuthRequest(c: AuthContext) {
+	const rawBearer = getRawBearerToken(c.req.raw);
+	
+	if (rawBearer) {
+		return withSignedSessionCookie(
+			c.req.raw,
+			rawBearer,
+			c.env.BETTER_AUTH_SECRET,
+			{
+				nodeEnv: c.env.NODE_ENV,
+				authUrl: c.env.BETTER_AUTH_URL,
+			},
+		);
+	}
+	return c.req.raw;
+}
+
+/** Headers-only auth resolution — safe for middleware that must not consume the body. */
+async function resolveAuthHeaders(c: AuthContext) {
+	const rawBearer = getRawBearerToken(c.req.raw);
+	if (rawBearer) {
+		return withSignedSessionHeaders(
+			c.req.raw,
+			rawBearer,
+			c.env.BETTER_AUTH_SECRET,
+			{
+				nodeEnv: c.env.NODE_ENV,
+				authUrl: c.env.BETTER_AUTH_URL,
+			},
+		);
+	}
+	return c.req.raw.headers;
+}
+
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
 	type: "http",
 	scheme: "bearer",

@@ -15,7 +15,6 @@ import newsRoute from "./news";
 import notificationsRoute from "./notifications";
 import phoneAuthRoute from "./phone-auth";
 import pocketsRoute from "./pockets";
-import scorpioRoute from "./scorpio";
 import slotegratorRoute from "./slotegrator";
 import sportsbookRoute from "./sportsbook";
 import tennisRoute from "./tennis";
@@ -23,7 +22,12 @@ import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
 import webengageSmsRoute from "./webengage-sms";
+import betHistoryRoute from "./bet-history";
 const routes = new OpenAPIHono();
+
+
+
+
 
 routes.route("/affnook", affnookRoute);
 routes.route("/football", footballRoute);
@@ -40,7 +44,6 @@ routes.route("/lagos-rush", lagosRushRoute);
 routes.route("/pockets", pocketsRoute);
 routes.route("/thndr", thundrRoute);
 routes.route("/slotegrator", slotegratorRoute);
-routes.route("/scorpio", scorpioRoute);
 routes.route("/sportsbook", sportsbookRoute);
 routes.route("/account", casinoProviderRoute);
 routes.route("/bills", monnifyRoute);
@@ -49,5 +52,6 @@ routes.route("/games", gamesRoute);
 routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
+routes.route("/bet-history", betHistoryRoute);
 
 export default routes;
