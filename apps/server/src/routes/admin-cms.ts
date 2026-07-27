@@ -77,6 +77,14 @@ const CmsAuthorOptionSchema = z.object({
 	name: z.string(),
 });
 
+const CmsContentListSchema = z.object({
+	content: CmsContentResponseSchema.array(),
+	total: z.number(),
+	page: z.number(),
+	limit: z.number(),
+	totalPages: z.number(),
+});
+
 const CmsContentDetailResponseSchema = z.object({
 	_id: z.string(),
 	title: z.string(),
@@ -103,6 +111,12 @@ function slugify(text: string): string {
 
 function isDraft(id: string): boolean {
 	return id.startsWith("drafts.");
+}
+
+function categoryToType(
+	category: string | undefined,
+): "news" | "videos" | "ads" {
+	return category === "videos" || category === "ads" ? category : "news";
 }
 
 function formatDate(dateString: string): string {
@@ -222,6 +236,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -267,7 +282,7 @@ cmsRoute.openapi(
 			200: {
 				content: {
 					"application/json": {
-						schema: successResponseSchema(CmsContentResponseSchema.array()),
+						schema: successResponseSchema(CmsContentListSchema),
 					},
 				},
 				description: "Successfully retrieved content",
@@ -343,9 +358,7 @@ cmsRoute.openapi(
 		const paginatedContent = filteredContent.slice(start, end);
 
 		const transformedContent = paginatedContent.map((item: SanityContent) => {
-			const category = item.category;
-			const type =
-				category === "videos" || category === "ads" ? category : "news";
+			const type = categoryToType(item.category);
 			return {
 				_id: item._id,
 				title: item.title,
@@ -396,7 +409,7 @@ cmsRoute.openapi(
 			200: {
 				content: {
 					"application/json": {
-						schema: successResponseSchema(CmsContentResponseSchema.array()),
+						schema: successResponseSchema(CmsContentListSchema),
 					},
 				},
 				description: "Successfully retrieved content",
@@ -446,6 +459,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -508,9 +522,7 @@ cmsRoute.openapi(
 		const paginatedContent = filteredContent.slice(start, end);
 
 		const transformedContent = paginatedContent.map((item: SanityContent) => {
-			const category = item.category;
-			const type =
-				category === "videos" || category === "ads" ? category : "news";
+			const type = categoryToType(item.category);
 			return {
 				_id: item._id,
 				title: item.title,
@@ -621,9 +633,7 @@ cmsRoute.openapi(
 				.filter(Boolean)
 				.join("\n") ?? "";
 
-		const category = content.category;
-		const type =
-			category === "videos" || category === "ads" ? category : "news";
+		const type = categoryToType(content.category);
 
 		return c.json(
 			{
@@ -737,6 +747,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -853,7 +864,7 @@ cmsRoute.openapi(
 				data: {
 					_id: createdDoc._id,
 					title: createdDoc.title as string,
-					status: "pending",
+					status: "pending" as const,
 				},
 			},
 			200,
@@ -957,6 +968,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -1254,6 +1266,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);

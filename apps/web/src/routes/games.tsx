@@ -7,7 +7,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import {
-	buildScorpioCategoryTabs,
+	CLASSIC_CATEGORIES,
+	CLASSIC_CATEGORY_EMOJIS,
+	CLASSIC_KNOWN_GAMES,
+	CLASSIC_PRIORITY_GAMES,
+	classicCategoryCounts,
+	type ClassicLobbyGame,
+	fetchClassicLobbyGames,
+	filterClassicGames,
+	launchClassicGame,
+} from "@/lib/classic-lobby";
+import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
 	type ScorpioLobbyGame,
@@ -22,7 +32,7 @@ export const Route = createFileRoute("/games")({
 	}),
 });
 
-type Game = ScorpioLobbyGame;
+type LobbyGame = ScorpioLobbyGame | ClassicLobbyGame;
 
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
@@ -30,9 +40,72 @@ const DEFAULT_GRADIENT =
 const PAGE_SIZE = 24;
 const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 
+function isScorpioGame(game: LobbyGame): game is ScorpioLobbyGame {
+	return "provider" in game && game.provider === "scorpio";
+}
+
+/** Map Scorpio titles into live Classic category slugs for one lobby UI. */
+function scorpioClassicCategorySlugs(game: ScorpioLobbyGame): string[] {
+	const haystack = `${game.name} ${game.providerName}`.toLowerCase();
+	const slugs = new Set<string>();
+
+	if (
+		/aviator|crash|jetx|jet x|balloon|high.?flyer|helicopter|mines|plinko/.test(
+			haystack,
+		)
+	) {
+		slugs.add("crash-games");
+	}
+	if (
+		/slot|bonanza|olympus|bass|spin|reel|clover|crown|fortune|wild/.test(
+			haystack,
+		)
+	) {
+		slugs.add("slots");
+	}
+	if (/roulette/.test(haystack)) slugs.add("roulette");
+	if (/bingo/.test(haystack)) slugs.add("bingo");
+	if (/dice|keno/.test(haystack)) slugs.add("dice");
+	if (/blackjack|baccarat|poker|card|solitaire|twenty/.test(haystack)) {
+		slugs.add("tablecardgames");
+	}
+	if (/arcade|blocks/.test(haystack)) slugs.add("arcade");
+	if (/scratch/.test(haystack)) slugs.add("scratch");
+	if (/lottery|lotto/.test(haystack)) slugs.add("lottery");
+	if (/jackpot/.test(haystack)) slugs.add("jackpot");
+
+	if (slugs.size === 0) slugs.add("others");
+	return [...slugs];
+}
+
+function scorpioMatchesCategory(
+	game: ScorpioLobbyGame,
+	category: string,
+): boolean {
+	if (category === "popular" || category === "pvp" || category === "original") {
+		return false;
+	}
+	return scorpioClassicCategorySlugs(game).includes(category);
+}
+
+function mergeLobbyGames(
+	classic: ClassicLobbyGame[],
+	scorpio: ScorpioLobbyGame[],
+): LobbyGame[] {
+	const classicCodes = new Set(
+		classic.map((g) => g.code.trim().toLowerCase()).filter(Boolean),
+	);
+	const scorpioOnly = scorpio.filter((g) => {
+		const code = g.code.trim().toLowerCase();
+		return code && !classicCodes.has(code);
+	});
+	return [...classic, ...scorpioOnly];
+}
+
 function GamesPage() {
 	const navigate = useNavigate({ from: "/games" });
 	const { category } = Route.useSearch();
+
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchInput, setSearchInput] = useState("");
@@ -47,8 +120,7 @@ function GamesPage() {
 
 	useEffect(() => {
 		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-		const mains = document.querySelectorAll("main");
-		mains.forEach((main) => {
+		document.querySelectorAll("main").forEach((main) => {
 			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		});
 	}, [selectedCategory]);
@@ -58,9 +130,7 @@ function GamesPage() {
 	}, [selectedCategory, search]);
 
 	useEffect(() => {
-		const timer = setTimeout(() => {
-			setSearch(searchInput);
-		}, 300);
+		const timer = setTimeout(() => setSearch(searchInput), 300);
 		return () => clearTimeout(timer);
 	}, [searchInput]);
 
@@ -68,9 +138,7 @@ function GamesPage() {
 		hidden: { opacity: 0 },
 		show: {
 			opacity: 1,
-			transition: {
-				staggerChildren: 0.04,
-			},
+			transition: { staggerChildren: 0.04 },
 		},
 	};
 
@@ -86,47 +154,122 @@ function GamesPage() {
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
-	const {
-		data: allGames = [],
-		isLoading,
-		error,
-		refetch,
-		isFetching,
-	} = useQuery<Game[]>({
+	const scorpioQuery = useQuery<ScorpioLobbyGame[]>({
 		queryKey: ["scorpio-games"],
-		// Catalog is public; only launch requires auth
 		enabled: !isSessionLoading,
 		queryFn: fetchScorpioLobbyGames,
 		staleTime: 60_000,
+		retry: 1,
 	});
 
+	const classicQuery = useQuery<ClassicLobbyGame[]>({
+		queryKey: ["games"],
+		enabled: !isSessionLoading,
+		queryFn: fetchClassicLobbyGames,
+		staleTime: 60_000,
+		retry: 1,
+	});
+
+	const classicGames = classicQuery.data ?? [];
+	const scorpioGames = scorpioQuery.data ?? [];
+
+	const allGames = useMemo(
+		() => mergeLobbyGames(classicGames, scorpioGames),
+		[classicGames, scorpioGames],
+	);
+
+	const isLoading =
+		isSessionLoading ||
+		((classicQuery.isLoading || scorpioQuery.isLoading) &&
+			allGames.length === 0);
+	const isFetching = classicQuery.isFetching || scorpioQuery.isFetching;
+	const error =
+		classicQuery.isError && scorpioQuery.isError && allGames.length === 0
+			? (classicQuery.error ?? scorpioQuery.error)
+			: null;
+
+	// #region agent log
+	useEffect(() => {
+		if (!import.meta.env.DEV || isSessionLoading) return;
+		fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-Debug-Session-Id": "17192a",
+			},
+			body: JSON.stringify({
+				sessionId: "17192a",
+				runId: "local-verify",
+				hypothesisId: "C",
+				location: "games.tsx:GamesPage",
+				message: "Casino dual-query state",
+				data: {
+					classicStatus: classicQuery.status,
+					scorpioStatus: scorpioQuery.status,
+					classicCount: classicGames.length,
+					scorpioCount: scorpioGames.length,
+					mergedCount: allGames.length,
+					fatalError: Boolean(error),
+				},
+				timestamp: Date.now(),
+			}),
+		}).catch(() => {});
+	}, [
+		isSessionLoading,
+		classicQuery.status,
+		scorpioQuery.status,
+		classicGames.length,
+		scorpioGames.length,
+		allGames.length,
+		error,
+	]);
+	// #endregion
+
+	const refetch = () => {
+		void classicQuery.refetch();
+		void scorpioQuery.refetch();
+	};
+
 	const categoryTabs = useMemo(
-		() => buildScorpioCategoryTabs(allGames),
-		[allGames],
+		() =>
+			CLASSIC_CATEGORIES.map((slug) => ({
+				slug,
+				name: slug.replace(/-/g, " "),
+				emoji: CLASSIC_CATEGORY_EMOJIS[slug],
+			})),
+		[],
 	);
 
 	const categoryCounts = useMemo(() => {
-		const counts: Record<string, number> = {};
-		for (const cat of categoryTabs) {
-			counts[cat.slug] = allGames.filter((g) =>
-				g.categories.some((c) => c.slug === cat.slug),
+		const counts = classicCategoryCounts(classicGames);
+		for (const slug of CLASSIC_CATEGORIES) {
+			if (slug === "popular" || slug === "pvp" || slug === "original") {
+				continue;
+			}
+			const scorpioCount = scorpioGames.filter((g) =>
+				scorpioMatchesCategory(g, slug),
 			).length;
+			counts[slug] = (counts[slug] ?? 0) + scorpioCount;
 		}
 		return counts;
-	}, [allGames, categoryTabs]);
+	}, [classicGames, scorpioGames]);
 
 	const filteredGames = useMemo(() => {
-		let list = allGames;
+		const classicFiltered = filterClassicGames(
+			classicGames,
+			selectedCategory,
+			search,
+		);
 
+		let scorpioFiltered = scorpioGames;
 		if (selectedCategory) {
-			list = list.filter((g) =>
-				g.categories.some((c) => c.slug === selectedCategory),
+			scorpioFiltered = scorpioGames.filter((g) =>
+				scorpioMatchesCategory(g, selectedCategory),
 			);
 		}
-
 		if (search) {
 			const q = search.toLowerCase();
-			list = list.filter((g) => {
+			scorpioFiltered = scorpioFiltered.filter((g) => {
 				const inName = g.name.toLowerCase().includes(q);
 				const inProvider = g.providerName.toLowerCase().includes(q);
 				const inCategory = g.categories.some(
@@ -138,14 +281,36 @@ function GamesPage() {
 			});
 		}
 
-		return list;
-	}, [allGames, selectedCategory, search]);
+		return mergeLobbyGames(classicFiltered, scorpioFiltered);
+	}, [classicGames, scorpioGames, selectedCategory, search]);
 
 	const sortedGames = useMemo(() => {
 		const list = [...filteredGames];
 		list.sort((a, b) => {
+			const aAviator = a.name.toLowerCase().includes("aviator");
+			const bAviator = b.name.toLowerCase().includes("aviator");
+			if (aAviator && !bAviator) return -1;
+			if (!aAviator && bAviator) return 1;
+
 			if (sortAsc === true) return a.name.localeCompare(b.name);
 			if (sortAsc === false) return b.name.localeCompare(a.name);
+
+			const aPriority = CLASSIC_PRIORITY_GAMES.indexOf(
+				a.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
+			);
+			const bPriority = CLASSIC_PRIORITY_GAMES.indexOf(
+				b.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
+			);
+			if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
+			if (aPriority !== -1) return -1;
+			if (bPriority !== -1) return 1;
+
+			// Classic (Slotegrator) before Scorpio when otherwise equal
+			const aScorpio = isScorpioGame(a);
+			const bScorpio = isScorpioGame(b);
+			if (!aScorpio && bScorpio) return -1;
+			if (aScorpio && !bScorpio) return 1;
+
 			return a.name.localeCompare(b.name);
 		});
 		return list;
@@ -155,7 +320,7 @@ function GamesPage() {
 	const hasMore = sortedGames.length > displayCount;
 
 	const chunkSize = 3;
-	const gameChunks: Game[][] = [];
+	const gameChunks: LobbyGame[][] = [];
 	for (let i = 0; i < displayGames.length; i += chunkSize) {
 		gameChunks.push(displayGames.slice(i, i + chunkSize));
 	}
@@ -176,7 +341,7 @@ function GamesPage() {
 		return () => observer.disconnect();
 	}, [hasMore]);
 
-	const handleGameClick = async (game: Game) => {
+	const handleGameClick = async (game: LobbyGame) => {
 		if (!session?.user) {
 			navigate({
 				to: "/auth/sign-in",
@@ -190,20 +355,39 @@ function GamesPage() {
 		setLaunchError(null);
 		setLoadingGame(game.id);
 		try {
-			const { url: gameUrl } = await launchScorpioGame({
-				providerId: game.providerId,
-				gameCode: game.code,
-				returnUrl: `${window.location.origin}/games`,
-			});
+			let gameUrl: string | null;
+
+			if (isScorpioGame(game)) {
+				const launch = await launchScorpioGame({
+					providerId: game.providerId,
+					gameCode: game.code,
+					returnUrl: `${window.location.origin}/games`,
+				});
+				gameUrl = launch.url;
+			} else {
+				gameUrl = await launchClassicGame(game);
+				if (!gameUrl) return;
+			}
 
 			navigate({
 				to: "/game/$gameId",
 				params: { gameId: game.code },
-				search: { category: selectedCategory || undefined },
+				search: {
+					category: selectedCategory || undefined,
+				},
 				state: { gameUrl } as never,
 			});
 		} catch (err) {
-			if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+			const status =
+				err instanceof ApiError
+					? err.status
+					: typeof err === "object" &&
+							err &&
+							"status" in err &&
+							typeof (err as { status?: number }).status === "number"
+						? (err as { status: number }).status
+						: null;
+			if (status === 401 || status === 403) {
 				navigate({
 					to: "/auth/sign-in",
 					search: {
@@ -220,34 +404,39 @@ function GamesPage() {
 		}
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent, game: Game) => {
+	const handleKeyDown = (e: React.KeyboardEvent, game: LobbyGame) => {
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
-			handleGameClick(game);
+			void handleGameClick(game);
 		}
 	};
 
-	const getGameDisplay = (game: Game) => {
-		const typeCategory = game.categories.find((c) => c.id.startsWith("type-"));
-		const categoryLabel =
-			typeCategory?.name ??
-			game.categories.find((c) => c.id !== String(game.providerId))?.name;
+	const getGameDisplay = (game: LobbyGame) => {
+		if (!isScorpioGame(game)) {
+			const known = CLASSIC_KNOWN_GAMES[game.code];
+			return {
+				name: game.name,
+				subtitle: known?.subtitle ?? "Play now",
+				image: game.imageUrl || known?.image || PLACEHOLDER_IMAGE,
+				gradient: known?.gradient ?? DEFAULT_GRADIENT,
+			};
+		}
+
 		return {
 			name: game.name,
-			subtitle: [game.providerName, categoryLabel].filter(Boolean).join(" · "),
+			subtitle: game.providerName || "Scorpio Play",
 			image: game.imageUrl || PLACEHOLDER_IMAGE,
 			gradient: DEFAULT_GRADIENT,
-			enabled: game.enabled,
 		};
 	};
 
-	if (isSessionLoading || isLoading) {
+	if (isLoading) {
 		return (
 			<div className="min-h-screen dark:bg-[#121212]">
-				<div className="container mx-auto px-4 pb-8 relative">
-					<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
+				<div className="container mx-auto relative px-4 pb-8">
+					<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
 						<Skeleton className="mb-6 h-8 w-40 bg-gray-200 dark:bg-[#1B2722]" />
-						<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+						<div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
 							{Array.from({ length: 8 }).map((_, i) => (
 								<Skeleton
 									key={i}
@@ -256,24 +445,7 @@ function GamesPage() {
 							))}
 						</div>
 					</div>
-
-					<div className="flex flex-col gap-4 md:hidden">
-						{Array.from({ length: 4 }).map((_, row) => (
-							<div
-								key={row}
-								className="flex overflow-x-auto gap-2 scrollbar-hide"
-							>
-								{Array.from({ length: 4 }).map((_, col) => (
-									<Skeleton
-										key={col}
-										className="h-[110px] w-[110px] flex-none rounded-xl bg-gray-200 dark:bg-[#1B2722]"
-									/>
-								))}
-							</div>
-						))}
-					</div>
-
-					<div className="hidden md:grid md:grid-cols-4 md:gap-4">
+					<div className="hidden gap-4 md:grid md:grid-cols-4">
 						{Array.from({ length: 16 }).map((_, i) => (
 							<Skeleton
 								key={i}
@@ -288,7 +460,7 @@ function GamesPage() {
 
 	if (error) {
 		return (
-			<div className="flex min-h-screen flex-col items-center justify-center gap-4 dark:bg-[#121212] px-4">
+			<div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 dark:bg-[#121212]">
 				<p className="text-center text-red-500">
 					{error instanceof ApiError
 						? error.message
@@ -308,23 +480,23 @@ function GamesPage() {
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
-			<div className="container mx-auto px-4 pb-8 relative">
-				<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
-					<div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<div className="container mx-auto relative px-4 pb-8">
+				<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
+					<div className="mb-4 flex flex-col justify-between gap-4 md:flex-row md:items-center">
 						<h1 className="font-bold text-2xl text-gray-900 dark:text-white">
 							Casino
 						</h1>
 
 						<div className="flex flex-wrap items-center gap-2">
-							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
+							<div className="relative min-w-[200px] flex-1 md:w-[300px]">
 								<input
 									type="text"
-									placeholder="Search games, providers, categories"
+									placeholder="Search games"
 									value={searchInput}
 									onChange={(e) => setSearchInput(e.target.value)}
-									className="w-full pl-4 pr-10 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
+									className="w-full rounded-lg border border-[#2a3a33] bg-[#1B2722] py-2 pr-10 pl-4 text-sm text-white placeholder-gray-400 transition-colors focus:border-[#1BAA04] focus:outline-none"
 								/>
-								<Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+								<Search className="absolute top-1/2 right-2 h-4 w-4 -translate-y-1/2 text-gray-400" />
 							</div>
 
 							{selectedCategory === null && (
@@ -335,7 +507,7 @@ function GamesPage() {
 											prev === null ? true : prev === true ? false : null,
 										)
 									}
-									className={`w-10 h-10 flex items-center justify-center rounded-lg border cursor-pointer ${
+									className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border ${
 										sortAsc === null
 											? "border-[#1BAA04] bg-[#1BAA04]/10"
 											: "border-[#1B2722]"
@@ -351,7 +523,18 @@ function GamesPage() {
 						<p className="mb-3 text-sm text-red-400">{launchError}</p>
 					)}
 
-					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
+					{(classicQuery.isError || scorpioQuery.isError) &&
+						allGames.length > 0 && (
+							<p className="mb-3 text-sm text-amber-400">
+								{classicQuery.isError && scorpioQuery.isError
+									? null
+									: classicQuery.isError
+										? "Classic games could not be loaded; showing Scorpio only."
+										: "Scorpio games could not be loaded; showing Classic only."}
+							</p>
+						)}
+
+					<div className="better-scrollbar flex gap-3 overflow-x-auto pb-2">
 						<button
 							type="button"
 							onClick={() =>
@@ -359,15 +542,15 @@ function GamesPage() {
 									search: (prev) => ({ ...prev, category: undefined }),
 								})
 							}
-							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
+							className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
 								selectedCategory === null
 									? "border-[#1BAA04] bg-[#1BAA04] text-white"
-									: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
+									: "border-[#1B2722] text-gray-300"
 							}`}
 						>
 							🎮 All Games
 							<span
-								className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
+								className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
 									selectedCategory === null
 										? "bg-[#040C01] text-white"
 										: "bg-[#1B2722] text-gray-300"
@@ -389,15 +572,16 @@ function GamesPage() {
 										}),
 									})
 								}
-								className={`flex items-center shrink-0 gap-2 text-white rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${
+								className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium text-white capitalize transition-colors ${
 									selectedCategory === cat.slug
 										? "border-[#1BAA04] bg-[#1BAA04]"
-										: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
+										: "border-[#1B2722] text-gray-300"
 								}`}
 							>
+								{cat.emoji ? <span>{cat.emoji}</span> : null}
 								<span className="capitalize">{cat.name}</span>
 								<span
-									className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
+									className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
 										selectedCategory === cat.slug
 											? "bg-[#040C01] text-white"
 											: "bg-[#1B2722] text-gray-300"
@@ -413,7 +597,7 @@ function GamesPage() {
 				{displayGames.length === 0 ? (
 					<p className="text-center text-gray-500">
 						{allGames.length === 0
-							? "No Scorpio games available right now."
+							? "No games available right now."
 							: "No games found in this category."}
 					</p>
 				) : (
@@ -425,7 +609,7 @@ function GamesPage() {
 									variants={containerVariants}
 									initial="hidden"
 									animate="show"
-									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
+									className="flex snap-x snap-mandatory gap-2 overflow-x-auto scrollbar-hide"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
@@ -434,16 +618,16 @@ function GamesPage() {
 												key={game.id}
 												variants={itemVariants}
 												className={cn(
-													"relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
+													"relative flex flex-none cursor-pointer snap-start flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
 													loadingGame === game.id &&
-														"ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90",
+														"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
 												)}
 												style={{
 													background: display.gradient,
 													flex: "0 0 110px",
 													height: "110px",
 												}}
-												onClick={() => handleGameClick(game)}
+												onClick={() => void handleGameClick(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
 												tabIndex={0}
@@ -453,12 +637,11 @@ function GamesPage() {
 														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
 												)}
-
 												<img
 													src={display.image}
 													alt={display.name}
 													loading="lazy"
-													className="absolute inset-0 h-full w-full object-cover transition-opacity"
+													className="absolute inset-0 h-full w-full object-cover"
 													style={{
 														opacity: loadingGame === game.id ? 0.35 : 1,
 													}}
@@ -466,8 +649,7 @@ function GamesPage() {
 														e.currentTarget.src = PLACEHOLDER_IMAGE;
 													}}
 												/>
-
-												<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pb-1.5 pt-6 text-center">
+												<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
 													<p className="truncate text-[11px] font-medium text-white">
 														{display.name}
 													</p>
@@ -486,7 +668,7 @@ function GamesPage() {
 							variants={containerVariants}
 							initial="hidden"
 							animate="show"
-							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
+							className="hidden gap-4 md:grid md:grid-cols-4 lg:grid-cols-6"
 						>
 							{displayGames.map((game) => {
 								const display = getGameDisplay(game);
@@ -497,10 +679,10 @@ function GamesPage() {
 										className={cn(
 											"relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
 											loadingGame === game.id &&
-												"ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90",
+												"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
 										)}
 										style={{ background: display.gradient }}
-										onClick={() => handleGameClick(game)}
+										onClick={() => void handleGameClick(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
 										role="button"
 										tabIndex={0}
@@ -510,12 +692,11 @@ function GamesPage() {
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
 										)}
-
 										<img
 											src={display.image}
 											alt={display.name}
 											loading="lazy"
-											className="absolute inset-0 h-full w-full object-cover transition-opacity"
+											className="absolute inset-0 h-full w-full object-cover"
 											style={{
 												opacity: loadingGame === game.id ? 0.35 : 1,
 											}}
@@ -523,8 +704,7 @@ function GamesPage() {
 												e.currentTarget.src = PLACEHOLDER_IMAGE;
 											}}
 										/>
-
-										<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pb-3 pt-8 text-center">
+										<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
 											<p className="truncate text-sm font-medium text-white">
 												{display.name}
 											</p>
