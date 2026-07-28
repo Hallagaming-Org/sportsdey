@@ -30,7 +30,7 @@ upload_secret() {
 }
 
 if [[ -f "$DEV_VARS" ]]; then
-  echo "==> Syncing SCORPIO_* secrets from .dev.vars to staging..."
+  echo "==> Syncing SCORPIO_* + SMS-bridge secrets from .dev.vars to staging..."
   # shellcheck disable=SC1090
   set -a
   # Parse KEY=VALUE without sourcing blindly (avoid executing)
@@ -40,7 +40,7 @@ if [[ -f "$DEV_VARS" ]]; then
     key="${line%%=*}"
     val="${line#*=}"
     case "$key" in
-      SCORPIO_API_URL|SCORPIO_BASE_URL|SCORPIO_API_TOKEN|SCORPIO_CALLBACK_URL|SCORPIO_SERVER_IP|SCORPIO_ALLOWED_IPS)
+      SCORPIO_API_URL|SCORPIO_BASE_URL|SCORPIO_API_TOKEN|SCORPIO_CALLBACK_URL|SCORPIO_SERVER_IP|SCORPIO_ALLOWED_IPS|AFRICASTALKING_API_KEY|AFRICASTALKING_USERNAME|AFRICASTALKING_SENDER_ID|WEBENGAGE_API_SECRET|WEBENGAGE_DSN_URL|AT_DLR_SECRET|WEBENGAGE_API_KEY|WEBENGAGE_LICENSE_CODE|WEBENGAGE_HOST)
         # Prefer staging callback URL if still pointing at prod
         if [[ "$key" == "SCORPIO_CALLBACK_URL" && "$val" == *"api.sportsdey.com"* && "$val" != *"staging-api"* ]]; then
           val="https://staging-api.sportsdey.com/scorpio/callback"
