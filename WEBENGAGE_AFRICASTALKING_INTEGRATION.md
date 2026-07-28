@@ -25,7 +25,25 @@ Sportsdey acts as a **WebEngage SMS Service Provider (SSP)** endpoint and reuses
 2. Handler validates secret (`WEBENGAGE_API_SECRET`), payload version (`1.0` | `2.0`), body, and phone.
 3. Phone is normalized to E.164 (`normalizeSmsPhoneNumber`).
 4. Message is sent with existing AT credentials (`AFRICASTALKING_*`).
-5. Response follows WebEngage SSP contract (`sms_accepted` / `sms_rejected` + status codes), not the usual `{ success, data }` envelope.
+5. On success, `{AT messageId -> WebEngage messageId, toNumber, version}` is stored in KV (`we-sms:map:*`, TTL 96h) for delivery-report relay.
+6. Response follows WebEngage SSP contract (`sms_accepted` / `sms_rejected` + status codes), not the usual `{ success, data }` envelope.
+
+## Delivery status relay (DSN)
+
+```
+Africa's Talking delivery report
+  → POST /webhooks/africastalking/dlr?secret=<AT_DLR_SECRET>   (form-urlencoded: id, status, phoneNumber, networkCode, failureReason, retryCount)
+  → apps/server/src/routes/africastalking-dlr.ts
+  → KV lookup we-sms:map:<AT id> → WebEngage messageId
+  → POST WEBENGAGE_DSN_URL (JSON DSN: version, messageId, toNumber, status, statusCode)
+```
+
+- `Success` → `{"status":"sms_sent","statusCode":0}`; `Failed`/`Rejected` → `{"status":"sms_failed","statusCode":2009,"message":<failureReason>}`.
+- Intermediate AT statuses (`Sent`, `Submitted`, `Buffered`, `Queued`) are acknowledged but not relayed; a final report follows.
+- Duplicate AT callbacks are deduped via `we-sms:dsn-sent:<AT id>` KV markers (TTL 96h).
+- Missing mapping → logged warning + HTTP 200 (no crash, no AT retry loop).
+- WebEngage unreachable → HTTP 502 so AT retries; the dedupe marker is only written after a successful relay.
+- AT has no signed callbacks; auth is the `secret` query param (or `X-Callback-Secret` header) checked against `AT_DLR_SECRET`. Configure the callback URL in the AT dashboard (SMS → Callback URLs → Delivery Reports) including the secret.
 
 ## Configuration / environment variables
 
@@ -37,6 +55,8 @@ Set as Wrangler secrets (local: `apps/server/.dev.vars`):
 | `AFRICASTALKING_USERNAME` | AT username |
 | `AFRICASTALKING_SENDER_ID` | Default sender if WebEngage `fromNumber` empty |
 | `WEBENGAGE_API_SECRET` | Bearer token WebEngage must send to this webhook |
+| `WEBENGAGE_DSN_URL` | Private SSP webhook URL from WebEngage dashboard (View Webhook URL) for DSNs |
+| `AT_DLR_SECRET` | Shared secret embedded in the AT delivery-report callback URL |
 | `WEBENGAGE_API_KEY` | Existing outbound Events/Users API (unchanged) |
 | `WEBENGAGE_LICENSE_CODE` | Existing outbound API |
 | `WEBENGAGE_HOST` | Existing outbound API host |
@@ -48,6 +68,7 @@ See `apps/server/.env.example`.
 | Method | Path | Auth |
 |--------|------|------|
 | `POST` | `/webhooks/webengage/sms` | `Authorization: Bearer <WEBENGAGE_API_SECRET>` or `X-WebEngage-Secret` |
+| `POST` | `/webhooks/africastalking/dlr` | `?secret=<AT_DLR_SECRET>` query param or `X-Callback-Secret` header |
 
 **Staging example:** `https://staging-api.sportsdey.com/webhooks/webengage/sms`  
 **Production example:** `https://api.sportsdey.com/webhooks/webengage/sms`
@@ -93,10 +114,14 @@ Status codes follow [WebEngage SSP docs](https://docs.webengage.com/docs/self-se
 | File | Role |
 |------|------|
 | `apps/server/src/utils/africastalking.ts` | Bulk SMS + phone normalize; OTP wrapper |
-| `apps/server/src/routes/webengage-sms.ts` | SSP webhook |
+| `apps/server/src/routes/webengage-sms.ts` | SSP webhook + KV mapping store |
+| `apps/server/src/routes/africastalking-dlr.ts` | AT delivery-report → WebEngage DSN relay |
+| `apps/server/src/utils/webengage-dlr.ts` | Mapping keys/TTL, DSN builder, DSN sender |
 | `apps/server/src/schemas/webengage-sms.ts` | Zod/OpenAPI schemas |
-| `apps/server/src/routes/route.ts` | Mount `/webhooks/webengage` |
-| `apps/server/src/utils/africastalking.test.ts` | Unit tests |
+| `apps/server/src/routes/route.ts` | Mount `/webhooks/webengage` + `/webhooks/africastalking` |
+| `apps/server/src/utils/africastalking.test.ts` | Unit tests (AT client) |
+| `apps/server/src/utils/webengage-sms.test.ts` | Unit tests (SSP webhook) |
+| `apps/server/src/utils/webengage-dlr.test.ts` | Unit tests (DLR relay, mapping, dedupe) |
 
 ## WebEngage dashboard setup
 

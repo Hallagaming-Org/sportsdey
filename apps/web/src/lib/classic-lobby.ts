@@ -210,48 +210,8 @@ export function getUniquePopularGames(
 }
 
 export async function fetchClassicLobbyGames(): Promise<ClassicLobbyGame[]> {
-	// #region agent log
-	if (import.meta.env.DEV) {
-		fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "17192a",
-			},
-			body: JSON.stringify({
-				sessionId: "17192a",
-				runId: "local-verify",
-				hypothesisId: "B",
-				location: "classic-lobby.ts:fetchClassicLobbyGames",
-				message: "Fetching Classic /games catalog",
-				data: { endpoint: "games" },
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {});
-	}
-	// #endregion
 	const games = await apiRequest<ClassicLobbyGame[]>("games");
 	const enabled = games.filter((game) => game.enabled);
-	// #region agent log
-	if (import.meta.env.DEV) {
-		fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "17192a",
-			},
-			body: JSON.stringify({
-				sessionId: "17192a",
-				runId: "local-verify",
-				hypothesisId: "B",
-				location: "classic-lobby.ts:fetchClassicLobbyGames",
-				message: "Classic catalog loaded",
-				data: { total: games.length, enabled: enabled.length },
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {});
-	}
-	// #endregion
 	return enabled;
 }
 
