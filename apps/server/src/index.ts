@@ -45,7 +45,7 @@ function getRawBearerToken(request: Request): string | null {
 
 async function resolveAuthRequest(c: AuthContext) {
 	const rawBearer = getRawBearerToken(c.req.raw);
-	
+
 	if (rawBearer) {
 		return withSignedSessionCookie(
 			c.req.raw,
@@ -154,7 +154,7 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 				: "ba";
 			response.headers.append(
 				"Set-Cookie",
-				`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
+				`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; Domain=.sportsdey.com; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
 			);
 		}
 	}
