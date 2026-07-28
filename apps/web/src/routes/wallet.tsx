@@ -25,6 +25,7 @@ import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
+import { DepositModal } from "@/components/deposit-modal";
 
 export const Route = createFileRoute("/wallet")({
 	component: WalletPage,
@@ -150,10 +151,6 @@ function WalletPage() {
 		}
 
 		setDepositError("");
-		trackWebengageEvent("deposit_initiated", {
-			amount,
-			currency: "NGN",
-		});
 		depositMutation.mutate(amount);
 	};
 
@@ -221,7 +218,7 @@ function WalletPage() {
 								<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<button
 										type="button"
-										onClick={() => setBlockedModal("deposit")}
+										onClick={() => setIsDepositModalOpen(true)}
 										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
 									>
 										Deposit
@@ -245,6 +242,8 @@ function WalletPage() {
 								</div>
 							</div>
 						</div>
+
+						{/*  bills payment section */}
 						<div className="min-h-40 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm lg:col-span-2">
 							<p className="border-[#1B2722] border-b pb-3 font-semibold text-base text-primary dark:text-white">
 								Quick Access
@@ -334,64 +333,23 @@ function WalletPage() {
 			) : (
 				<Outlet />
 			)}
-			{isDepositModalOpen && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-					<div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
-						<div className="flex items-center justify-between">
-							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								Deposit Funds
-							</h2>
-							<button
-								type="button"
-								onClick={() => {
-									setIsDepositModalOpen(false);
-									setDepositError("");
-								}}
-								aria-label="Close deposit modal"
-								className="cursor-pointer rounded-md px-2 py-1 text-primary text-sm dark:text-white"
-							>
-								<X className="h-4 w-4" />
-							</button>
-						</div>
+			
 
-						<form className="mt-4 space-y-4" onSubmit={handleDepositSubmit}>
-							<div>
-								<label
-									htmlFor="deposit-amount"
-									className="mb-2 block font-medium text-primary text-sm dark:text-white"
-								>
-									Amount (NGN)
-								</label>
-								<Input
-									id="deposit-amount"
-									type="number"
-									min={MIN_DEPOSIT_AMOUNT}
-									max={MAX_DEPOSIT_AMOUNT}
-									step="0.01"
-									value={depositAmount}
-									onChange={(event) => setDepositAmount(event.target.value)}
-									placeholder="Enter amount"
-								/>
-								<p className="mt-2 text-[#6E6E6E] text-xs">
-									Min: ₦100.00, Max: ₦9,999,999.00
-								</p>
-							</div>
+			<DepositModal
+				isOpen={isDepositModalOpen}
+				onClose={() => {
+					setIsDepositModalOpen(false);
+					setDepositError("");
+				}}
+				amount={depositAmount}
+				onAmountChange={setDepositAmount}
+				onSubmit={handleDepositSubmit}
+				isPending={depositMutation.isPending}
+				error={depositError}
+				walletBalance={walletData?.balance ?? undefined}
+			/>
 
-							{depositError && (
-								<p className="text-[#D13030] text-sm">{depositError}</p>
-							)}
 
-							<button
-								type="submit"
-								disabled={depositMutation.isPending}
-								className="w-full cursor-pointer rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
-							>
-								{depositMutation.isPending ? "Processing..." : "Deposit"}
-							</button>
-						</form>
-					</div>
-				</div>
-			)}
 			<TransferModal
 				isOpen={isTransferModalOpen}
 				onClose={() => setIsTransferModalOpen(false)}
