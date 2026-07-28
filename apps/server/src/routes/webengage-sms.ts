@@ -8,6 +8,7 @@ import {
 	normalizeSmsPhoneNumber,
 	sendBulkSmsWithAfricaTalking,
 } from "@/utils/africastalking";
+import { getSmsKv, storeWebengageSmsMapping } from "@/utils/webengage-dlr";
 import { verifyWebengageSmsSecret } from "@/utils/webengage-sms-auth";
 import type { CloudflareBindings } from "../types";
 
@@ -201,6 +202,35 @@ webengageSmsRoute.openapi(sendSmsRoute, async (c) => {
 			},
 			200,
 		);
+	}
+
+	// Persist {AT messageId -> WebEngage messageId} so the AT delivery-report
+	// callback can be relayed to WebEngage as a DSN. Stored before responding
+	// so a fast DLR cannot outrun the mapping. Failure to store must never
+	// fail the send itself.
+	const atMessageId = result.recipients[0]?.messageId;
+	const weMessageId = body.metadata?.messageId;
+	if (atMessageId && weMessageId) {
+		const kv = getSmsKv(c.env);
+		if (kv) {
+			try {
+				await storeWebengageSmsMapping(kv, atMessageId, {
+					weMessageId,
+					toNumber: body.smsData.toNumber,
+					version,
+				});
+			} catch (error) {
+				console.error("WebEngage SMS: failed to store DLR mapping", {
+					atMessageId,
+					weMessageId,
+					error,
+				});
+			}
+		} else {
+			console.warn(
+				"WebEngage SMS: no KV binding; delivery reports cannot be relayed",
+			);
+		}
 	}
 
 	return c.json({ status: "sms_accepted" as const }, 200);
