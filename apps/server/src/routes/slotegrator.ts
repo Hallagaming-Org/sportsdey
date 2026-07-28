@@ -235,7 +235,7 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 				error: "Upstream API error",
 				details: null,
 			},
-			response.status,
+			502,
 		);
 	}
 
@@ -550,6 +550,7 @@ slotegratorRoute.post("/", async (c) => {
 			.limit(1);
 
 		const amountInKobo = Math.round(amount * 100);
+		const currentBalance = wallet?.balance ?? 0;
 
 		const updatedWallet = await creditWallet(db, playerId, amountInKobo);
 
@@ -757,6 +758,7 @@ slotegratorRoute.post("/", async (c) => {
 			.limit(1);
 
 		const amountInKobo = Math.round(amount * 100);
+		const currentBalance = wallet?.balance ?? 0;
 
 		const updatedWallet = await creditWallet(db, playerId, amountInKobo);
 
@@ -832,6 +834,7 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
+		const balance = newBalance / 100;
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 
@@ -861,14 +864,14 @@ slotegratorRoute.post("/", async (c) => {
 
 		txKeys.forEach(([key]) => {
 			const match = key.match(/rollback_transactions\[(\d+)\]\[(\w+)\]/);
-			if (match) {
+			if (match?.[1] !== undefined && match[2] !== undefined) {
 				const index = Number.parseInt(match[1], 10);
 				const field = match[2];
 				if (!rollbackTransactions[index]) {
 					rollbackTransactions[index] = {} as never;
 				}
 				const value = params.get(key);
-				if (value !== undefined) {
+				if (value !== null) {
 					(rollbackTransactions[index] as Record<string, string>)[field] =
 						value;
 				}

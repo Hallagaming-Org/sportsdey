@@ -9,6 +9,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
 import {
+	CLASSIC_KNOWN_GAMES,
+	CLASSIC_PRIORITY_GAMES,
+	type ClassicLobbyGame,
+	fetchClassicLobbyGames,
+	launchClassicGame,
+} from "@/lib/classic-lobby";
+import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
 	type ScorpioLobbyGame,
@@ -25,6 +32,14 @@ const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)"
 const HOT_CASINO_LIMIT = 30;
 const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
+
+type HotLobbyGame =
+	| ScorpioLobbyGame
+	| (ClassicLobbyGame & { provider: "classic"; providerName: string });
+
+function isScorpioHotGame(game: HotLobbyGame): game is ScorpioLobbyGame {
+	return game.provider === "scorpio";
+}
 
 type TabId = "popular" | "casino";
 
@@ -364,28 +379,70 @@ function HotCasinoPanel() {
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const [loadingId, setLoadingId] = useState<string | null>(null);
 
-	const {
-		data: games = [],
-		isLoading,
-		isError,
-		refetch,
-		isFetching,
-	} = useQuery<ScorpioLobbyGame[]>({
+	const scorpioQuery = useQuery<ScorpioLobbyGame[]>({
 		queryKey: ["scorpio-games"],
 		queryFn: fetchScorpioLobbyGames,
-		// Catalog is public; Play still requires sign-in
 		enabled: !isSessionLoading,
 		staleTime: 60_000,
 	});
 
-	const hotGames = useMemo(
-		() =>
-			[...games]
-				.filter((game) => game.enabled)
-				.sort((a, b) => a.name.localeCompare(b.name))
-				.slice(0, HOT_CASINO_LIMIT),
-		[games],
-	);
+	const classicQuery = useQuery<ClassicLobbyGame[]>({
+		queryKey: ["games"],
+		queryFn: fetchClassicLobbyGames,
+		enabled: !isSessionLoading,
+		staleTime: 60_000,
+	});
+
+	const isLoading =
+		(scorpioQuery.isLoading && !scorpioQuery.data) ||
+		(classicQuery.isLoading && !classicQuery.data);
+	const isError =
+		scorpioQuery.isError &&
+		classicQuery.isError &&
+		!(scorpioQuery.data?.length || classicQuery.data?.length);
+	const isFetching = scorpioQuery.isFetching || classicQuery.isFetching;
+	const refetch = () => {
+		void scorpioQuery.refetch();
+		void classicQuery.refetch();
+	};
+
+	const hotGames = useMemo(() => {
+		const classic: HotLobbyGame[] = (classicQuery.data ?? [])
+			.filter((game) => game.enabled)
+			.map((game) => ({
+				...game,
+				provider: "classic" as const,
+				providerName: CLASSIC_KNOWN_GAMES[game.code]
+					? "Classic"
+					: "Slotegrator",
+			}));
+
+		const classicPriority = [...classic].sort((a, b) => {
+			const aPri = CLASSIC_PRIORITY_GAMES.indexOf(a.code);
+			const bPri = CLASSIC_PRIORITY_GAMES.indexOf(b.code);
+			if (aPri !== -1 && bPri !== -1) return aPri - bPri;
+			if (aPri !== -1) return -1;
+			if (bPri !== -1) return 1;
+			return a.name.localeCompare(b.name);
+		});
+
+		const scorpio = [...(scorpioQuery.data ?? [])]
+			.filter((game) => game.enabled)
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		// Classic priority first so Slotegrator/Thndr originals appear, then Scorpio.
+		const merged: HotLobbyGame[] = [...classicPriority, ...scorpio];
+		const seen = new Set<string>();
+		const unique: HotLobbyGame[] = [];
+		for (const game of merged) {
+			const key = `${game.provider}:${game.code}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			unique.push(game);
+			if (unique.length >= HOT_CASINO_LIMIT) break;
+		}
+		return unique;
+	}, [classicQuery.data, scorpioQuery.data]);
 
 	const goSignIn = useCallback(() => {
 		navigate({
@@ -397,7 +454,7 @@ function HotCasinoPanel() {
 	}, [navigate]);
 
 	const handleGameClick = useCallback(
-		async (game: ScorpioLobbyGame) => {
+		async (game: HotLobbyGame) => {
 			if (!session?.user) {
 				goSignIn();
 				return;
@@ -405,16 +462,24 @@ function HotCasinoPanel() {
 
 			setLoadingId(game.id);
 			try {
-				const launch = await launchScorpioGame({
-					providerId: game.providerId,
-					gameCode: game.code,
-					returnUrl: `${window.location.origin}/games`,
-				});
+				let gameUrl: string | null;
+				if (isScorpioHotGame(game)) {
+					const launch = await launchScorpioGame({
+						providerId: game.providerId,
+						gameCode: game.code,
+						returnUrl: `${window.location.origin}/games`,
+					});
+					gameUrl = launch.url;
+				} else {
+					gameUrl = await launchClassicGame(game);
+					if (!gameUrl) return;
+				}
 
 				navigate({
 					to: "/game/$gameId",
 					params: { gameId: game.code },
-					state: { gameUrl: launch.url } as never,
+					search: {},
+					state: { gameUrl } as never,
 				});
 			} catch (error) {
 				const message =
@@ -476,6 +541,9 @@ function HotCasinoPanel() {
 		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
 			{hotGames.map((game) => {
 				const isLoadingThis = loadingId === game.id;
+				const known = !isScorpioHotGame(game)
+					? CLASSIC_KNOWN_GAMES[game.code]
+					: undefined;
 				return (
 					<button
 						key={game.id}
@@ -488,7 +556,7 @@ function HotCasinoPanel() {
 								? "scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background"
 								: "disabled:cursor-not-allowed disabled:opacity-60",
 						)}
-						style={{ background: DEFAULT_GRADIENT }}
+						style={{ background: known?.gradient ?? DEFAULT_GRADIENT }}
 					>
 						{isLoadingThis && (
 							<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
@@ -496,7 +564,7 @@ function HotCasinoPanel() {
 							</div>
 						)}
 						<img
-							src={game.imageUrl || PLACEHOLDER_IMAGE}
+							src={game.imageUrl || known?.image || PLACEHOLDER_IMAGE}
 							alt={game.name}
 							loading="lazy"
 							className="absolute inset-0 h-full w-full object-cover transition-opacity"

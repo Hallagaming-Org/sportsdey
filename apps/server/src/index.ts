@@ -112,7 +112,7 @@ app.use(
 			return allowedOrigins.has(origin) ? origin : "";
 		},
 		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
-		allowHeaders: ["Authorization", "Content-Type"],
+			allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
 		credentials: true,
 	}),
 );
@@ -172,6 +172,7 @@ app.use("*", async (c, next) => {
 		path.startsWith("/account/") ||
 		path.startsWith("/scorpio/callback") ||
 		path.startsWith("/api/scorpio/callback") ||
+		path.startsWith("/webhooks/") ||
 		path.startsWith("/admin")
 	) {
 		return next();

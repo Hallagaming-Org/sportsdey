@@ -21,6 +21,7 @@ import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
+import webengageSmsRoute from "./webengage-sms";
 import betHistoryRoute from "./bet-history";
 const routes = new OpenAPIHono();
 
@@ -34,6 +35,7 @@ routes.route("/basketball", basketballRoute);
 routes.route("/tennis", tennisRoute);
 routes.route("/news", newsRoute);
 routes.route("/notifications", notificationsRoute);
+routes.route("/webhooks/webengage", webengageSmsRoute);
 routes.route("/phone-auth", phoneAuthRoute);
 routes.route("/wallet", walletRoute);
 routes.route("/user", userRoute);
