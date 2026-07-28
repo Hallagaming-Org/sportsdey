@@ -188,43 +188,6 @@ function GamesPage() {
 			? (classicQuery.error ?? scorpioQuery.error)
 			: null;
 
-	// #region agent log
-	useEffect(() => {
-		if (!import.meta.env.DEV || isSessionLoading) return;
-		fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "17192a",
-			},
-			body: JSON.stringify({
-				sessionId: "17192a",
-				runId: "local-verify",
-				hypothesisId: "C",
-				location: "games.tsx:GamesPage",
-				message: "Casino dual-query state",
-				data: {
-					classicStatus: classicQuery.status,
-					scorpioStatus: scorpioQuery.status,
-					classicCount: classicGames.length,
-					scorpioCount: scorpioGames.length,
-					mergedCount: allGames.length,
-					fatalError: Boolean(error),
-				},
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {});
-	}, [
-		isSessionLoading,
-		classicQuery.status,
-		scorpioQuery.status,
-		classicGames.length,
-		scorpioGames.length,
-		allGames.length,
-		error,
-	]);
-	// #endregion
-
 	const refetch = () => {
 		void classicQuery.refetch();
 		void scorpioQuery.refetch();

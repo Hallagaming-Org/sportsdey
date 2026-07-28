@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, gte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import {
@@ -47,26 +47,80 @@ const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 export default sportsbookRoute;
 
+type SportsbookSelection = {
+	match_id?: string | number;
+	meta?: {
+		sport_event_info_sport_id?: string | number;
+		sport_event_info_tournament_id?: string | number;
+	};
+};
+
+function selectionSport(selection: SportsbookSelection | undefined): string {
+	const value = selection?.meta?.sport_event_info_sport_id;
+	return value == null ? "" : String(value);
+}
+
+function selectionLeague(selection: SportsbookSelection | undefined): string {
+	const value = selection?.meta?.sport_event_info_tournament_id;
+	return value == null ? "" : String(value);
+}
+
+function selectionMatchId(selection: SportsbookSelection | undefined): string {
+	const value = selection?.match_id;
+	return value == null ? "" : String(value);
+}
+
 async function databetFetch(
 	env: CloudflareBindings,
 	path: string,
 	options: { method?: string; body?: unknown } = {},
 ): Promise<Response> {
-	const proxyUrl = env.PROXY_URL;
-	const proxySecret = env.PROXY_SECRET;
+	const proxyUrl = env.PROXY_URL?.trim();
+	const proxySecret = env.PROXY_SECRET?.trim();
+
+	if (!proxyUrl) {
+		throw new Error("PROXY_URL not configured");
+	}
+	if (!proxySecret) {
+		throw new Error("PROXY_SECRET not configured");
+	}
 
 	const url = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
-		"X-Proxy-Auth": proxySecret || "",
+		"X-Proxy-Auth": proxySecret,
 	};
-	console.log("url", url);
 
-	return fetch(url, {
-		method: options.method || "GET",
-		headers,
-		body: options.body ? JSON.stringify(options.body) : undefined,
-	});
+	try {
+		return await fetch(url, {
+			method: options.method || "GET",
+			headers,
+			body: options.body ? JSON.stringify(options.body) : undefined,
+		});
+	} catch (error) {
+		console.error("Sportsbook proxy request threw", {
+			path,
+			nodeEnv: env.NODE_ENV,
+			proxyTarget: url,
+			hasProxyUrl: Boolean(proxyUrl),
+			hasProxySecret: Boolean(proxySecret),
+			// DATABET_CERT is documented at the architecture level, but current
+			// sportsbook traffic is actually proxied through apps/proxy, where the
+			// mTLS cert is attached by nginx rather than the Worker fetch itself.
+			hasDatabetCertBinding: Boolean(
+				(env as unknown as Record<string, unknown>).DATABET_CERT,
+			),
+			error:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack,
+						}
+					: String(error),
+		});
+		throw error;
+	}
 }
 
 const createTokenRoute = createRoute({
@@ -120,11 +174,21 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	const user = c.get("user");
 	const session = c.get("session");
 
-	if (!c.env.PROXY_URL) {
+	if (!c.env.PROXY_URL?.trim()) {
 		return c.json(
 			{
 				success: false as const,
 				error: "Proxy URL not configured",
+				details: null,
+			},
+			500,
+		);
+	}
+	if (!c.env.PROXY_SECRET?.trim()) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Proxy secret not configured",
 				details: null,
 			},
 			500,
@@ -138,10 +202,40 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 		...(session?.id ? { params: { session_id: session.id } } : {}),
 	};
 
-	const response = await databetFetch(c.env, "/token/create", {
-		method: "POST",
-		body: requestBody,
-	});
+	let response: Response;
+	try {
+		response = await databetFetch(c.env, "/token/create", {
+			method: "POST",
+			body: requestBody,
+		});
+	} catch (error) {
+		console.error("Sportsbook token/create failed before upstream response", {
+			nodeEnv: c.env.NODE_ENV,
+			hasProxyUrl: Boolean(c.env.PROXY_URL?.trim()),
+			hasProxySecret: Boolean(c.env.PROXY_SECRET?.trim()),
+			hasDatabetCertBinding: Boolean(
+				(c.env as unknown as Record<string, unknown>).DATABET_CERT,
+			),
+			requestBody,
+			error:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack,
+						}
+					: String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API request failed",
+				details:
+					error instanceof Error ? error.message : "Unknown proxy request error",
+			},
+			500,
+		);
+	}
 
 	if (!response.ok) {
 		const errorText = await response.text();
@@ -509,17 +603,17 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	const selections = result.data.bet_odds ?? [];
-	const firstOdds = selections[0] as Record<string, unknown> | undefined;
+	const selections = (result.data.bet_odds ?? []) as SportsbookSelection[];
+	const firstOdds = selections[0];
 	trackWebengageEvent(
 		c.env,
 		{
 			userId: session.userId,
 			eventName: "bet_slip_created",
 			eventData: {
-				sport: firstOdds?.meta?.sport_event_info_sport_id ?? "",
-				league: firstOdds?.meta?.sport_event_info_tournament_id ?? "",
-				match_id: firstOdds?.match_id ?? "",
+				sport: selectionSport(firstOdds),
+				league: selectionLeague(firstOdds),
+				match_id: selectionMatchId(firstOdds),
 				bet_type:
 					BET_TYPE_LABELS[result.data.bet_type ? result.data.bet_type : 1] ??
 					String(result.data.bet_type),
@@ -811,9 +905,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const selections = result.data.bet_odds as
-		| Array<Record<string, unknown>>
-		| undefined;
+	const selections = result.data.bet_odds as SportsbookSelection[] | undefined;
 	const firstSelection = selections?.[0];
 
 	const betPlacedPotentialPayout = result.data.total_odds_value
@@ -843,9 +935,9 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 					? Number.parseFloat(result.data.total_odds_value)
 					: null,
 				selection_count: selections?.length ?? 0,
-				sport: firstSelection?.meta?.sport_event_info_sport_id ?? "",
-				league: firstSelection?.meta?.sport_event_info_tournament_id ?? "",
-				match_ids: selections?.map((s) => s.match_id ?? "") ?? [],
+				sport: selectionSport(firstSelection),
+				league: selectionLeague(firstSelection),
+				match_ids: selections?.map((s) => selectionMatchId(s)) ?? [],
 				wallet_balance_after: balAfter / 100,
 			},
 		},
@@ -1419,9 +1511,7 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	const settleTypeLabel =
 		settleType === 1 ? "win" : settleType === 2 ? "refund" : "loss";
 
-	const settleSelections = result.data.bet_odds as
-		| Array<Record<string, unknown>>
-		| undefined;
+	const settleSelections = result.data.bet_odds as SportsbookSelection[] | undefined;
 	const settleFirstOdds = settleSelections?.[0];
 
 	trackWebengageEvent(
@@ -1433,9 +1523,9 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				bet_id: result.data.bet_id,
 				payout_amount: result.data.settle_amount,
 				outcome: settleTypeLabel,
-				net_pnl: Number.parseInt(result.data.settle_amount) - bet.stake,
-				sport: settleFirstOdds?.meta?.sport_event_info_sport_id ?? "",
-				league: settleFirstOdds?.meta?.sport_event_info_tournament_id ?? "",
+				net_pnl: Number.parseFloat(result.data.settle_amount) * 100 - bet.stake,
+				sport: selectionSport(settleFirstOdds),
+				league: selectionLeague(settleFirstOdds),
 			},
 		},
 		c.executionCtx,
@@ -1971,7 +2061,8 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				cashout_value: result.data.refund_amount,
 				original_stake: bet.stake,
 				refund_amount: result.data.refund_amount,
-				cashout_rate: bet.stake - result.data.refund_amount,
+				cashout_rate:
+					bet.stake - Math.round(Number.parseFloat(result.data.refund_amount) * 100),
 				original_potential_payout: result.data.amount,
 			},
 		},
@@ -2380,7 +2471,6 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 	}
 
 	const id = crypto.randomUUID();
-	const amountKobo = Math.round(result.amount * 100);
 
 	const apiRequestBody = {
 		player_id: result.player_id,

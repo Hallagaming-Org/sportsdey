@@ -144,26 +144,6 @@ const scorpioAuthOpts: RequestInit = { credentials: "include" };
 
 /** Live Scorpio catalog: providers → games per provider → lobby Game[]. */
 export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
-	// #region agent log
-	if (import.meta.env.DEV) {
-		fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"X-Debug-Session-Id": "17192a",
-			},
-			body: JSON.stringify({
-				sessionId: "17192a",
-				runId: "local-verify",
-				hypothesisId: "C",
-				location: "scorpio-catalog.ts:fetchScorpioLobbyGames",
-				message: "Fetching Scorpio providers",
-				data: { endpoint: "scorpio/providers" },
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {});
-	}
-	// #endregion
 	let providers: ScorpioProvider[];
 	try {
 		providers = await apiRequest<ScorpioProvider[]>(
@@ -171,29 +151,6 @@ export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
 			scorpioAuthOpts,
 		);
 	} catch (error) {
-		// #region agent log
-		if (import.meta.env.DEV) {
-			fetch("http://127.0.0.1:7907/ingest/5cac88f1-b7cb-437a-8bc6-c70fbab8cf23", {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"X-Debug-Session-Id": "17192a",
-				},
-				body: JSON.stringify({
-					sessionId: "17192a",
-					runId: "local-verify",
-					hypothesisId: "C",
-					location: "scorpio-catalog.ts:fetchScorpioLobbyGames",
-					message: "Scorpio providers request failed",
-					data: {
-						status: error instanceof ApiError ? error.status : null,
-						message: error instanceof Error ? error.message : "unknown",
-					},
-					timestamp: Date.now(),
-				}),
-			}).catch(() => {});
-		}
-		// #endregion
 		throw error;
 	}
 
