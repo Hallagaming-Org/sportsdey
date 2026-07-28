@@ -144,6 +144,27 @@ export const wallet = sqliteTable("wallet", {
 		.notNull(),
 });
 
+export const sportsbookSession = sqliteTable("sportsbook_session", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookSessionRelations = relations(sportsbookSession, ({ one }) => ({
+	user: one(user, {
+		fields: [sportsbookSession.userId],
+		references: [user.id],
+	}),
+}));
+
 export const sportsbookBet = sqliteTable("sportsbook_bet", {
 	id: text("id").primaryKey(),
 	requestId: text("request_id").unique(),
