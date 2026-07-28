@@ -85,9 +85,9 @@ function main() {
 	if (execute) {
 		const statements = [categorySql, gameSql, gcSql];
 		(async () => {
-			for (let i = 0; i < statements.length; i++) {
+			for (const [i, statement] of statements.entries()) {
 				const tempFile = path.join(os.tmpdir(), `seed-games-${now}-${i}.sql`);
-				fs.writeFileSync(tempFile, statements[i]);
+				fs.writeFileSync(tempFile, statement);
 				try {
 					await new Promise<void>((resolve, reject) => {
 						const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" --remote --env ${env}`;

@@ -1,5 +1,5 @@
 /** Local API (Wrangler), not the Vite web port. */
-const DEFAULT_DEV_SERVER_URL = "http://localhost:3000";
+const DEFAULT_DEV_SERVER_URL = "http://localhost:8787";
 const DEFAULT_STAGING_SERVER_URL = "https://staging-api.sportsdey.com";
 
 /**

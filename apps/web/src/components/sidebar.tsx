@@ -105,7 +105,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToCasino = () => {
 		setTab("games");
 		trackWebengageEvent("Category", { Name: "Casino" });
-		navigate({ to: "/games", search: { category: undefined } });
+		navigate({
+			to: "/games",
+			search: { category: undefined },
+		});
 	};
 
 	const goToSportsbook = () => {
@@ -228,7 +231,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 						params.get("category") === "pvp",
 					onClick: () => {
 						setTab("games");
-						navigate({ to: "/games", search: { category: "pvp" } });
+						navigate({
+							to: "/games",
+							search: { category: "pvp" },
+						});
 					},
 				},
 				{

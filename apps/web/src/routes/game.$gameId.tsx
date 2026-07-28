@@ -1,5 +1,5 @@
 import { createFileRoute, useLocation, useRouter } from "@tanstack/react-router";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -37,22 +37,27 @@ function GamePage() {
 	const router = useRouter();
 
 	return (
-		<div className="relative h-full w-full flex flex-col">
-			<div className="bg-[#121212] flex items-center px-4 py-3 shrink-0">
-				<button 
-					onClick={() => router.navigate({ to: "/games", search: { category } })}
-					className="flex items-center gap-2 text-white hover:text-[#1BAA04] transition-colors cursor-pointer font-medium"
+		<div className="relative flex h-full w-full flex-col">
+			<div className="flex shrink-0 items-center bg-[#121212] px-4 py-3">
+				<button
+					type="button"
+					onClick={() =>
+						router.navigate({
+							to: "/games",
+							search: { category },
+						})
+					}
+					className="flex cursor-pointer items-center gap-2 font-medium text-white transition-colors hover:text-[#1BAA04]"
 				>
 					<ArrowLeft className="h-5 w-5" />
 					<span>Back to Games</span>
 				</button>
 			</div>
-			<div className="relative flex-1 w-full">
+			<div className="relative w-full flex-1">
 				{isIframeLoading && (
-					<div className="absolute inset-4 z-10 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#1BAA04]/50 bg-[#121212]/80 backdrop-blur-sm">
+					<div className="absolute inset-4 z-10 flex flex-col items-center justify-center rounded-2xl border-2 border-[#1BAA04]/50 border-dashed bg-[#121212]/80 backdrop-blur-sm">
 						<Loader2 className="mb-4 h-10 w-10 animate-spin text-[#1BAA04]" />
 						<p className="font-medium text-lg text-white">Game is launching...</p>
-						<p className="mt-2 text-gray-400 text-sm">Please wait while we set things up</p>
 					</div>
 				)}
 				<iframe
