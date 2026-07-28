@@ -1426,7 +1426,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		conditions.push(
 			and(
 				eq(schema.walletTransaction.type, "debit"),
-				eq(schema.walletTransaction.paymentMethod, "paystack"),
+				inArray(schema.walletTransaction.paymentMethod, ["paystack", "manual"]),
 			),
 		);
 	} else if (type === "payments") {
@@ -1524,7 +1524,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 			amount: tx.amount / 100,
 			balance_after: tx.balance / 100,
 			status: tx.status,
-			metadata: JSON.parse(tx.metadata || ""),
+			metadata: JSON.parse(tx.metadata || "{}"),
 		};
 	});
 
