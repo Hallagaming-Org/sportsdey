@@ -1,5 +1,5 @@
-import crypto from "node:crypto";
 import { exec } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -28,14 +28,27 @@ const GAMES: SeedGame[] = [
 	{ name: "Solitaire", code: "solitaire", categories: ["classic"] },
 	{ name: "Blocks", code: "blocks", categories: ["classic"] },
 	{ name: "Twenty One", code: "twentyone", categories: ["classic"] },
-	{ name: "Blackjack", code: "blackjack", categories: ["table-card-games", "classic"] },
+	{
+		name: "Blackjack",
+		code: "blackjack",
+		categories: ["table-card-games", "classic"],
+	},
 	{ name: "Slots", code: "slots", categories: ["slots"] },
 	{ name: "Plinko", code: "plinko", categories: ["classic", "crash-games"] },
 	{ name: "Xcape", code: "XCAPEHB", categories: ["popular", "slots"] },
 	{ name: "Eagle", code: "EAGLEHB", categories: ["popular", "crash-games"] },
 	{ name: "Lucky Rise", code: "LUCKYRISEHB", categories: ["popular", "slots"] },
-	{ name: "Lagos Rush", code: "LAGOSRUSH", categories: ["popular", "crash-games"] },
-	{ name: "Sportsdey Crash", code: "sportsdey-crash", categories: ["popular", "crash-games"] },
+	{
+		name: "Lagos Rush",
+		code: "LAGOSRUSH",
+		categories: ["popular", "crash-games"],
+	},
+	{
+		name: "Sportsdey Crash",
+		code: "sportsdey-crash",
+		categories: ["popular", "crash-games"],
+	},
+	{ name: "Spin and Win", code: "spin_and_win", categories: ["originals"] },
 ];
 
 function escape(value: string | number | null | undefined): string {
@@ -46,11 +59,12 @@ function escape(value: string | number | null | undefined): string {
 }
 
 const CATEGORY_META: Record<string, { name: string; slug: string }> = {
-	"popular": { name: "Popular", slug: "popular" },
-	"slots": { name: "Slots", slug: "slots" },
+	popular: { name: "Popular", slug: "popular" },
+	slots: { name: "Slots", slug: "slots" },
 	"crash-games": { name: "Crash Games", slug: "crash-games" },
-	"classic": { name: "Classic", slug: "classic" },
+	classic: { name: "Classic", slug: "classic" },
 	"table-card-games": { name: "Table/Card Games", slug: "table-card-games" },
+	originals: { name: "Originals", slug: "originals" },
 };
 
 function main() {
@@ -92,7 +106,9 @@ function main() {
 					await new Promise<void>((resolve, reject) => {
 						const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" --remote --env ${env}`;
 						exec(cmd, { timeout: 120000 }, (error) => {
-							try { fs.unlinkSync(tempFile); } catch {}
+							try {
+								fs.unlinkSync(tempFile);
+							} catch {}
 							if (error) reject(error);
 							else resolve();
 						});
