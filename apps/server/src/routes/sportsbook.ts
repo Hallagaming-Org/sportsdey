@@ -124,33 +124,40 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 		);
 	}
 
-	if (!user) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Unauthorized",
-				details: null,
-			},
-			401,
-		);
-	}
-
 	const db = drizzle(c.env.DB, { schema });
-	const now = new Date();
-	const sportsbookSessionId = crypto.randomUUID();
+	let sessionId = "";
 
-	await db.insert(schema.sportsbookSession).values({
-		id: sportsbookSessionId,
-		userId: user.id,
-		createdAt: now,
-		updatedAt: now,
-	});
+	if (user) {
+		const now = new Date();
+		const sportsbookSessionId = crypto.randomUUID();
+		sessionId = sportsbookSessionId;
+
+		const sportsbookSession = await db
+			.insert(schema.sportsbookSession)
+			.values({
+				id: sportsbookSessionId,
+				userId: user.id,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+		if (sportsbookSession.length === 0) {
+			return c.json(
+				{
+					success: false as const,
+					error: "An error occured",
+					details: null,
+				},
+				500,
+			);
+		}
+	}
 
 	const requestBody = {
 		locale: "en",
 		currency: "NGN",
-		player_id: user.id,
-		params: { session_id: sportsbookSessionId },
+		...(user ? { player_id: user.id } : {}),
+		...(sessionId === "" ? {} : { params: { session_id: sessionId } }),
 	};
 
 	const response = await databetFetch(c.env, "/token/create", {
