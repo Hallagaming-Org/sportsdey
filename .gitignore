@@ -60,3 +60,8 @@ prompt.md
 */notes
 .notes
 notes
+
+.agents
+.agents/*
+skills-lock.json
+skills-lock.json/*
