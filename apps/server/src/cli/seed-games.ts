@@ -46,9 +46,9 @@ const GAMES: SeedGame[] = [
 	{
 		name: "Sportsdey Crash",
 		code: "sportsdey-crash",
-		categories: ["popular", "crash-games"],
+		categories: ["popular", "crash-games", "original"],
 	},
-	{ name: "Spin and Win", code: "spin_and_win", categories: ["originals"] },
+	{ name: "Spin and Win", code: "spin_and_win", categories: ["original"] },
 ];
 
 function escape(value: string | number | null | undefined): string {
@@ -59,12 +59,12 @@ function escape(value: string | number | null | undefined): string {
 }
 
 const CATEGORY_META: Record<string, { name: string; slug: string }> = {
-	popular: { name: "Popular", slug: "popular" },
-	slots: { name: "Slots", slug: "slots" },
-	"crash-games": { name: "Crash Games", slug: "crash-games" },
-	classic: { name: "Classic", slug: "classic" },
-	"table-card-games": { name: "Table/Card Games", slug: "table-card-games" },
-	originals: { name: "Originals", slug: "originals" },
+	popular: { name: "popular", slug: "popular" },
+	slots: { name: "slots", slug: "slots" },
+	"crash-games": { name: "crash-games", slug: "crash-games" },
+	classic: { name: "classic", slug: "classic" },
+	tablecardgames: { name: "table_card_games", slug: "tablecardgames" },
+	original: { name: "Original", slug: "original" },
 };
 
 function main() {
@@ -79,7 +79,7 @@ function main() {
 	const categoryValues = [...usedCategories]
 		.map((slug) => {
 			const meta = CATEGORY_META[slug] ?? { name: slug, slug };
-			return `(${escape(slug)}, ${escape(meta.name)}, ${escape(slug)}, ${now})`;
+			return `(${slug}, ${meta.name}, ${slug}, ${now})`;
 		})
 		.join(",\n");
 
