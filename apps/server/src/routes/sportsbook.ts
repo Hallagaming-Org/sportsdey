@@ -442,7 +442,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 
 	const now = new Date();
 	if (!isFreebet) {
-		const walletUpdate = await freezeWallet(db, session.userId, stakeKobo);
+		const walletUpdate = await freezeWallet(db, sportsbookSession.userId, stakeKobo);
 		if (!walletUpdate) {
 			return c.json(
 				{
