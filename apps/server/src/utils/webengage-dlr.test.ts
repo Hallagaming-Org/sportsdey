@@ -8,6 +8,7 @@ import {
 	dsnSentKey,
 	getWebengageSmsMapping,
 	isFinalAtStatus,
+	mapAtFailureToWebengageStatusCode,
 	parseAtDeliveryReport,
 	smsMappingKey,
 	storeWebengageSmsMapping,
@@ -89,7 +90,7 @@ describe("parseAtDeliveryReport", () => {
 });
 
 describe("buildWebengageDsn", () => {
-	it("maps Success to sms_sent with statusCode 0", () => {
+	it("maps Success to documented SMS Sent DSN (statusCode 0, no smsCount)", () => {
 		const dsn = buildWebengageDsn(
 			{ id: "ATXid_1", status: "Success" },
 			mapping,
@@ -101,18 +102,64 @@ describe("buildWebengageDsn", () => {
 			status: "sms_sent",
 			statusCode: 0,
 		});
+		assert.equal(
+			dsn && "smsCount" in dsn,
+			false,
+			"smsCount must be omitted when AT does not provide a segment count",
+		);
 	});
 
-	it("maps Failed/Rejected to sms_failed with statusCode 2009", () => {
-		for (const status of ["Failed", "Rejected"]) {
-			const dsn = buildWebengageDsn(
-				{ id: "ATXid_1", status, failureReason: "DeliveryFailure" },
-				mapping,
-			);
+	it("maps AT InvalidPhoneNumber failure to DSN statusCode 2003", () => {
+		const dsn = buildWebengageDsn(
+			{
+				id: "ATXid_1",
+				status: "Failed",
+				failureReason: "InvalidPhoneNumber",
+			},
+			mapping,
+		);
+		assert.ok(dsn);
+		assert.equal(dsn.status, "sms_failed");
+		assert.equal(dsn.statusCode, 2003);
+		assert.equal(dsn.message, "InvalidPhoneNumber");
+	});
+
+	it("maps AT ExceededMaxLength-style failure to DSN statusCode 2007", () => {
+		const dsn = buildWebengageDsn(
+			{
+				id: "ATXid_1",
+				status: "Failed",
+				failureReason: "MessageTooLong",
+			},
+			mapping,
+		);
+		assert.ok(dsn);
+		assert.equal(dsn.statusCode, 2007);
+	});
+
+	it("maps unknown AT failure to DSN statusCode 9988 with populated message", () => {
+		const dsn = buildWebengageDsn(
+			{
+				id: "ATXid_1",
+				status: "Failed",
+				failureReason: "AbsentSubscriber",
+			},
+			mapping,
+		);
+		assert.ok(dsn);
+		assert.equal(dsn.status, "sms_failed");
+		assert.equal(dsn.statusCode, 9988);
+		assert.ok(dsn.message && dsn.message.length > 0);
+		assert.match(dsn.message, /AbsentSubscriber/);
+	});
+
+	it("DSN status is only sms_sent or sms_failed for every final AT status", () => {
+		const allowed = new Set(["sms_sent", "sms_failed"]);
+		for (const status of ["Success", "Failed", "Rejected"]) {
+			const dsn = buildWebengageDsn({ id: "ATXid_1", status }, mapping);
 			assert.ok(dsn);
-			assert.equal(dsn.status, "sms_failed");
-			assert.equal(dsn.statusCode, 2009);
-			assert.equal(dsn.message, "DeliveryFailure");
+			assert.ok(allowed.has(dsn.status), `unexpected DSN status ${dsn.status}`);
+			assert.notEqual(dsn.status, "sms_rejected");
 		}
 	});
 
@@ -124,6 +171,25 @@ describe("buildWebengageDsn", () => {
 			);
 			assert.equal(isFinalAtStatus(status), false);
 		}
+	});
+});
+
+describe("mapAtFailureToWebengageStatusCode", () => {
+	it("maps blacklist and insufficient credit to specific codes", () => {
+		assert.equal(
+			mapAtFailureToWebengageStatusCode({
+				status: "Failed",
+				failureReason: "UserInBlacklist",
+			}).statusCode,
+			3000,
+		);
+		assert.equal(
+			mapAtFailureToWebengageStatusCode({
+				status: "Failed",
+				failureReason: "InsufficientCredit",
+			}).statusCode,
+			2000,
+		);
 	});
 });
 
@@ -220,6 +286,50 @@ describe("POST /webhooks/africastalking/dlr", () => {
 			status: "sms_sent",
 			statusCode: 0,
 		});
+		assert.notEqual(body.status, "sms_rejected");
+	});
+
+	it("relays a Failed report to WebEngage as sms_failed DSN (never sms_rejected)", async () => {
+		globalThis.fetch = mock.fn(
+			async () => new Response("", { status: 200 }),
+		) as typeof fetch;
+
+		const env = testEnv();
+		await storeWebengageSmsMapping(
+			env.sportsdey_ns as SmsKvNamespace,
+			"ATXid_fail",
+			mapping,
+		);
+
+		const app = mountApp();
+		const res = await app.request(
+			dlrRequest({
+				id: "ATXid_fail",
+				status: "Failed",
+				failureReason: "AbsentSubscriber",
+			}),
+			undefined,
+			env,
+		);
+		assert.equal(res.status, 200);
+
+		const fetchMock = globalThis.fetch as unknown as {
+			mock: { callCount: () => number; calls: Array<{ arguments: unknown[] }> };
+		};
+		assert.equal(fetchMock.mock.callCount(), 1);
+		const call = fetchMock.mock.calls[0];
+		assert.ok(call);
+		const init = call.arguments[1] as RequestInit;
+		const body = JSON.parse(String(init.body)) as {
+			status: string;
+			statusCode: number;
+			message?: string;
+		};
+		assert.equal(body.status, "sms_failed");
+		assert.notEqual(body.status, "sms_rejected");
+		assert.equal(body.statusCode, 9988);
+		assert.ok(body.message && body.message.length > 0);
+		assert.match(String(body.message), /AbsentSubscriber|Failed/);
 	});
 
 	it("deduplicates retried delivery reports", async () => {
