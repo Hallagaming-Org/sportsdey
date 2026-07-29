@@ -104,6 +104,8 @@ export const CLASSIC_PRIORITY_GAMES = [
 	"EAGLEHB",
 	"LUCKYRISEHB",
 	"LAGOSRUSH",
+	"sportsdey-crash",
+	"spin_and_win",
 ];
 
 export const CLASSIC_THUNDR_CODES = [
@@ -115,7 +117,7 @@ export const CLASSIC_THUNDR_CODES = [
 	"plinko",
 ];
 
-export const CLASSIC_ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash"];
+export const CLASSIC_ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash", "spin_and_win"];
 
 export const CLASSIC_SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
 
@@ -131,31 +133,37 @@ export const CLASSIC_KNOWN_GAMES: Record<
 	solitaire: {
 		subtitle: "classic card game",
 		icon: SolitaireLogo,
+		image: "/solitaire.png",
 		gradient: "linear-gradient(to bottom, #1e3a5f, #2d5a87, #4a90d9)",
 	},
 	blocks: {
 		subtitle: "puzzle game",
 		icon: BlocksLogo,
+		image: "/blocks.png",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
 	twentyone: {
 		subtitle: "card game",
 		icon: TwentyOneLogo,
+		image: "/twentyone.png",
 		gradient: "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)",
 	},
 	blackjack: {
 		subtitle: "card game",
 		icon: BlackjackLogo,
+		image: "/blackjack.png",
 		gradient: "linear-gradient(to bottom, #2d2d2d, #4a4a4a, #6b6b6b)",
 	},
 	slots: {
 		subtitle: "slot machine",
 		icon: SlotsLogo,
+		image: "/slots.png",
 		gradient: "linear-gradient(to bottom, #7b1fa2, #9c27b0, #ba68c8)",
 	},
 	plinko: {
 		subtitle: "lucky drop",
 		icon: PlinkoLogo,
+		image: "/plinko.png",
 		gradient: "linear-gradient(to bottom, #00897b, #26a69a, #4db6ac)",
 	},
 	XCAPEHB: {
@@ -182,6 +190,11 @@ export const CLASSIC_KNOWN_GAMES: Record<
 		subtitle: "sportsdey original",
 		image: "/sportsdey-crash.jpeg",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
+	},
+	"spin_and_win": {
+		subtitle: "sportsdey original",
+		image: "/spin-and-win.png",
+		gradient: "linear-gradient(to bottom, #e91e63, #9c27b0, #673ab7)",
 	},
 };
 
@@ -315,7 +328,7 @@ type LaunchResponse = {
 export async function launchClassicGame(
 	game: ClassicLobbyGame,
 ): Promise<string | null> {
-	if (game.code === "sportsdey-crash") {
+	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
 		window.open(SPORTSDEY_CRASH_URL, "_blank");
 		return null;
 	}
