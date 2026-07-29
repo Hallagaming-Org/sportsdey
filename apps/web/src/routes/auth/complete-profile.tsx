@@ -57,7 +57,7 @@ function CompleteProfilePage() {
 		setIsSubmitting(true);
 
 		try {
-			await apiRequest("user/", {
+			await apiRequest("user", {
 				method: "PATCH",
 				credentials: "include",
 				body: JSON.stringify({ name: fullName }),

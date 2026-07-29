@@ -15,16 +15,12 @@ import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
 import type { CloudflareBindings } from "./types";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-let authCache: ReturnType<typeof createAuth> | null = null;
-
 function getAuth(env: CloudflareBindings) {
-	if (!authCache) {
-		authCache = createAuth(env);
-	}
-	return authCache;
+	return createAuth(env);
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
@@ -49,6 +45,7 @@ app.use("*", async (c, next) => {
 			corsOrigin,
 			"http://localhost:3001",
 			"http://localhost:3002",
+			"http://localhost:4173",
 			"http://localhost:8787",
 			"sportsdey-mobile://",
 			"exp://172.20.10.9:8081",
@@ -60,14 +57,14 @@ app.use("*", async (c, next) => {
 		console.log(allowedOrigins.has(origin) ? origin : "");
 
 		if (allowedOrigins.has(origin)) {
-			return c.text("", 204, {
+			return c.text("", 204 as ContentfulStatusCode, {
 				"Access-Control-Allow-Origin": origin,
 				"Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS, DELETE",
 				"Access-Control-Allow-Headers": "Authorization, Content-Type",
 				"Access-Control-Allow-Credentials": "true",
 			});
 		}
-		return c.text("", 204);
+		return c.text("", 204 as ContentfulStatusCode);
 	}
 	await next();
 });
@@ -84,6 +81,7 @@ app.use(
 				corsOrigin,
 				"http://localhost:3001",
 				"http://localhost:3002",
+				"http://localhost:4173",
 				"http://localhost:8787",
 				"sportsdey-mobile://",
 				"exp://172.20.10.9:8081",
