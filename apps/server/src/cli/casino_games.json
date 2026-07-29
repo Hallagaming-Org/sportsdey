@@ -2322,7 +2322,7 @@
 		"Gold Stealer",
 		"Navigator"
 	],
-	"crash_games": [
+	"crash-games": [
 		"Adrenaline Rush",
 		"Adrenaline Rush: Scratch",
 		"Adrenaline Rush: XCrash",
@@ -2579,11 +2579,7 @@
 		"Fortune bingo",
 		"Bingo Mania"
 	],
-	"dice": [
-		"Dice Clash",
-		"Rocket Dice",
-		"Rocket Dice XY"
-	],
+	"dice": ["Dice Clash", "Rocket Dice", "Rocket Dice XY"],
 	"scratch": [
 		"3 Kings Scratch",
 		"Capymania Green",
