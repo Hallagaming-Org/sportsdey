@@ -689,7 +689,17 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	});
 
 	if (!wallet) {
-		throw new Error("Wallet not found");
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "wallet_not_found",
+					},
+				},
+			},
+			400,
+		);
 	}
 
 	const balanceBefore = wallet.balance;
