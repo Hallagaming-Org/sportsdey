@@ -18,6 +18,19 @@ import type { CloudflareBindings } from "./types";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
+app.onError((err, c) => {
+	console.error("Unhandled error:", err.message, err.stack);
+	return c.json(
+		{
+			error: {
+				code: "internal_error",
+				data: { message: "Internal server error" },
+			},
+		},
+		500,
+	);
+});
+
 let authCache: ReturnType<typeof createAuth> | null = null;
 
 function getAuth(env: CloudflareBindings) {

@@ -583,12 +583,26 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -604,7 +618,25 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const result = BetPlaceRequestSchema.safeParse(await c.req.json());
+	let body: unknown;
+	try {
+		body = await c.req.json();
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						message: "Request body is not valid JSON",
+					},
+				},
+			},
+			400,
+		);
+	}
+
+	const result = BetPlaceRequestSchema.safeParse(body);
 	if (!result.success) {
 		return c.json(
 			{
