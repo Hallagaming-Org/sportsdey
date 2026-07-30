@@ -311,12 +311,26 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -912,7 +926,7 @@ const betDeclineRoute = createRoute({
 const BetDeclineRequestSchema = z.object({
 	request_id: z.string(),
 	bet_id: z.string(),
-	bet_player_id: z.string().optional(),
+	bet_player_id: z.string(),
 	restrictions: z.array(z.any()).optional(),
 });
 
@@ -933,12 +947,26 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1208,12 +1236,26 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1502,12 +1544,26 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1756,12 +1812,26 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -2015,12 +2085,26 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
