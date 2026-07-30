@@ -484,11 +484,12 @@ function HotCasinoPanel() {
 			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "Failed to launch game";
-				if (
-					(error instanceof ApiError &&
-						(error.status === 401 || error.status === 403)) ||
-					message.toLowerCase().includes("unauthorized")
-				) {
+				const status = error instanceof ApiError ? error.status : null;
+				const isSessionMissing =
+					message === "Unauthorized" ||
+					((status === 401 || status === 403) &&
+						/unauthorized|not authenticated/i.test(message));
+				if (isSessionMissing) {
 					goSignIn();
 					return;
 				}

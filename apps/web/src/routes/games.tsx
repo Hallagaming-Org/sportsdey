@@ -350,7 +350,15 @@ function GamesPage() {
 							typeof (err as { status?: number }).status === "number"
 						? (err as { status: number }).status
 						: null;
-			if (status === 401 || status === 403) {
+			const message =
+				err instanceof Error ? err.message : "Failed to launch game";
+			// Only bounce to sign-in for a real missing session — not Scorpio
+			// business errors that used to be mis-mapped as HTTP 401.
+			const isSessionMissing =
+				message === "Unauthorized" ||
+				((status === 401 || status === 403) &&
+					/unauthorized|not authenticated/i.test(message));
+			if (isSessionMissing) {
 				navigate({
 					to: "/auth/sign-in",
 					search: {
@@ -359,9 +367,7 @@ function GamesPage() {
 				});
 				return;
 			}
-			setLaunchError(
-				err instanceof Error ? err.message : "Failed to launch game",
-			);
+			setLaunchError(message);
 		} finally {
 			setLoadingGame(null);
 		}
