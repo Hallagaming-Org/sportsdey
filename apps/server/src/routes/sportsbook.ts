@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, gte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import {
@@ -456,7 +456,11 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 
 	const now = new Date();
 	if (!isFreebet) {
-		const walletUpdate = await freezeWallet(db, session.userId, stakeKobo);
+		const walletUpdate = await freezeWallet(
+			db,
+			sportsbookSession.userId,
+			stakeKobo,
+		);
 		if (!walletUpdate) {
 			return c.json(
 				{
