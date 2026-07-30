@@ -14,5 +14,5 @@ export const CreateSportsbookTokenResponseSchema = z.object({
 export const SportsbookTokenErrorSchema = z.object({
 	success: z.literal(false),
 	error: z.string(),
-	details: z.union([z.string(), z.null()]).optional(),
+	details: z.string().nullable().optional(),
 });
