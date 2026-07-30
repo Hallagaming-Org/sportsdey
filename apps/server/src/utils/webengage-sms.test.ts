@@ -114,7 +114,25 @@ describe("POST /webhooks/webengage/sms", () => {
 		mock.restoreAll();
 	});
 
-	it("returns 401 when Authorization is missing", async () => {
+	it("returns 401 + statusCode 2011 when Authorization is missing and secret is unbound", async () => {
+		const app = mountApp();
+		const res = await app.request(
+			"/webhooks/webengage/sms",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(validPayload),
+			},
+			testEnv({ WEBENGAGE_API_SECRET: "" }),
+		);
+		assert.equal(res.status, 401);
+		const json = (await res.json()) as { status: string; statusCode: number; message: string };
+		assert.equal(json.status, "sms_rejected");
+		assert.equal(json.statusCode, 2011);
+		assert.match(json.message, /WEBENGAGE_API_SECRET is not set/);
+	});
+
+	it("returns 403 + statusCode 2005 when secret is bound but Authorization is missing", async () => {
 		const app = mountApp();
 		const res = await app.request(
 			"/webhooks/webengage/sms",
@@ -125,13 +143,13 @@ describe("POST /webhooks/webengage/sms", () => {
 			},
 			testEnv(),
 		);
-		assert.equal(res.status, 401);
+		assert.equal(res.status, 403);
 		const json = (await res.json()) as { status: string; statusCode: number };
 		assert.equal(json.status, "sms_rejected");
-		assert.equal(json.statusCode, 2011);
+		assert.equal(json.statusCode, 2005);
 	});
 
-	it("returns 401 when secret is wrong", async () => {
+	it("returns 403 + statusCode 2005 when secret is bound but header is wrong", async () => {
 		const app = mountApp();
 		const res = await app.request(
 			"/webhooks/webengage/sms",
@@ -145,10 +163,33 @@ describe("POST /webhooks/webengage/sms", () => {
 			},
 			testEnv(),
 		);
-		assert.equal(res.status, 401);
+		assert.equal(res.status, 403);
+		const json = (await res.json()) as { status: string; statusCode: number; message: string };
+		assert.equal(json.status, "sms_rejected");
+		assert.equal(json.statusCode, 2005);
+		assert.match(json.message, /did not match/);
 	});
 
-	it("returns 401 when WEBENGAGE_API_SECRET is unset", async () => {
+	it("returns 401 + statusCode 2011 when WEBENGAGE_API_SECRET is unset even if header is sent", async () => {
+		const app = mountApp();
+		const res = await app.request(
+			"/webhooks/webengage/sms",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-WebEngage-Secret": SECRET,
+				},
+				body: JSON.stringify(validPayload),
+			},
+			testEnv({ WEBENGAGE_API_SECRET: "" }),
+		);
+		assert.equal(res.status, 401);
+		const json = (await res.json()) as { statusCode: number };
+		assert.equal(json.statusCode, 2011);
+	});
+
+	it("returns 400 + statusCode 2002 for empty message body", async () => {
 		const app = mountApp();
 		const res = await app.request(
 			"/webhooks/webengage/sms",
@@ -158,14 +199,47 @@ describe("POST /webhooks/webengage/sms", () => {
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${SECRET}`,
 				},
-				body: JSON.stringify(validPayload),
+				body: JSON.stringify({
+					...validPayload,
+					smsData: { ...validPayload.smsData, body: "   " },
+				}),
 			},
-			testEnv({ WEBENGAGE_API_SECRET: "" }),
+			testEnv(),
 		);
-		assert.equal(res.status, 401);
+		assert.equal(res.status, 400);
+		const json = (await res.json()) as {
+			status: string;
+			statusCode: number;
+		};
+		assert.equal(json.status, "sms_rejected");
+		assert.equal(json.statusCode, 2002);
 	});
 
-	it("returns 400 for invalid payload after auth", async () => {
+	it("returns 400 + statusCode 2010 with supportedVersion for mismatched version", async () => {
+		const app = mountApp();
+		const res = await app.request(
+			"/webhooks/webengage/sms",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${SECRET}`,
+				},
+				body: JSON.stringify({ ...validPayload, version: "9.9" }),
+			},
+			testEnv(),
+		);
+		assert.equal(res.status, 400);
+		const json = (await res.json()) as Record<string, unknown>;
+		assert.deepEqual(json, {
+			status: "sms_rejected",
+			statusCode: 2010,
+			message: "VERSION NOT SUPPORTED",
+			supportedVersion: "2.0",
+		});
+	});
+
+	it("returns 200 + sms_rejected statusCode 9988 for invalid payload after auth", async () => {
 		const app = mountApp();
 		const res = await app.request(
 			"/webhooks/webengage/sms",
@@ -179,9 +253,55 @@ describe("POST /webhooks/webengage/sms", () => {
 			},
 			testEnv(),
 		);
-		assert.equal(res.status, 400);
-		const json = (await res.json()) as { status: string };
+		assert.equal(res.status, 200);
+		const json = (await res.json()) as {
+			status: string;
+			statusCode: number;
+			message: string;
+		};
 		assert.equal(json.status, "sms_rejected");
+		assert.equal(json.statusCode, 9988);
+		assert.ok(json.message);
+	});
+
+	it("success body is exactly { status: sms_accepted } with no extra fields", async () => {
+		globalThis.fetch = mock.fn(async () => {
+			return new Response(
+				JSON.stringify({
+					SMSMessageData: {
+						Message: "Sent",
+						Recipients: [
+							{
+								statusCode: 100,
+								number: "+2348012345678",
+								status: "Success",
+								messageId: "ATXid_mock",
+							},
+						],
+					},
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const app = mountApp();
+		const res = await app.request(
+			"/webhooks/webengage/sms",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${SECRET}`,
+				},
+				body: JSON.stringify(validPayload),
+			},
+			testEnv(),
+		);
+
+		assert.equal(res.status, 200);
+		const json = (await res.json()) as Record<string, unknown>;
+		assert.deepEqual(json, { status: "sms_accepted" });
+		assert.equal(Object.keys(json).length, 1);
 	});
 
 	it("accepts SMS when Africa's Talking is mocked successful", async () => {
@@ -248,6 +368,7 @@ describe("POST /webhooks/webengage/sms", () => {
 		assert.equal(body.message, "Hello from WebEngage test");
 		assert.equal(body.senderId, "SPORTSDEY");
 	});
+
 
 	it("accepts X-WebEngage-Secret header", async () => {
 		globalThis.fetch = mock.fn(async () => {

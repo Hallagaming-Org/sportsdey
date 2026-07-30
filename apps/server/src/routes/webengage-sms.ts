@@ -15,54 +15,86 @@ import type { CloudflareBindings } from "../types";
 const webengageSmsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>({
 	defaultHook: (result, c) => {
 		if (result.success) return;
+		// Private SSP catch-all 9988 → HTTP 200 (not 400).
 		return c.json(
 			{
 				status: "sms_rejected" as const,
 				statusCode: 9988,
 				message: "Invalid request payload",
 			},
-			400,
+			200,
 		);
 	},
 });
 
 const MAX_BODY_LENGTH = 1600;
 
-/** Auth runs before Zod so missing Authorization returns 401, not 400. */
+/**
+ * Auth runs before Zod.
+ *
+ * Two different failures (do not conflate):
+ * - WEBENGAGE_API_SECRET missing/empty on the Worker → statusCode 2011 (HTTP 401).
+ *   The inbound header is never compared in this case.
+ * - Secret is bound, but Authorization / X-WebEngage-Secret does not match →
+ *   statusCode 2005 (HTTP 403).
+ */
 webengageSmsRoute.use("*", async (c, next) => {
 	if (c.req.method !== "POST") {
 		await next();
 		return;
 	}
 
-	if (!c.env.WEBENGAGE_API_SECRET?.trim()) {
+	const envSecret = c.env.WEBENGAGE_API_SECRET;
+	const authHeader = c.req.header("Authorization");
+	const xSecretHeader = c.req.header("X-WebEngage-Secret");
+	const bearerLen = (() => {
+		if (!authHeader) return null;
+		const m = /^Bearer\s+(.+)$/i.exec(authHeader.trim());
+		return m?.[1]?.trim().length ?? null;
+	})();
+	const xSecretLen = xSecretHeader?.trim().length ?? null;
+
+	// TEMP diagnostic — lengths/booleans only; remove after secret bind is confirmed.
+	console.log("WebEngage SMS auth diagnostic", {
+		envSecretDefined: envSecret !== undefined,
+		envSecretNonEmpty: Boolean(envSecret?.trim()),
+		envSecretLength: envSecret?.length ?? -1,
+		authorizationHeaderPresent: Boolean(authHeader),
+		authorizationBearerLength: bearerLen,
+		xWebEngageSecretPresent: Boolean(xSecretHeader),
+		xWebEngageSecretLength: xSecretLen,
+	});
+
+	if (!envSecret?.trim()) {
 		console.error(
-			"WebEngage SMS webhook: WEBENGAGE_API_SECRET is not configured",
+			"WebEngage SMS webhook: WEBENGAGE_API_SECRET binding is missing or empty on this Worker",
 		);
 		return c.json(
 			{
 				status: "sms_rejected" as const,
 				statusCode: 2011,
-				message: "Webhook secret is not configured",
+				message:
+					"Authentication failure: WEBENGAGE_API_SECRET is not set on this Worker",
 			},
 			401,
 		);
 	}
 
 	const ok = verifyWebengageSmsSecret({
-		expectedSecret: c.env.WEBENGAGE_API_SECRET,
-		authorizationHeader: c.req.header("Authorization"),
-		xWebEngageSecretHeader: c.req.header("X-WebEngage-Secret"),
+		expectedSecret: envSecret,
+		authorizationHeader: authHeader,
+		xWebEngageSecretHeader: xSecretHeader,
 	});
 
 	if (!ok) {
 		return c.json(
 			{
 				status: "sms_rejected" as const,
-				statusCode: 2011,
-				message: "Authentication failure",
+				statusCode: 2005,
+				message:
+					"Authorization failure: X-WebEngage-Secret / Authorization Bearer did not match WEBENGAGE_API_SECRET",
 			},
-			401,
+			403,
 		);
 	}
 
@@ -94,19 +126,27 @@ const sendSmsRoute = createRoute({
 			},
 		},
 		400: {
-			description: "Invalid payload",
+			description:
+				"Invalid payload (e.g. empty body 2002, invalid number 2003, unsupported version 2010)",
+			content: {
+				"application/json": { schema: WebEngageSmsRejectedSchema },
+			},
+		},
+		403: {
+			description: "Authorization failure — header secret mismatch (statusCode 2005)",
 			content: {
 				"application/json": { schema: WebEngageSmsRejectedSchema },
 			},
 		},
 		401: {
-			description: "Authentication failure",
+			description:
+				"Authentication failure — WEBENGAGE_API_SECRET not bound on Worker (statusCode 2011)",
 			content: {
 				"application/json": { schema: WebEngageSmsRejectedSchema },
 			},
 		},
 		413: {
-			description: "Message too long",
+			description: "Message too long (statusCode 2007)",
 			content: {
 				"application/json": { schema: WebEngageSmsRejectedSchema },
 			},
@@ -118,12 +158,13 @@ webengageSmsRoute.openapi(sendSmsRoute, async (c) => {
 	const body = c.req.valid("json");
 	const version = body.version?.trim();
 	if (version !== "1.0" && version !== "2.0") {
+		// Documented Private SSP example: 2010 + supportedVersion.
 		return c.json(
 			{
 				status: "sms_rejected" as const,
 				statusCode: 2010,
-				message: "Version not supported",
-				supportedVersion: "1.0",
+				message: "VERSION NOT SUPPORTED",
+				supportedVersion: "2.0",
 			},
 			400,
 		);

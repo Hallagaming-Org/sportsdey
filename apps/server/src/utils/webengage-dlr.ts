@@ -121,9 +121,11 @@ export function isFinalAtStatus(status: string): boolean {
 
 /**
  * DSN payload in WebEngage's documented Private SSP shape.
- * status is restricted to sms_sent | sms_failed and statusCode to
- * WebEngage's documented table (0 = success, 2009 = not delivered by the
- * mobile network operator).
+ * status is restricted to sms_sent | sms_failed only — never sms_rejected
+ * (that value is exclusive to the synchronous inbound SSP response).
+ *
+ * smsCount is intentionally omitted: Africa's Talking send/DLR payloads we
+ * parse do not include a segment count, so fabricating one would be incorrect.
  */
 export type WebengageDsnPayload = {
 	version: string;
@@ -134,12 +136,76 @@ export type WebengageDsnPayload = {
 	message?: string;
 };
 
+/**
+ * Map AT delivery status + failureReason to the most specific WebEngage
+ * Private SSP statusCode. Unknown reasons fall back to 9988.
+ *
+ * AT documented failureReason values include InsufficientCredit,
+ * InvalidPhoneNumber, UserInBlacklist, etc. Matching is case-insensitive and
+ * also scans free-text reasons.
+ */
+export function mapAtFailureToWebengageStatusCode(
+	report: Pick<AfricaTalkingDeliveryReport, "status" | "failureReason">,
+): { statusCode: number; message: string } {
+	const reason = (report.failureReason || "").trim();
+	const haystack = `${report.status} ${reason}`.toLowerCase();
+
+	if (
+		/invalid.?phone|invalid.?number|invalid.?recipient|malformed.?number|user.?does.?not.?exist|unknown.?subscriber/.test(
+			haystack,
+		)
+	) {
+		return {
+			statusCode: 2003,
+			message: reason || "Invalid mobile number",
+		};
+	}
+	if (
+		/exceed.+max.?length|message.?too.?long|max.?length|too.?long/.test(
+			haystack,
+		)
+	) {
+		return {
+			statusCode: 2007,
+			message: reason || "EXCEEDING MAX LENGTH",
+		};
+	}
+	if (
+		/black.?list|opt.?out|do.?not.?disturb|\bdnd\b|user.?in.?blacklist/.test(
+			haystack,
+		)
+	) {
+		return {
+			statusCode: 3000,
+			message: reason || "Recipient blacklisted",
+		};
+	}
+	if (
+		/insufficient.?credit|insufficient.?balance|no.?credit|low.?balance/.test(
+			haystack,
+		)
+	) {
+		return {
+			statusCode: 2000,
+			message: reason || "Insufficient credit balance",
+		};
+	}
+
+	// No clear documented mapping — catch-all 9988 with AT's raw detail.
+	const message = reason
+		? `${report.status}: ${reason}`
+		: `Africa's Talking delivery status: ${report.status}`;
+	return { statusCode: 9988, message };
+}
+
 export function buildWebengageDsn(
 	report: AfricaTalkingDeliveryReport,
 	mapping: WebengageSmsMapping,
 ): WebengageDsnPayload | null {
 	const status = report.status.toLowerCase();
 	if (AT_FINAL_SUCCESS_STATUSES.has(status)) {
+		// Documented "SMS Sent" DSN — only for AT's final Success (not
+		// Sent/Submitted/Buffered/Queued intermediates).
 		return {
 			version: mapping.version,
 			messageId: mapping.weMessageId,
@@ -149,19 +215,18 @@ export function buildWebengageDsn(
 		};
 	}
 	if (AT_FINAL_FAILURE_STATUSES.has(status)) {
+		const mapped = mapAtFailureToWebengageStatusCode(report);
 		return {
 			version: mapping.version,
 			messageId: mapping.weMessageId,
 			toNumber: mapping.toNumber,
 			status: "sms_failed",
-			statusCode: 2009,
-			message:
-				report.failureReason ||
-				`The message was not delivered by the mobile network operator (${report.status})`,
+			statusCode: mapped.statusCode,
+			message: mapped.message,
 		};
 	}
-	// Intermediate statuses (Sent, Submitted, Buffered, Queued): a final
-	// report follows, so no DSN yet.
+	// Intermediate AT statuses (Sent, Submitted, Buffered, Queued): a final
+	// Success/Failed/Rejected report follows — do not relay a DSN yet.
 	return null;
 }
 
