@@ -4,6 +4,10 @@ import { drizzle } from "drizzle-orm/d1";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { verifySlotitegrationSignature } from "@/utils";
+import {
+	initSlotegratorDemo,
+	SlotegratorApiError,
+} from "@/utils/slotegrator";
 import type { CloudflareBindings } from "../types";
 
 type SlotitegrationContext = {
@@ -37,6 +41,19 @@ const LaunchGameErrorResponseSchema = z
 		details: z.any().openapi({ description: "Error details" }),
 	})
 	.openapi("LaunchGameErrorResponse");
+
+const LaunchDemoGameSchema = z
+	.object({
+		game_uuid: z.string().openapi({ description: "Game UUID" }),
+		device: z.string().optional().openapi({ description: "Device type" }),
+		language: z.string().optional().openapi({ description: "UI language" }),
+		return_url: z
+			.string()
+			.url()
+			.optional()
+			.openapi({ description: "URL after player exits the demo" }),
+	})
+	.openapi("LaunchDemoGame");
 
 const launchGameRoute = createRoute({
 	method: "post",
@@ -96,6 +113,125 @@ const launchGameRoute = createRoute({
 			},
 		},
 	},
+});
+
+const launchDemoGameRoute = createRoute({
+	method: "post",
+	path: "/launch-demo",
+	tags: ["Slotegrator"],
+	summary: "Initialize a Slotegrator demo game (no real money)",
+	description:
+		"Calls Slotegrator POST /games/init-demo and returns a launch URL. No wallet session or user auth required.",
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: LaunchDemoGameSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Demo game launch URL",
+			content: {
+				"application/json": {
+					schema: LaunchGameResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Game not found",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		422: {
+			description: "Validation error or demo unsupported",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		500: {
+			description: "Server configuration error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		502: {
+			description: "Upstream API / merchant auth error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		503: {
+			description: "Upstream rate limited",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
+
+slotegratorRoute.openapi(launchDemoGameRoute, async (c) => {
+	const result = LaunchDemoGameSchema.safeParse(await c.req.json());
+	if (!result.success) {
+		return c.json(
+			{
+				success: false,
+				error: "Invalid request parameters",
+				details: null,
+			},
+			422,
+		);
+	}
+
+	try {
+		const data = await initSlotegratorDemo(c.env, result.data);
+		return c.json(
+			{
+				success: true,
+				data: { url: data.url },
+			},
+			200,
+		);
+	} catch (error) {
+		if (error instanceof SlotegratorApiError) {
+			const allowed = [404, 422, 500, 502, 503] as const;
+			const status = allowed.includes(
+				error.status as (typeof allowed)[number],
+			)
+				? (error.status as (typeof allowed)[number])
+				: 502;
+			return c.json(
+				{
+					success: false,
+					error: error.message,
+					details: error.details,
+				},
+				status,
+			);
+		}
+		console.error("Slotegrator launch-demo unexpected error", error);
+		return c.json(
+			{
+				success: false,
+				error: "Failed to launch demo game",
+				details: null,
+			},
+			502,
+		);
+	}
 });
 
 slotegratorRoute.openapi(launchGameRoute, async (c) => {
