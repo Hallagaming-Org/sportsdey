@@ -634,7 +634,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 	}
 
 	const selections = result.data.bet_odds ?? [];
-	const firstOdds = selections[0] as Record<string, any> | undefined;
+	const firstOdds = selections[0] as Record<string, unknown> | undefined;
 	trackWebengageEvent(
 		c.env,
 		{
@@ -827,6 +827,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	// 	);
 	// }
 
+	let bal: number;
 	let balAfter: number;
 
 	const wallet = await db.query.wallet.findFirst({
@@ -848,6 +849,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	}
 
 	const balanceBefore = wallet.balance;
+	bal = balanceBefore;
 	balAfter = balanceBefore;
 
 	if (!bet.betFreebetId) {
@@ -964,7 +966,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	}
 
 	const selections = result.data.bet_odds as
-		| Array<Record<string, any>>
+		| Array<Record<string, unknown>>
 		| undefined;
 	const firstSelection = selections?.[0];
 
@@ -1576,7 +1578,7 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		settleType === 1 ? "win" : settleType === 2 ? "refund" : "loss";
 
 	const settleSelections = result.data.bet_odds as
-		| Array<Record<string, any>>
+		| Array<Record<string, unknown>>
 		| undefined;
 	const settleFirstOdds = settleSelections?.[0];
 
@@ -2131,7 +2133,7 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				cashout_value: result.data.refund_amount,
 				original_stake: bet.stake,
 				refund_amount: result.data.refund_amount,
-				cashout_rate: bet.stake - Number.parseFloat(result.data.refund_amount),
+				cashout_rate: bet.stake - result.data.refund_amount,
 				original_potential_payout: result.data.amount,
 			},
 		},
@@ -2542,6 +2544,7 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 	}
 
 	const id = crypto.randomUUID();
+	const amountKobo = Math.round(result.amount * 100);
 
 	const apiRequestBody = {
 		player_id: result.player_id,
@@ -2743,7 +2746,7 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 					},
 					index: number,
 				) => ({
-					id: freebetsData[index].idempotence_id,
+					id: freebetsData[index].id,
 					dataBetFreebetId: data.freebet_ids[index],
 					amount: fb.amount,
 					currency: fb.currency,
