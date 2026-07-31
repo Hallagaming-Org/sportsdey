@@ -339,7 +339,8 @@ export async function launchClassicGame(
 			body = {};
 		}
 	} else {
-		path = "/slotegrator/launch";
+		// Demo mode preview (no real money / wallet callbacks).
+		path = "/slotegrator/launch-demo";
 		body = { game_uuid: game.code };
 	}
 
