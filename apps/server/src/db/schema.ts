@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	real,
+	sqliteTable,
+	text,
+} from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
@@ -169,6 +175,28 @@ export const sportsbookSessionRelations = relations(
 		}),
 	}),
 );
+
+export const sportsbookBetBoost = sqliteTable("sportsbook_bet_boost", {
+	id: text("id").primaryKey(),
+	dataBetBoostId: text("data_bet_boost_id").notNull().unique(),
+	playerId: text("player_id"),
+	boostName: text("boost_name").notNull(),
+	description: text("description").notNull(),
+	boostPercentage: real("boost_percentage").notNull(),
+	maximumWin: real("maximum_win"),
+	minimumSelections: integer("minimum_selections").notNull(),
+	maximumSelections: integer("maximum_selections").notNull(),
+	minimumOddsPerSelection: real("minimum_odds_per_selection").notNull(),
+	eligibleUsers: text("eligible_users").notNull(),
+	eligibleSports: text("eligible_sports").notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
 
 export const sportsbookBet = sqliteTable("sportsbook_bet", {
 	id: text("id").primaryKey(),

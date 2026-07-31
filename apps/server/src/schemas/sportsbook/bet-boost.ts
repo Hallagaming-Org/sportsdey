@@ -1,38 +1,30 @@
 import { z } from "@hono/zod-openapi";
 import { BetConditionSchema } from "./bet";
 
+export const SportSchema = z.enum(["Football", "Basketball", "Tennis"]);
+export type Sport = z.infer<typeof SportSchema>;
+
 export const BetBoostCreateSchema = z.object({
-	player_id: z.string(),
-	currency: z.string(),
-	initial_quantity: z.number(),
-	calculation_strategy: z
-		.object({
-			type: z.string(),
-			strategy: z
-				.object({
-					conditions: z.array(z.any()).optional(),
-					params: z
-						.object({
-							max_multiplier: z.string().optional(),
-							min_marge_ratio: z.string().optional(),
-							max_marge_ratio: z.string().optional(),
-						})
-						.optional(),
-				})
-				.optional(),
-		})
-		.optional(),
-	applicable_conditions: z.array(BetConditionSchema),
-	required_conditions: z.array(BetConditionSchema),
-	expires_at: z.string(),
+	boostName: z.string(),
+	description: z.string(),
+	boostPercentage: z.number(),
+	maximumWin: z.number(),
+	minimumSelections: z.number(),
+	maximumSelections: z.number(),
+	minimumOddsPerSelection: z.number(),
+	eligibleUsers: z.enum(["all", "new"]),
+	eligibleSports: z.array(SportSchema),
 });
 
 export const BetBoostCreateResponseSchema = z.object({
 	success: z.literal(true),
-	data: z.object({
-		id: z.string(),
-		dataBetBoostId: z.string(),
-	}),
+	data: z.array(
+		z.object({
+			id: z.string(),
+			dataBetBoostId: z.string(),
+			playerId: z.string().nullable(),
+		}),
+	),
 });
 
 export const BetBoostListQuerySchema = z.object({});

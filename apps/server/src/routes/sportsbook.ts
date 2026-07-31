@@ -43,6 +43,12 @@ const BET_TYPE_LABELS: Record<number, string> = {
 	9: "live-accumulator",
 };
 
+const SPORT_IDS: Record<"Football" | "Basketball" | "Tennis", string> = {
+	Football: "football",
+	Basketball: "basketball",
+	Tennis: "tennis",
+};
+
 const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 export default sportsbookRoute;
@@ -3512,68 +3518,175 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 
 	const result = await c.req.valid("json");
 
-	const apiRequestBody: Record<string, unknown> = {
-		idempotence_id: crypto.randomUUID(),
-		player_id: result.player_id,
-		currency_code: result.currency,
-		initial_quantity: result.initial_quantity,
-		applicable_conditions: result.applicable_conditions,
-		required_conditions: result.required_conditions,
-		expires_at: result.expires_at,
-	};
+	const db = drizzle(c.env.DB, { schema });
 
-	if (result.calculation_strategy) {
-		apiRequestBody.calculation_strategy = result.calculation_strategy;
-	}
+	const sportIds = result.eligibleSports.map((sport) => SPORT_IDS[sport]);
+	const multiplier = (1 + result.boostPercentage / 100).toFixed(2);
+	const expiresAt = new Date(
+		Date.now() + 30 * 24 * 60 * 60 * 1000,
+	).toISOString();
 
-	const response = await databetFetch(c.env, "/bet-boosts", {
-		method: "POST",
-		body: apiRequestBody,
+	const buildPerOddConditions = () => ({
+		sport: {
+			type: "sport",
+			match_all_odds: true,
+			sport_ids: sportIds,
+		},
+		odd_value: {
+			type: "odd_value",
+			match_all_odds: true,
+			min: result.minimumOddsPerSelection.toFixed(2),
+		},
 	});
 
-	if (!response.ok) {
-		const errorText = await response.text();
-		console.error(
-			"Data.Bet bet-boost create error:",
-			response.status,
-			errorText,
-		);
-		return c.json(
-			{
-				success: false as const,
-				error: `Failed to create bet boost: ${response.status}`,
-				details: errorText,
+	const buildRequiredConditions = (): Array<Record<string, unknown>> => [
+		{
+			type: "bet_details",
+			bet_details: [
+				{
+					bet_type: 2,
+					data: {
+						...buildPerOddConditions(),
+						odds_count: {
+							type: "odds_count",
+							min: result.minimumSelections,
+							max: result.maximumSelections,
+						},
+					},
+				},
+			],
+		},
+	];
+
+	const buildApplicableConditions = (): Array<Record<string, unknown>> => [
+		{
+			type: "bet_details",
+			bet_details: [
+				{
+					bet_type: 2,
+					data: buildPerOddConditions(),
+				},
+			],
+		},
+	];
+
+	const buildPayload = (playerId?: string) => ({
+		idempotence_id: crypto.randomUUID(),
+		...(playerId ? { player_id: playerId } : {}),
+		currency_code: "NGN",
+		initial_quantity: 0,
+		expires_at: expiresAt,
+		calculation_strategy: {
+			type: "static",
+			strategy: {
+				conditions: [],
+				params: {
+					multiplier,
+					min_selections: result.minimumSelections,
+				},
 			},
-			400,
-		);
+		},
+		required_conditions: buildRequiredConditions(),
+		applicable_conditions: buildApplicableConditions(),
+	});
+
+	let targetPlayerIds: string[] | undefined;
+	if (result.eligibleUsers === "new") {
+		const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+		const newUsers = await db
+			.select({ id: schema.user.id })
+			.from(schema.user)
+			.where(gte(schema.user.createdAt, new Date(sevenDaysAgo)));
+		targetPlayerIds = newUsers.map((newUser) => newUser.id);
+		if (targetPlayerIds.length === 0) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No new users found in the last 7 days",
+				},
+				400,
+			);
+		}
 	}
 
-	const data = (await response.json()) as Array<{
+	const targets: Array<string | undefined> =
+		targetPlayerIds && targetPlayerIds.length > 0
+			? targetPlayerIds
+			: [undefined];
+
+	const created: Array<{
 		id: string;
-		currency_code: string;
-		calculation_strategy: unknown;
-	}>;
+		dataBetBoostId: string;
+		playerId: string | null;
+	}> = [];
 
-	const createdBoost = data[0];
-	if (!createdBoost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "No boost created",
-			},
-			400,
-		);
+	for (const playerId of targets) {
+		const apiRequestBody = buildPayload(playerId);
+
+		const response = await databetFetch(c.env, "/bet-boosts", {
+			method: "POST",
+			body: apiRequestBody,
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost create error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to create bet boost: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as Array<{
+			id: string;
+		}>;
+
+		const createdBoost = data[0];
+		if (!createdBoost) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No boost created",
+				},
+				400,
+			);
+		}
+
+		const boostId = crypto.randomUUID();
+		await db.insert(schema.sportsbookBetBoost).values({
+			id: boostId,
+			dataBetBoostId: createdBoost.id,
+			playerId: playerId ?? null,
+			boostName: result.boostName,
+			description: result.description,
+			boostPercentage: result.boostPercentage,
+			maximumWin: result.maximumWin,
+			minimumSelections: result.minimumSelections,
+			maximumSelections: result.maximumSelections,
+			minimumOddsPerSelection: result.minimumOddsPerSelection,
+			eligibleUsers: result.eligibleUsers,
+			eligibleSports: JSON.stringify(result.eligibleSports),
+		});
+
+		created.push({
+			id: boostId,
+			dataBetBoostId: createdBoost.id,
+			playerId: playerId ?? null,
+		});
 	}
-
-	const idempotenceId = apiRequestBody.idempotence_id as string;
 
 	return c.json(
 		{
 			success: true as const,
-			data: {
-				id: idempotenceId,
-				dataBetBoostId: createdBoost.id,
-			},
+			data: created,
 		},
 		200,
 	);
