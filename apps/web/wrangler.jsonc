@@ -14,7 +14,13 @@
 		"staging": {
 			"name": "staging-web",
 			"vars": {
-				"ENV": "staging"
+				"ENV": "staging",
+				"VITE_SERVER_URL": "https://staging-api.sportsdey.com",
+				"VITE_API_URL": "https://staging-api.sportsdey.com",
+				"VITE_PUBLIC_URL": "https://stagingweb.sportsdey.com",
+				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.int.databet.cloud/v2/f7078267/bootstrap.js",
+				"VITE_DATABET_SPA_BASENAME": "/",
+				"VITE_DATABET_DEFAULT_LOCALE": "en"
 			},
 			"routes": [
 				{

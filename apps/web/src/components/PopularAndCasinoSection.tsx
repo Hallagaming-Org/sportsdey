@@ -30,7 +30,6 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 const HOT_CASINO_LIMIT = 30;
-const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
 type HotLobbyGame =
@@ -545,6 +544,8 @@ function HotCasinoPanel() {
 				const known = !isScorpioHotGame(game)
 					? CLASSIC_KNOWN_GAMES[game.code]
 					: undefined;
+				const image = game.imageUrl || known?.image || null;
+				const Icon = image ? undefined : known?.icon;
 				return (
 					<button
 						key={game.id}
@@ -564,19 +565,20 @@ function HotCasinoPanel() {
 								<Loader2 className="h-6 w-6 animate-spin text-white" />
 							</div>
 						)}
-						<img
-							src={game.imageUrl || known?.image || PLACEHOLDER_IMAGE}
-							alt={game.name}
-							loading="lazy"
-							className="absolute inset-0 h-full w-full object-cover transition-opacity"
-							style={{ opacity: isLoadingThis ? 0.35 : 1 }}
-							onError={(e) => {
-								const img = e.currentTarget;
-								if (img.dataset.fallbackApplied === "1") return;
-								img.dataset.fallbackApplied = "1";
-								img.src = PLACEHOLDER_IMAGE;
-							}}
-						/>
+						{image ? (
+							<img
+								src={image}
+								alt={game.name}
+								loading="lazy"
+								className="absolute inset-0 h-full w-full object-cover transition-opacity"
+								style={{ opacity: isLoadingThis ? 0.35 : 1 }}
+								onError={(e) => {
+									e.currentTarget.style.display = "none";
+								}}
+							/>
+						) : Icon ? (
+							<Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-2" />
+						) : null}
 						<div className="relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
 							<p className="truncate font-semibold text-white text-xs">
 								{game.name}

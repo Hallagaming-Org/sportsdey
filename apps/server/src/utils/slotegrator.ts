@@ -16,6 +16,8 @@ export type SlotegratorDemoInitInput = {
 	device?: string;
 	language?: string;
 	return_url?: string;
+	/** ISO-4217; defaults to NGN (merchant market). */
+	currency?: string;
 };
 
 export class SlotegratorApiError extends Error {
@@ -251,6 +253,7 @@ export async function initSlotegratorDemo(
 
 	const requestBody: Record<string, string> = {
 		game_uuid: input.game_uuid,
+		currency: (input.currency?.trim() || "NGN").toUpperCase(),
 	};
 	if (input.device?.trim()) requestBody.device = input.device.trim();
 	if (input.language?.trim()) requestBody.language = input.language.trim();
