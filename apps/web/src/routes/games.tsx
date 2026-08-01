@@ -2,7 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ComponentType,
+	type SyntheticEvent,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -38,10 +45,13 @@ const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
 const PAGE_SIZE = 24;
-const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 
 function isScorpioGame(game: LobbyGame): game is ScorpioLobbyGame {
 	return "provider" in game && game.provider === "scorpio";
+}
+
+function hideBrokenImage(e: SyntheticEvent<HTMLImageElement>) {
+	e.currentTarget.style.display = "none";
 }
 
 /** Map Scorpio titles into live Classic category slugs for one lobby UI. */
@@ -383,10 +393,12 @@ function GamesPage() {
 	const getGameDisplay = (game: LobbyGame) => {
 		if (!isScorpioGame(game)) {
 			const known = CLASSIC_KNOWN_GAMES[game.code];
+			const image = game.imageUrl || known?.image || null;
 			return {
 				name: game.name,
 				subtitle: known?.subtitle ?? "Play now",
-				image: game.imageUrl || known?.image || PLACEHOLDER_IMAGE,
+				image,
+				Icon: image ? undefined : known?.icon,
 				gradient: known?.gradient ?? DEFAULT_GRADIENT,
 			};
 		}
@@ -394,7 +406,8 @@ function GamesPage() {
 		return {
 			name: game.name,
 			subtitle: game.providerName || "Scorpio Play",
-			image: game.imageUrl || PLACEHOLDER_IMAGE,
+			image: game.imageUrl || null,
+			Icon: undefined as ComponentType<{ className?: string }> | undefined,
 			gradient: DEFAULT_GRADIENT,
 		};
 	};
@@ -606,18 +619,20 @@ function GamesPage() {
 														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
 												)}
-												<img
-													src={display.image}
-													alt={display.name}
-													loading="lazy"
-													className="absolute inset-0 h-full w-full object-cover"
-													style={{
-														opacity: loadingGame === game.id ? 0.35 : 1,
-													}}
-													onError={(e) => {
-														e.currentTarget.src = PLACEHOLDER_IMAGE;
-													}}
-												/>
+												{display.image ? (
+													<img
+														src={display.image}
+														alt={display.name}
+														loading="lazy"
+														className="absolute inset-0 h-full w-full object-cover"
+														style={{
+															opacity: loadingGame === game.id ? 0.35 : 1,
+														}}
+														onError={hideBrokenImage}
+													/>
+												) : display.Icon ? (
+													<display.Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-2" />
+												) : null}
 												<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
 													<p className="truncate text-[11px] font-medium text-white">
 														{display.name}
@@ -661,18 +676,20 @@ function GamesPage() {
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
 										)}
-										<img
-											src={display.image}
-											alt={display.name}
-											loading="lazy"
-											className="absolute inset-0 h-full w-full object-cover"
-											style={{
-												opacity: loadingGame === game.id ? 0.35 : 1,
-											}}
-											onError={(e) => {
-												e.currentTarget.src = PLACEHOLDER_IMAGE;
-											}}
-										/>
+										{display.image ? (
+											<img
+												src={display.image}
+												alt={display.name}
+												loading="lazy"
+												className="absolute inset-0 h-full w-full object-cover"
+												style={{
+													opacity: loadingGame === game.id ? 0.35 : 1,
+												}}
+												onError={hideBrokenImage}
+											/>
+										) : display.Icon ? (
+											<display.Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-3" />
+										) : null}
 										<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
 											<p className="truncate text-sm font-medium text-white">
 												{display.name}
