@@ -10,6 +10,8 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { CasinoLaunchActions } from "@/components/casino-launch-actions";
+import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
@@ -18,10 +20,12 @@ import {
 	CLASSIC_CATEGORY_EMOJIS,
 	CLASSIC_KNOWN_GAMES,
 	CLASSIC_PRIORITY_GAMES,
+	type ClassicLaunchMode,
 	classicCategoryCounts,
 	type ClassicLobbyGame,
 	fetchClassicLobbyGames,
 	filterClassicGames,
+	isSlotegratorLobbyGame,
 	launchClassicGame,
 } from "@/lib/classic-lobby";
 import {
@@ -117,6 +121,8 @@ function GamesPage() {
 	const { category } = Route.useSearch();
 
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
+	const [activeLaunchId, setActiveLaunchId] = useState<string | null>(null);
+	const [showBalanceModal, setShowBalanceModal] = useState(false);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
@@ -314,18 +320,30 @@ function GamesPage() {
 		return () => observer.disconnect();
 	}, [hasMore]);
 
-	const handleGameClick = async (game: LobbyGame) => {
-		if (!session?.user) {
-			navigate({
-				to: "/auth/sign-in",
-				search: {
-					returnTo: window.location.pathname + window.location.search,
-				},
-			});
+	const goSignIn = () => {
+		navigate({
+			to: "/auth/sign-in",
+			search: {
+				returnTo: window.location.pathname + window.location.search,
+			},
+		});
+	};
+
+	const supportsDualLaunch = (game: LobbyGame) =>
+		!isScorpioGame(game) && isSlotegratorLobbyGame(game);
+
+	const handleGameLaunch = async (
+		game: LobbyGame,
+		mode: ClassicLaunchMode = "real",
+	) => {
+		const needsAuth = isScorpioGame(game) || mode === "real";
+		if (needsAuth && !session?.user) {
+			goSignIn();
 			return;
 		}
 
 		setLaunchError(null);
+		setActiveLaunchId(null);
 		setLoadingGame(game.id);
 		try {
 			let gameUrl: string | null;
@@ -338,7 +356,7 @@ function GamesPage() {
 				});
 				gameUrl = launch.url;
 			} else {
-				gameUrl = await launchClassicGame(game);
+				gameUrl = await launchClassicGame(game, { mode });
 				if (!gameUrl) return;
 			}
 
@@ -362,19 +380,16 @@ function GamesPage() {
 						: null;
 			const message =
 				err instanceof Error ? err.message : "Failed to launch game";
-			// Only bounce to sign-in for a real missing session — not Scorpio
-			// business errors that used to be mis-mapped as HTTP 401.
 			const isSessionMissing =
 				message === "Unauthorized" ||
 				((status === 401 || status === 403) &&
 					/unauthorized|not authenticated/i.test(message));
 			if (isSessionMissing) {
-				navigate({
-					to: "/auth/sign-in",
-					search: {
-						returnTo: window.location.pathname + window.location.search,
-					},
-				});
+				goSignIn();
+				return;
+			}
+			if (/insufficient|not enough|balance/i.test(message)) {
+				setShowBalanceModal(true);
 				return;
 			}
 			setLaunchError(message);
@@ -383,10 +398,18 @@ function GamesPage() {
 		}
 	};
 
+	const handleCardActivate = (game: LobbyGame) => {
+		if (supportsDualLaunch(game)) {
+			setActiveLaunchId((prev) => (prev === game.id ? null : game.id));
+			return;
+		}
+		void handleGameLaunch(game, "real");
+	};
+
 	const handleKeyDown = (e: React.KeyboardEvent, game: LobbyGame) => {
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
-			void handleGameClick(game);
+			handleCardActivate(game);
 		}
 	};
 
@@ -462,6 +485,14 @@ function GamesPage() {
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
+			<InsufficientBalanceModal
+				isOpen={showBalanceModal}
+				onClose={() => setShowBalanceModal(false)}
+				onTopUp={() => {
+					setShowBalanceModal(false);
+					navigate({ to: "/wallet" });
+				}}
+			/>
 			<div className="container mx-auto relative px-4 pb-8">
 				<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
 					<div className="mb-4 flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -595,12 +626,13 @@ function GamesPage() {
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
+										const dual = supportsDualLaunch(game);
 										return (
 											<motion.div
 												key={game.id}
 												variants={itemVariants}
 												className={cn(
-													"relative flex flex-none cursor-pointer snap-start flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
+													"group relative flex flex-none cursor-pointer snap-start flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
 													loadingGame === game.id &&
 														"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
 												)}
@@ -609,12 +641,12 @@ function GamesPage() {
 													flex: "0 0 110px",
 													height: "110px",
 												}}
-												onClick={() => void handleGameClick(game)}
+												onClick={() => handleCardActivate(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
 												tabIndex={0}
 											>
-												{loadingGame === game.id && (
+												{loadingGame === game.id && !dual && (
 													<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
@@ -633,6 +665,15 @@ function GamesPage() {
 												) : display.Icon ? (
 													<display.Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-2" />
 												) : null}
+												{dual && (
+													<CasinoLaunchActions
+														compact
+														active={activeLaunchId === game.id}
+														loading={loadingGame === game.id}
+														onDemo={() => void handleGameLaunch(game, "demo")}
+														onPlay={() => void handleGameLaunch(game, "real")}
+													/>
+												)}
 												<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
 													<p className="truncate text-[11px] font-medium text-white">
 														{display.name}
@@ -656,22 +697,23 @@ function GamesPage() {
 						>
 							{displayGames.map((game) => {
 								const display = getGameDisplay(game);
+								const dual = supportsDualLaunch(game);
 								return (
 									<motion.div
 										key={game.id}
 										variants={itemVariants}
 										className={cn(
-											"relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
+											"group relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
 											loadingGame === game.id &&
 												"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
 										)}
 										style={{ background: display.gradient }}
-										onClick={() => void handleGameClick(game)}
+										onClick={() => handleCardActivate(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
 										role="button"
 										tabIndex={0}
 									>
-										{loadingGame === game.id && (
+										{loadingGame === game.id && !dual && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
@@ -690,6 +732,14 @@ function GamesPage() {
 										) : display.Icon ? (
 											<display.Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-3" />
 										) : null}
+										{dual && (
+											<CasinoLaunchActions
+												active={activeLaunchId === game.id}
+												loading={loadingGame === game.id}
+												onDemo={() => void handleGameLaunch(game, "demo")}
+												onPlay={() => void handleGameLaunch(game, "real")}
+											/>
+										)}
 										<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
 											<p className="truncate text-sm font-medium text-white">
 												{display.name}
