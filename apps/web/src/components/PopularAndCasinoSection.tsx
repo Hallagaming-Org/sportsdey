@@ -3,7 +3,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CasinoLaunchActions } from "@/components/casino-launch-actions";
+import {
+	CasinoLaunchActions,
+	CasinoLaunchSheet,
+} from "@/components/casino-launch-actions";
 import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -522,6 +525,14 @@ function HotCasinoPanel() {
 		void handleGameLaunch(game, "real");
 	};
 
+	const activeLaunchGame = useMemo(
+		() =>
+			activeLaunchId
+				? (hotGames.find((g) => g.id === activeLaunchId) ?? null)
+				: null,
+		[activeLaunchId, hotGames],
+	);
+
 	if (isSessionLoading || isLoading) {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
@@ -567,6 +578,20 @@ function HotCasinoPanel() {
 				onTopUp={() => {
 					setShowBalanceModal(false);
 					navigate({ to: "/wallet" });
+				}}
+			/>
+			<CasinoLaunchSheet
+				open={Boolean(activeLaunchGame)}
+				gameName={activeLaunchGame?.name ?? ""}
+				loading={Boolean(
+					activeLaunchGame && loadingId === activeLaunchGame.id,
+				)}
+				onClose={() => setActiveLaunchId(null)}
+				onDemo={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "demo");
+				}}
+				onPlay={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "real");
 				}}
 			/>
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
@@ -628,7 +653,7 @@ function HotCasinoPanel() {
 									onPlay={() => void handleGameLaunch(game, "real")}
 								/>
 							)}
-							<div className="relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
+							<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
 								<p className="truncate font-semibold text-white text-xs">
 									{game.name}
 								</p>
