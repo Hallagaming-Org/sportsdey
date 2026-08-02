@@ -10,7 +10,10 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { CasinoLaunchActions } from "@/components/casino-launch-actions";
+import {
+	CasinoLaunchActions,
+	CasinoLaunchSheet,
+} from "@/components/casino-launch-actions";
 import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
@@ -406,6 +409,16 @@ function GamesPage() {
 		void handleGameLaunch(game, "real");
 	};
 
+	const activeLaunchGame = useMemo(
+		() =>
+			activeLaunchId
+				? (displayGames.find((g) => g.id === activeLaunchId) ??
+					allGames.find((g) => g.id === activeLaunchId) ??
+					null)
+				: null,
+		[activeLaunchId, displayGames, allGames],
+	);
+
 	const handleKeyDown = (e: React.KeyboardEvent, game: LobbyGame) => {
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
@@ -491,6 +504,20 @@ function GamesPage() {
 				onTopUp={() => {
 					setShowBalanceModal(false);
 					navigate({ to: "/wallet" });
+				}}
+			/>
+			<CasinoLaunchSheet
+				open={Boolean(activeLaunchGame)}
+				gameName={activeLaunchGame?.name ?? ""}
+				loading={
+					Boolean(activeLaunchGame && loadingGame === activeLaunchGame.id)
+				}
+				onClose={() => setActiveLaunchId(null)}
+				onDemo={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "demo");
+				}}
+				onPlay={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "real");
 				}}
 			/>
 			<div className="container mx-auto relative px-4 pb-8">
@@ -674,7 +701,7 @@ function GamesPage() {
 														onPlay={() => void handleGameLaunch(game, "real")}
 													/>
 												)}
-												<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
+												<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
 													<p className="truncate text-[11px] font-medium text-white">
 														{display.name}
 													</p>
@@ -740,7 +767,7 @@ function GamesPage() {
 												onPlay={() => void handleGameLaunch(game, "real")}
 											/>
 										)}
-										<div className="relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
+										<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
 											<p className="truncate text-sm font-medium text-white">
 												{display.name}
 											</p>
