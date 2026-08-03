@@ -127,9 +127,10 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 
 	const merchantKey = c.env.SLOTITEGRATION_MERCHANT_KEY;
 	const merchantId = c.env.SLOTITEGRATION_MERCHANT_ID;
-	const slotegratorApiUrl = c.env.SLOTEGRATOR_API_URL;
+	const proxyUrl = c.env.PROXY_URL;
+	const proxySecret = c.env.PROXY_SECRET;
 
-	if (!merchantKey || !merchantId || !slotegratorApiUrl) {
+	if (!merchantKey || !merchantId || !proxyUrl || !proxySecret) {
 		return c.json(
 			{
 				success: false,
@@ -203,7 +204,10 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	console.log("X-Nonce", nonce);
 	console.log("X-Sign", computedSign);
 
-	const response = await fetch(`${slotegratorApiUrl}/games/init`, {
+	const slotegratorProxyPath =
+		c.env.NODE_ENV === "staging" ? "slotegrator-staging" : "slotegrator";
+
+	const response = await fetch(`${proxyUrl}/${slotegratorProxyPath}/games/init`, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/x-www-form-urlencoded",
@@ -211,6 +215,7 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 			"X-Timestamp": timestamp,
 			"X-Nonce": nonce,
 			"X-Sign": computedSign,
+			"x-proxy-auth": proxySecret,
 		},
 		body: new URLSearchParams(requestBody),
 	});
