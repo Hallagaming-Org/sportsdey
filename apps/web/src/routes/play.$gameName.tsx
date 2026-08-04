@@ -30,7 +30,7 @@ function PlayGamePage() {
 	>({
 		queryKey: ["scorpio-games"],
 		queryFn: fetchScorpioLobbyGames,
-		enabled: !!session?.user,
+		enabled: !isSessionLoading,
 		staleTime: 60_000,
 	});
 
@@ -79,17 +79,19 @@ function PlayGamePage() {
 					}, 5000);
 				}
 			} catch (err) {
-				if (
-					err instanceof ApiError &&
-					(err.status === 401 || err.status === 403)
-				) {
+				const message =
+					err instanceof Error ? err.message : "Something went wrong.";
+				const status = err instanceof ApiError ? err.status : null;
+				const isSessionMissing =
+					message === "Unauthorized" ||
+					((status === 401 || status === 403) &&
+						/unauthorized|not authenticated/i.test(message));
+				if (isSessionMissing) {
 					if (isMounted) navigate({ to: "/auth/sign-in" });
 					return;
 				}
 				if (isMounted) {
-					setError(
-						err instanceof Error ? err.message : "Something went wrong.",
-					);
+					setError(message);
 				}
 			}
 		};

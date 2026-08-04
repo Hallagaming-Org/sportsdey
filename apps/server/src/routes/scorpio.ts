@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
@@ -18,17 +19,6 @@ import {
 	ScorpioSuccessDataSchema,
 	ScorpioTransactionListQuerySchema,
 } from "@/schemas/scorpio";
-import { processScorpioCallback } from "@/utils/scorpio-callback";
-import {
-	loadScorpioSettings,
-	ScorpioConfigError,
-} from "@/utils/scorpio-config";
-import {
-	assertScorpioCallbackIp,
-	ScorpioIpForbiddenError,
-	ScorpioSignatureError,
-	verifyScorpioSignature,
-} from "@/utils/scorpio-security";
 import { getClientIp } from "@/utils/request";
 import {
 	cancelBonusCall,
@@ -51,10 +41,76 @@ import {
 	scorpioErrorToHttpStatus,
 	updateOperator,
 } from "@/utils/scorpio";
-import type { CloudflareBindings } from "../types";
+import { processScorpioCallback } from "@/utils/scorpio-callback";
+import {
+	loadScorpioSettings,
+	ScorpioConfigError,
+} from "@/utils/scorpio-config";
+import {
+	assertScorpioCallbackIp,
+	ScorpioIpForbiddenError,
+	ScorpioSignatureError,
+	verifyScorpioSignature,
+} from "@/utils/scorpio-security";
 import { generateUUIDv7 } from "@/utils/uuid";
+import type { CloudflareBindings } from "../types";
 
 const scorpioRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+type ScorpioContext = Context<{ Bindings: CloudflareBindings }>;
+
+type ScorpioHttpErrorStatus = 400 | 401 | 402 | 404 | 500 | 502 | 503 | 504;
+
+const scorpioErrorHttpResponses = {
+	400: {
+		description: "Bad request",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	401: {
+		description: "Unauthorized",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	402: {
+		description: "Payment required / insufficient funds",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	404: {
+		description: "Not found",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	500: {
+		description: "Server error",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	502: {
+		description: "Upstream Scorpio error",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	503: {
+		description: "Scorpio unavailable",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+	504: {
+		description: "Scorpio timeout",
+		content: {
+			"application/json": { schema: ScorpioErrorResponseSchema },
+		},
+	},
+};
 
 function scorpioErrorJson(error: unknown): {
 	body: {
@@ -63,7 +119,7 @@ function scorpioErrorJson(error: unknown): {
 		code: string;
 		details: unknown;
 	};
-	status: 400 | 401 | 402 | 404 | 500 | 502 | 503 | 504;
+	status: ScorpioHttpErrorStatus;
 } {
 	if (error instanceof ScorpioConfigError) {
 		return {
@@ -101,6 +157,30 @@ function scorpioErrorJson(error: unknown): {
 		},
 		status: 500,
 	};
+}
+
+/** OpenAPI route response unions are narrower than runtime Scorpio statuses. */
+function respondScorpioError(
+	c: { json: (body: unknown, status: ScorpioHttpErrorStatus) => unknown },
+	error: unknown,
+) {
+	const mapped = scorpioErrorJson(error);
+	return c.json(mapped.body, mapped.status) as never;
+}
+
+/** Hono OpenAPI infers handlers too narrowly for multi-status Scorpio routes. */
+function mountScorpioRoute(
+	route: unknown,
+	handler: (c: ScorpioContext) => Promise<unknown> | unknown,
+) {
+	// biome-ignore lint/suspicious/noExplicitAny: OpenAPI status unions cannot be satisfied practically
+	scorpioRoute.openapi(route as any, handler as any);
+}
+
+function validRequest<T>(c: ScorpioContext, target: "param" | "query"): T {
+	return (c.req as unknown as { valid: (t: "param" | "query") => T }).valid(
+		target,
+	);
 }
 
 async function ensureScorpioPlayer(
@@ -201,28 +281,11 @@ const launchRoute = createRoute({
 				"application/json": { schema: ScorpioLaunchResponseSchema },
 			},
 		},
-		400: {
-			description: "Bad request",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
-		500: {
-			description: "Server error",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(launchRoute, async (c) => {
+mountScorpioRoute(launchRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -270,8 +333,7 @@ scorpioRoute.openapi(launchRoute, async (c) => {
 			200,
 		);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -287,16 +349,11 @@ const kickRoute = createRoute({
 			description: "Kicked",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(kickRoute, async (c) => {
+mountScorpioRoute(kickRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -307,8 +364,7 @@ scorpioRoute.openapi(kickRoute, async (c) => {
 		const data = await kickPlayer(getScorpioConfig(c.env), user.id);
 		return c.json({ success: true as const, data: data ?? null }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -317,32 +373,22 @@ const providersRoute = createRoute({
 	path: "/providers",
 	tags: ["Scorpio Play"],
 	summary: "List Scorpio game providers",
-	security: [{ BearerAuth: [] }],
+	description: "Public catalog endpoint — no user session required",
 	responses: {
 		200: {
 			description: "Providers",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(providersRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(unauthorized, 401);
-	}
+mountScorpioRoute(providersRoute, async (c: ScorpioContext) => {
 	try {
 		const data = await listProviders(getScorpioConfig(c.env));
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -357,16 +403,11 @@ const providerSettingsRoute = createRoute({
 			description: "Settings",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(providerSettingsRoute, async (c) => {
+mountScorpioRoute(providerSettingsRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -375,8 +416,7 @@ scorpioRoute.openapi(providerSettingsRoute, async (c) => {
 		const data = await getProviderSettings(getScorpioConfig(c.env));
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -392,21 +432,19 @@ const providerSettingsByIdRoute = createRoute({
 			description: "Settings",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(providerSettingsByIdRoute, async (c) => {
+mountScorpioRoute(providerSettingsByIdRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
 	}
-	const { providerId, currency } = c.req.valid("param");
+	const { providerId, currency } = validRequest<{
+		providerId: number;
+		currency: string;
+	}>(c, "param");
 	try {
 		const data = await getProviderSettingsById(
 			getScorpioConfig(c.env),
@@ -415,8 +453,7 @@ scorpioRoute.openapi(providerSettingsByIdRoute, async (c) => {
 		);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -425,34 +462,24 @@ const gamesRoute = createRoute({
 	path: "/games/{providerId}",
 	tags: ["Scorpio Play"],
 	summary: "List games for a Scorpio provider",
-	security: [{ BearerAuth: [] }],
+	description: "Public catalog endpoint — no user session required",
 	request: { params: ScorpioProviderIdParamSchema },
 	responses: {
 		200: {
 			description: "Games",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(gamesRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(unauthorized, 401);
-	}
-	const { providerId } = c.req.valid("param");
+mountScorpioRoute(gamesRoute, async (c: ScorpioContext) => {
+	const { providerId } = validRequest<{ providerId: number }>(c, "param");
 	try {
 		const data = await listGames(getScorpioConfig(c.env), providerId);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -467,16 +494,11 @@ const playerInfoRoute = createRoute({
 			description: "Player info",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(playerInfoRoute, async (c) => {
+mountScorpioRoute(playerInfoRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -485,8 +507,7 @@ scorpioRoute.openapi(playerInfoRoute, async (c) => {
 		const data = await getPlayerInfo(getScorpioConfig(c.env), user.id);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -501,16 +522,11 @@ const operatorInfoRoute = createRoute({
 			description: "Operator info",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(operatorInfoRoute, async (c) => {
+mountScorpioRoute(operatorInfoRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -519,8 +535,7 @@ scorpioRoute.openapi(operatorInfoRoute, async (c) => {
 		const data = await getOperatorInfo(getScorpioConfig(c.env));
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -535,12 +550,7 @@ const operatorCreateRoute = createRoute({
 			description: "Created",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 		403: {
 			description: "Forbidden - admin only",
 			content: {
@@ -550,7 +560,7 @@ const operatorCreateRoute = createRoute({
 	},
 });
 
-scorpioRoute.openapi(operatorCreateRoute, async (c) => {
+mountScorpioRoute(operatorCreateRoute, async (c: ScorpioContext) => {
 	const admin = await requireAdmin(c);
 	if (!admin) {
 		return c.json(forbidden, 403);
@@ -562,8 +572,7 @@ scorpioRoute.openapi(operatorCreateRoute, async (c) => {
 		);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -578,12 +587,7 @@ const operatorUpdateRoute = createRoute({
 			description: "Updated",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 		403: {
 			description: "Forbidden - admin only",
 			content: {
@@ -593,7 +597,7 @@ const operatorUpdateRoute = createRoute({
 	},
 });
 
-scorpioRoute.openapi(operatorUpdateRoute, async (c) => {
+mountScorpioRoute(operatorUpdateRoute, async (c: ScorpioContext) => {
 	const admin = await requireAdmin(c);
 	if (!admin) {
 		return c.json(forbidden, 403);
@@ -605,8 +609,7 @@ scorpioRoute.openapi(operatorUpdateRoute, async (c) => {
 		);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -622,27 +625,26 @@ const transactionsRoute = createRoute({
 			description: "Transactions",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(transactionsRoute, async (c) => {
+mountScorpioRoute(transactionsRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
 	}
-	const query = c.req.valid("query");
+	const query = validRequest<{
+		startTime: string;
+		endTime: string;
+		offset: number;
+		limit: number;
+	}>(c, "query");
 	try {
 		const data = await listTransactions(getScorpioConfig(c.env), query);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -658,21 +660,20 @@ const transactionRoundRoute = createRoute({
 			description: "Round",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(transactionRoundRoute, async (c) => {
+mountScorpioRoute(transactionRoundRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
 	}
-	const query = c.req.valid("query");
+	const query = validRequest<{
+		roundId?: string;
+		playerExternalId?: string;
+		transId?: string;
+	}>(c, "query");
 	const filtered = Object.fromEntries(
 		Object.entries(query).filter(([, v]) => v !== undefined),
 	) as Record<string, string>;
@@ -680,8 +681,7 @@ scorpioRoute.openapi(transactionRoundRoute, async (c) => {
 		const data = await getTransactionRound(getScorpioConfig(c.env), filtered);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -703,16 +703,11 @@ const bonusRegisterRoute = createRoute({
 			description: "Registered",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(bonusRegisterRoute, async (c) => {
+mountScorpioRoute(bonusRegisterRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -737,8 +732,7 @@ scorpioRoute.openapi(bonusRegisterRoute, async (c) => {
 		const data = await registerBonusCall(getScorpioConfig(c.env), body);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -760,16 +754,11 @@ const bonusCancelRoute = createRoute({
 			description: "Cancelled",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(bonusCancelRoute, async (c) => {
+mountScorpioRoute(bonusCancelRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
@@ -790,8 +779,7 @@ scorpioRoute.openapi(bonusCancelRoute, async (c) => {
 		const data = await cancelBonusCall(getScorpioConfig(c.env), parsed.data);
 		return c.json({ success: true as const, data: data ?? null }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -807,27 +795,21 @@ const bonusDetailRoute = createRoute({
 			description: "Detail",
 			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
 		},
-		401: {
-			description: "Unauthorized",
-			content: {
-				"application/json": { schema: ScorpioErrorResponseSchema },
-			},
-		},
+		...scorpioErrorHttpResponses,
 	},
 });
 
-scorpioRoute.openapi(bonusDetailRoute, async (c) => {
+mountScorpioRoute(bonusDetailRoute, async (c: ScorpioContext) => {
 	const user = c.get("user");
 	if (!user) {
 		return c.json(unauthorized, 401);
 	}
-	const { issueId } = c.req.valid("param");
+	const { issueId } = validRequest<{ issueId: string }>(c, "param");
 	try {
 		const data = await getBonusCallDetail(getScorpioConfig(c.env), issueId);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
-		const mapped = scorpioErrorJson(error);
-		return c.json(mapped.body, mapped.status);
+		return respondScorpioError(c, error);
 	}
 });
 
@@ -890,7 +872,7 @@ const callbackHealthRoute = createRoute({
 	},
 });
 
-scorpioRoute.openapi(callbackHealthRoute, async (c) => {
+mountScorpioRoute(callbackHealthRoute, async (c: ScorpioContext) => {
 	return c.json(
 		{
 			ok: true as const,
@@ -901,7 +883,7 @@ scorpioRoute.openapi(callbackHealthRoute, async (c) => {
 	);
 });
 
-scorpioRoute.openapi(callbackRoute, async (c) => {
+mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 	const started = Date.now();
 	const requestId = c.req.header("cf-ray") || generateUUIDv7();
 	const remoteIp = getClientIp(c);

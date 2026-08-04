@@ -59,8 +59,11 @@ declare namespace Cloudflare {
 		AFRICASTALKING_USERNAME: string;
 		AFRICASTALKING_SENDER_ID: string;
 		WEBENGAGE_API_KEY: string;
+		WEBENGAGE_API_SECRET: string;
 		WEBENGAGE_LICENSE_CODE: string;
 		WEBENGAGE_HOST: string;
+		WEBENGAGE_DSN_URL: string;
+		AT_DLR_SECRET: string;
 		AFFNOOK_API_KEY: string;
 		AFFNOOK_BASE_URL: string;
 		AFFNOOK_BRAND_ID: string;

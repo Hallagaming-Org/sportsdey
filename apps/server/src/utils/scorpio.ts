@@ -203,8 +203,13 @@ export function scorpioErrorToHttpStatus(code: string): number {
 	switch (code) {
 		case "TOKEN_INVALID":
 		case "TOKEN_NOT_FOUND":
-		case "PERMISSION_ERROR":
+			// Operator API token issues — not the end-user session.
 			return 401;
+		case "PERMISSION_ERROR":
+			// Scorpio uses this for business rejects (e.g. currency unavailable,
+			// operator deposit balance empty). Must NOT be HTTP 401 — the web
+			// client treats 401 as "user logged out" and redirects to sign-in.
+			return 400;
 		case "USER_NOT_FOUND":
 		case "GAME_NOT_FOUND":
 		case "PROVIDER_NOT_FOUND":

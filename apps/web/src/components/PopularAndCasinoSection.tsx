@@ -3,11 +3,24 @@ import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+	CasinoLaunchActions,
+	CasinoLaunchSheet,
+} from "@/components/casino-launch-actions";
 import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
+import {
+	CLASSIC_KNOWN_GAMES,
+	CLASSIC_PRIORITY_GAMES,
+	type ClassicLaunchMode,
+	type ClassicLobbyGame,
+	fetchClassicLobbyGames,
+	isSlotegratorLobbyGame,
+	launchClassicGame,
+} from "@/lib/classic-lobby";
 import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
@@ -23,8 +36,15 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 const HOT_CASINO_LIMIT = 30;
-const PLACEHOLDER_IMAGE = "/lagos-rush.png";
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
+
+type HotLobbyGame =
+	| ScorpioLobbyGame
+	| (ClassicLobbyGame & { provider: "classic"; providerName: string });
+
+function isScorpioHotGame(game: HotLobbyGame): game is ScorpioLobbyGame {
+	return game.provider === "scorpio";
+}
 
 type TabId = "popular" | "casino";
 
@@ -363,28 +383,73 @@ function HotCasinoPanel() {
 	const navigate = useNavigate();
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const [loadingId, setLoadingId] = useState<string | null>(null);
+	const [activeLaunchId, setActiveLaunchId] = useState<string | null>(null);
+	const [showBalanceModal, setShowBalanceModal] = useState(false);
 
-	const {
-		data: games = [],
-		isLoading,
-		isError,
-		refetch,
-		isFetching,
-	} = useQuery<ScorpioLobbyGame[]>({
+	const scorpioQuery = useQuery<ScorpioLobbyGame[]>({
 		queryKey: ["scorpio-games"],
 		queryFn: fetchScorpioLobbyGames,
-		enabled: !isSessionLoading && Boolean(session?.user),
+		enabled: !isSessionLoading,
 		staleTime: 60_000,
 	});
 
-	const hotGames = useMemo(
-		() =>
-			[...games]
-				.filter((game) => game.enabled)
-				.sort((a, b) => a.name.localeCompare(b.name))
-				.slice(0, HOT_CASINO_LIMIT),
-		[games],
-	);
+	const classicQuery = useQuery<ClassicLobbyGame[]>({
+		queryKey: ["games"],
+		queryFn: fetchClassicLobbyGames,
+		enabled: !isSessionLoading,
+		staleTime: 60_000,
+	});
+
+	const isLoading =
+		(scorpioQuery.isLoading && !scorpioQuery.data) ||
+		(classicQuery.isLoading && !classicQuery.data);
+	const isError =
+		scorpioQuery.isError &&
+		classicQuery.isError &&
+		!(scorpioQuery.data?.length || classicQuery.data?.length);
+	const isFetching = scorpioQuery.isFetching || classicQuery.isFetching;
+	const refetch = () => {
+		void scorpioQuery.refetch();
+		void classicQuery.refetch();
+	};
+
+	const hotGames = useMemo(() => {
+		const classic: HotLobbyGame[] = (classicQuery.data ?? [])
+			.filter((game) => game.enabled)
+			.map((game) => ({
+				...game,
+				provider: "classic" as const,
+				providerName: CLASSIC_KNOWN_GAMES[game.code]
+					? "Classic"
+					: "Slotegrator",
+			}));
+
+		const classicPriority = [...classic].sort((a, b) => {
+			const aPri = CLASSIC_PRIORITY_GAMES.indexOf(a.code);
+			const bPri = CLASSIC_PRIORITY_GAMES.indexOf(b.code);
+			if (aPri !== -1 && bPri !== -1) return aPri - bPri;
+			if (aPri !== -1) return -1;
+			if (bPri !== -1) return 1;
+			return a.name.localeCompare(b.name);
+		});
+
+		const scorpio = [...(scorpioQuery.data ?? [])]
+			.filter((game) => game.enabled)
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		// Classic priority first so Slotegrator/Thndr originals appear, then Scorpio.
+		const merged: HotLobbyGame[] = [...classicPriority, ...scorpio];
+		const seen = new Set<string>();
+		const unique: HotLobbyGame[] = [];
+		for (const game of merged) {
+			const key = `${game.provider}:${game.code}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			unique.push(game);
+			if (unique.length >= HOT_CASINO_LIMIT) break;
+		}
+		return unique;
+	}, [classicQuery.data, scorpioQuery.data]);
 
 	const goSignIn = useCallback(() => {
 		navigate({
@@ -395,35 +460,53 @@ function HotCasinoPanel() {
 		});
 	}, [navigate]);
 
-	const handleGameClick = useCallback(
-		async (game: ScorpioLobbyGame) => {
-			if (!session?.user) {
+	const supportsDualLaunch = (game: HotLobbyGame) =>
+		!isScorpioHotGame(game) && isSlotegratorLobbyGame(game);
+
+	const handleGameLaunch = useCallback(
+		async (game: HotLobbyGame, mode: ClassicLaunchMode = "real") => {
+			const needsAuth = isScorpioHotGame(game) || mode === "real";
+			if (needsAuth && !session?.user) {
 				goSignIn();
 				return;
 			}
 
+			setActiveLaunchId(null);
 			setLoadingId(game.id);
 			try {
-				const launch = await launchScorpioGame({
-					providerId: game.providerId,
-					gameCode: game.code,
-					returnUrl: `${window.location.origin}/games`,
-				});
+				let gameUrl: string | null;
+				if (isScorpioHotGame(game)) {
+					const launch = await launchScorpioGame({
+						providerId: game.providerId,
+						gameCode: game.code,
+						returnUrl: `${window.location.origin}/games`,
+					});
+					gameUrl = launch.url;
+				} else {
+					gameUrl = await launchClassicGame(game, { mode });
+					if (!gameUrl) return;
+				}
 
 				navigate({
 					to: "/game/$gameId",
 					params: { gameId: game.code },
-					state: { gameUrl: launch.url } as never,
+					search: {},
+					state: { gameUrl } as never,
 				});
 			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "Failed to launch game";
-				if (
-					(error instanceof ApiError &&
-						(error.status === 401 || error.status === 403)) ||
-					message.toLowerCase().includes("unauthorized")
-				) {
+				const status = error instanceof ApiError ? error.status : null;
+				const isSessionMissing =
+					message === "Unauthorized" ||
+					((status === 401 || status === 403) &&
+						/unauthorized|not authenticated/i.test(message));
+				if (isSessionMissing) {
 					goSignIn();
+					return;
+				}
+				if (/insufficient|not enough|balance/i.test(message)) {
+					setShowBalanceModal(true);
 					return;
 				}
 				toast.error(message);
@@ -434,31 +517,23 @@ function HotCasinoPanel() {
 		[goSignIn, navigate, session?.user],
 	);
 
-	if (isSessionLoading) {
-		return (
-			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
-				{Array.from({ length: 10 }).map((_, i) => (
-					<Skeleton
-						key={`casino-session-skel-${i}`}
-						className="h-[110px] w-full rounded-xl"
-					/>
-				))}
-			</div>
-		);
-	}
+	const handleCardActivate = (game: HotLobbyGame) => {
+		if (supportsDualLaunch(game)) {
+			setActiveLaunchId((prev) => (prev === game.id ? null : game.id));
+			return;
+		}
+		void handleGameLaunch(game, "real");
+	};
 
-	if (!session?.user) {
-		return (
-			<div className="flex h-48 flex-col items-center justify-center gap-3 text-center text-gray-500 text-sm dark:text-gray-400">
-				<p>Sign in to browse live casino games.</p>
-				<Button size="sm" onClick={goSignIn}>
-					Sign in
-				</Button>
-			</div>
-		);
-	}
+	const activeLaunchGame = useMemo(
+		() =>
+			activeLaunchId
+				? (hotGames.find((g) => g.id === activeLaunchId) ?? null)
+				: null,
+		[activeLaunchId, hotGames],
+	);
 
-	if (isLoading) {
+	if (isSessionLoading || isLoading) {
 		return (
 			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
 				{Array.from({ length: 10 }).map((_, i) => (
@@ -496,52 +571,100 @@ function HotCasinoPanel() {
 	}
 
 	return (
-		<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
-			{hotGames.map((game) => {
-				const isLoadingThis = loadingId === game.id;
-				return (
-					<button
-						key={game.id}
-						type="button"
-						onClick={() => void handleGameClick(game)}
-						disabled={isLoadingThis}
-						className={cn(
-							"group relative flex h-[110px] w-full snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
-							isLoadingThis
-								? "scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background"
-								: "disabled:cursor-not-allowed disabled:opacity-60",
-						)}
-						style={{ background: DEFAULT_GRADIENT }}
-					>
-						{isLoadingThis && (
-							<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
-								<Loader2 className="h-6 w-6 animate-spin text-white" />
-							</div>
-						)}
-						<img
-							src={game.imageUrl || PLACEHOLDER_IMAGE}
-							alt={game.name}
-							loading="lazy"
-							className="absolute inset-0 h-full w-full object-cover transition-opacity"
-							style={{ opacity: isLoadingThis ? 0.35 : 1 }}
-							onError={(e) => {
-								const img = e.currentTarget;
-								if (img.dataset.fallbackApplied === "1") return;
-								img.dataset.fallbackApplied = "1";
-								img.src = PLACEHOLDER_IMAGE;
+		<>
+			<InsufficientBalanceModal
+				isOpen={showBalanceModal}
+				onClose={() => setShowBalanceModal(false)}
+				onTopUp={() => {
+					setShowBalanceModal(false);
+					navigate({ to: "/wallet" });
+				}}
+			/>
+			<CasinoLaunchSheet
+				open={Boolean(activeLaunchGame)}
+				gameName={activeLaunchGame?.name ?? ""}
+				loading={Boolean(
+					activeLaunchGame && loadingId === activeLaunchGame.id,
+				)}
+				onClose={() => setActiveLaunchId(null)}
+				onDemo={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "demo");
+				}}
+				onPlay={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "real");
+				}}
+			/>
+			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
+				{hotGames.map((game) => {
+					const isLoadingThis = loadingId === game.id;
+					const known = !isScorpioHotGame(game)
+						? CLASSIC_KNOWN_GAMES[game.code]
+						: undefined;
+					const image = game.imageUrl || known?.image || null;
+					const Icon = image ? undefined : known?.icon;
+					const dual = supportsDualLaunch(game);
+					return (
+						<div
+							key={game.id}
+							role="button"
+							tabIndex={isLoadingThis ? -1 : 0}
+							onClick={() => {
+								if (!isLoadingThis) handleCardActivate(game);
 							}}
-						/>
-						<div className="relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
-							<p className="truncate font-semibold text-white text-xs">
-								{game.name}
-							</p>
-							<p className="truncate text-[10px] text-white/80">
-								{game.providerName}
-							</p>
+							onKeyDown={(e) => {
+								if (isLoadingThis) return;
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									handleCardActivate(game);
+								}
+							}}
+							className={cn(
+								"group relative flex h-[110px] w-full cursor-pointer snap-start flex-col items-center justify-end overflow-hidden rounded-xl text-left transition-all hover:scale-[1.02] hover:shadow-md",
+								isLoadingThis &&
+									"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
+							)}
+							style={{ background: known?.gradient ?? DEFAULT_GRADIENT }}
+						>
+							{isLoadingThis && !dual && (
+								<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+									<Loader2 className="h-6 w-6 animate-spin text-white" />
+								</div>
+							)}
+							{image ? (
+								<img
+									src={image}
+									alt={game.name}
+									loading="lazy"
+									className="absolute inset-0 h-full w-full object-cover transition-opacity"
+									style={{ opacity: isLoadingThis ? 0.35 : 1 }}
+									onError={(e) => {
+										e.currentTarget.style.display = "none";
+									}}
+								/>
+							) : Icon ? (
+								<Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-2" />
+							) : null}
+							{dual && (
+								<CasinoLaunchActions
+									compact
+									active={activeLaunchId === game.id}
+									loading={isLoadingThis}
+									onDemo={() => void handleGameLaunch(game, "demo")}
+									onPlay={() => void handleGameLaunch(game, "real")}
+								/>
+							)}
+							<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
+								<p className="truncate font-semibold text-white text-xs">
+									{game.name}
+								</p>
+								<p className="truncate text-[10px] text-white/80">
+									{game.providerName}
+								</p>
+							</div>
 						</div>
-					</button>
-				);
-			})}
-		</div>
+					);
+				})}
+			</div>
+		</>
 	);
 }

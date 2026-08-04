@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, gte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import {
@@ -47,26 +47,80 @@ const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 export default sportsbookRoute;
 
+type SportsbookSelection = {
+	match_id?: string | number;
+	meta?: {
+		sport_event_info_sport_id?: string | number;
+		sport_event_info_tournament_id?: string | number;
+	};
+};
+
+function selectionSport(selection: SportsbookSelection | undefined): string {
+	const value = selection?.meta?.sport_event_info_sport_id;
+	return value == null ? "" : String(value);
+}
+
+function selectionLeague(selection: SportsbookSelection | undefined): string {
+	const value = selection?.meta?.sport_event_info_tournament_id;
+	return value == null ? "" : String(value);
+}
+
+function selectionMatchId(selection: SportsbookSelection | undefined): string {
+	const value = selection?.match_id;
+	return value == null ? "" : String(value);
+}
+
 async function databetFetch(
 	env: CloudflareBindings,
 	path: string,
 	options: { method?: string; body?: unknown } = {},
 ): Promise<Response> {
-	const proxyUrl = env.PROXY_URL;
-	const proxySecret = env.PROXY_SECRET;
+	const proxyUrl = env.PROXY_URL?.trim();
+	const proxySecret = env.PROXY_SECRET?.trim();
+
+	if (!proxyUrl) {
+		throw new Error("PROXY_URL not configured");
+	}
+	if (!proxySecret) {
+		throw new Error("PROXY_SECRET not configured");
+	}
 
 	const url = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
-		"X-Proxy-Auth": proxySecret || "",
+		"X-Proxy-Auth": proxySecret,
 	};
-	console.log("url", url);
 
-	return fetch(url, {
-		method: options.method || "GET",
-		headers,
-		body: options.body ? JSON.stringify(options.body) : undefined,
-	});
+	try {
+		return await fetch(url, {
+			method: options.method || "GET",
+			headers,
+			body: options.body ? JSON.stringify(options.body) : undefined,
+		});
+	} catch (error) {
+		console.error("Sportsbook proxy request threw", {
+			path,
+			nodeEnv: env.NODE_ENV,
+			proxyTarget: url,
+			hasProxyUrl: Boolean(proxyUrl),
+			hasProxySecret: Boolean(proxySecret),
+			// DATABET_CERT is documented at the architecture level, but current
+			// sportsbook traffic is actually proxied through apps/proxy, where the
+			// mTLS cert is attached by nginx rather than the Worker fetch itself.
+			hasDatabetCertBinding: Boolean(
+				(env as unknown as Record<string, unknown>).DATABET_CERT,
+			),
+			error:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack,
+						}
+					: String(error),
+		});
+		throw error;
+	}
 }
 
 const createTokenRoute = createRoute({
@@ -118,9 +172,8 @@ const createTokenRoute = createRoute({
 
 sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	const user = c.get("user");
-	const session = c.get("session");
 
-	if (!c.env.PROXY_URL) {
+	if (!c.env.PROXY_URL?.trim()) {
 		return c.json(
 			{
 				success: false as const,
@@ -130,18 +183,89 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 			500,
 		);
 	}
+	if (!c.env.PROXY_SECRET?.trim()) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Proxy secret not configured",
+				details: null,
+			},
+			500,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+	let sessionId = "";
+
+	if (user) {
+		const now = new Date();
+		const sportsbookSessionId = crypto.randomUUID();
+		sessionId = sportsbookSessionId;
+
+		const sportsbookSession = await db
+			.insert(schema.sportsbookSession)
+			.values({
+				id: sportsbookSessionId,
+				userId: user.id,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+		if (sportsbookSession.length === 0) {
+			return c.json(
+				{
+					success: false as const,
+					error: "An error occured",
+					details: null,
+				},
+				500,
+			);
+		}
+	}
 
 	const requestBody = {
 		locale: "en",
 		currency: "NGN",
-		...(user?.id ? { player_id: user.id } : {}),
-		...(session?.id ? { params: { session_id: session.id } } : {}),
+		...(user ? { player_id: user.id } : {}),
+		...(sessionId === "" ? {} : { params: { session_id: sessionId } }),
 	};
 
-	const response = await databetFetch(c.env, "/token/create", {
-		method: "POST",
-		body: requestBody,
-	});
+	let response: Response;
+	try {
+		response = await databetFetch(c.env, "/token/create", {
+			method: "POST",
+			body: requestBody,
+		});
+	} catch (error) {
+		console.error("Sportsbook token/create failed before upstream response", {
+			nodeEnv: c.env.NODE_ENV,
+			hasProxyUrl: Boolean(c.env.PROXY_URL?.trim()),
+			hasProxySecret: Boolean(c.env.PROXY_SECRET?.trim()),
+			hasDatabetCertBinding: Boolean(
+				(c.env as unknown as Record<string, unknown>).DATABET_CERT,
+			),
+			requestBody,
+			error:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack,
+						}
+					: String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API request failed",
+				details:
+					error instanceof Error
+						? error.message
+						: "Unknown proxy request error",
+			},
+			500,
+		);
+	}
 
 	if (!response.ok) {
 		const errorText = await response.text();
@@ -239,17 +363,11 @@ sportsbookRoute.openapi(heartbeatRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const now = new Date();
-
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id),
 	});
 
-	if (!session) {
-		return c.body(null, 404);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < now.getTime()) {
+	if (!sportsbookSession) {
 		return c.body(null, 404);
 	}
 
@@ -295,12 +413,26 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -342,11 +474,11 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
@@ -358,20 +490,8 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
 	const wallet = await db.query.wallet.findFirst({
-		where: eq(schema.wallet.userId, session.userId),
+		where: eq(schema.wallet.userId, sportsbookSession.userId),
 	});
 
 	if (!wallet) {
@@ -432,7 +552,11 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 
 	const now = new Date();
 	if (!isFreebet) {
-		const walletUpdate = await freezeWallet(db, session.userId, stakeKobo);
+		const walletUpdate = await freezeWallet(
+			db,
+			sportsbookSession.userId,
+			stakeKobo,
+		);
 		if (!walletUpdate) {
 			return c.json(
 				{
@@ -454,7 +578,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		.values({
 			id: result.data.bet_id,
 			requestId: result.data.request_id,
-			userId: session.userId,
+			userId: sportsbookSession.userId,
 			stake: stakeKobo,
 			totalOdds: result.data.total_odds_value ?? null,
 			betType: result.data.bet_type ?? null,
@@ -514,12 +638,12 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 	trackWebengageEvent(
 		c.env,
 		{
-			userId: session.userId,
+			userId: sportsbookSession.userId,
 			eventName: "bet_slip_created",
 			eventData: {
-				sport: firstOdds?.meta?.sport_event_info_sport_id ?? "",
-				league: firstOdds?.meta?.sport_event_info_tournament_id ?? "",
-				match_id: firstOdds?.match_id ?? "",
+				sport: selectionSport(firstOdds),
+				league: selectionLeague(firstOdds),
+				match_id: selectionMatchId(firstOdds),
 				bet_type:
 					BET_TYPE_LABELS[result.data.bet_type ? result.data.bet_type : 1] ??
 					String(result.data.bet_type),
@@ -575,12 +699,26 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -596,7 +734,25 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const result = BetPlaceRequestSchema.safeParse(await c.req.json());
+	let body: unknown;
+	try {
+		body = await c.req.json();
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						message: "Request body is not valid JSON",
+					},
+				},
+			},
+			400,
+		);
+	}
+
+	const result = BetPlaceRequestSchema.safeParse(body);
 	if (!result.success) {
 		return c.json(
 			{
@@ -622,27 +778,15 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -691,7 +835,17 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	});
 
 	if (!wallet) {
-		throw new Error("Wallet not found");
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "wallet_not_found",
+					},
+				},
+			},
+			400,
+		);
 	}
 
 	const balanceBefore = wallet.balance;
@@ -843,9 +997,9 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 					? Number.parseFloat(result.data.total_odds_value)
 					: null,
 				selection_count: selections?.length ?? 0,
-				sport: firstSelection?.meta?.sport_event_info_sport_id ?? "",
-				league: firstSelection?.meta?.sport_event_info_tournament_id ?? "",
-				match_ids: selections?.map((s) => s.match_id ?? "") ?? [],
+				sport: selectionSport(firstSelection),
+				league: selectionLeague(firstSelection),
+				match_ids: selections?.map((s) => selectionMatchId(s)) ?? [],
 				wallet_balance_after: balAfter / 100,
 			},
 		},
@@ -880,7 +1034,7 @@ const betDeclineRoute = createRoute({
 const BetDeclineRequestSchema = z.object({
 	request_id: z.string(),
 	bet_id: z.string(),
-	bet_player_id: z.string().optional(),
+	bet_player_id: z.string(),
 	restrictions: z.array(z.any()).optional(),
 });
 
@@ -901,12 +1055,26 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -948,27 +1116,15 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -1175,12 +1331,26 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1222,27 +1392,15 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -1433,9 +1591,9 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				bet_id: result.data.bet_id,
 				payout_amount: result.data.settle_amount,
 				outcome: settleTypeLabel,
-				net_pnl: Number.parseInt(result.data.settle_amount) - bet.stake,
-				sport: settleFirstOdds?.meta?.sport_event_info_sport_id ?? "",
-				league: settleFirstOdds?.meta?.sport_event_info_tournament_id ?? "",
+				net_pnl: Number.parseFloat(result.data.settle_amount) * 100 - bet.stake,
+				sport: selectionSport(settleFirstOdds),
+				league: selectionLeague(settleFirstOdds),
 			},
 		},
 		c.executionCtx,
@@ -1483,12 +1641,26 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1530,27 +1702,15 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -1752,12 +1912,26 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1799,27 +1973,15 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -2020,12 +2182,26 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -2067,27 +2243,15 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},

@@ -93,7 +93,14 @@ export function toWAT(date: Date | string | number | null | undefined): string {
 	return new Date(ms).toISOString().replace("Z", "+01:00");
 }
 
-export { verifySlotitegrationSignature } from "./slotegrator";
+export {
+	buildSlotegratorSign,
+	createSlotegratorAuthHeaders,
+	fetchSlotegratorGames,
+	initSlotegratorDemo,
+	SlotegratorApiError,
+	verifySlotitegrationSignature,
+} from "./slotegrator";
 export {
 	ScorpioApiError,
 	createPlayer,

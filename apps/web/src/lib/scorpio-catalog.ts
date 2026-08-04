@@ -11,7 +11,8 @@ export type ScorpioRemoteGame = {
 	gameID?: string;
 	gameCode?: string;
 	gameName?: string;
-	gameImage?: string;
+	/** Some providers (e.g. EGT) return a nested image object instead of a URL string. */
+	gameImage?: string | Record<string, unknown>;
 	gameType?: number;
 	inMaintenance?: boolean;
 	status?: number;
@@ -58,8 +59,48 @@ function gameTypeCategory(gameType: number | undefined): ScorpioCategory | null 
 }
 
 function resolveGameCode(game: ScorpioRemoteGame): string | null {
-	const code = game.gameID || game.gameCode;
-	return code?.trim() ? code : null;
+	const raw = game.gameID || game.gameCode;
+	if (raw == null) return null;
+	const code = String(raw).trim();
+	return code || null;
+}
+
+/** Normalize Scorpio thumbnail: plain URL string or nested provider image map. */
+function resolveGameImage(gameImage: ScorpioRemoteGame["gameImage"]): string | null {
+	if (typeof gameImage === "string") {
+		const trimmed = gameImage.trim();
+		return trimmed || null;
+	}
+	if (!gameImage || typeof gameImage !== "object") return null;
+
+	const img = gameImage as {
+		mobile?: {
+			squareTile?: string;
+			icon?: { small?: string; medium?: string };
+			verticalTile?: { small?: string; large?: string };
+		};
+		desktop?: {
+			landscapeTile?: string;
+			gameCover?: string;
+			banner?: { small?: string; medium?: string };
+		};
+	};
+	const candidates = [
+		img.mobile?.squareTile,
+		img.mobile?.icon?.medium,
+		img.mobile?.icon?.small,
+		img.desktop?.landscapeTile,
+		img.desktop?.gameCover,
+		img.desktop?.banner?.medium,
+		img.desktop?.banner?.small,
+		img.mobile?.verticalTile?.small,
+	];
+	for (const candidate of candidates) {
+		if (typeof candidate === "string" && candidate.trim()) {
+			return candidate.trim();
+		}
+	}
+	return null;
 }
 
 export function mapScorpioGame(
@@ -67,7 +108,8 @@ export function mapScorpioGame(
 	provider: ScorpioProvider,
 ): ScorpioLobbyGame | null {
 	const code = resolveGameCode(game);
-	const name = game.gameName?.trim();
+	const name =
+		typeof game.gameName === "string" ? game.gameName.trim() : null;
 	if (!code || !name) return null;
 
 	const providerCat: ScorpioCategory = {
@@ -87,7 +129,7 @@ export function mapScorpioGame(
 		id: `scorpio:${provider.providerId}:${code}`,
 		name,
 		code,
-		imageUrl: game.gameImage?.trim() || null,
+		imageUrl: resolveGameImage(game.gameImage),
 		categories,
 		enabled: !disabled,
 		createdAt: 0,
@@ -102,10 +144,16 @@ const scorpioAuthOpts: RequestInit = { credentials: "include" };
 
 /** Live Scorpio catalog: providers → games per provider → lobby Game[]. */
 export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
-	const providers = await apiRequest<ScorpioProvider[]>(
-		"scorpio/providers",
-		scorpioAuthOpts,
-	);
+	let providers: ScorpioProvider[];
+	try {
+		providers = await apiRequest<ScorpioProvider[]>(
+			"scorpio/providers",
+			scorpioAuthOpts,
+		);
+	} catch (error) {
+		throw error;
+	}
+
 	const activeProviders = (providers || []).filter((p) => p.status !== 0);
 
 	const lists = await Promise.all(
@@ -120,7 +168,6 @@ export async function fetchScorpioLobbyGames(): Promise<ScorpioLobbyGame[]> {
 					.filter((g): g is ScorpioLobbyGame => g !== null && g.enabled);
 			} catch (error) {
 				// One provider failing should not empty the whole casino
-				if (error instanceof ApiError && error.status === 401) throw error;
 				console.log("scorpio provider games failed", {
 					providerId: provider.providerId,
 					error: error instanceof Error ? error.message : "unknown",
@@ -172,7 +219,7 @@ export async function launchScorpioGame(
 	);
 
 	if (!data?.url) {
-		throw new ApiError("Failed to launch game");
+		throw new ApiError({ message: "Failed to launch game" });
 	}
 
 	return { url: data.url };
