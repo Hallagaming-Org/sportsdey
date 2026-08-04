@@ -92,6 +92,19 @@ if (!rawMerchantKey || !rawMerchantId) {
 const merchantKey: string = rawMerchantKey;
 const merchantId: string = rawMerchantId;
 
+const proxyUrl = process.env.PROXY_URL;
+const proxySecret = process.env.PROXY_SECRET;
+
+if (!proxyUrl || !proxySecret) {
+	console.error(
+		"Error: Missing PROXY_URL or PROXY_SECRET",
+	);
+	console.error(
+		"Please set these environment variables in your env file",
+	);
+	process.exit(1);
+}
+
 function escape(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) {
 		return "NULL";
@@ -150,7 +163,10 @@ async function fetchGames(
 
 	const xSign = await generateXSign(allQueryString, merchantKey);
 
-	const url = `${slotegratorApiUrl}/games/index?filter[is_mobile]=1&${queryString}`;
+	const slotegratorProxyPath =
+		env === "production" ? "slotegrator" : "slotegrator-staging";
+
+	const url = `${proxyUrl}/${slotegratorProxyPath}/games/index?filter[is_mobile]=1&${queryString}`;
 
 	const response = await fetch(url, {
 		method: "GET",
@@ -160,6 +176,7 @@ async function fetchGames(
 			"X-Nonce": nonce,
 			"X-Sign": xSign,
 			"Content-Type": "application/x-www-form-urlencoded",
+			"x-proxy-auth": proxySecret,
 		},
 	});
 
@@ -222,7 +239,9 @@ async function getExistingGameIds(): Promise<Set<string>> {
 
 async function main() {
 	console.log(`Syncing games from Slotegrator API (${env} environment)...`);
-	console.log(`API URL: ${slotegratorApiUrl}`);
+	const logProxyPath =
+		env === "production" ? "slotegrator" : "slotegrator-staging";
+	console.log(`Proxy URL: ${proxyUrl}/${logProxyPath}`);
 	console.log(`Merchant ID: ${merchantId}`);
 	console.log("");
 

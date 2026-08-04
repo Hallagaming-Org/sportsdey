@@ -620,7 +620,9 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// filtering at the application layer.
 
 	const orderByClause =
-		sort === "asc" ? asc(schema.user.createdAt) : desc(schema.user.createdAt);
+		tab === "recent" || sort === "desc"
+			? desc(schema.user.createdAt)
+			: asc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory

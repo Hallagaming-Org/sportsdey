@@ -191,6 +191,21 @@ const TicketSelectionSchema = z
 	})
 	.openapi("TicketSelection");
 
+
+const BetBuilderSelectionSchema = z
+	.object({
+		matchId: z.string().nullable().openapi({ example: "1:1" }),
+		match: z.string().openapi({ example: "Arsenal vs Chelsea" }),
+		ratio: z.string().nullable().openapi({ example: "1.6" }),
+		status: z.number().nullable().openapi({ example: 1 }),
+		legs: z.array(TicketSelectionSchema).openapi({
+			description: "Individual odds combined within this bet builder group",
+		}),
+	})
+	.openapi("BetBuilderSelection");
+
+
+
 const TicketPlayerSchema = z
 	.object({
 		id: z.string().openapi({ example: "usr_xyz789" }),
@@ -221,8 +236,12 @@ const TicketDetailSchema = z
 		settledAt: z.string().nullable(),
 		player: TicketPlayerSchema,
 		selections: z.array(TicketSelectionSchema).optional(),
+		betBuilderSelections: z.array(BetBuilderSelectionSchema).optional(),
 		provider: z.string().nullable().optional(),
 		gameName: z.string().nullable().optional(),
+		multiplier: z.string().nullable().optional(),
+		betTime: z.string().nullable().optional(),
+		sessionId: z.string().nullable().optional(),
 		roundId: z.string().nullable().optional(),
 	})
 	.openapi("TicketDetail");
@@ -1087,18 +1106,32 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		const balanceAfter = events[events.length - 1]?.balanceAfter ?? null;
 
 		let rawSelections: Array<Record<string, any>> = [];
+		let rawBetBuilderOdds: Array<Record<string, any>> = [];
 		try {
 			const parsed = bet.betData ? JSON.parse(bet.betData) : null;
 			if (parsed && Array.isArray(parsed.bet_odds)) {
 				rawSelections = parsed.bet_odds;
 			}
+			if (parsed && Array.isArray(parsed.bet_builder_odds)) {
+				rawBetBuilderOdds = parsed.bet_builder_odds;
+			}
 		} catch {
 			rawSelections = [];
+			rawBetBuilderOdds = [];
 		}
 
+
+		const regularMatchIds = rawSelections.map((s) => s.match_id).filter(Boolean);
+		const builderGroupMatchIds = rawBetBuilderOdds.map((b) => b.match_id).filter(Boolean);
+		const builderLegMatchIds = rawBetBuilderOdds.flatMap((b) =>
+			Array.isArray(b.odds) ? b.odds.map((o: any) => o.match_id).filter(Boolean) : [],
+		);
+
+
 		const sportEventIds = Array.from(
-			new Set(rawSelections.map((s) => s.match_id).filter(Boolean)),
+			new Set([...regularMatchIds, ...builderGroupMatchIds, ...builderLegMatchIds]),
 		) as string[];
+
 
 		const titleById = await getFixtureTitlesByIds(c.env, sportEventIds);
 
@@ -1111,6 +1144,32 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 				oddId: s.odd_id ?? null,
 				odds: s.odd_ratio ?? null,
 				oddStatus: s.odd_status ?? null,
+			};
+		});
+
+
+		
+		const betBuilderSelections = rawBetBuilderOdds.map((builder) => {
+			const groupTitle = builder.match_id ? titleById.get(builder.match_id) : undefined;
+			const legs = Array.isArray(builder.odds)
+				? builder.odds.map((o: any) => {
+						const legTitle = o.match_id ? titleById.get(o.match_id) : undefined;
+						return {
+							matchId: o.match_id ?? null,
+							match: legTitle ?? (o.match_id ?? "Unknown match"),
+							marketId: o.market_id ?? null,
+							oddId: o.odd_id ?? null,
+							odds: o.odd_ratio ?? null,
+							oddStatus: o.odd_status ?? null,
+						};
+					})
+				: [];
+			return {
+				matchId: builder.match_id ?? null,
+				match: groupTitle ?? (builder.match_id ?? "Unknown match"),
+				ratio: builder.ratio ?? null,
+				status: builder.status ?? null,
+				legs,
 			};
 		});
 
@@ -1146,6 +1205,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					balanceAfter: balanceAfter != null ? formatAmount(balanceAfter) : null,
 				},
 				selections,
+				betBuilderSelections
 			},
 		});
 	}
@@ -1161,6 +1221,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		balanceBeforeCol: any;
 		balanceAfterCol: any;
 		roundIdCol: any;
+		sessionTokenCol: any;
 		gameIdCol: any;
 		winTypes: string[];
 		provider: string;
@@ -1176,6 +1237,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.gameTransactions.balanceAfter,
 			roundIdCol: null,
 			gameIdCol: schema.gameTransactions.game,
+			sessionTokenCol: schema.gameTransactions.sessionToken,
 			winTypes: ["WIN"],
 			provider: "ICRASH",
 		},
@@ -1190,6 +1252,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.thundrTransactions.balanceAfter,
 			roundIdCol: schema.thundrTransactions.roundId,
 			gameIdCol: schema.thundrTransactions.gameId,
+			sessionTokenCol: schema.thundrTransactions.sessionId,
 			winTypes: ["WIN"],
 			provider: "Thndr",
 		},
@@ -1204,6 +1267,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.slotitegrationTransactions.balanceAfter,
 			roundIdCol: schema.slotitegrationTransactions.roundId,
 			gameIdCol: schema.slotitegrationTransactions.gameId,
+			sessionTokenCol: schema.slotitegrationTransactions.sessionId,
 			winTypes: ["win"],
 			provider: "Slotegrator",
 		},
@@ -1218,6 +1282,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.pocketsTransactions.balanceAfter,
 			roundIdCol: null,
 			gameIdCol: null,
+			sessionTokenCol: null,
 			winTypes: ["CREDIT"],
 			provider: "Lagos Rush",
 		},
@@ -1251,6 +1316,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			createdAt: source.createdAtCol,
 			balanceBefore: source.balanceBeforeCol,
 			balanceAfter: source.balanceAfterCol,
+			sessionToken: source.sessionTokenCol,
 		};
 		if (source.roundIdCol) selectCols.roundId = source.roundIdCol;
 		if (source.gameIdCol) selectCols.gameCode = source.gameIdCol;
@@ -1311,8 +1377,13 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					profit: source.winTypes.includes(row.outcomeType)
 						? formatAmount(row.betAmount - stakeAmount)
 						: null,
+					multiplier:
+						isWin && stakeAmount > 0
+							? `${(row.betAmount / stakeAmount).toFixed(2)}x`
+							: null,
 					totalOdds: null,
 					cashedOut: false,
+					betTime: formatDate(betCreatedAt ?? row.createdAt),
 					createdAt: formatDate(row.createdAt),
 					settledAt: formatDate(row.createdAt),
 					player: {
@@ -1334,6 +1405,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					provider: source.provider,
 					gameName,
 					roundId: row.roundId ?? null,
+					sessionId: row.sessionToken ?? null,
 				},
 			});
 		}

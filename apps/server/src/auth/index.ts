@@ -238,5 +238,5 @@ export function createHashCookie(
 	const prefix = policy.useSecureCookies ? "__Secure-ba" : COOKIE_PREFIX;
 	const secureFlag = policy.useSecureCookies ? "; Secure" : "";
 	const sameSite = policy.sameSite === "none" ? "None" : "Lax";
-	return `${prefix}.session_token_hash=${token}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
+	return `${prefix}.session_token_hash=${token}; Domain=.sportsdey.com; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }

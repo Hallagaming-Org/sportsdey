@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
@@ -80,11 +80,13 @@ function parseGameType(betData: string | null): string {
 
 function deriveStatus(
 	status: string,
-	settleAmount: number | null,
+	settleType: number | null,
 ): "success" | "pending" | "failed" {
-	if (status !== "settled") return "pending";
-
-	return (settleAmount ?? 0) > 0 ? "success" : "failed";
+	if (settleType === 1) return "success";
+	if (settleType === 3) return "failed";
+	if (settleType !== null) return "failed"; // "Declined" in admin's terms
+	if (status === "created" || status === "accepted") return "pending";
+	return "failed";
 }
 
 betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
@@ -108,10 +110,10 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	const baseFilters = [eq(schema.sportsbookBet.userId, user.id)];
 
 	if (filter === "settled") {
-		baseFilters.push(eq(schema.sportsbookBet.status, "settled"));
+		baseFilters.push(isNotNull(schema.sportsbookBet.settleType));
 	}
 	if (filter === "unsettled") {
-		baseFilters.push(sql`${schema.sportsbookBet.status} != 'settled'`);
+		baseFilters.push(sql`${schema.sportsbookBet.settleType} IS NULL`);
 	}
 	if (search) {
 		baseFilters.push(
@@ -137,6 +139,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			totalOdds: schema.sportsbookBet.totalOdds,
 			status: schema.sportsbookBet.status,
 			settleAmount: schema.sportsbookBet.settleAmount,
+			settleType: schema.sportsbookBet.settleType,
 			betData: schema.sportsbookBet.betData,
 			createdAt: schema.sportsbookBet.createdAt,
 			updatedAt: schema.sportsbookBet.updatedAt,
@@ -148,7 +151,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.offset(offset);
 
 	const items = rows.map((row) => {
-		const isSettled = row.status === "settled";
+		const isSettled = row.settleType !== null;
 		const stakeNaira = row.stake / 100;
 		const oddsValue = row.totalOdds ? Number.parseFloat(row.totalOdds) : 0;
 
@@ -158,12 +161,11 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			type: parseGameType(row.betData),
 			amount: stakeNaira,
 			multiplier: oddsValue,
-			status: deriveStatus(row.status, row.settleAmount),
+			status: deriveStatus(row.status, row.settleType),
 			placedAt: toWAT(row.createdAt),
 			totalOdds: row.totalOdds,
 			potentialWin: oddsValue > 0 ? stakeNaira * oddsValue : null,
 			actualPayout: isSettled ? (row.settleAmount ?? 0) / 100 : null,
-
 			settledAt: isSettled ? toWAT(row.updatedAt) : null,
 		};
 	});
@@ -179,7 +181,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.where(
 			and(
 				eq(schema.sportsbookBet.userId, user.id),
-				eq(schema.sportsbookBet.status, "settled"),
+				isNotNull(schema.sportsbookBet.settleType),
 			),
 		);
 
