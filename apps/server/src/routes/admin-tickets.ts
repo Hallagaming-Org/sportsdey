@@ -57,13 +57,23 @@ function mapSbOutcome(
 	return "Declined";
 }
 
-function mapCasinoOutcome(type: string): "Won" | "Active" | "Lost" {
+function mapCasinoOutcome(type: string): "Won" | "Active" | "Lost" | "Declined" {
 	switch (type) {
 		case "WIN":
 		case "win":
 		case "won":
 		case "CREDIT":
 			return "Won";
+		case "CANCEL":
+		case "cancel":
+		case "REFUND":
+		case "refund":
+			return "Declined";
+		case "BET":
+		case "bet":
+		case "DEBIT":
+		case "debit":
+			return "Active";
 		default:
 			return "Active";
 	}
@@ -530,6 +540,20 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 				winTypes: ["CREDIT"],
 				provider: "Lagos Rush",
 			},
+			{
+				table: schema.scorpioTransactions,
+				idCol: schema.scorpioTransactions.id,
+				userIdCol: schema.scorpioTransactions.userId,
+				typeCol: schema.scorpioTransactions.type,
+				amountCol: schema.scorpioTransactions.amount,
+				createdAtCol: schema.scorpioTransactions.createdAt,
+				balanceBeforeCol: schema.scorpioTransactions.balanceBefore,
+				balanceAfterCol: schema.scorpioTransactions.balanceAfter,
+				roundIdCol: schema.scorpioTransactions.roundId,
+				gameIdCol: schema.scorpioTransactions.gameCode,
+				winTypes: ["WIN"],
+				provider: "Scorpio",
+			},
 		];
 
 		for (const source of casinoSources) {
@@ -864,6 +888,20 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				winTypes: ["CREDIT"],
 				provider: "Lagos Rush",
 			},
+			{
+				table: schema.scorpioTransactions,
+				idCol: schema.scorpioTransactions.id,
+				userIdCol: schema.scorpioTransactions.userId,
+				typeCol: schema.scorpioTransactions.type,
+				amountCol: schema.scorpioTransactions.amount,
+				createdAtCol: schema.scorpioTransactions.createdAt,
+				balanceBeforeCol: schema.scorpioTransactions.balanceBefore,
+				balanceAfterCol: schema.scorpioTransactions.balanceAfter,
+				roundIdCol: schema.scorpioTransactions.roundId,
+				gameIdCol: schema.scorpioTransactions.gameCode,
+				winTypes: ["WIN"],
+				provider: "Scorpio",
+			},
 		];
 
 		for (const source of casinoSources) {
@@ -1183,6 +1221,20 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			winTypes: ["CREDIT"],
 			provider: "Lagos Rush",
 		},
+		{
+			table: schema.scorpioTransactions,
+			idCol: schema.scorpioTransactions.id,
+			userIdCol: schema.scorpioTransactions.userId,
+			typeCol: schema.scorpioTransactions.type,
+			amountCol: schema.scorpioTransactions.amount,
+			createdAtCol: schema.scorpioTransactions.createdAt,
+			balanceBeforeCol: schema.scorpioTransactions.balanceBefore,
+			balanceAfterCol: schema.scorpioTransactions.balanceAfter,
+			roundIdCol: schema.scorpioTransactions.roundId,
+			gameIdCol: schema.scorpioTransactions.gameCode,
+			winTypes: ["WIN"],
+			provider: "Scorpio",
+		},
 	];
 
 	for (const source of casinoSources) {
@@ -1221,25 +1273,27 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 				gameName = g?.name ?? null;
 			}
 			const isWin = source.winTypes.includes(row.outcomeType);
-    		let stakeAmount = row.betAmount;
+			let stakeAmount = row.betAmount;
 
-		if (isWin) {
-			const [priorBet] = await db
-				.select({ amount: source.amountCol })
-				.from(source.table)
-				.where(
-					and(
-						eq(source.userIdCol, row.userId),
-						eq(source.table.sessionToken, row.sessionToken),
-						eq(source.typeCol, "BET"), // 
-						lt(source.createdAtCol, row.createdAt),
-					),
-				)
-				.orderBy(desc(source.createdAtCol))
-				.limit(1);
+			if (isWin && source.roundIdCol && row.roundId) {
+				const betType =
+					source.provider === "Slotegrator" ? "bet" : "BET";
+				const [priorBet] = await db
+					.select({ amount: source.amountCol })
+					.from(source.table)
+					.where(
+						and(
+							eq(source.userIdCol, row.userId),
+							eq(source.roundIdCol, row.roundId),
+							eq(source.typeCol, betType),
+							lt(source.createdAtCol, row.createdAt),
+						),
+					)
+					.orderBy(desc(source.createdAtCol))
+					.limit(1);
 
-			if (priorBet) stakeAmount = priorBet.amount;
-		}
+				if (priorBet) stakeAmount = priorBet.amount;
+			}
 
 			return c.json({
 				success: true,
@@ -1249,7 +1303,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					status: row.outcomeType,
 					betType: null,
 					outcome: mapCasinoOutcome(row.outcomeType),
-					stake: formatAmount(row.stakeAmount),
+					stake: formatAmount(stakeAmount),
 					potentialWin: null,
 					actualPayout: source.winTypes.includes(row.outcomeType)
 						? formatAmount(row.betAmount)
@@ -1268,8 +1322,14 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 						image: row.playerImage,
 						mobileNumber: row.playerMobileNumber,
 						verified: row.playerVerificationStatus === "verified",
-						balanceBefore: row.balanceBefore != null ? formatAmount(row.balanceBefore) : null,
-						balanceAfter: row.balanceAfter != null ? formatAmount(row.balanceAfter) : null,
+						balanceBefore:
+							row.balanceBefore != null
+								? formatAmount(row.balanceBefore)
+								: null,
+						balanceAfter:
+							row.balanceAfter != null
+								? formatAmount(row.balanceAfter)
+								: null,
 					},
 					provider: source.provider,
 					gameName,

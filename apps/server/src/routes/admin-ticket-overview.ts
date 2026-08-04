@@ -231,6 +231,15 @@ adminTicketOverviewRoute.openapi(getTicketOverviewRoute, async (c) => {
 			betTypes: ["DEBIT"],
 			winTypes: ["CREDIT"],
 		},
+		{
+			table: schema.scorpioTransactions,
+			userIdCol: schema.scorpioTransactions.userId,
+			typeCol: schema.scorpioTransactions.type,
+			amountCol: schema.scorpioTransactions.amount,
+			createdAtCol: schema.scorpioTransactions.createdAt,
+			betTypes: ["BET"],
+			winTypes: ["WIN"],
+		},
 	];
 
 	let casinoWagered = 0;
