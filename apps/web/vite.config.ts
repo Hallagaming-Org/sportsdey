@@ -105,6 +105,10 @@ export default defineConfig({
 			"/thndr": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
+			"/loyalty": proxyToLocalApi(),
+			"/mission": proxyToLocalApi(),
+			"/bonus-engine": proxyToLocalApi(),
+			"/gamification": proxyToLocalApi(),
 		},
 	},
 });
