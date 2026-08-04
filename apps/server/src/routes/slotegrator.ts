@@ -207,18 +207,20 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	const slotegratorProxyPath =
 		c.env.NODE_ENV === "staging" ? "slotegrator-staging" : "slotegrator";
 
-	const response = await fetch(`${proxyUrl}/${slotegratorProxyPath}/games/init`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
-			"x-proxy-auth": proxySecret,
+	const response = await fetch(
+		`${proxyUrl}/${slotegratorProxyPath}/games/init`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"X-Merchant-Id": merchantId,
+				"X-Timestamp": timestamp,
+				"X-Nonce": nonce,
+				"X-Sign": computedSign,
+				"x-proxy-auth": proxySecret,
+			},
 		},
-		body: new URLSearchParams(requestBody),
-	});
+	);
 	console.log("slotegrator body", JSON.stringify(response.body));
 	console.log(
 		"slotegrator headers",
