@@ -7,6 +7,8 @@ import { defineConfig } from "vite";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+// Must match apps/server `wrangler dev --port=3000`.
+// Do NOT proxy "/games" — that path is the TanStack lobby page; the API is reached via VITE_SERVER_URL.
 const LOCAL_API_TARGET = "http://localhost:3000";
 
 /** TanStack pages under /auth — must not be proxied to the API worker. */

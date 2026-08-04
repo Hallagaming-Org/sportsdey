@@ -166,15 +166,15 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1785337800000,
-      "tag": "0023_bonus_engine_loyalty_missions",
+      "when": 1785754800000,
+      "tag": "0026_bonus_engine_loyalty_missions",
       "breakpoints": true
     },
     {
       "idx": 24,
       "version": "6",
-      "when": 1785754800000,
-      "tag": "0024_bonus_engine_game_providers",
+      "when": 1785800000000,
+      "tag": "0027_bonus_engine_game_providers",
       "breakpoints": true
     }
   ]
