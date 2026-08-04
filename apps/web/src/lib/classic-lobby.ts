@@ -355,7 +355,9 @@ export async function launchClassicGame(
 			mode === "real" ? "/slotegrator/launch" : "/slotegrator/launch-demo";
 		body = {
 			game_uuid: game.code,
-			return_url: `${window.location.origin}/games`,
+			// Bare exit page — avoids nesting the full casino lobby in the game iframe
+			// when GIS closes the session immediately.
+			return_url: `${window.location.origin}/game-exit`,
 			device: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
 		};
 	}

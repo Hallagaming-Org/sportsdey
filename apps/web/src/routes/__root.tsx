@@ -96,7 +96,10 @@ function RootDocument() {
 
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
-	const isGameRoute = location.pathname.startsWith("/game/") || location.pathname.startsWith("/play/");
+	const isGameExitRoute = location.pathname === "/game-exit";
+	const isGameRoute =
+		location.pathname.startsWith("/game/") ||
+		location.pathname.startsWith("/play/");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
@@ -199,7 +202,9 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
-									{isAuthRoute ? (
+									{isGameExitRoute ? (
+										<Outlet />
+									) : isAuthRoute ? (
 										<div className="flex h-svh flex-col overflow-clip">
 											<header className="shrink-0">
 												<Header />

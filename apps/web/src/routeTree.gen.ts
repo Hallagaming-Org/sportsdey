@@ -23,6 +23,7 @@ import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
 import { Route as GeneralBettingRulesRouteImport } from './routes/general-betting-rules'
 import { Route as GamesRouteImport } from './routes/games'
+import { Route as GameExitRouteImport } from './routes/game-exit'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as FaqsRouteImport } from './routes/faqs'
 import { Route as FaqRouteImport } from './routes/faq'
@@ -137,6 +138,11 @@ const GeneralBettingRulesRoute = GeneralBettingRulesRouteImport.update({
 const GamesRoute = GamesRouteImport.update({
   id: '/games',
   path: '/games',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GameExitRoute = GameExitRouteImport.update({
+  id: '/game-exit',
+  path: '/game-exit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FavoritesRoute = FavoritesRouteImport.update({
@@ -379,6 +385,7 @@ export interface FileRoutesByFullPath {
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
+  '/game-exit': typeof GameExitRoute
   '/games': typeof GamesRoute
   '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
@@ -438,6 +445,7 @@ export interface FileRoutesByTo {
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
+  '/game-exit': typeof GameExitRoute
   '/games': typeof GamesRoute
   '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -494,6 +502,7 @@ export interface FileRoutesById {
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
+  '/game-exit': typeof GameExitRoute
   '/games': typeof GamesRoute
   '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
@@ -557,6 +566,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/faqs'
     | '/favorites'
+    | '/game-exit'
     | '/games'
     | '/general-betting-rules'
     | '/kyc'
@@ -616,6 +626,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/faqs'
     | '/favorites'
+    | '/game-exit'
     | '/games'
     | '/general-betting-rules'
     | '/privacy-policy'
@@ -671,6 +682,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/faqs'
     | '/favorites'
+    | '/game-exit'
     | '/games'
     | '/general-betting-rules'
     | '/kyc'
@@ -733,6 +745,7 @@ export interface RootRouteChildren {
   FaqRoute: typeof FaqRoute
   FaqsRoute: typeof FaqsRoute
   FavoritesRoute: typeof FavoritesRoute
+  GameExitRoute: typeof GameExitRoute
   GamesRoute: typeof GamesRoute
   GeneralBettingRulesRoute: typeof GeneralBettingRulesRoute
   KycRoute: typeof KycRouteWithChildren
@@ -862,6 +875,13 @@ declare module '@tanstack/react-router' {
       path: '/games'
       fullPath: '/games'
       preLoaderRoute: typeof GamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/game-exit': {
+      id: '/game-exit'
+      path: '/game-exit'
+      fullPath: '/game-exit'
+      preLoaderRoute: typeof GameExitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/favorites': {
@@ -1333,6 +1353,7 @@ const rootRouteChildren: RootRouteChildren = {
   FaqRoute: FaqRoute,
   FaqsRoute: FaqsRoute,
   FavoritesRoute: FavoritesRoute,
+  GameExitRoute: GameExitRoute,
   GamesRoute: GamesRoute,
   GeneralBettingRulesRoute: GeneralBettingRulesRoute,
   KycRoute: KycRouteWithChildren,
