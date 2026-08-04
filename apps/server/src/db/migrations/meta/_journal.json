@@ -162,6 +162,20 @@
       "when": 1784229729223,
       "tag": "0022_burly_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1785337800000,
+      "tag": "0023_bonus_engine_loyalty_missions",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1785754800000,
+      "tag": "0024_bonus_engine_game_providers",
+      "breakpoints": true
     }
   ]
 }
