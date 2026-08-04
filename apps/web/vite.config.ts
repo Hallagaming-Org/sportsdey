@@ -71,6 +71,10 @@ export default defineConfig({
 			"/casino": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
+			"/loyalty": proxyToLocalApi(),
+			"/mission": proxyToLocalApi(),
+			"/bonus-engine": proxyToLocalApi(),
+			"/gamification": proxyToLocalApi(),
 		},
 	},
 });
