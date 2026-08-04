@@ -217,8 +217,9 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 				"X-Timestamp": timestamp,
 				"X-Nonce": nonce,
 				"X-Sign": computedSign,
-				"x-proxy-auth": proxySecret,
+				"X-Proxy-Auth": proxySecret,
 			},
+			body: new URLSearchParams(requestBody),
 		},
 	);
 	console.log("slotegrator body", JSON.stringify(response.body));
