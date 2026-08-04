@@ -33,12 +33,34 @@ function proxyToLocalApi() {
 	};
 }
 
+/** Browser document navigations to SPA routes that share paths with the API. */
+function isDocumentNavigation(req: IncomingMessage): boolean {
+	const accept = req.headers.accept ?? "";
+	return accept.includes("text/html");
+}
+
 function proxyAuthToLocalApi() {
 	return {
 		...proxyToLocalApi(),
 		bypass(req: IncomingMessage) {
 			if (!shouldProxyAuthToApi(req.url)) {
 				// Let Vite / TanStack serve the frontend route (e.g. OAuth landing page).
+				return req.url;
+			}
+		},
+	};
+}
+
+function proxyWalletToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			// SPA pages: /wallet and /wallet/transactions — API lives under same prefix.
+			if (
+				isDocumentNavigation(req) &&
+				(path === "/wallet" || path === "/wallet/transactions")
+			) {
 				return req.url;
 			}
 		},
@@ -65,7 +87,7 @@ export default defineConfig({
 			"/auth": proxyAuthToLocalApi(),
 			"/phone-auth": proxyToLocalApi(),
 			"/user": proxyToLocalApi(),
-			"/wallet": proxyToLocalApi(),
+			"/wallet": proxyWalletToLocalApi(),
 			"/cms": proxyToLocalApi(),
 			"/football": proxyToLocalApi(),
 			"/basketball": proxyToLocalApi(),
