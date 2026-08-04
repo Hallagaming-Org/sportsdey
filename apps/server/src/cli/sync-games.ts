@@ -260,13 +260,14 @@ async function main() {
 	const now = Date.now();
 
 	const values = newGames
-		.map(
-			(game) =>
-				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${now}, ${now})`,
-		)
+		.map((game) => {
+			const isLiveGame =
+				/\blive\b/i.test(game.type) || /\blive\b/i.test(game.label) ? 1 : 0;
+			return `(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape(String(game.provider_id))}, ${escape(game.provider)}, ${isLiveGame}, ${game.has_freespins ? 1 : 0}, 1, ${now}, ${now})`;
+		})
 		.join(",\n");
 
-	const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${values};`;
+	const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, provider_id, provider_name, is_live_game, free_spin, enabled, created_at, updated_at) VALUES ${values};`;
 
 	const batchSize = 100;
 	const timestamp = Date.now();
