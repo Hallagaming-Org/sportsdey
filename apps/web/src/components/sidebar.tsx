@@ -5,6 +5,7 @@ import {
 	Gift,
 	Home,
 	Newspaper,
+	Target,
 	Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -317,6 +318,20 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				setTab("promotions");
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
+			},
+		},
+		{
+			id: "missions",
+			label: "Missions",
+			icon: Target,
+			isActive: isItemActive(
+				"missions",
+				location.pathname.startsWith("/missions"),
+			),
+			onClick: () => {
+				setTab("missions");
+				trackWebengageEvent("Category", { Name: "Missions" });
+				navigate({ to: "/missions" as any });
 			},
 		},
 		// {
