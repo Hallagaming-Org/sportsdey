@@ -124,7 +124,10 @@ app.use("*", async (c, next) => {
 		path.startsWith("/docs") ||
 		path.startsWith("/openapi") ||
 		path.startsWith("/api/account/") ||
-		path.startsWith("/admin")
+		path.startsWith("/admin") ||
+		path.startsWith("/bonus-engine/callback/") ||
+		path.startsWith("/gamification/callback/") ||
+		path.startsWith("/bem/api/BonusEngine/")
 	) {
 		return next();
 	}
