@@ -132,6 +132,7 @@ function RootDocument() {
 		"/game/$gameId",
 		"/play/$gameName",
 		"/wallet",
+		"/wallet/transactions",
 		"/account",
 		"/favorites",
 		"/faqs",
