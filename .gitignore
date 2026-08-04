@@ -65,3 +65,7 @@ notes
 .agents/*
 skills-lock.json
 skills-lock.json/*
+
+# Vendor API docs (local reference only)
+bonus-engine-setup/
+
