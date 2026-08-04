@@ -604,7 +604,7 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
-				balanceBefore: currentBalance,
+				balanceBefore: wallet!.balance,
 				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,
@@ -812,7 +812,7 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
-				balanceBefore: currentBalance,
+				balanceBefore: wallet!.balance,
 				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,
@@ -832,7 +832,7 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		return c.json({ balance, transaction_id: txId }, 200);
+		return c.json({ newBalance, transaction_id: txId }, 200);
 	}
 
 	if (action === "rollback") {
