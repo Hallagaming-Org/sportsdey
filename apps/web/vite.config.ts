@@ -45,6 +45,18 @@ function proxyAuthToLocalApi() {
 	};
 }
 
+function proxyMissionApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/missions" || path.startsWith("/missions/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
@@ -74,7 +86,7 @@ export default defineConfig({
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
 			"/loyalty": proxyToLocalApi(),
-			"/mission": proxyToLocalApi(),
+			"/mission": proxyMissionApiToLocalApi(),
 			"/bonus-engine": proxyToLocalApi(),
 			"/gamification": proxyToLocalApi(),
 		},
