@@ -321,12 +321,23 @@ type LaunchResponse = {
 	error?: string;
 };
 
+/** Slotegrator catalog games (uuid codes) — support Try Demo + Play Now. */
+export function isSlotegratorLobbyGame(game: Pick<ClassicLobbyGame, "code">) {
+	return game.code !== "sportsdey-crash" && !CLASSIC_KNOWN_GAMES[game.code];
+}
+
+export type ClassicLaunchMode = "demo" | "real";
+
 /**
  * Launch a Classic (Slotegrator / Thndr / Lagos Rush / LuckyWorld) game.
  * Returns null when the game opens in a new tab (sportsdey-crash).
+ *
+ * For Slotegrator: pass `mode: "demo"` → `/slotegrator/launch-demo`,
+ * or `mode: "real"` → `/slotegrator/launch` (wallet session).
  */
 export async function launchClassicGame(
 	game: ClassicLobbyGame,
+	options?: { mode?: ClassicLaunchMode },
 ): Promise<string | null> {
 	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
 		window.open(SPORTSDEY_CRASH_URL, "_blank");
@@ -352,8 +363,14 @@ export async function launchClassicGame(
 			body = {};
 		}
 	} else {
-		path = "/slotegrator/launch";
-		body = { game_uuid: game.code };
+		const mode = options?.mode ?? "demo";
+		path =
+			mode === "real" ? "/slotegrator/launch" : "/slotegrator/launch-demo";
+		body = {
+			game_uuid: game.code,
+			return_url: `${window.location.origin}/games`,
+			device: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
+		};
 	}
 
 	const response = await fetch(`${base}${path}`, {

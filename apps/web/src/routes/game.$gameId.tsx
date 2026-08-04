@@ -26,15 +26,31 @@ function GamePage() {
 		return () => clearTimeout(timer);
 	}, [gameUrl]);
 
+	const router = useRouter();
+
+	useEffect(() => {
+		if (gameUrl) return;
+		// History state is lost on refresh; send players back to the lobby.
+		const timer = window.setTimeout(() => {
+			router.navigate({
+				to: "/games",
+				search: { category },
+				replace: true,
+			});
+		}, 1500);
+		return () => window.clearTimeout(timer);
+	}, [gameUrl, router, category]);
+
 	if (!gameUrl) {
 		return (
-			<div className="flex h-screen items-center justify-center">
+			<div className="flex h-screen flex-col items-center justify-center gap-2 px-4 text-center">
 				<p className="text-primary text-xl">Loading game...</p>
+				<p className="text-sm text-white/60">
+					If nothing starts, you&apos;ll be returned to the casino lobby.
+				</p>
 			</div>
 		);
 	}
-
-	const router = useRouter();
 
 	return (
 		<div className="relative flex h-full w-full flex-col">

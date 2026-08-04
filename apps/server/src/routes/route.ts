@@ -25,6 +25,8 @@ import walletRoute from "./wallet";
 import webengageSmsRoute from "./webengage-sms";
 import africastalkingDlrRoute from "./africastalking-dlr";
 import betHistoryRoute from "./bet-history";
+import opayRoute from "./opay";
+
 const routes = new OpenAPIHono();
 
 
@@ -57,5 +59,6 @@ routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
 routes.route("/bet-history", betHistoryRoute);
+routes.route("/opay", opayRoute);
 
 export default routes;
