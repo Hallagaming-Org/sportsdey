@@ -509,7 +509,15 @@ function HotCasinoPanel() {
 					setShowBalanceModal(true);
 					return;
 				}
-				toast.error(message);
+				const friendly =
+					/demo url|does not support demo|demo mode/i.test(message)
+						? "Demo is not available for this game. Try Play Now."
+						: /immediate_exit|could not start|closed the session|zero limits/i.test(
+									message,
+							  )
+							? "This game is not playable yet on our Slotegrator contract. Try another title."
+							: message;
+				toast.error(friendly);
 			} finally {
 				setLoadingId(null);
 			}
