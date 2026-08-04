@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Phone } from "lucide-react";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
-import { Phone } from "lucide-react";
+import { buildPublicUrl } from "@/lib/public-url";
 
 export const Route = createFileRoute("/auth/sign-in")({
 	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
@@ -19,10 +20,11 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
-	const webURL = import.meta.env.VITE_PUBLIC_URL;
 	const callbackURL = returnTo
-		? `${webURL}auth/callback?returnTo=${encodeURIComponent(returnTo)}`
-		: `${webURL}auth/callback`;
+		? buildPublicUrl(
+				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+			)
+		: buildPublicUrl("/auth/callback");
 
 	const handleSocialSignIn = async (
 		provider: "google" | "apple" | "facebook",
