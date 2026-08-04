@@ -142,6 +142,8 @@ function RootDocument() {
 		"/promotions",
 		"/promotions/",
 		"/promotions/$id",
+		"/missions",
+		"/missions/",
 		"/bet-history",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
