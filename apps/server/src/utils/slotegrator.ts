@@ -319,7 +319,7 @@ export function resolveSlotegratorReturnUrl(
 	env: { NODE_ENV?: string },
 	requested?: string | null,
 ): string | undefined {
-	const stagingFront = "https://stagingweb.sportsdey.com/games";
+	const stagingExit = "https://stagingweb.sportsdey.com/game-exit";
 	const isStaging = (env.NODE_ENV || "").toLowerCase() === "staging";
 
 	const isProductionFront = (value: string) => {
@@ -335,10 +335,23 @@ export function resolveSlotegratorReturnUrl(
 		}
 	};
 
+	/** Prefer bare /game-exit over /games so GIS exits don't iframe the lobby. */
+	const normalizeStagingReturn = (value: string) => {
+		try {
+			const url = new URL(value);
+			if (url.hostname === "stagingweb.sportsdey.com" && url.pathname === "/games") {
+				return stagingExit;
+			}
+		} catch {
+			/* keep as-is */
+		}
+		return value;
+	};
+
 	const trimmed = requested?.trim() || "";
 	if (isStaging) {
-		if (!trimmed || isProductionFront(trimmed)) return stagingFront;
-		return trimmed;
+		if (!trimmed || isProductionFront(trimmed)) return stagingExit;
+		return normalizeStagingReturn(trimmed);
 	}
 	return trimmed || undefined;
 }
