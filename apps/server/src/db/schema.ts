@@ -176,6 +176,38 @@ export const sportsbookSessionRelations = relations(
 	}),
 );
 
+export const sportsbookPromotionTypes = ["bet_boost", "free_bet"] as const;
+export type SportsbookPromotionType =
+	(typeof sportsbookPromotionTypes)[number];
+
+export const sportsbookPromotion = sqliteTable("sportsbook_promotion", {
+	id: text("id").primaryKey(),
+	promotionType: text("promotion_type", {
+		enum: sportsbookPromotionTypes,
+	}).notNull(),
+	name: text("name").notNull(),
+	description: text("description").notNull(),
+	eligibleUsers: text("eligible_users").notNull(),
+	eligibleSports: text("eligible_sports").notNull(),
+	competitionIds: text("competition_ids"),
+	eligibleEventIds: text("eligible_event_ids"),
+	boostPercentage: real("boost_percentage"),
+	maximumWin: real("maximum_win"),
+	minimumSelections: integer("minimum_selections"),
+	maximumSelections: integer("maximum_selections"),
+	minimumOddsPerSelection: real("minimum_odds_per_selection"),
+	amount: real("amount"),
+	currency: text("currency"),
+	endDateTime: integer("end_date_time", { mode: "timestamp_ms" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
 export const sportsbookBetBoost = sqliteTable("sportsbook_bet_boost", {
 	id: text("id").primaryKey(),
 	dataBetBoostId: text("data_bet_boost_id").notNull().unique(),
@@ -189,6 +221,7 @@ export const sportsbookBetBoost = sqliteTable("sportsbook_bet_boost", {
 	minimumOddsPerSelection: real("minimum_odds_per_selection").notNull(),
 	eligibleUsers: text("eligible_users").notNull(),
 	eligibleSports: text("eligible_sports").notNull(),
+	promotionId: text("promotion_id").references(() => sportsbookPromotion.id),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -276,6 +309,23 @@ export const sportsbookBetRelations = relations(sportsbookBet, ({ one }) => ({
 		references: [user.id],
 	}),
 }));
+
+export const sportsbookBetBoostRelations = relations(
+	sportsbookBetBoost,
+	({ one }) => ({
+		promotion: one(sportsbookPromotion, {
+			fields: [sportsbookBetBoost.promotionId],
+			references: [sportsbookPromotion.id],
+		}),
+	}),
+);
+
+export const sportsbookPromotionRelations = relations(
+	sportsbookPromotion,
+	({ many }) => ({
+		betBoosts: many(sportsbookBetBoost),
+	}),
+);
 
 export const walletTransactionRelations = relations(
 	walletTransaction,

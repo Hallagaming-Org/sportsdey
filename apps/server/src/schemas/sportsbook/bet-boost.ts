@@ -8,12 +8,15 @@ export const BetBoostCreateSchema = z.object({
 	boostName: z.string(),
 	description: z.string(),
 	boostPercentage: z.number(),
-	maximumWin: z.number(),
+	eligibleUsers: z.string(),
+	eligibleSports: z.array(SportSchema),
 	minimumSelections: z.number(),
 	maximumSelections: z.number(),
+	competitionIDs: z.array(z.string()).default([]),
+	eligibleEventsID: z.array(z.string()).default([]),
 	minimumOddsPerSelection: z.number(),
-	eligibleUsers: z.enum(["all", "new"]),
-	eligibleSports: z.array(SportSchema),
+	endDateTime: z.string(),
+	maximumWin: z.number().optional(),
 });
 
 export const BetBoostCreateResponseSchema = z.object({

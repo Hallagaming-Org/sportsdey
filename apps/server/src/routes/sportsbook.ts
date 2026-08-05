@@ -10,6 +10,7 @@ import {
 } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
+import { requirePermission } from "@/middleware/admin-permissions";
 import {
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
@@ -26,7 +27,11 @@ import {
 	CashOutAcceptedRequestSchema,
 	CashOutDeclinedRequestSchema,
 	CreateSportsbookTokenResponseSchema,
+	SportEventQuerySchema,
+	SportEventsResponseSchema,
 	SportsbookTokenErrorSchema,
+	TournamentQuerySchema,
+	TournamentsResponseSchema,
 } from "@/schemas/sportsbook";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -79,7 +84,12 @@ function selectionMatchId(selection: SportsbookSelection | undefined): string {
 async function databetFetch(
 	env: CloudflareBindings,
 	path: string,
-	options: { method?: string; body?: unknown } = {},
+	options: {
+		method?: string;
+		body?: unknown;
+		query?: Record<string, string | string[] | undefined>;
+		headers?: Record<string, string>;
+	} = {},
 ): Promise<Response> {
 	const proxyUrl = env.PROXY_URL?.trim();
 	const proxySecret = env.PROXY_SECRET?.trim();
@@ -91,10 +101,25 @@ async function databetFetch(
 		throw new Error("PROXY_SECRET not configured");
 	}
 
-	const url = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
+	const searchParams = new URLSearchParams();
+	if (options.query) {
+		for (const [key, value] of Object.entries(options.query)) {
+			if (value === undefined) {
+				continue;
+			}
+			for (const item of Array.isArray(value) ? value : [value]) {
+				searchParams.append(Array.isArray(value) ? `${key}[]` : key, item);
+			}
+		}
+	}
+
+	const baseUrl = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
+	const url =
+		searchParams.size > 0 ? `${baseUrl}?${searchParams.toString()}` : baseUrl;
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 		"X-Proxy-Auth": proxySecret,
+		...options.headers,
 	};
 
 	try {
@@ -3522,9 +3547,7 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 
 	const sportIds = result.eligibleSports.map((sport) => SPORT_IDS[sport]);
 	const multiplier = (1 + result.boostPercentage / 100).toFixed(2);
-	const expiresAt = new Date(
-		Date.now() + 30 * 24 * 60 * 60 * 1000,
-	).toISOString();
+	const expiresAt = new Date(result.endDateTime).toISOString();
 
 	const buildPerOddConditions = () => ({
 		sport: {
@@ -3532,6 +3555,24 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			match_all_odds: true,
 			sport_ids: sportIds,
 		},
+		...(result.competitionIDs.length > 0
+			? {
+					tournament: {
+						type: "tournament",
+						match_all_odds: true,
+						tournament_ids: result.competitionIDs,
+					},
+				}
+			: {}),
+		...(result.eligibleEventsID.length > 0
+			? {
+					sport_event: {
+						type: "sport_event",
+						match_all_odds: true,
+						sport_event_ids: result.eligibleEventsID,
+					},
+				}
+			: {}),
 		odd_value: {
 			type: "odd_value",
 			match_all_odds: true,
@@ -3614,11 +3655,14 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			? targetPlayerIds
 			: [undefined];
 
+	const promotionId = crypto.randomUUID();
+
 	const created: Array<{
 		id: string;
 		dataBetBoostId: string;
 		playerId: string | null;
 	}> = [];
+	console.log("targets", targets);
 
 	for (const playerId of targets) {
 		const apiRequestBody = buildPayload(playerId);
@@ -3645,11 +3689,13 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			);
 		}
 
-		const data = (await response.json()) as Array<{
+		const data = (await response.json()) as {
 			id: string;
-		}>;
+		};
 
-		const createdBoost = data[0];
+		console.log("responseData", data)
+
+		const createdBoost = data;
 		if (!createdBoost) {
 			return c.json(
 				{
@@ -3660,26 +3706,55 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			);
 		}
 
-		const boostId = crypto.randomUUID();
-		await db.insert(schema.sportsbookBetBoost).values({
-			id: boostId,
+		created.push({
+			id: crypto.randomUUID(),
 			dataBetBoostId: createdBoost.id,
 			playerId: playerId ?? null,
+		});
+	}
+
+	await db.insert(schema.sportsbookPromotion).values({
+		id: promotionId,
+		promotionType: "bet_boost",
+		name: result.boostName,
+		description: result.description,
+		eligibleUsers: result.eligibleUsers,
+		eligibleSports: JSON.stringify(result.eligibleSports),
+		competitionIds:
+			result.competitionIDs.length > 0
+				? JSON.stringify(result.competitionIDs)
+				: null,
+		eligibleEventIds:
+			result.eligibleEventsID.length > 0
+				? JSON.stringify(result.eligibleEventsID)
+				: null,
+		boostPercentage: result.boostPercentage,
+		minimumSelections: result.minimumSelections,
+		maximumSelections: result.maximumSelections,
+		minimumOddsPerSelection: result.minimumOddsPerSelection,
+		...(result.maximumWin !== undefined
+			? { maximumWin: result.maximumWin }
+			: {}),
+		endDateTime: new Date(result.endDateTime),
+	});
+
+	for (const boost of created) {
+		await db.insert(schema.sportsbookBetBoost).values({
+			id: boost.id,
+			dataBetBoostId: boost.dataBetBoostId,
+			playerId: boost.playerId,
 			boostName: result.boostName,
 			description: result.description,
 			boostPercentage: result.boostPercentage,
-			maximumWin: result.maximumWin,
 			minimumSelections: result.minimumSelections,
 			maximumSelections: result.maximumSelections,
 			minimumOddsPerSelection: result.minimumOddsPerSelection,
 			eligibleUsers: result.eligibleUsers,
 			eligibleSports: JSON.stringify(result.eligibleSports),
-		});
-
-		created.push({
-			id: boostId,
-			dataBetBoostId: createdBoost.id,
-			playerId: playerId ?? null,
+			promotionId,
+			...(result.maximumWin !== undefined
+				? { maximumWin: result.maximumWin }
+				: {}),
 		});
 	}
 
@@ -4078,8 +4153,13 @@ const betBoostDeleteRoute = createRoute({
 		params: BetBoostGetSchema,
 	},
 	responses: {
-		204: {
+		200: {
 			description: "Bet boost deleted successfully",
+			content: {
+				"application/json": {
+					schema: z.object({ success: z.literal(true) }),
+				},
+			},
 		},
 		400: {
 			description: "Error deleting bet boost",
@@ -4089,9 +4169,6 @@ const betBoostDeleteRoute = createRoute({
 		},
 		403: {
 			description: "Forbidden - admin or super_admin only",
-		},
-		404: {
-			description: "Bet boost not found",
 		},
 	},
 });
@@ -4128,22 +4205,13 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 		method: "DELETE",
 	});
 
-	if (!response.ok) {
+	if (!response.ok && response.status !== 404) {
 		const errorText = await response.text();
 		console.error(
 			"Data.Bet bet-boost delete error:",
 			response.status,
 			errorText,
 		);
-		if (response.status === 404) {
-			return c.json(
-				{
-					success: false as const,
-					error: "Bet boost not found",
-				},
-				404,
-			);
-		}
 		return c.json(
 			{
 				success: false as const,
@@ -4153,5 +4221,373 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 		);
 	}
 
-	return c.body(null, 204);
+	const db = drizzle(c.env.DB, { schema });
+
+	const boosts = await db
+		.select({
+			id: schema.sportsbookBetBoost.id,
+			promotionId: schema.sportsbookBetBoost.promotionId,
+		})
+		.from(schema.sportsbookBetBoost)
+		.where(eq(schema.sportsbookBetBoost.dataBetBoostId, id));
+
+	const promotionIds = new Set<string>();
+	for (const boost of boosts) {
+		if (boost.promotionId) promotionIds.add(boost.promotionId);
+		await db
+			.delete(schema.sportsbookBetBoost)
+			.where(eq(schema.sportsbookBetBoost.id, boost.id));
+	}
+
+	for (const promotionId of promotionIds) {
+		const [remaining] = await db
+			.select({ count: sql<number>`COUNT(*)` })
+			.from(schema.sportsbookBetBoost)
+			.where(eq(schema.sportsbookBetBoost.promotionId, promotionId));
+		if (Number(remaining?.count ?? 0) === 0) {
+			await db
+				.delete(schema.sportsbookPromotion)
+				.where(eq(schema.sportsbookPromotion.id, promotionId));
+		}
+	}
+
+	return c.json({ success: true as const }, 200);
+});
+
+const sportsbookEventsRoute = createRoute({
+	method: "get",
+	path: "/events",
+	tags: ["Sportsbook"],
+	summary: "List sport events by sport and match status",
+	description:
+		"Fetch all sport events matching the given sport ids and match status from the Data.Bet sportsbook. Requires admin or super_admin authentication, or an admin with the create_promotion permission.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: SportEventQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Sport events retrieved successfully",
+			content: {
+				"application/json": {
+					schema: SportEventsResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Invalid query parameters",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - create_promotion permission required",
+		},
+		500: {
+			description: "Failed to fetch sport events from Data.Bet",
+		},
+	},
+});
+
+sportsbookRoute.openapi(sportsbookEventsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "create_promotion")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - create_promotion permission required",
+			},
+			403,
+		);
+	}
+
+	const query = c.req.valid("query");
+	const sportIds = Array.isArray(query.sportId)
+		? query.sportId
+		: [query.sportId];
+	const matchStatus = query.status === "live" ? "LIVE" : "NOT_STARTED";
+
+	try {
+		const events: Array<{ id: string; title: string }> = [];
+		const limit = 100;
+		let offset = 0;
+
+		while (true) {
+			const response = await databetFetch(
+				c.env,
+				"/sport-events-fixtures/search",
+				{
+					query: {
+						locale: "en",
+						sportIds,
+						matchStatuses: [matchStatus],
+						sportEventTypes: ["MATCH"],
+						offset: String(offset),
+						limit: String(limit),
+					},
+				},
+			);
+			console.log("requestUrl", response.url);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error(
+					"Data.Bet sport events search error:",
+					response.status,
+					errorText,
+				);
+				return c.json(
+					{
+						success: false as const,
+						error: `Failed to fetch sport events: ${response.status}`,
+						details: errorText,
+					},
+					500,
+				);
+			}
+
+			const data = (await response.json()) as {
+				data?: {
+					sportEventsByFilters?: Array<{
+						id?: string;
+						fixture?: { title?: string };
+					}>;
+				};
+			};
+
+			const page = data.data?.sportEventsByFilters ?? [];
+			for (const sportEvent of page) {
+				if (sportEvent.id && sportEvent.fixture?.title) {
+					events.push({
+						id: sportEvent.id,
+						title: sportEvent.fixture.title,
+					});
+				}
+			}
+
+			if (page.length < limit) {
+				break;
+			}
+			offset += limit;
+		}
+
+		return c.json(
+			{
+				success: true as const,
+				data: events,
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Data.Bet sport events search threw", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Failed to fetch sport events",
+			},
+			500,
+		);
+	}
+});
+
+const sportsbookTournamentsRoute = createRoute({
+	method: "get",
+	path: "/tournaments",
+	tags: ["Sportsbook"],
+	summary: "List sportbook tournaments by sport",
+	description:
+		"Fetch a page of tournaments for the given sports from the Data.Bet sportsbook, honoring the limit and offset query params. Requires admin or super_admin authentication, or an admin with the create_promotion permission.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: TournamentQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Tournaments retrieved successfully",
+			content: {
+				"application/json": {
+					schema: TournamentsResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Invalid query parameters",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - create_promotion permission required",
+		},
+		500: {
+			description: "Failed to fetch tournaments from Data.Bet",
+		},
+	},
+});
+
+sportsbookRoute.openapi(sportsbookTournamentsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "create_promotion")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - create_promotion permission required",
+			},
+			403,
+		);
+	}
+
+	const query = c.req.valid("query");
+	const sports = Array.isArray(query.sport) ? query.sport : [query.sport];
+	const { offset, limit } = query;
+
+	try {
+		const fetchSport = async (
+			sportId: string,
+		): Promise<{
+			page: Array<{ id: string; title: string }>;
+			fullPage: boolean;
+		}> => {
+			const response = await databetFetch(c.env, "/v2/tournaments/by-filters", {
+				method: "POST",
+				headers: { "Api-Locale": "en" },
+				body: { sport: sportId, limit, offset },
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error(
+					"Data.Bet tournaments by-filters error:",
+					sportId,
+					response.status,
+					errorText,
+				);
+				throw new Error(
+					`Failed to fetch tournaments for ${sportId}: ${response.status}`,
+				);
+			}
+
+			const data = (await response.json()) as {
+				data?: {
+					tournaments_by_filters?: Array<{
+						id?: string;
+						name?: string;
+					}>;
+				};
+			};
+
+			const rawPage = data.data?.tournaments_by_filters ?? [];
+			const page: Array<{ id: string; title: string }> = [];
+			for (const tournament of rawPage) {
+				if (tournament.id && tournament.name) {
+					page.push({
+						id: tournament.id,
+						title: tournament.name,
+					});
+				}
+			}
+
+			return { page, fullPage: rawPage.length === limit };
+		};
+
+		const pagesBySport = await Promise.all(sports.map(fetchSport));
+
+		const seen = new Set<string>();
+		const tournaments: Array<{ id: string; title: string }> = [];
+		for (const result of pagesBySport) {
+			for (const tournament of result.page) {
+				if (seen.has(tournament.id)) {
+					continue;
+				}
+				seen.add(tournament.id);
+				tournaments.push(tournament);
+			}
+		}
+
+		const hasMore = pagesBySport.some((result) => result.fullPage);
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					tournaments,
+					pagination: {
+						offset,
+						limit,
+						total: offset + tournaments.length,
+						hasMore,
+					},
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Data.Bet tournaments fetch threw", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Failed to fetch tournaments",
+				details: error instanceof Error ? error.message : String(error),
+			},
+			500,
+		);
+	}
 });
