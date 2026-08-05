@@ -187,15 +187,8 @@
     {
       "idx": 26,
       "version": "6",
-      "when": 1785476209493,
-      "tag": "0026_workable_nemesis",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "6",
-      "when": 1785948652920,
-      "tag": "0027_cheerful_wither",
+      "when": 1785949231893,
+      "tag": "0026_regular_warlock",
       "breakpoints": true
     }
   ]
