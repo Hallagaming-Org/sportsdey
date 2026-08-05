@@ -1,7 +1,9 @@
 // src/components/deposit-modal.tsx
 import { ChevronLeft, Copy, Info, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { DepositCryptoPanel } from "@/components/deposit-crypto-panel";
+import { isOpenfortEnabled } from "@/lib/openfort/config";
 import FlutterwaveIcon from "@/logos/flutterwave.svg?react";
 import KudaIcon from "@/logos/kuda.svg?react";
 import MastercardIcon from "@/logos/mastercard.svg?react";
@@ -12,7 +14,7 @@ import PalmPayIcon from "@/logos/palmpay.svg?react";
 import PaystackIcon from "@/logos/paystack.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
-type DepositMethod = "card" | "direct_banking" | "bank_transfer";
+type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
 
@@ -35,7 +37,7 @@ const BANKS = [
 	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
 ];
 
-const METHOD_TABS: { key: DepositMethod; label: string }[] = [
+const BASE_METHOD_TABS: { key: DepositMethod; label: string }[] = [
 	{ key: "card", label: "Card" },
 	{ key: "direct_banking", label: "Direct Banking" },
 	{ key: "bank_transfer", label: "Bank Transfer" },
@@ -86,9 +88,16 @@ export function DepositModal({
 	const [cvv, setCvv] = useState("");
 	const [saveCard, setSaveCard] = useState(false);
 
+	const methodTabs = useMemo(() => {
+		if (!isOpenfortEnabled()) return BASE_METHOD_TABS;
+		return [...BASE_METHOD_TABS, { key: "crypto" as const, label: "Crypto" }];
+	}, []);
+
 	if (!isOpen) return null;
 
 	const selectedBankName = BANKS.find((b) => b.key === selectedBank)?.name;
+	const showNairaCheckout =
+		activeMethod !== "bank_transfer" && activeMethod !== "crypto";
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
@@ -137,13 +146,15 @@ export function DepositModal({
 						<p className="mb-3 font-semibold text-base text-white sm:text-lg">
 							Deposit Method
 						</p>
-						<div className="flex gap-2 overflow-x-auto sm:grid sm:grid-cols-3">
-							{METHOD_TABS.map((tab) => (
+						<div
+							className={`flex gap-2 overflow-x-auto sm:grid ${methodTabs.length > 3 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
+						>
+							{methodTabs.map((tab) => (
 								<button
 									key={tab.key}
 									type="button"
 									onClick={() => setActiveMethod(tab.key)}
-									className={`shrink-0 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${activeMethod === tab.key
+									className={`shrink-0 rounded-lg border px-4 py-2.5 font-medium text-sm transition-colors ${activeMethod === tab.key
 											? "border-accent bg-[#1BAA04] text-white"
 											: "border-[#2A2B2A] bg-transparent text-[#B5B7B5] hover:bg-[#141514]"
 										}`}
@@ -338,14 +349,10 @@ export function DepositModal({
 							</>
 						)}
 
-					
+						{activeMethod === "crypto" && <DepositCryptoPanel />}
 
-
-
-
-
-				{/* Quick amounts + amount input — shared across tabs*/}
-						{activeMethod !== "bank_transfer" && (
+				{/* Quick amounts + amount input — Naira methods only */}
+						{showNairaCheckout && (
 							<>
 								<div className="mt-6 flex flex-wrap gap-6 justify-center">
 									{QUICK_AMOUNTS.map((value) => (
