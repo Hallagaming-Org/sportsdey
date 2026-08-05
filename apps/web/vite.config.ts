@@ -7,9 +7,9 @@ import { defineConfig } from "vite";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-// Must match apps/web/.env VITE_SERVER_URL (wrangler --port=8787).
+// Must match apps/server `wrangler dev --port=3000`.
 // Do NOT proxy "/games" — that path is the TanStack lobby page; the API is reached via VITE_SERVER_URL.
-const LOCAL_API_TARGET = "http://localhost:8787";
+const LOCAL_API_TARGET = "http://localhost:3000";
 
 /** TanStack pages under /auth — must not be proxied to the API worker. */
 const WEB_AUTH_PAGE_PATHS = new Set([
@@ -33,12 +33,51 @@ function proxyToLocalApi() {
 	};
 }
 
+/** Browser document navigations to SPA routes that share paths with the API. */
+function isDocumentNavigation(req: IncomingMessage): boolean {
+	const accept = req.headers.accept ?? "";
+	return accept.includes("text/html");
+}
+
 function proxyAuthToLocalApi() {
 	return {
 		...proxyToLocalApi(),
 		bypass(req: IncomingMessage) {
 			if (!shouldProxyAuthToApi(req.url)) {
 				// Let Vite / TanStack serve the frontend route (e.g. OAuth landing page).
+				return req.url;
+			}
+		},
+	};
+}
+
+function proxyWalletToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			// SPA pages: /wallet and /wallet/transactions — API lives under same prefix.
+			if (
+				isDocumentNavigation(req) &&
+				(path === "/wallet" || path === "/wallet/transactions")
+			) {
+				return req.url;
+			}
+		},
+	};
+}
+
+/**
+ * Proxies Bonus Engine mission API (`/mission/*`) without swallowing the
+ * TanStack `/missions` page — Vite prefix matching treats `/missions` as
+ * under `/mission`.
+ */
+function proxyMissionApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/missions" || path.startsWith("/missions/")) {
 				return req.url;
 			}
 		},
@@ -65,7 +104,7 @@ export default defineConfig({
 			"/auth": proxyAuthToLocalApi(),
 			"/phone-auth": proxyToLocalApi(),
 			"/user": proxyToLocalApi(),
-			"/wallet": proxyToLocalApi(),
+			"/wallet": proxyWalletToLocalApi(),
 			"/cms": proxyToLocalApi(),
 			"/football": proxyToLocalApi(),
 			"/basketball": proxyToLocalApi(),
@@ -83,6 +122,10 @@ export default defineConfig({
 			"/thndr": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
+			"/loyalty": proxyToLocalApi(),
+			"/mission": proxyMissionApiToLocalApi(),
+			"/bonus-engine": proxyToLocalApi(),
+			"/gamification": proxyToLocalApi(),
 		},
 	},
 });

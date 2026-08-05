@@ -132,6 +132,7 @@ function RootDocument() {
 		"/game/$gameId",
 		"/play/$gameName",
 		"/wallet",
+		"/wallet/transactions",
 		"/account",
 		"/favorites",
 		"/faqs",
@@ -145,6 +146,8 @@ function RootDocument() {
 		"/promotions",
 		"/promotions/",
 		"/promotions/$id",
+		"/missions",
+		"/missions/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);

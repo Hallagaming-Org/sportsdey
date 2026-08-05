@@ -21,9 +21,9 @@ type WalletRecentTransactionsProps = {
 
 
 const statusBadgeStyles = {
-	success: "bg-[#E2F9EE] text-[#0F9D58]",
-	pending: "bg-[#FFF9E6] text-[#B58E2A]",
-	failed: "bg-[#FCE8E6] text-[#C5221F]",
+	success: "bg-[#D1FAE5] text-[#065F46]",
+	pending: "bg-[#FEF3C7] text-[#92400E]",
+	failed: "bg-[#FEE2E2] text-[#991B1B]",
 };
 
 function parseDateTime(createdAt: string | null | undefined) {
@@ -195,30 +195,30 @@ export function WalletRecentTransactions({
 
 	return (
 		<>
-			<div className="rounded-[24px] border border-[#1B2722] bg-[#000606] p-6 md:p-8 shadow-sm">
-				<div className="mb-6 flex items-center justify-between">
-					<h2 className="font-bold text-[24px] text-white tracking-tight">
+			<div className="rounded-2xl border border-[#1B2722] bg-[#000606] p-5 shadow-sm md:p-8">
+				<div className="mb-5 flex items-center justify-between md:mb-6">
+					<h2 className="font-semibold text-[22px] text-white tracking-tight md:text-[24px]">
 						Recent Transactions
 					</h2>
 					<Link
 						to="/wallet/transactions"
-						className="text-[#6C7073] hover:text-white transition-colors"
+						className="text-[#6C7073] transition-colors hover:text-white"
 						aria-label="View recent transactions"
 					>
 						<MoreHorizontal className="h-6 w-6" />
 					</Link>
 				</div>
 
-				<div className="w-full overflow-x-auto better-scrollbar">
+				<div className="better-scrollbar w-full overflow-x-auto">
 					{isLoading ? (
-						<table className="w-full text-left border-collapse min-w-[640px]">
+						<table className="min-w-[640px] w-full border-collapse text-left">
 							<thead>
-								<tr className="border-b border-[#1B2722]/50 text-[#6C7073] text-[14px] font-semibold">
-									<th className="pb-4 font-semibold w-[25%]">Date & Time</th>
-									<th className="pb-4 font-semibold w-[30%]">Type</th>
-									<th className="pb-4 font-semibold w-[20%]">Amount</th>
-									<th className="pb-4 font-semibold w-[20%]">Status</th>
-									<th className="pb-4 text-right font-semibold w-[5%]">...</th>
+								<tr className="border-[#1B2722]/50 border-b font-semibold text-[#6C7073] text-[14px]">
+									<th className="w-[25%] pb-4 font-semibold">Date & Time</th>
+									<th className="w-[30%] pb-4 font-semibold">Type</th>
+									<th className="w-[20%] pb-4 font-semibold">Amount</th>
+									<th className="w-[20%] pb-4 font-semibold">Status</th>
+									<th className="w-[5%] pb-4 text-right font-semibold">...</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -259,20 +259,15 @@ export function WalletRecentTransactions({
 							</p>
 						</div>
 					) : (
-						<table className="w-full text-left border-collapse min-w-[640px]">
+						<table className="min-w-[640px] w-full border-collapse text-left">
 							<thead>
-								<tr className="border-b border-[#1B2722]/50 text-[#6C7073] text-[14px] font-semibold">
-									<th className="pb-4 font-semibold w-[25%]">Date & Time</th>
-									<th className="pb-4 font-semibold w-[30%]">Type</th>
-									<th className="pb-4 font-semibold w-[20%]">Amount</th>
-									<th className="pb-4 font-semibold w-[20%]">Status</th>
-									<th className="pb-4 text-right font-semibold w-[5%]">
-										<Link
-											to="/wallet/transactions"
-											className="inline-block text-[#6C7073] hover:text-white transition-colors"
-										>
-											<MoreHorizontal className="h-5 w-5" />
-										</Link>
+								<tr className="border-[#1B2722]/50 border-b font-semibold text-[#6C7073] text-[14px]">
+									<th className="w-[25%] pb-4 font-semibold">Date & Time</th>
+									<th className="w-[30%] pb-4 font-semibold">Type</th>
+									<th className="w-[20%] pb-4 font-semibold">Amount</th>
+									<th className="w-[20%] pb-4 font-semibold">Status</th>
+									<th className="w-[5%] pb-4 text-right font-semibold">
+										<span className="sr-only">Actions</span>
 									</th>
 								</tr>
 							</thead>
@@ -280,26 +275,26 @@ export function WalletRecentTransactions({
 								{mappedTransactions.map((tx) => (
 									<tr
 										key={tx.id}
-										className="border-b border-[#1B2722]/30 last:border-b-0 hover:bg-white/[0.02] cursor-pointer transition-colors"
+										className="cursor-pointer border-[#1B2722]/30 border-b transition-colors last:border-b-0 hover:bg-white/[0.02]"
 										onClick={() => setSelectedTx(tx.original)}
 									>
 										<td className="py-4 pr-4">
-											<div className="font-semibold text-white text-[15px]">
+											<div className="font-medium text-[15px] text-white">
 												{tx.date}
 											</div>
-											<div className="text-[#6C7073] text-[13px] mt-0.5">
+											<div className="mt-0.5 text-[#6C7073] text-[13px]">
 												{tx.time}
 											</div>
 										</td>
-										<td className="max-w-[200px] truncate py-4 pr-4 text-white font-medium text-[15px]">
+										<td className="max-w-[200px] truncate py-4 pr-4 font-medium text-[15px] text-white">
 											{tx.typeLabel}
 										</td>
-										<td className="py-4 pr-4 text-white font-semibold text-[15px]">
+										<td className="py-4 pr-4 font-semibold text-[15px] text-white">
 											{tx.amountLabel}
 										</td>
 										<td className="py-4 pr-4">
 											<span
-												className={`inline-block min-w-[84px] rounded-full px-3 py-1.5 text-center font-bold text-xs ${statusBadgeStyles[tx.statusColor]}`}
+												className={`inline-block min-w-[84px] rounded-full px-3 py-1.5 text-center font-semibold text-xs ${statusBadgeStyles[tx.statusColor]}`}
 											>
 												{tx.statusText}
 											</span>
@@ -307,7 +302,7 @@ export function WalletRecentTransactions({
 										<td className="py-4 text-right">
 											<button
 												type="button"
-												className="text-[#6C7073] hover:text-white transition-colors p-1"
+												className="p-1 text-[#6C7073] transition-colors hover:text-white"
 												aria-label="Transaction actions"
 												onClick={(e) => {
 													e.stopPropagation();

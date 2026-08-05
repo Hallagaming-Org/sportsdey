@@ -189,7 +189,10 @@ app.use("*", async (c, next) => {
 		path.startsWith("/scorpio/callback") ||
 		path.startsWith("/api/scorpio/callback") ||
 		path.startsWith("/webhooks/") ||
-		path.startsWith("/admin")
+		path.startsWith("/admin") ||
+		path.startsWith("/bonus-engine/callback/") ||
+		path.startsWith("/gamification/callback/") ||
+		path.startsWith("/bem/api/BonusEngine/")
 	) {
 		return next();
 	}

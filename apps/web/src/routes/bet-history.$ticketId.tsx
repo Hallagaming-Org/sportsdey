@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Copy, Trophy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { toast } from "sonner";
+import Trophy from "@/logos/trophy.svg?react";
 
 export const Route = createFileRoute("/bet-history/$ticketId")({
 	component: TicketDetailsPage,
@@ -162,8 +163,8 @@ function formatMoney(value: number) {
 }
 
 function statusBadgeClass(status: SelectionStatus) {
-	if (status === "won") return "bg-[#17351F] text-[#3DD26A]";
-	if (status === "lost") return "bg-[#3A1420] text-[#F0668A]";
+	if (status === "won") return "bg-[#E6FFEF] text-[#009E2C]";
+	if (status === "lost") return "bg-[#FFD9D4] text-[#C03320]";
 	return "bg-[#3A3312] text-[#E8C547]";
 }
 
@@ -197,10 +198,10 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 					{won && <Trophy className="h-4 w-4 text-[#E8A93D]" fill="#E8A93D" />}
 					{!won && <span className="mt-0.5 h-2 w-2 rounded-full bg-[#8C8F8F]" />}
 					<span
-						className={`font-bold text-xs tracking-wide [writing-mode:vertical-rl] ${
-							won ? "text-[#3DD26A]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
+						className={`font-bold text-xs text-center tracking-wide [writing-mode:vertical-rl] ${
+							won ? "text-[#2EFF0C]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
 						}`}
-						style={{ transform: "rotate(180deg)" }}
+						style={{ transform: "rotate(360deg)" }}
 					>
 						{statusLabel(selection.status).toUpperCase()}
 					</span>
@@ -269,10 +270,10 @@ function TicketDetailsPage() {
 	};
 
 	const bannerGradient = isWon
-		? "bg-gradient-to-b from-[#0F3D1E] via-[#0A1F10] to-[#0A0A0A]"
+		? "bg-gradient-to-b from-[#105904] via-[#04100B] to-[#000606]"
 		: isPending
-			? "bg-gradient-to-b from-[#5A4A0F] via-[#2A2410] to-[#0A0A0A]"
-			: "bg-gradient-to-b from-[#2A2A2A] via-[#161616] to-[#0A0A0A]";
+			? "bg-gradient-to-b from-[#A88620] via-[#04100B] to-[#000606]"
+			: "bg-gradient-to-b from-[#5A5F63] via-[#04100B] to-[#000606]";
 
 	return (
 		<div className="min-h-screen bg-background text-white">
@@ -295,7 +296,7 @@ function TicketDetailsPage() {
 							{ticket.dateTime} &nbsp;
 							<span className="text-white">{ticket.betType}</span>
 						</span>
-						<span className="flex items-center gap-1.5">
+						<span className="flex text-white  items-center gap-1.5">
 							Ticket ID: {ticket.ticketId}
 							<button
 								type="button"
@@ -311,19 +312,19 @@ function TicketDetailsPage() {
 					<div className="mt-5 flex flex-col items-center justify-center gap-2 sm:mt-6">
 						{isWon && (
 							<div className="flex items-center gap-2">
-								<span className="font-extrabold text-2xl text-[#3DD26A] tracking-wide">
+								<span className="font-bold text-3xl text-[#2EFF0C] tracking-wide">
 									WON
 								</span>
-								<Trophy className="h-6 w-6 text-[#E8A93D]" fill="#E8A93D" />
+								<Trophy className="h-8 w-8 text-[#FF9500]" fill="#FF9500" />
 							</div>
 						)}
 						{isPending && (
-							<span className="font-extrabold text-2xl text-[#E8C547] tracking-wide">
+							<span className="font-bold text-3xl text-[#FFD70F] tracking-wide">
 								PENDING
 							</span>
 						)}
 						{!isWon && !isPending && (
-							<span className="font-extrabold text-2xl text-[#D5D5D5] tracking-wide">
+							<span className="font-bold text-3xl text-[#B0B0B0] tracking-wide">
 								LOST
 							</span>
 						)}
@@ -331,24 +332,24 @@ function TicketDetailsPage() {
 
 					<div className="mt-5 space-y-2 text-sm sm:mt-6">
 						<div className="flex items-center justify-between">
-							<span className="text-[#8C8F8F]">Stake amount</span>
+							<span className="text-[#FFFFFF]">Stake amount</span>
 							<span className="font-semibold text-white">{formatMoney(ticket.stake)}</span>
 						</div>
 						<div className="flex items-center justify-between">
-							<span className="text-[#8C8F8F]">Total Odds</span>
+							<span className="text-[#FFFFFF]">Total Odds</span>
 							<span className="font-semibold text-white">{ticket.totalOdds.toFixed(2)}</span>
 						</div>
 						{isWon && ticket.totalReturn !== undefined && (
 							<div className="flex items-center justify-between">
-								<span className="text-[#8C8F8F]">Total Return</span>
-								<span className="font-semibold text-[#3DD26A]">
+								<span className="text-[#FFFFFF]">Total Return</span>
+								<span className="font-semibold text-[#2EFF0C]">
 									{formatMoney(ticket.totalReturn)}
 								</span>
 							</div>
 						)}
 						{isPending && ticket.potentialCashout !== undefined && (
 							<div className="flex items-center justify-between">
-								<span className="text-[#8C8F8F]">Potential Cashout</span>
+								<span className="text-[#FFFFFF]">Potential Cashout</span>
 								<span className="font-semibold text-white">
 									{formatMoney(ticket.potentialCashout)}
 								</span>
@@ -382,16 +383,16 @@ function TicketDetailsPage() {
 											isWon ? (index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent") : "bg-transparent"
 										}`}
 									>
-										<td className="px-4 py-3 text-[#B5B7B5] text-sm">{sel.dateTime}</td>
-										<td className="px-4 py-3 text-[#B5B7B5] text-sm">{sel.league}</td>
+										<td className="px-4 py-3 text-[#FFFFFF] text-sm">{sel.dateTime}</td>
+										<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.league}</td>
 										<td className="px-4 py-3 text-white text-sm">
-											{sel.homeTeam} {sel.awayTeam}
+											{sel.homeTeam} {sel.awayTeam}          
 										</td>
-										<td className="px-4 py-3 text-[#B5B7B5] text-sm">
+										<td className="px-4 py-3 text-white text-sm">
 											{sel.homeScore} {sel.awayScore}
 										</td>
-										<td className="px-4 py-3 text-[#B5B7B5] text-sm">{sel.market}</td>
-										<td className="px-4 py-3 text-[#B5B7B5] text-sm">{sel.result}</td>
+										<td className="px-4 py-3 text-white text-sm">{sel.market}</td>
+										<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result}</td>
 										<td className="px-4 py-3 text-white text-sm">{sel.pick}</td>
 										<td className="px-4 py-3">
 											<span
