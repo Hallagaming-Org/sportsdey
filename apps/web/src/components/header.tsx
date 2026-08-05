@@ -39,10 +39,7 @@ export default function Header(
 	const router = useRouter();
 
 	const goToDeposit = () => {
-		router.navigate({
-			to: "/wallet",
-			search: { openDeposit: true } as never,
-		});
+		router.navigate({ to: "/wallet" });
 	};
 	const { data: walletData } = useQuery({
 		queryKey: ["wallet"],
