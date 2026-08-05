@@ -4338,6 +4338,8 @@ sportsbookRoute.openapi(sportsbookEventsRoute, async (c) => {
 		const events: Array<{ id: string; title: string }> = [];
 		const limit = 100;
 		let offset = 0;
+		const dateFrom = new Date();
+		const dateTo = new Date(dateFrom.getTime() + 365 * 24 * 60 * 60 * 1000);
 
 		while (true) {
 			const response = await databetFetch(
@@ -4349,6 +4351,8 @@ sportsbookRoute.openapi(sportsbookEventsRoute, async (c) => {
 						sportIds,
 						matchStatuses: [matchStatus],
 						sportEventTypes: ["MATCH"],
+						dateFrom: dateFrom.toISOString(),
+						dateTo: dateTo.toISOString(),
 						offset: String(offset),
 						limit: String(limit),
 					},
