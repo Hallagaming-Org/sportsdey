@@ -27,6 +27,9 @@ import WalletIcon from "@/logos/wallet.svg?react";
 import { DepositModal } from "@/components/deposit-modal";
 
 export const Route = createFileRoute("/wallet")({
+	validateSearch: (search: Record<string, unknown>) => ({
+		openDeposit: Boolean(search.openDeposit),
+	}),
 	component: WalletPage,
 });
 
@@ -60,12 +63,13 @@ function WalletPage() {
 		name: string;
 	} | null>(null);
 	const location = useLocation();
+	const search = Route.useSearch();
 	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
-		if ((location.state as { openDeposit?: boolean })?.openDeposit) {
+		if (search.openDeposit) {
 			setIsDepositModalOpen(true);
 		}
-	}, [location.state]);
+	}, [search.openDeposit]);
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const {
 		data: walletData,
