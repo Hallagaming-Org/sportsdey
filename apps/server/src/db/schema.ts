@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	real,
+	sqliteTable,
+	text,
+} from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
@@ -206,6 +212,60 @@ export const opayTransactionRelations = relations(opayTransaction, ({ one }) => 
 }));
 
 
+export const sportsbookPromotionTypes = ["bet_boost", "free_bet"] as const;
+export type SportsbookPromotionType =
+	(typeof sportsbookPromotionTypes)[number];
+
+export const sportsbookPromotion = sqliteTable("sportsbook_promotion", {
+	id: text("id").primaryKey(),
+	promotionType: text("promotion_type", {
+		enum: sportsbookPromotionTypes,
+	}).notNull(),
+	name: text("name").notNull(),
+	description: text("description").notNull(),
+	eligibleUsers: text("eligible_users").notNull(),
+	eligibleSports: text("eligible_sports").notNull(),
+	competitionIds: text("competition_ids"),
+	eligibleEventIds: text("eligible_event_ids"),
+	boostPercentage: real("boost_percentage"),
+	maximumWin: real("maximum_win"),
+	minimumSelections: integer("minimum_selections"),
+	maximumSelections: integer("maximum_selections"),
+	minimumOddsPerSelection: real("minimum_odds_per_selection"),
+	amount: real("amount"),
+	currency: text("currency"),
+	endDateTime: integer("end_date_time", { mode: "timestamp_ms" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookBetBoost = sqliteTable("sportsbook_bet_boost", {
+	id: text("id").primaryKey(),
+	dataBetBoostId: text("data_bet_boost_id").notNull().unique(),
+	playerId: text("player_id"),
+	boostName: text("boost_name").notNull(),
+	description: text("description").notNull(),
+	boostPercentage: real("boost_percentage").notNull(),
+	maximumWin: real("maximum_win"),
+	minimumSelections: integer("minimum_selections").notNull(),
+	maximumSelections: integer("maximum_selections").notNull(),
+	minimumOddsPerSelection: real("minimum_odds_per_selection").notNull(),
+	eligibleUsers: text("eligible_users").notNull(),
+	eligibleSports: text("eligible_sports").notNull(),
+	promotionId: text("promotion_id").references(() => sportsbookPromotion.id),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
 
 export const sportsbookBet = sqliteTable("sportsbook_bet", {
 	id: text("id").primaryKey(),
@@ -285,6 +345,23 @@ export const sportsbookBetRelations = relations(sportsbookBet, ({ one }) => ({
 		references: [user.id],
 	}),
 }));
+
+export const sportsbookBetBoostRelations = relations(
+	sportsbookBetBoost,
+	({ one }) => ({
+		promotion: one(sportsbookPromotion, {
+			fields: [sportsbookBetBoost.promotionId],
+			references: [sportsbookPromotion.id],
+		}),
+	}),
+);
+
+export const sportsbookPromotionRelations = relations(
+	sportsbookPromotion,
+	({ many }) => ({
+		betBoosts: many(sportsbookBetBoost),
+	}),
+);
 
 export const walletTransactionRelations = relations(
 	walletTransaction,

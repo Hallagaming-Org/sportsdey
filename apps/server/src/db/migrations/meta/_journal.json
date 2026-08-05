@@ -183,6 +183,13 @@
       "when": 1785512083386,
       "tag": "0025_silly_jean_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1785476209493,
+      "tag": "0026_workable_nemesis",
+      "breakpoints": true
     }
   ]
 }
