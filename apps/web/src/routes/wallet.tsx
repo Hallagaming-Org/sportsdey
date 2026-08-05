@@ -11,13 +11,12 @@ import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WalletInfo } from "@/components/wallet-info";
 import { WalletRecentTransactions } from "@/components/wallet-recent-transactions";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { formatAmount } from "@/lib/utils";
-// import { trackWebengageEvent } from "@/lib/webengage";
+import { trackWebengageEvent } from "@/lib/webengage";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
 import AeroplaneIcon from "@/logos/aeroplane.svg?react";
 import AirtimeIcon from "@/logos/airtime.svg?react";
@@ -28,6 +27,9 @@ import WalletIcon from "@/logos/wallet.svg?react";
 import { DepositModal } from "@/components/deposit-modal";
 
 export const Route = createFileRoute("/wallet")({
+	validateSearch: (search: Record<string, unknown>) => ({
+		openDeposit: Boolean(search.openDeposit),
+	}),
 	component: WalletPage,
 });
 
@@ -55,20 +57,19 @@ function WalletPage() {
 	const [depositError, setDepositError] = useState("");
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<
-		"deposit" | "withdraw" | null
-	>(null);
+	const [blockedModal, setBlockedModal] = useState<"withdraw" | null>(null);
 	const [billPaymentCategory, setBillPaymentCategory] = useState<{
 		code: string;
 		name: string;
 	} | null>(null);
 	const location = useLocation();
+	const search = Route.useSearch();
 	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
-		if ((location.state as { openDeposit?: boolean })?.openDeposit) {
+		if (search.openDeposit) {
 			setIsDepositModalOpen(true);
 		}
-	}, [location.state]);
+	}, [search.openDeposit]);
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const {
 		data: walletData,
@@ -162,29 +163,27 @@ function WalletPage() {
 				</div>
 			) : isWalletRoot ? (
 				<>
-					<div className="mb-6 flex flex-col gap-4 lg:grid lg:grid-cols-5">
+					<div className="mb-6 flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-5">
 						<div className="space-y-4 lg:col-span-3">
-							<div className="h-fit self-start rounded-2xl border border-[#1B2722] bg-[#04100B] p-[20px] shadow-sm">
-								<div className="flex items-center justify-between">
-									<p className="font-semibold text-[30px] text-primary dark:text-white">
-										Wallet
-									</p>
-									<div className="flex h-[40px] w-[60px] items-center justify-center rounded-lg border border-[#1B2722] bg-[#04100B]">
-										<WalletIcon
-											width={18}
-											height={18}
-											className="block text-[#6C7073]"
-										/>
-									</div>
+							<div className="flex h-fit items-center justify-between rounded-2xl border border-[#1B2722] bg-[#000606] px-5 py-4 shadow-sm">
+								<h1 className="font-semibold text-[28px] text-white tracking-tight md:text-[30px]">
+									Wallet
+								</h1>
+								<div className="flex h-10 w-14 items-center justify-center rounded-xl border border-[#1B2722] bg-[#04100B]">
+									<WalletIcon
+										width={18}
+										height={18}
+										className="block text-[#6C7073]"
+									/>
 								</div>
 							</div>
-							<div className="min-h-40 w-full rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm">
-								<p className="text-[14px] text-primary dark:text-white">
-									Wallet Balance
+							<div className="min-h-40 w-full rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm md:p-7">
+								<p className="flex items-center gap-1.5 text-[14px] text-white">
+									Wallet Balance <span aria-hidden="true">💸</span>
 								</p>
 								{walletData?.id && !isWalletSectionLoading && (
 									<div className="mt-2 flex items-center gap-2">
-										<span className="max-w-[200px] truncate font-mono text-[#6C7073] text-[12px]">
+										<span className="max-w-[220px] truncate font-mono text-[#6C7073] text-[12px]">
 											ID: {walletData.id}
 										</span>
 										<button
@@ -199,27 +198,29 @@ function WalletPage() {
 										</button>
 									</div>
 								)}
-								<div className="mt-3 flex items-start gap-2">
-									<p className="font-semibold text-primary leading-none dark:text-white">
-										{isWalletSectionLoading ? (
-											<Skeleton className="h-[50px] w-[150px]" />
-										) : showBalance ? (
-											<span className="space-x-2 leading-none">
-												<span className="relative -top-2 align-super text-[24px]">
-													₦
+								<div className="mt-4">
+									{isWalletSectionLoading ? (
+										<Skeleton className="h-[56px] w-[200px] bg-[#1C1C1E]" />
+									) : (
+										<p className="font-semibold text-white leading-none">
+											{showBalance ? (
+												<span className="inline-flex items-baseline gap-1.5">
+													<span className="text-[28px] md:text-[32px]">₦</span>
+													<span className="text-[44px] tracking-tight md:text-[50px]">
+														{walletBalance}
+													</span>
 												</span>
-												<span className="text-[50px]">{walletBalance}</span>
-											</span>
-										) : (
-											<span className="text-[50px]">••••••</span>
-										)}
-									</p>
+											) : (
+												<span className="text-[50px]">••••••</span>
+											)}
+										</p>
+									)}
 								</div>
-								<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+								<div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<button
 										type="button"
 										onClick={() => setIsDepositModalOpen(true)}
-										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
+										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Deposit
 									</button>
@@ -228,99 +229,65 @@ function WalletPage() {
 										onClick={() => {
 											setIsTransferModalOpen(true);
 										}}
-										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
+										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Transfer funds
 									</button>
 									<button
 										type="button"
 										onClick={() => setBlockedModal("withdraw")}
-										className="w-full cursor-pointer rounded-lg border border-[#1B2722] bg-[#04100B] px-4 py-2 font-medium text-sm text-white"
+										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Withdraw
 									</button>
 								</div>
 							</div>
 						</div>
-
-						{/*  bills payment section */}
-						<div className="min-h-40 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm lg:col-span-2">
-							<p className="border-[#1B2722] border-b pb-3 font-semibold text-base text-primary dark:text-white">
+						<div className="min-h-40 rounded-2xl border border-[#1B2722] bg-[#000606] p-5 shadow-sm md:p-6 lg:col-span-2">
+							<p className="border-[#1B2722] border-b pb-3 font-semibold text-base text-white">
 								Quick Access
 							</p>
-							<ul className="mt-4 grid grid-cols-4 gap-3 lg:flex lg:flex-col lg:gap-3">
-								<li>
-									<button
-										type="button"
-										onClick={() => {
-											setBillPaymentCategory({
-												code: "AIRTIME",
-												name: "Airtime",
-											});
-											setIsBillPaymentOpen(true);
-										}}
-										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
-									>
-										<AirtimeIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
-											Airtime
-										</span>
-									</button>
-								</li>
-								<li>
-									<button
-										type="button"
-										onClick={() => {
-											setBillPaymentCategory({
-												code: "DATA_BUNDLE",
-												name: "Internet",
-											});
-											setIsBillPaymentOpen(true);
-										}}
-										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
-									>
-										<InternetIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
-											Internet
-										</span>
-									</button>
-								</li>
-								<li>
-									<button
-										type="button"
-										onClick={() => {
-											setBillPaymentCategory({
-												code: "CABLE_TV",
-												name: "Cable TV",
-											});
-											setIsBillPaymentOpen(true);
-										}}
-										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
-									>
-										<CableTvIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
-											Cable TV
-										</span>
-									</button>
-								</li>
-								<li>
-									<button
-										type="button"
-										onClick={() => {
-											setBillPaymentCategory({
-												code: "ELECTRICITY",
-												name: "Electricity",
-											});
-											setIsBillPaymentOpen(true);
-										}}
-										className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-[#1B2722] bg-[#04100B] p-2 lg:flex-row lg:justify-start lg:gap-3 lg:p-3"
-									>
-										<ElectricityIcon className="h-5 w-5 text-white" />
-										<span className="text-center font-medium text-[10px] text-white sm:text-xs lg:text-sm">
-											Electricity
-										</span>
-									</button>
-								</li>
+							<ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-1 lg:gap-3">
+								{(
+									[
+										{
+											code: "AIRTIME",
+											name: "Airtime",
+											Icon: AirtimeIcon,
+										},
+										{
+											code: "DATA_BUNDLE",
+											name: "Internet",
+											Icon: InternetIcon,
+										},
+										{
+											code: "ELECTRICITY",
+											name: "Electricity",
+											Icon: ElectricityIcon,
+										},
+										{
+											code: "CABLE_TV",
+											name: "Cable TV",
+											Icon: CableTvIcon,
+										},
+									] as const
+								).map(({ code, name, Icon }) => (
+									<li key={code}>
+										<button
+											type="button"
+											onClick={() => {
+												setBillPaymentCategory({ code, name });
+												setIsBillPaymentOpen(true);
+											}}
+											className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-[#1B2722] bg-[#04100B] p-3 transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14] lg:flex-row lg:justify-start lg:gap-3 lg:px-4 lg:py-3.5"
+										>
+											<Icon className="h-5 w-5 shrink-0 text-white" />
+											<span className="text-center font-medium text-xs text-white sm:text-sm">
+												{name}
+											</span>
+										</button>
+									</li>
+								))}
 							</ul>
 						</div>
 					</div>
@@ -328,7 +295,6 @@ function WalletPage() {
 						transactions={transactions}
 						isLoading={isTransactionsLoading}
 					/>
-					<WalletInfo />
 				</>
 			) : (
 				<Outlet />
@@ -366,7 +332,7 @@ function WalletPage() {
 					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
 						<div className="flex items-center justify-between">
 							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								{blockedModal === "deposit" ? "Deposit" : "Withdraw"}
+								Withdraw
 							</h2>
 							<button
 								type="button"
@@ -383,7 +349,7 @@ function WalletPage() {
 						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
 							Pilot mode boss.
 							<br />
-							Withdrawals and Deposits are currently blocked
+							Withdrawals are currently blocked
 						</p>
 						<button
 							type="button"

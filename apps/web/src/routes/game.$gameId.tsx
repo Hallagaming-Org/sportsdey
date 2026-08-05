@@ -1,6 +1,6 @@
 import { createFileRoute, useLocation, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/game/$gameId")({
@@ -16,25 +16,60 @@ function GamePage() {
 	const location = useLocation();
 	const gameUrl = (location.state as { gameUrl?: string })?.gameUrl;
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
+	const [bouncedHome, setBouncedHome] = useState(false);
+	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const router = useRouter();
 
 	useEffect(() => {
 		if (!gameUrl) return;
 
 		setIsIframeLoading(true);
+		setBouncedHome(false);
 		const timer = setTimeout(() => setIsIframeLoading(false), 5000);
 
 		return () => clearTimeout(timer);
 	}, [gameUrl]);
 
+	useEffect(() => {
+		if (gameUrl) return;
+		// History state is lost on refresh; send players back to the lobby.
+		const timer = window.setTimeout(() => {
+			router.navigate({
+				to: "/games",
+				search: { category },
+				replace: true,
+			});
+		}, 1500);
+		return () => window.clearTimeout(timer);
+	}, [gameUrl, router, category]);
+
+	const checkIframeBounce = () => {
+		setIsIframeLoading(false);
+		const frame = iframeRef.current;
+		if (!frame) return;
+		try {
+			const href = frame.contentWindow?.location?.href;
+			if (!href || href === "about:blank") return;
+			const origin = new URL(href).origin;
+			// GIS exit → our return_url lands same-origin inside the iframe.
+			if (origin === window.location.origin) {
+				setBouncedHome(true);
+			}
+		} catch {
+			// Cross-origin game host — expected while the real game is running.
+		}
+	};
+
 	if (!gameUrl) {
 		return (
-			<div className="flex h-screen items-center justify-center">
+			<div className="flex h-screen flex-col items-center justify-center gap-2 px-4 text-center">
 				<p className="text-primary text-xl">Loading game...</p>
+				<p className="text-sm text-white/60">
+					If nothing starts, you&apos;ll be returned to the casino lobby.
+				</p>
 			</div>
 		);
 	}
-
-	const router = useRouter();
 
 	return (
 		<div className="relative flex h-full w-full flex-col">
@@ -54,22 +89,51 @@ function GamePage() {
 				</button>
 			</div>
 			<div className="relative w-full flex-1">
-				{isIframeLoading && (
-					<div className="absolute inset-4 z-10 flex flex-col items-center justify-center rounded-2xl border-2 border-[#1BAA04]/50 border-dashed bg-[#121212]/80 backdrop-blur-sm">
-						<Loader2 className="mb-4 h-10 w-10 animate-spin text-[#1BAA04]" />
-						<p className="font-medium text-lg text-white">Game is launching...</p>
+				{bouncedHome ? (
+					<div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+						<p className="text-xl font-semibold text-white">
+							This game could not start
+						</p>
+						<p className="max-w-md text-sm text-white/65">
+							The provider closed the session before the game loaded (common for
+							titles not fully enabled on the Slotegrator contract yet).
+						</p>
+						<button
+							type="button"
+							onClick={() =>
+								router.navigate({
+									to: "/games",
+									search: { category },
+								})
+							}
+							className="rounded-md bg-[#1BAA04] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#158a03]"
+						>
+							Back to Casino
+						</button>
 					</div>
+				) : (
+					<>
+						{isIframeLoading && (
+							<div className="absolute inset-4 z-10 flex flex-col items-center justify-center rounded-2xl border-2 border-[#1BAA04]/50 border-dashed bg-[#121212]/80 backdrop-blur-sm">
+								<Loader2 className="mb-4 h-10 w-10 animate-spin text-[#1BAA04]" />
+								<p className="font-medium text-lg text-white">
+									Game is launching...
+								</p>
+							</div>
+						)}
+						<iframe
+							ref={iframeRef}
+							src={gameUrl}
+							className={cn(
+								"h-full w-full border-0 transition-opacity duration-500",
+								isIframeLoading ? "opacity-0" : "opacity-100",
+							)}
+							title={gameId}
+							allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+							onLoad={checkIframeBounce}
+						/>
+					</>
 				)}
-				<iframe
-					src={gameUrl}
-					className={cn(
-						"h-full w-full border-0 transition-opacity duration-500",
-						isIframeLoading ? "opacity-0" : "opacity-100",
-					)}
-					title={gameId}
-					allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-					onLoad={() => setIsIframeLoading(false)}
-				/>
 			</div>
 		</div>
 	);

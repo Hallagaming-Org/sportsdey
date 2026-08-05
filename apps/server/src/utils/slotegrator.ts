@@ -100,6 +100,7 @@ export async function createSlotegratorAuthHeaders(
 
 function isDemoUnsupportedMessage(message: string): boolean {
 	const m = message.toLowerCase();
+	if (m.includes("error while getting demo url")) return true;
 	return (
 		m.includes("demo") &&
 		(m.includes("not support") ||
@@ -304,7 +305,55 @@ export async function initSlotegratorDemo(
 		);
 	}
 
+	// Do NOT prefetch/probe `url` here — GIS launch links are one-time and
+	// a server-side fetch burns the token before the player's browser opens it.
+
 	return { url };
+}
+
+/**
+ * Resolve Slotegrator return_url.
+ * On staging, always prefer stagingweb and never allow production hosts.
+ */
+export function resolveSlotegratorReturnUrl(
+	env: { NODE_ENV?: string },
+	requested?: string | null,
+): string | undefined {
+	const stagingExit = "https://stagingweb.sportsdey.com/game-exit";
+	const isStaging = (env.NODE_ENV || "").toLowerCase() === "staging";
+
+	const isProductionFront = (value: string) => {
+		try {
+			const host = new URL(value).hostname.toLowerCase();
+			return (
+				host === "sportsdey.com" ||
+				host === "www.sportsdey.com" ||
+				host === "api.sportsdey.com"
+			);
+		} catch {
+			return false;
+		}
+	};
+
+	/** Prefer bare /game-exit over /games so GIS exits don't iframe the lobby. */
+	const normalizeStagingReturn = (value: string) => {
+		try {
+			const url = new URL(value);
+			if (url.hostname === "stagingweb.sportsdey.com" && url.pathname === "/games") {
+				return stagingExit;
+			}
+		} catch {
+			/* keep as-is */
+		}
+		return value;
+	};
+
+	const trimmed = requested?.trim() || "";
+	if (isStaging) {
+		if (!trimmed || isProductionFront(trimmed)) return stagingExit;
+		return normalizeStagingReturn(trimmed);
+	}
+	return trimmed || undefined;
 }
 
 export async function verifySlotitegrationSignature(
