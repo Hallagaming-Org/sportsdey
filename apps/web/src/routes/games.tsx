@@ -339,7 +339,8 @@ function GamesPage() {
 				}, {})
 			: {};
 
-	let filteredGames = allGames;
+	const allCategoryGames = allGames.filter((game) => !isThundrGame(game.code));
+	let filteredGames = selectedCategory ? allGames : allCategoryGames;
 
 	if (selectedCategory) {
 		if (SPECIAL_CATEGORIES.includes(selectedCategory)) {
@@ -629,7 +630,7 @@ function GamesPage() {
 										: "bg-[#1B2722] text-gray-300"
 								}`}
 							>
-								{allGames.length.toLocaleString()}
+								{allCategoryGames.length.toLocaleString()}
 							</span>
 						</button>
 						{CATEGORIES.map((cat) => {
