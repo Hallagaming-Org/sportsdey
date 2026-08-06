@@ -3,19 +3,18 @@ import {
 	RecoveryMethod,
 } from "@openfort/react";
 import { useEthereumEmbeddedWallet } from "@openfort/react/ethereum";
-import { useSolanaEmbeddedWallet } from "@openfort/react/solana";
 import { Check, Copy, Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useSession } from "@/lib/auth/client";
 import {
 	formatCryptoAmount,
-	SOL_DECIMALS,
 	USDC_DECIMALS,
-	useBaseSepoliaBalances,
-	useSolanaDevnetBalances,
+	usePolygonAmoyBalances,
 } from "@/lib/openfort/balances";
-import { isOpenfortEnabled } from "@/lib/openfort/config";
-import { OpenfortProviders } from "@/lib/openfort/providers";
+import {
+	isOpenfortEnabled,
+	OPENFORT_CHAIN_LABEL,
+} from "@/lib/openfort/config";
 
 function truncateAddress(address: string) {
 	if (address.length <= 12) return address;
@@ -90,9 +89,9 @@ function AddressRow({
 	);
 }
 
-function BaseBalances({ address }: { address: `0x${string}` }) {
-	const { eth, usdc, isLoading, isFetching, refetch } =
-		useBaseSepoliaBalances(address);
+function PolygonBalances({ address }: { address: `0x${string}` }) {
+	const { pol, usdc, isLoading, isFetching, refetch } =
+		usePolygonAmoyBalances(address);
 
 	return (
 		<div className="mt-3 space-y-2 border-[#1B2722] border-t pt-3">
@@ -105,7 +104,7 @@ function BaseBalances({ address }: { address: `0x${string}` }) {
 					onClick={() => void refetch()}
 					disabled={isFetching}
 					className="cursor-pointer text-[#6C7073] transition-colors hover:text-white disabled:opacity-50"
-					aria-label="Refresh Base balances"
+					aria-label="Refresh Polygon balances"
 				>
 					<RefreshCw
 						className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
@@ -113,56 +112,17 @@ function BaseBalances({ address }: { address: `0x${string}` }) {
 				</button>
 			</div>
 			<BalanceLine
-				label="ETH"
+				label="POL"
 				isLoading={isLoading}
-				value={`${formatCryptoAmount(eth.data?.value, 18)} ETH`}
+				value={`${formatCryptoAmount(pol.data?.value, 18)} POL`}
 			/>
 			<BalanceLine
 				label="USDC"
 				isLoading={isLoading}
 				value={`${formatCryptoAmount(usdc.data, USDC_DECIMALS)} USDC`}
 			/>
-			{(eth.isError || usdc.isError) && (
-				<p className="text-red-400 text-xs">Could not load Base balances.</p>
-			)}
-		</div>
-	);
-}
-
-function SolanaBalances({ address }: { address: string }) {
-	const { data, isLoading, isFetching, isError, refetch } =
-		useSolanaDevnetBalances(address);
-
-	return (
-		<div className="mt-3 space-y-2 border-[#1B2722] border-t pt-3">
-			<div className="flex items-center justify-between">
-				<span className="text-[#6C7073] text-xs uppercase tracking-wide">
-					Balances
-				</span>
-				<button
-					type="button"
-					onClick={() => void refetch()}
-					disabled={isFetching}
-					className="cursor-pointer text-[#6C7073] transition-colors hover:text-white disabled:opacity-50"
-					aria-label="Refresh Solana balances"
-				>
-					<RefreshCw
-						className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
-					/>
-				</button>
-			</div>
-			<BalanceLine
-				label="SOL"
-				isLoading={isLoading}
-				value={`${formatCryptoAmount(data?.solLamports, SOL_DECIMALS)} SOL`}
-			/>
-			<BalanceLine
-				label="USDC"
-				isLoading={isLoading}
-				value={`${formatCryptoAmount(data?.usdcRaw, USDC_DECIMALS)} USDC`}
-			/>
-			{isError && (
-				<p className="text-red-400 text-xs">Could not load Solana balances.</p>
+			{(pol.isError || usdc.isError) && (
+				<p className="text-red-400 text-xs">Could not load Polygon balances.</p>
 			)}
 		</div>
 	);
@@ -171,24 +131,19 @@ function SolanaBalances({ address }: { address: string }) {
 function OpenfortCryptoWalletInner() {
 	const { data: session } = useSession();
 	const evm = useEthereumEmbeddedWallet();
-	const sol = useSolanaEmbeddedWallet();
 	const [error, setError] = useState<string | null>(null);
-	const [creating, setCreating] = useState<"evm" | "sol" | null>(null);
+	const [creating, setCreating] = useState(false);
 
-	const evmAddress =
+	const address =
 		evm.address ?? evm.wallets[0]?.address ?? evm.activeWallet?.address;
-	const solAddress =
-		sol.address ?? sol.wallets[0]?.address ?? sol.activeWallet?.address;
 	const isBusy =
-		creating !== null ||
+		creating ||
 		evm.status === "creating" ||
-		sol.status === "creating" ||
-		evm.status === "fetching-wallets" ||
-		sol.status === "fetching-wallets";
+		evm.status === "fetching-wallets";
 
-	const createEvm = async () => {
+	const createWallet = async () => {
 		setError(null);
-		setCreating("evm");
+		setCreating(true);
 		try {
 			await evm.create({
 				recoveryMethod: RecoveryMethod.PASSKEY,
@@ -196,26 +151,12 @@ function OpenfortCryptoWalletInner() {
 			});
 		} catch (err) {
 			setError(
-				err instanceof Error ? err.message : "Failed to create Base wallet",
+				err instanceof Error
+					? err.message
+					: "Failed to create Polygon wallet",
 			);
 		} finally {
-			setCreating(null);
-		}
-	};
-
-	const createSol = async () => {
-		setError(null);
-		setCreating("sol");
-		try {
-			await sol.create({
-				recoveryMethod: RecoveryMethod.PASSKEY,
-			});
-		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to create Solana wallet",
-			);
-		} finally {
-			setCreating(null);
+			setCreating(false);
 		}
 	};
 
@@ -231,52 +172,29 @@ function OpenfortCryptoWalletInner() {
 		<div className="space-y-4">
 			<p className="text-[#6C7073] text-sm">
 				Separate crypto balance (testnet). Not convertible to ₦. Recovery:
-				passkey. Networks: Base Sepolia + Solana devnet.
+				passkey. Network: {OPENFORT_CHAIN_LABEL}.
 			</p>
 
 			<div className="space-y-3 rounded-xl border border-[#1B2722] bg-[#04100B] p-4">
-				{evmAddress ? (
+				{address ? (
 					<div>
-						<AddressRow label="Base (Sepolia)" address={evmAddress} />
-						<BaseBalances address={evmAddress} />
+						<AddressRow label={OPENFORT_CHAIN_LABEL} address={address} />
+						<PolygonBalances address={address} />
 					</div>
 				) : (
 					<button
 						type="button"
 						disabled={isBusy}
-						onClick={() => void createEvm()}
+						onClick={() => void createWallet()}
 						className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#000606] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] disabled:cursor-not-allowed disabled:opacity-60"
 					>
-						{creating === "evm" ? (
+						{creating ? (
 							<span className="inline-flex items-center gap-2">
 								<Loader2 className="h-4 w-4 animate-spin" />
-								Creating Base wallet…
+								Creating Polygon wallet…
 							</span>
 						) : (
-							"Create Base wallet (passkey)"
-						)}
-					</button>
-				)}
-
-				{solAddress ? (
-					<div className="border-[#1B2722] border-t pt-3">
-						<AddressRow label="Solana (devnet)" address={solAddress} />
-						<SolanaBalances address={solAddress} />
-					</div>
-				) : (
-					<button
-						type="button"
-						disabled={isBusy}
-						onClick={() => void createSol()}
-						className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#000606] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] disabled:cursor-not-allowed disabled:opacity-60"
-					>
-						{creating === "sol" ? (
-							<span className="inline-flex items-center gap-2">
-								<Loader2 className="h-4 w-4 animate-spin" />
-								Creating Solana wallet…
-							</span>
-						) : (
-							"Create Solana wallet (passkey)"
+							"Create Polygon wallet (passkey)"
 						)}
 					</button>
 				)}
@@ -285,19 +203,6 @@ function OpenfortCryptoWalletInner() {
 			{error && <p className="text-red-400 text-sm">{error}</p>}
 		</div>
 	);
-}
-
-function ClientOnly({ children }: { children: ReactNode }) {
-	const [mounted, setMounted] = useState(false);
-	useEffect(() => {
-		setMounted(true);
-	}, []);
-	if (!mounted) {
-		return (
-			<p className="text-[#6C7073] text-sm">Loading crypto wallet…</p>
-		);
-	}
-	return children;
 }
 
 export function OpenfortCryptoWallet() {
@@ -311,11 +216,7 @@ export function OpenfortCryptoWallet() {
 					Test
 				</span>
 			</div>
-			<ClientOnly>
-				<OpenfortProviders>
-					<OpenfortCryptoWalletInner />
-				</OpenfortProviders>
-			</ClientOnly>
+			<OpenfortCryptoWalletInner />
 		</section>
 	);
 }
