@@ -1,4 +1,4 @@
-/** Openfort is enabled only when both publishable keys are present (local .env.local). */
+/** Openfort is enabled only when both publishable keys are present. */
 export function isOpenfortEnabled(): boolean {
 	return Boolean(
 		import.meta.env.VITE_OPENFORT_PUBLISHABLE_KEY &&
@@ -15,19 +15,13 @@ export const SHIELD_PUBLISHABLE_KEY = import.meta.env
 export const OPENFORT_FEE_SPONSORSHIP_ID = import.meta.env
 	.VITE_OPENFORT_FEE_SPONSORSHIP_ID as string | undefined;
 
-/** Base Sepolia */
-export const OPENFORT_EVM_CHAIN_ID = 84532;
+/** Polygon Amoy (testnet) — prediction market / crypto wallet chain */
+export const OPENFORT_EVM_CHAIN_ID = 80002;
 
-/** Circle USDC on Base Sepolia (6 decimals) */
-export const BASE_SEPOLIA_USDC =
-	"0x036CbD53842c5426634e7929541eC2318f3dCF7e" as const;
+export const OPENFORT_CHAIN_LABEL = "Polygon Amoy";
 
-/** Circle USDC mint on Solana Devnet (6 decimals) */
-export const SOLANA_DEVNET_USDC_MINT =
-	"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
-
-export const SOLANA_DEVNET_RPC =
-	import.meta.env.VITE_SOLANA_DEVNET_RPC || "https://api.devnet.solana.com";
+/** Circle USDC on Polygon Amoy (6 decimals) */
+export const POLYGON_AMOY_USDC =
+	"0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582" as const;
 
 export const USDC_DECIMALS = 6;
-export const SOL_DECIMALS = 9;
