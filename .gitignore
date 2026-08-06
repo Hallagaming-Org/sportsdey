@@ -59,6 +59,9 @@ prompt.md
 # Local AI process reference (not for GitHub)
 docs/ai-engineering-checklist.md
 
+# Local Cursor rules (not for GitHub)
+.cursor/rules/db-migrations.mdc
+
 # Local SSH keys — never commit
 shaq
 shaq.pub

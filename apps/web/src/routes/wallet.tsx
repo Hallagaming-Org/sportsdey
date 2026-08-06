@@ -5,8 +5,8 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { Copy, Loader2, X } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { Check, Copy, Loader2, X } from "lucide-react";
+import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,12 @@ import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 import { DepositModal } from "@/components/deposit-modal";
+
+const OpenfortCryptoWallet = lazy(() =>
+	import("@/components/openfort-crypto-wallet").then((mod) => ({
+		default: mod.OpenfortCryptoWallet,
+	})),
+);
 
 export const Route = createFileRoute("/wallet")({
 	validateSearch: (search: Record<string, unknown>) => ({
@@ -58,6 +64,7 @@ function WalletPage() {
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
 	const [blockedModal, setBlockedModal] = useState<"withdraw" | null>(null);
+	const [walletIdCopied, setWalletIdCopied] = useState(false);
 	const [billPaymentCategory, setBillPaymentCategory] = useState<{
 		code: string;
 		name: string;
@@ -188,13 +195,28 @@ function WalletPage() {
 										</span>
 										<button
 											type="button"
-											onClick={() => {
-												navigator.clipboard.writeText(walletData.id);
+											onClick={async () => {
+												try {
+													await navigator.clipboard.writeText(walletData.id);
+													setWalletIdCopied(true);
+												} catch {
+													setWalletIdCopied(false);
+												}
 											}}
-											className="cursor-pointer text-[#6C7073] transition-colors hover:text-white"
-											aria-label="Copy wallet ID"
+											className={
+												walletIdCopied
+													? "cursor-pointer text-accent transition-colors"
+													: "cursor-pointer text-[#6C7073] transition-colors hover:text-white"
+											}
+											aria-label={
+												walletIdCopied ? "Wallet ID copied" : "Copy wallet ID"
+											}
 										>
-											<Copy className="h-3.5 w-3.5" />
+											{walletIdCopied ? (
+												<Check className="h-3.5 w-3.5" strokeWidth={3} />
+											) : (
+												<Copy className="h-3.5 w-3.5" />
+											)}
 										</button>
 									</div>
 								)}
@@ -291,6 +313,9 @@ function WalletPage() {
 							</ul>
 						</div>
 					</div>
+					<Suspense fallback={null}>
+						<OpenfortCryptoWallet />
+					</Suspense>
 					<WalletRecentTransactions
 						transactions={transactions}
 						isLoading={isTransactionsLoading}
