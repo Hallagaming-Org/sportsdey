@@ -4260,7 +4260,7 @@ const sportsbookEventsRoute = createRoute({
 	tags: ["Sportsbook"],
 	summary: "List sport events by sport and match status",
 	description:
-		"Fetch all sport events matching the given sport ids and match status from the Data.Bet sportsbook. Requires admin or super_admin authentication, or an admin with the create_promotion permission.",
+		"Fetch a page of sport events matching the given sport ids and match status from the Data.Bet sportsbook, honoring the limit and offset query params. Requires admin or super_admin authentication, or an admin with the create_promotion permission.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: SportEventQuerySchema,
@@ -4333,79 +4333,81 @@ sportsbookRoute.openapi(sportsbookEventsRoute, async (c) => {
 		? query.sportId
 		: [query.sportId];
 	const matchStatus = query.status === "live" ? "LIVE" : "NOT_STARTED";
+	const { offset, limit } = query;
 
 	try {
-		const events: Array<{ id: string; title: string }> = [];
-		const limit = 100;
-		let offset = 0;
 		const dateFrom = new Date();
 		const dateTo = new Date(dateFrom.getTime() + 365 * 24 * 60 * 60 * 1000);
 
-		while (true) {
-			const response = await databetFetch(
-				c.env,
-				"/sport-events-fixtures/search",
-				{
-					query: {
-						locale: "en",
-						sportIds,
-						matchStatuses: [matchStatus],
-						sportEventTypes: ["MATCH"],
-						dateFrom: dateFrom.toISOString(),
-						dateTo: dateTo.toISOString(),
-						offset: String(offset),
-						limit: String(limit),
-					},
+		const response = await databetFetch(
+			c.env,
+			"/sport-events-fixtures/search",
+			{
+				query: {
+					locale: "en",
+					sportIds,
+					matchStatuses: [matchStatus],
+					sportEventTypes: ["MATCH"],
+					dateFrom: dateFrom.toISOString(),
+					dateTo: dateTo.toISOString(),
+					offset: String(offset),
+					limit: String(limit),
 				},
+			},
+		);
+		console.log("requestUrl", response.url);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet sport events search error:",
+				response.status,
+				errorText,
 			);
-			console.log("requestUrl", response.url);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				console.error(
-					"Data.Bet sport events search error:",
-					response.status,
-					errorText,
-				);
-				return c.json(
-					{
-						success: false as const,
-						error: `Failed to fetch sport events: ${response.status}`,
-						details: errorText,
-					},
-					500,
-				);
-			}
-
-			const data = (await response.json()) as {
-				data?: {
-					sportEventsByFilters?: Array<{
-						id?: string;
-						fixture?: { title?: string };
-					}>;
-				};
-			};
-
-			const page = data.data?.sportEventsByFilters ?? [];
-			for (const sportEvent of page) {
-				if (sportEvent.id && sportEvent.fixture?.title) {
-					events.push({
-						id: sportEvent.id,
-						title: sportEvent.fixture.title,
-					});
-				}
-			}
-
-			if (page.length < limit) {
-				break;
-			}
-			offset += limit;
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to fetch sport events: ${response.status}`,
+					details: errorText,
+				},
+				500,
+			);
 		}
+
+		const data = (await response.json()) as {
+			data?: {
+				sportEventsByFilters?: Array<{
+					id?: string;
+					fixture?: { title?: string };
+				}>;
+			};
+		};
+
+		const rawPage = data.data?.sportEventsByFilters ?? [];
+		const events: Array<{ id: string; title: string }> = [];
+		for (const sportEvent of rawPage) {
+			if (sportEvent.id && sportEvent.fixture?.title) {
+				events.push({
+					id: sportEvent.id,
+					title: sportEvent.fixture.title,
+				});
+			}
+		}
+
+		const hasMore = rawPage.length === limit;
 
 		return c.json(
 			{
 				success: true as const,
-				data: events,
+				data: {
+					events,
+					pagination: {
+						offset,
+						limit,
+						total: offset + events.length,
+						hasMore,
+					},
+				},
 			},
 			200,
 		);
