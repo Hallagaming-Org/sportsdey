@@ -73,8 +73,12 @@ const GameResponseSchema = z
 			)
 			.openapi({ description: "Game categories" }),
 		enabled: z.boolean().openapi({ description: "Enabled status" }),
-		createdAt: z.number().openapi({ description: "Created at timestamp" }),
-		updatedAt: z.number().openapi({ description: "Updated at timestamp" }),
+		createdAt: z
+			.string()
+			.openapi({ description: "Created at (WAT ISO string)" }),
+		updatedAt: z
+			.string()
+			.openapi({ description: "Updated at (WAT ISO string)" }),
 	})
 	.openapi("GameResponse");
 
@@ -137,6 +141,7 @@ gamesRoute.openapi(
 	}),
 	async (c) => {
 		const db = drizzle(c.env.DB, { schema });
+		const query = c.req.valid("query");
 
 		const games = await db.query.game.findMany({
 			with: {
@@ -148,30 +153,62 @@ gamesRoute.openapi(
 			},
 		});
 
+		let mapped = games.map((g) => ({
+			id: g.id,
+			name: g.name,
+			code: g.code,
+			imageUrl: g.imageUrl,
+			enabled: g.enabled,
+			createdAt: toWAT(g.createdAt),
+			updatedAt: toWAT(g.updatedAt),
+			categories: [
+				...new Map(
+					g.categories.map((gc) => [
+						gc.category.slug,
+						{
+							id: gc.category.id,
+							name: gc.category.name,
+							slug: gc.category.slug,
+						},
+					]),
+				).values(),
+			],
+		}));
+
+		if (query.category) {
+			const slug = query.category.toLowerCase();
+			mapped = mapped.filter((g) =>
+				g.categories.some((c) => c.slug.toLowerCase() === slug),
+			);
+		}
+
+		if (query.search) {
+			const q = query.search.toLowerCase();
+			mapped = mapped.filter(
+				(g) =>
+					g.name.toLowerCase().includes(q) ||
+					g.code.toLowerCase().includes(q),
+			);
+		}
+
+		if (query.sort === "asc") {
+			mapped.sort((a, b) => a.name.localeCompare(b.name));
+		} else if (query.sort === "desc") {
+			mapped.sort((a, b) => b.name.localeCompare(a.name));
+		}
+
+		const offset = query.offset ?? 0;
+		const limit = query.limit;
+		if (limit != null) {
+			mapped = mapped.slice(offset, offset + limit);
+		} else if (offset > 0) {
+			mapped = mapped.slice(offset);
+		}
+
 		return c.json(
 			{
 				success: true as const,
-				data: games.map((g) => ({
-					id: g.id,
-					name: g.name,
-					code: g.code,
-					imageUrl: g.imageUrl,
-					enabled: g.enabled,
-					createdAt: toWAT(g.createdAt),
-					updatedAt: toWAT(g.updatedAt),
-					categories: [
-						...new Map(
-							g.categories.map((gc) => [
-								gc.category.slug,
-								{
-									id: gc.category.id,
-									name: gc.category.name,
-									slug: gc.category.slug,
-								},
-							]),
-						).values(),
-					],
-				})),
+				data: mapped,
 			},
 			200,
 		);
@@ -292,6 +329,14 @@ gamesRoute.openapi(
 				},
 				description: "Unauthorized",
 			},
+			500: {
+				content: {
+					"application/json": {
+						schema: ErrorResponseSchema,
+					},
+				},
+				description: "Failed to create games",
+			},
 		},
 		tags: ["Games"],
 	}),
@@ -326,7 +371,7 @@ gamesRoute.openapi(
 		}
 
 		const db = drizzle(c.env.DB, { schema });
-		const now = Date.now();
+		const now = new Date();
 
 		const gamesToInsert = result.data.map((game) => ({
 			id: crypto.randomUUID(),
@@ -345,18 +390,22 @@ gamesRoute.openapi(
 
 		if (!inserted || inserted.length === 0) {
 			return c.json(
-				{ success: false as const, error: "Failed to create game" },
+				{
+					success: false as const,
+					error: "Failed to create game",
+					details: null,
+				},
 				500,
 			);
 		}
 
 		const gameCategoryValues: { gameId: string; categoryId: string }[] = [];
-		for (let i = 0; i < inserted.length; i++) {
+		for (const [i, insertedGame] of inserted.entries()) {
 			const categoryIds = result.data[i]?.categoryIds;
 			if (categoryIds) {
 				for (const catId of categoryIds) {
 					gameCategoryValues.push({
-						gameId: inserted[i].id,
+						gameId: insertedGame.id,
 						categoryId: catId,
 					});
 				}
@@ -390,8 +439,7 @@ gamesRoute.openapi(
 				.where(inArray(schema.gameCategory.gameId, ids));
 
 			for (const gc of gameCategories) {
-				if (!categoryMap[gc.gameId]) categoryMap[gc.gameId] = [];
-				categoryMap[gc.gameId].push({
+				(categoryMap[gc.gameId] ??= []).push({
 					id: gc.id,
 					name: gc.name,
 					slug: gc.slug,
@@ -519,6 +567,13 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.returning();
 
+		if (!updated) {
+			return c.json(
+				{ success: false as const, error: "Game not found", details: null },
+				404,
+			);
+		}
+
 		if (categoryIds) {
 			await db
 				.delete(schema.gameCategory)
@@ -634,6 +689,13 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.returning();
 
+		if (!updated) {
+			return c.json(
+				{ success: false as const, error: "Game not found", details: null },
+				404,
+			);
+		}
+
 		return c.json(
 			{
 				success: true as const,
@@ -722,6 +784,13 @@ gamesRoute.openapi(
 			.set({ enabled: false, updatedAt: new Date() })
 			.where(eq(schema.game.id, id))
 			.returning();
+
+		if (!updated) {
+			return c.json(
+				{ success: false as const, error: "Game not found", details: null },
+				404,
+			);
+		}
 
 		return c.json(
 			{

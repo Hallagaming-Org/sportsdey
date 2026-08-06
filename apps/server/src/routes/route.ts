@@ -1,6 +1,8 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import affnookRoute from "./affnook";
 import basketballRoute from "./basketball";
+import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
+import bonusEngineReferenceDataRoute from "./bonus-engine-reference-data";
 import casinoRoute from "./casino";
 import hashcodexRoute from "./hashcodex";
 import casinoProviderRoute from "./casino-provider";
@@ -10,18 +12,30 @@ import footballRoute from "./football";
 import gamesRoute from "./games";
 import kycRoute from "./kyc";
 import lagosRushRoute from "./lagos-rush";
+import loyaltyRoute from "./loyalty";
+import missionRoute from "./mission";
 import monnifyRoute from "./monnify";
 import newsRoute from "./news";
 import notificationsRoute from "./notifications";
 import phoneAuthRoute from "./phone-auth";
 import pocketsRoute from "./pockets";
+import scorpioRoute from "./scorpio";
 import slotegratorRoute from "./slotegrator";
 import sportsbookRoute from "./sportsbook";
 import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
+import webengageSmsRoute from "./webengage-sms";
+import africastalkingDlrRoute from "./africastalking-dlr";
+import betHistoryRoute from "./bet-history";
+import opayRoute from "./opay";
+
 const routes = new OpenAPIHono();
+
+
+
+
 
 routes.route("/affnook", affnookRoute);
 routes.route("/football", footballRoute);
@@ -29,6 +43,8 @@ routes.route("/basketball", basketballRoute);
 routes.route("/tennis", tennisRoute);
 routes.route("/news", newsRoute);
 routes.route("/notifications", notificationsRoute);
+routes.route("/webhooks/webengage", webengageSmsRoute);
+routes.route("/webhooks/africastalking", africastalkingDlrRoute);
 routes.route("/phone-auth", phoneAuthRoute);
 routes.route("/wallet", walletRoute);
 routes.route("/user", userRoute);
@@ -37,6 +53,7 @@ routes.route("/lagos-rush", lagosRushRoute);
 routes.route("/pockets", pocketsRoute);
 routes.route("/thndr", thundrRoute);
 routes.route("/slotegrator", slotegratorRoute);
+routes.route("/scorpio", scorpioRoute);
 routes.route("/sportsbook", sportsbookRoute);
 routes.route("/account", casinoProviderRoute);
 routes.route("/bills", monnifyRoute);
@@ -45,5 +62,14 @@ routes.route("/games", gamesRoute);
 routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
+routes.route("/bet-history", betHistoryRoute);
+routes.route("/opay", opayRoute);
+routes.route("/loyalty", loyaltyRoute);
+routes.route("/mission", missionRoute);
+routes.route(
+	"/bem/api/BonusEngine/bonus-engine",
+	bonusEngineReferenceDataRoute,
+);
+routes.route("/", bonusEngineCallbackRoute);
 
 export default routes;

@@ -5,12 +5,12 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
-	"mtls_certificates": [
-		{
-			"binding": "DATABET_CERT",
-			"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
-		}
-	],
+	// "mtls_certificates": [
+	// 	{
+	// 		"binding": "DATABET_CERT",
+	// 		"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
+	// 	}
+	// ],
 	"observability": {
 		"logs": {
 			"enabled": true,
@@ -50,12 +50,12 @@
 					"bucket_name": "sportsdey-staging"
 				}
 			],
-			"mtls_certificates": [
-				{
-					"binding": "DATABET_CERT",
-					"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
-				}
-			],
+			// "mtls_certificates": [
+			// 	{
+			// 		"binding": "DATABET_CERT",
+			// 		"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
+			// 	}
+			// ],
 			"routes": [
 				"staging-api.sportsdey.com"
 			],
@@ -93,12 +93,12 @@
 					"bucket_name": "sportsdey-prod"
 				}
 			],
-			"mtls_certificates": [
-				{
-					"binding": "DATABET_CERT",
-					"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
-				}
-			],
+			// "mtls_certificates": [
+			// 	{
+			// 		"binding": "DATABET_CERT",
+			// 		"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
+			// 	}
+			// ],
 			"vars": {
 				"NODE_ENV": "production"
 				// "CORS_ORIGIN": "https://sportsdey.com",

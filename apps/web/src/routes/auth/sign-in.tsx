@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Phone } from "lucide-react";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
-import { Phone } from "lucide-react";
+import { buildPublicUrl } from "@/lib/public-url";
 
 export const Route = createFileRoute("/auth/sign-in")({
 	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
@@ -19,10 +20,11 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
-	const webURL = import.meta.env.VITE_PUBLIC_URL;
 	const callbackURL = returnTo
-		? `${webURL}auth/callback?returnTo=${encodeURIComponent(returnTo)}`
-		: `${webURL}auth/callback`;
+		? buildPublicUrl(
+				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+			)
+		: buildPublicUrl("/auth/callback");
 
 	const handleSocialSignIn = async (
 		provider: "google" | "apple" | "facebook",
@@ -48,7 +50,7 @@ export default function SignInPage() {
 					<h1 className="mb-2 font-bold text-2xl text-gray-900">
 						Log in to your account
 					</h1>
-					<p className="text-gray-500">It&apos;s fun, easy, and enjoyable.</p>
+					<p className="text-[#0a0f0d] text-base font-medium">It&apos;s quick, easy, and enjoyable.</p>
 				</div>
 
 				{error && (
@@ -123,13 +125,13 @@ export default function SignInPage() {
 					</button>
 				</div>
 
-				<p className="mt-6 text-center text-gray-500 text-sm">
-					By continuing, you acknowledge that you understand and accept out{" "}
-					<Link to="/terms" className="font-medium text-accent">
+				<p className="mt-6 text-center font-inter text-sm text-gray-400">
+					By continuing, you confirm that you are 18 years or older, understand and agree to our{" "}
+					<Link to="/terms" className="font-medium italic text-accent underline">
 						Terms &amp; Conditions
 					</Link>{" "}
 					and{" "}
-					<Link to="/privacy-policy" className="font-medium text-accent">
+					<Link to="/privacy-policy" className="font-medium italic text-accent underline">
 						Privacy policy
 					</Link>
 					.

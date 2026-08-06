@@ -26,7 +26,7 @@ const userMenuItems: UserMenuItem[] = [
 	// { label: "Notifications", icon: Bell },
 	{ label: "Wallet", icon: Wallet, path: "/wallet" },
 	{ label: "KYC Documents", icon: FileText, path: "/kyc" },
-	// { label: "Bet history", icon: Clock3 },
+	{ label: "Bet history", icon: Clock3, path: "/bet-history" },  
 	// { label: "Engage", icon: Star },
 	// { label: "Settings", icon: Settings },
 ];

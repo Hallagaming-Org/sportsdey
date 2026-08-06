@@ -8,7 +8,9 @@
 		"compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server --external @better-auth/expo",
 		"dev": "wrangler dev --port=3000 --env staging",
 		"start": "wrangler dev",
-		"deploy": "wrangler deploy",
+		"deploy": "wrangler deploy --env staging",
+		"deploy:staging": "wrangler deploy --env staging",
+		"deploy:production": "wrangler deploy --env production",
 		"db:push": "drizzle-kit push",
 		"db:push:staging": "set NODE_ENV=staging&& npx dotenv-cli -e .env.staging -- drizzle-kit push",
 		"db:push:prod": "set NODE_ENV=production&& npx dotenv-cli -e .env.production -- drizzle-kit push",
@@ -23,10 +25,15 @@
 		"games:sync": "node --import tsx src/cli/sync-games.ts",
 		"games:backfill-categories": "node --import tsx src/cli/backfill-categories.ts",
 		"games:categorize": "node --import tsx src/cli/categorize-games.ts",
+		"games:sync-scorpio": "node --import tsx src/cli/sync-scorpio-games.ts",
 		"dropbox:sync": "node --import tsx src/cli/sync-dropbox-files.ts",
 		"gdrive:match": "node --import tsx src/cli/match-game-images.ts",
 		"dropbox:list": "node --import tsx src/cli/list-dropbox-files.ts",
-		"withdrawals:seed": "node --import tsx src/cli/seed-withdrawals.ts"
+		"withdrawals:seed": "node --import tsx src/cli/seed-withdrawals.ts",
+		"test": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts src/utils/africastalking.test.ts src/utils/webengage-sms.test.ts src/utils/webengage-dlr.test.ts src/utils/slotegrator-sign.test.ts",
+		"test:slotegrator": "node --import tsx --test src/utils/slotegrator-sign.test.ts",
+		"test:scorpio": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts",
+		"test:sms": "node --import tsx --test src/utils/africastalking.test.ts src/utils/webengage-sms.test.ts src/utils/webengage-dlr.test.ts"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.1071.0",

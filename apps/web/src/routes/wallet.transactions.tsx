@@ -1,11 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import z from "zod";
+import {
+	type ReceiptDetail,
+	TransactionReceipt,
+} from "@/components/transaction-receipt";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, apiRequest } from "@/lib/api";
+import { ApiError, apiRequestFull } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { formatAmount } from "@/lib/utils";
 import {
@@ -16,16 +20,129 @@ import {
 } from "@/lib/wallet-transactions";
 import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
 
+const PAGE_SIZE = 50;
+
+type TransactionsPageResponse = {
+	success: boolean;
+	data: WalletTransaction[];
+	pagination: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
+		hasMore: boolean;
+	};
+};
+
 const statusBadgeStyles = {
 	success: "bg-[#E2F9EE] text-[#0F9D58]",
 	pending: "bg-[#FFF9E6] text-[#B58E2A]",
 	failed: "bg-[#FCE8E6] text-[#C5221F]",
 };
 
+function truncateId(id: string): string {
+	if (id.length <= 16) return id;
+	return `${id.slice(0, 8)}...${id.slice(-4)}`;
+}
+
+function getReceiptDetails(tx: WalletTransaction): ReceiptDetail[] {
+	const { iconType } = getTransactionDetails(tx);
+	const meta = tx.metadata as Record<string, string | undefined> | null;
+	const details: ReceiptDetail[] = [];
+
+	if (iconType === "transfer") {
+		const transferType = meta?.transferType;
+		if (transferType === "outgoing") {
+			details.push({
+				label: "Recipient Name",
+				value: meta?.recipientName || "N/A",
+			});
+			details.push({
+				label: "Recipient Wallet ID",
+				value: truncateId(String(meta?.recipientWalletId || "N/A")),
+			});
+		} else if (transferType === "incoming") {
+			details.push({
+				label: "Sender Name",
+				value: meta?.senderName || "N/A",
+			});
+			details.push({
+				label: "Sender Wallet ID",
+				value: truncateId(String(meta?.senderWalletId || "N/A")),
+			});
+		}
+		details.push({
+			label: "Amount",
+			value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+		details.push({ label: "Transaction Type", value: "Transfer" });
+	} else if (
+		iconType === "mtn" ||
+		iconType === "airtel" ||
+		iconType === "electricity"
+	) {
+		details.push({
+			label: "To",
+			value: tx.metadata?.customerId
+				? `${tx.metadata.customerId} (${tx.metadata.billerName})`
+				: "Utility Bill",
+		});
+		details.push({
+			label: "Amount",
+			value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Description",
+			value: tx.metadata?.service
+				? `${tx.metadata.service} Purchase`
+				: "Bill Payment",
+		});
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+		details.push({ label: "Transaction Type", value: "Bills" });
+	} else if (iconType === "deposit") {
+		details.push({ label: "Transaction Type", value: "Credit (Deposit)" });
+		details.push({
+			label: "Amount",
+			value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+	} else {
+		details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
+		details.push({
+			label: "Amount",
+			value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+	}
+
+	const txId = tx.reference || tx.id;
+	details.push({
+		label: "Transaction ID",
+		value: truncateId(txId),
+		copyable: true,
+	});
+	return details;
+}
+
 const searchSchema = z.object({
 	month: z.string().optional(),
-	from: z.string().optional(),
-	to: z.string().optional(),
 });
 
 export const Route = createFileRoute("/wallet/transactions")({
@@ -33,97 +150,93 @@ export const Route = createFileRoute("/wallet/transactions")({
 	component: WalletTransactionsPage,
 });
 
-function buildQueryString(search: {
-	month?: string;
-	from?: string;
-	to?: string;
-}): string {
-	const params = new URLSearchParams();
-
-	if (search.month) {
-		params.set("month", search.month);
-	} else {
-		if (search.from) params.set("from", search.from);
-		if (search.to) params.set("to", search.to);
-	}
-
-	const query = params.toString();
-	return query ? `?${query}` : "";
-}
-
 function WalletTransactionsPage() {
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const search = Route.useSearch();
 	const navigate = Route.useNavigate();
+	const [activePicker, setActivePicker] = useState<string | null>(null);
+	const pickerRef = useRef<HTMLDivElement>(null);
+	const [selectedTx, setSelectedTx] = useState<WalletTransaction | null>(null);
+
+	const monthParam = search.month ?? "";
 
 	const {
-		data: transactions = [],
+		data,
 		isLoading,
 		error,
 		refetch,
-	} = useQuery({
-		queryKey: ["wallet-transactions", search.month, search.from, search.to],
-		queryFn: () =>
-			apiRequest<WalletTransaction[]>(
-				`wallet/transactions${buildQueryString(search)}`,
-				{
-					credentials: "include",
-				},
-			),
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+	} = useInfiniteQuery<TransactionsPageResponse>({
+		queryKey: ["wallet-transactions", monthParam],
+		queryFn: ({ pageParam = 1 }) => {
+			const params = new URLSearchParams({
+				page: String(pageParam),
+				limit: String(PAGE_SIZE),
+			});
+			if (monthParam) params.set("month", monthParam);
+			return apiRequestFull<TransactionsPageResponse>(
+				`wallet/transactions?${params.toString()}`,
+				{ credentials: "include" },
+			);
+		},
+		getNextPageParam: (lastPage) =>
+			lastPage.pagination.hasMore ? lastPage.pagination.page + 1 : undefined,
+		initialPageParam: 1,
 		enabled: !!session?.user,
 	});
 
-	const groupedTransactions = useMemo(
-		() => groupTransactionsByMonth(transactions),
-		[transactions],
+	const allTransactions = useMemo(
+		() => data?.pages.flatMap((page) => page.data) ?? [],
+		[data],
 	);
 
-	const [activePicker, setActivePicker] = useState<string | null>(null);
-	const pickerRef = useRef<HTMLDivElement>(null);
+	const groupedTransactions = useMemo(
+		() => groupTransactionsByMonth(allTransactions),
+		[allTransactions],
+	);
+
+	const totalTransactions = data?.pages[0]?.pagination.total ?? 0;
+
+	const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		const node = sentinelRef.current;
+		if (!node || !hasNextPage || isFetchingNextPage) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting) {
+					fetchNextPage();
+				}
+			},
+			{ threshold: 0.1 },
+		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
 	useEffect(() => {
 		if (!activePicker) return;
 		const handler = (e: MouseEvent) => {
-			if (
-				pickerRef.current &&
-				!pickerRef.current.contains(e.target as Node)
-			) {
+			if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
 				setActivePicker(null);
 			}
 		};
-		const timer = setTimeout(
-			() => document.addEventListener("mousedown", handler),
-			0,
-		);
+		const timer = setTimeout(() => document.addEventListener("mousedown", handler), 0);
 		return () => {
 			clearTimeout(timer);
 			document.removeEventListener("mousedown", handler);
 		};
 	}, [activePicker]);
 
-	const updateSearch = (nextSearch: {
-		month?: string;
-		from?: string;
-		to?: string;
-	}) => {
+	const handleMonthChange = (value: string) => {
 		navigate({
-			search: nextSearch,
+			search: value ? { month: value } : {},
 			replace: true,
 		});
-	};
-
-	const clearFilters = () => updateSearch({});
-
-	const handleMonthChange = (value: string) => {
-		updateSearch(
-			value
-				? {
-						month: value,
-						from: undefined,
-						to: undefined,
-					}
-				: {},
-		);
+		setActivePicker(null);
 	};
 
 	if (!isSessionLoading && !session?.user) {
@@ -192,18 +305,20 @@ function WalletTransactionsPage() {
 					No transactions found for this filter.
 				</p>
 				<p className="mt-2 max-w-md text-[#6C7073] text-sm">
-					Try a different month or widen the date range.
+					Try a different month or clear the filter.
 				</p>
-				<div className="mt-6">
-					<Button
-						type="button"
-						variant="outline"
-						onClick={clearFilters}
-						className="border-[#1B2722] bg-[#04100B] text-white hover:bg-[#0C1A13]"
-					>
-						Reset filters
-					</Button>
-				</div>
+				{monthParam && (
+					<div className="mt-6">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => navigate({ search: {}, replace: true })}
+							className="border-[#1B2722] bg-[#04100B] text-white hover:bg-[#0C1A13]"
+						>
+							Reset filters
+						</Button>
+					</div>
+				)}
 			</div>
 		) : (
 			<div className="space-y-8">
@@ -215,9 +330,7 @@ function WalletTransactionsPage() {
 									type="button"
 									onClick={() =>
 										setActivePicker(
-											activePicker === group.monthKey
-												? null
-												: group.monthKey,
+											activePicker === group.monthKey ? null : group.monthKey,
 										)
 									}
 									className="flex cursor-pointer items-center gap-2 border-none bg-transparent p-0"
@@ -235,10 +348,7 @@ function WalletTransactionsPage() {
 										<input
 											type="month"
 											value={group.monthKey}
-											onChange={(e) => {
-												handleMonthChange(e.target.value);
-												setActivePicker(null);
-											}}
+											onChange={(e) => handleMonthChange(e.target.value)}
 											autoFocus
 											className="w-48 rounded-lg border border-[#1B2722] bg-[#04100B] px-3 py-2 text-white shadow-lg [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-[#1EAD5F]"
 										/>
@@ -265,7 +375,7 @@ function WalletTransactionsPage() {
 											<TransactionIcon type={iconType} />
 											<div className="space-y-1">
 												<p className="font-semibold text-[15px] text-white sm:text-base">
-													{title}
+													{typeLabel}
 												</p>
 												<p className="text-[#9CA3AF] text-[13px] sm:text-sm">
 													{formatTransactionDate(transaction.createdAt)}
@@ -289,6 +399,14 @@ function WalletTransactionsPage() {
 													{statusText}
 												</span>
 											</div>
+											<button
+												type="button"
+												className="text-[#6C7073] hover:text-white transition-colors p-1 cursor-pointer"
+												aria-label="Transaction details"
+												onClick={() => setSelectedTx(transaction)}
+											>
+												<MoreHorizontal className="h-5 w-5" />
+											</button>
 										</div>
 									</div>
 								);
@@ -296,6 +414,23 @@ function WalletTransactionsPage() {
 						</div>
 					</section>
 				))}
+
+				{hasNextPage && (
+					<div ref={sentinelRef} className="flex justify-center py-4">
+						{isFetchingNextPage && (
+							<div className="flex items-center gap-2 text-[#9CA3AF] text-sm">
+								<div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1C1C1E] border-t-[#1EAD5F]" />
+								Loading more transactions...
+							</div>
+						)}
+					</div>
+				)}
+
+				{!hasNextPage && allTransactions.length > 0 && (
+					<p className="text-center text-[#6C7073] text-sm py-4">
+						All {totalTransactions} transactions loaded
+					</p>
+				)}
 			</div>
 		);
 
@@ -314,12 +449,36 @@ function WalletTransactionsPage() {
 							Click a month heading to filter transactions by month.
 						</p>
 					</div>
+					{!isLoading && totalTransactions > 0 && (
+						<p className="text-[#6C7073] text-sm">
+							{totalTransactions} total transaction{totalTransactions === 1 ? "" : "s"}
+						</p>
+					)}
 				</div>
 			</div>
 
 			<div className="rounded-[28px] border border-[#1C1C1E] bg-[#000000] p-4 shadow-sm sm:p-6">
 				{transactionsContent}
 			</div>
+
+			{selectedTx && (
+				<TransactionReceipt
+					details={getReceiptDetails(selectedTx)}
+					statusTitle={
+						selectedTx.status.toLowerCase() === "success"
+							? "Successful"
+							: selectedTx.status.toLowerCase() === "pending"
+								? "Pending"
+								: "Failed"
+					}
+					statusMessage={
+						selectedTx.status.toLowerCase() === "success"
+							? "Transaction has been completed."
+							: "Transaction processing."
+					}
+					onBack={() => setSelectedTx(null)}
+				/>
+			)}
 		</div>
 	);
 }

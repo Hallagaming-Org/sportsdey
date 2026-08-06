@@ -166,8 +166,29 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1785247123516,
-      "tag": "0023_panoramic_klaw",
+      "when": 1785000000000,
+      "tag": "0023_scorpio_players",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1785100000000,
+      "tag": "0024_scorpio_transactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1785512083386,
+      "tag": "0025_silly_jean_grey",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1785949231893,
+      "tag": "0026_regular_warlock",
       "breakpoints": true
     }
   ]

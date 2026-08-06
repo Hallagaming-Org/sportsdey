@@ -3,11 +3,6 @@ export function getAffnookTimestamp(date: Date = new Date()): number {
 	return Math.floor(date.getTime() / 1000);
 }
 
-/** YYYY-MM-DD date string for Affnook payloads. */
-export function formatAffnookDate(date: Date = new Date()): string {
-	return date.toISOString().slice(0, 10);
-}
-
 export function parseUserAgentMeta(userAgent?: string | null): {
 	browser?: string;
 	os?: string;

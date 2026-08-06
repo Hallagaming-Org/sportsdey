@@ -48,13 +48,22 @@ declare namespace Cloudflare {
 		SLOTITEGRATION_MERCHANT_ID: string;
 		SLOTITEGRATION_MERCHANT_KEY: string;
 		SLOTEGRATOR_API_URL: string;
+		SCORPIO_API_URL: string;
+		SCORPIO_BASE_URL: string;
+		SCORPIO_API_TOKEN: string;
+		SCORPIO_CALLBACK_URL: string;
+		SCORPIO_SERVER_IP: string;
+		SCORPIO_ALLOWED_IPS: string;
 		DATABET_CERT: Fetcher;
 		AFRICASTALKING_API_KEY: string;
 		AFRICASTALKING_USERNAME: string;
 		AFRICASTALKING_SENDER_ID: string;
 		WEBENGAGE_API_KEY: string;
+		WEBENGAGE_API_SECRET: string;
 		WEBENGAGE_LICENSE_CODE: string;
 		WEBENGAGE_HOST: string;
+		WEBENGAGE_DSN_URL: string;
+		AT_DLR_SECRET: string;
 		AFFNOOK_API_KEY: string;
 		AFFNOOK_BASE_URL: string;
 		AFFNOOK_BRAND_ID: string;
@@ -62,6 +71,13 @@ declare namespace Cloudflare {
 		AFFNOOK_CURRENCY: string;
 		AFFNOOK_DEFAULT_COUNTRY: string;
 		AFFNOOK_DEFAULT_PROMOCODE: string;
+		BONUS_ENGINE_BASE_URL: string;
+		BONUS_ENGINE_CLIENT_ID: string;
+		BONUS_ENGINE_PROJECT_ID: string;
+		BONUS_ENGINE_CLIENT_SECRET: string;
+		BONUS_ENGINE_PRIVATE_KEY: string;
+		BONUS_ENGINE_CALLBACK_PUBLIC_KEY: string;
+		BONUS_ENGINE_CURRENCY: string;
 		staging_kv?: KVNamespace;
 	}
 }

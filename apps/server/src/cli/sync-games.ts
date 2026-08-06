@@ -76,22 +76,31 @@ const slotegratorApiUrl =
 		: process.env.SLOTEGRATOR_API_URL ||
 			"https://staging.slotegrator.com/api/index.php/v1";
 
-const merchantKey =
-	env === "production"
-		? process.env.SLOTITEGRATION_MERCHANT_KEY
-		: process.env.SLOTITEGRATION_MERCHANT_KEY;
+const rawMerchantKey = process.env.SLOTITEGRATION_MERCHANT_KEY;
+const rawMerchantId = process.env.SLOTITEGRATION_MERCHANT_ID;
 
-const merchantId =
-	env === "production"
-		? process.env.SLOTITEGRATION_MERCHANT_ID
-		: process.env.SLOTITEGRATION_MERCHANT_ID;
-
-if (!merchantKey || !merchantId) {
+if (!rawMerchantKey || !rawMerchantId) {
 	console.error(
 		"Error: Missing SLOTITEGRATION_MERCHANT_KEY or SLOTITEGRATION_MERCHANT_ID",
 	);
 	console.error(
 		"Please set these environment variables or pass them as arguments",
+	);
+	process.exit(1);
+}
+
+const merchantKey: string = rawMerchantKey;
+const merchantId: string = rawMerchantId;
+
+const proxyUrl = process.env.PROXY_URL;
+const proxySecret = process.env.PROXY_SECRET;
+
+if (!proxyUrl || !proxySecret) {
+	console.error(
+		"Error: Missing PROXY_URL or PROXY_SECRET",
+	);
+	console.error(
+		"Please set these environment variables in your env file",
 	);
 	process.exit(1);
 }
@@ -131,7 +140,8 @@ async function fetchGames(
 	const sortedKeys = Object.keys(queryParams).sort();
 	const params = new URLSearchParams();
 	for (const key of sortedKeys) {
-		params.set(key, queryParams[key]);
+		const value = queryParams[key];
+		if (value !== undefined) params.set(key, value);
 	}
 	const queryString = params.toString();
 
@@ -146,13 +156,17 @@ async function fetchGames(
 	const sortedAllKeys = Object.keys(allParams).sort();
 	const allParamsList = new URLSearchParams();
 	for (const key of sortedAllKeys) {
-		allParamsList.set(key, allParams[key]);
+		const value = allParams[key];
+		if (value !== undefined) allParamsList.set(key, value);
 	}
 	const allQueryString = allParamsList.toString();
 
 	const xSign = await generateXSign(allQueryString, merchantKey);
 
-	const url = `${slotegratorApiUrl}/games/index?filter[is_mobile]=1&${queryString}`;
+	const slotegratorProxyPath =
+		env === "production" ? "slotegrator" : "slotegrator-staging";
+
+	const url = `${proxyUrl}/${slotegratorProxyPath}/games/index?filter[is_mobile]=1&${queryString}`;
 
 	const response = await fetch(url, {
 		method: "GET",
@@ -162,6 +176,7 @@ async function fetchGames(
 			"X-Nonce": nonce,
 			"X-Sign": xSign,
 			"Content-Type": "application/x-www-form-urlencoded",
+			"x-proxy-auth": proxySecret,
 		},
 	});
 
@@ -185,8 +200,9 @@ async function getExistingGameIds(): Promise<Set<string>> {
 
 	return new Promise((resolve) => {
 		process.exec(
-			`npx wrangler d1 execute ${dbName} --command "SELECT id FROM game" ${remote ? "--remote" : "--local"}  --env ${env}`,
-			(error, stdout, stderr) => {
+			`npx wrangler d1 execute ${dbName} --json --command "SELECT id FROM game" ${remote ? "--remote" : "--local"} --env ${env}`,
+			{ maxBuffer: 64 * 1024 * 1024 },
+			(error, stdout, _stderr) => {
 				if (error) {
 					console.log(
 						"Could not fetch existing games, proceeding without duplicate check",
@@ -196,11 +212,24 @@ async function getExistingGameIds(): Promise<Set<string>> {
 					return;
 				}
 
-				const lines = stdout
-					.trim()
-					.split("\n")
-					.filter((line) => line.match(/^[a-f0-9]{32,}$/));
-				const ids = new Set(lines);
+				const ids = new Set<string>();
+				try {
+					const parsed = JSON.parse(stdout) as Array<{
+						results?: Array<{ id?: string }>;
+					}>;
+					for (const block of parsed) {
+						for (const row of block.results ?? []) {
+							if (typeof row.id === "string" && row.id.length > 0) {
+								ids.add(row.id);
+							}
+						}
+					}
+				} catch {
+					// Fallback: plain hex ids (older wrangler output)
+					for (const line of stdout.trim().split("\n")) {
+						if (/^[a-f0-9]{32,}$/i.test(line)) ids.add(line);
+					}
+				}
 				console.log(`Found ${ids.size} existing games in database`);
 				resolve(ids);
 			},
@@ -210,7 +239,9 @@ async function getExistingGameIds(): Promise<Set<string>> {
 
 async function main() {
 	console.log(`Syncing games from Slotegrator API (${env} environment)...`);
-	console.log(`API URL: ${slotegratorApiUrl}`);
+	const logProxyPath =
+		env === "production" ? "slotegrator" : "slotegrator-staging";
+	console.log(`Proxy URL: ${proxyUrl}/${logProxyPath}`);
 	console.log(`Merchant ID: ${merchantId}`);
 	console.log("");
 
@@ -260,17 +291,6 @@ async function main() {
 		return;
 	}
 
-	const now = Date.now();
-
-	const values = newGames
-		.map(
-			(game) =>
-				`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${now}, ${now})`,
-		)
-		.join(",\n");
-
-	const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${values};`;
-
 	const batchSize = 100;
 	const timestamp = Date.now();
 	const usedDbName =
@@ -302,27 +322,45 @@ async function main() {
 		);
 		fs.writeFileSync(tempFile, batchSql);
 
-		try {
-			await new Promise((resolve, reject) => {
-				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" ${remote ? "--remote" : "--local"} --env ${env}`;
-				exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
-					try {
-						fs.unlinkSync(tempFile);
-					} catch {}
-					if (error) {
-						reject(error);
-					} else {
-						resolve(stdout);
-					}
+		const maxAttempts = 3;
+		let batchOk = false;
+		let lastErr: unknown;
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				await new Promise((resolve, reject) => {
+					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" ${remote ? "--remote" : "--local"} --env ${env}`;
+					exec(cmd, { timeout: 180000 }, (error, stdout, _stderr) => {
+						if (error) {
+							reject(error);
+						} else {
+							resolve(stdout);
+						}
+					});
 				});
-			});
+				batchOk = true;
+				break;
+			} catch (err) {
+				lastErr = err;
+				console.error(
+					`Batch ${batchNum} attempt ${attempt}/${maxAttempts} failed:`,
+					err instanceof Error ? err.message : err,
+				);
+				if (attempt < maxAttempts) {
+					await new Promise((r) => setTimeout(r, 2000 * attempt));
+				}
+			}
+		}
+		try {
+			fs.unlinkSync(tempFile);
+		} catch {}
+		if (batchOk) {
 			inserted += batch.length;
 			console.log(
 				`Batch ${batchNum}/${totalBatches}: ${inserted} games inserted`,
 			);
-		} catch (err) {
+		} else {
 			failed++;
-			console.error(`Batch ${batchNum} failed:`, err);
+			console.error(`Batch ${batchNum} failed after retries:`, lastErr);
 		}
 	}
 
