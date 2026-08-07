@@ -11,7 +11,7 @@ import { getBonusEngineAccessToken } from "./token.service";
 
 /**
  * Reports a deposit event to Bonus Engine (feeds loyalty earning rules).
- * Not wired to wallet routes yet — exported for a later integration hook.
+ * Called fire-and-forget from the Paystack success path in wallet routes.
  */
 export async function reportBonusEngineDeposit(payload: {
 	env: CloudflareBindings;
@@ -46,7 +46,7 @@ export async function reportBonusEngineDeposit(payload: {
 
 /**
  * Reports a bet event to Bonus Engine (feeds missions and loyalty accrual).
- * Not wired to casino/sportsbook routes yet — exported for a later integration hook.
+ * Called fire-and-forget from Slotegrator `action=bet` after a successful debit.
  */
 export async function reportBonusEngineBet(payload: {
 	env: CloudflareBindings;
