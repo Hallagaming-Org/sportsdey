@@ -5,7 +5,7 @@ type MissionsErrorProps = {
 };
 
 /**
- * Non-preview API failure message for the missions list.
+ * Empty-state error when the missions list API is unavailable or fails.
  */
 export function MissionsError({ error }: MissionsErrorProps) {
 	return (
