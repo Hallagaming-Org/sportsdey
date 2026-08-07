@@ -4,6 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OPENFORT_CHAIN_LABEL } from "@/lib/openfort/config";
+import { useOpenfortReady } from "@/lib/openfort/scope";
 
 type CryptoAsset = {
 	id: string;
@@ -179,5 +180,16 @@ function DepositCryptoPanelInner() {
 }
 
 export function DepositCryptoPanel() {
+	const openfortReady = useOpenfortReady();
+
+	if (!openfortReady) {
+		return (
+			<div className="flex items-center justify-center gap-2 py-10 text-[#8C8F8F] text-sm">
+				<Loader2 className="h-4 w-4 animate-spin" />
+				Loading crypto…
+			</div>
+		);
+	}
+
 	return <DepositCryptoPanelInner />;
 }
