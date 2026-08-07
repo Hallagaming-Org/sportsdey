@@ -4,8 +4,10 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
+import { fetchBetDetailsById } from "@/utils/bet-details";
 
 const betHistoryRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
 
 const BetHistoryItemSchema = z.object({
 	id: z.string(),
@@ -200,6 +202,170 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 					settled: settledCount,
 					unsettled: allCount - settledCount,
 				},
+			},
+		},
+		200,
+	);
+});
+
+// ─── Ticket Detail
+
+const BET_TYPE_LABELS: Record<number, string> = {
+	1: "Single",
+	2: "Accumulator",
+	3: "System",
+	4: "Chain",
+	5: "Conditional",
+	6: "Multi-single",
+	7: "Multi-accumulator",
+	8: "Live series",
+	9: "Live accumulator",
+};
+
+const TicketSelectionSchema = z.object({
+	matchId: z.string().nullable(),
+	match: z.string(),
+	market: z.string().nullable(),
+	result: z.string().nullable(),
+	pick: z.string().nullable(),
+	status: z.enum(["won", "lost", "pending"]),
+
+});
+
+const TicketDetailSchema = z.object({
+	ticketId: z.string(),
+	dateTime: z.string(),
+	betType: z.string(),
+	outcome: z.enum(["won", "lost", "pending"]),
+	stake: z.number(),
+	totalOdds: z.number(),
+	totalReturn: z.number().nullable(),
+	potentialCashout: z.number().nullable(),
+	numberOfBets: z.number(),
+	selections: z.array(TicketSelectionSchema),
+});
+
+const TicketDetailResponseSchema = z
+	.object({
+		success: z.literal(true),
+		data: TicketDetailSchema,
+	})
+	.openapi("TicketDetailResponse");
+
+const getTicketDetailRoute = createRoute({
+	method: "get",
+	path: "/{id}",
+	tags: ["Bet History"],
+	summary: "Get a single ticket's details for the current user",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({ id: z.string() }),
+	},
+	responses: {
+		200: {
+			description: "Ticket detail retrieved",
+			content: { "application/json": { schema: TicketDetailResponseSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		404: {
+			description: "Ticket not found",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+
+function deriveSelectionStatus(oddStatus: number | null): "won" | "lost" | "pending" {
+	if (oddStatus === 1) return "won";
+	if (oddStatus === 3) return "lost";
+	return "pending";
+}
+
+betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const { id } = c.req.valid("param");
+	const db = drizzle(c.env.DB, { schema });
+
+
+	const bet = await db
+		.select({
+			id: schema.sportsbookBet.id,
+			stake: schema.sportsbookBet.stake,
+			totalOdds: schema.sportsbookBet.totalOdds,
+			status: schema.sportsbookBet.status,
+			settleAmount: schema.sportsbookBet.settleAmount,
+			settleType: schema.sportsbookBet.settleType,
+			betType: schema.sportsbookBet.betType,
+			betData: schema.sportsbookBet.betData,
+			createdAt: schema.sportsbookBet.createdAt,
+		})
+		.from(schema.sportsbookBet)
+		.where(
+			and(
+				eq(schema.sportsbookBet.id, id),
+				eq(schema.sportsbookBet.userId, user.id),
+			),
+		)
+		.get();
+
+	if (!bet) {
+		return c.json({ success: false as const, error: "Ticket not found" }, 404);
+	}
+
+	const databetBet = await fetchBetDetailsById(c.env, bet.id);
+	console.log("Databet response:", JSON.stringify(databetBet, null, 2));
+
+
+
+	const derived = deriveStatus(bet.status, bet.settleType);
+	const outcome: "won" | "lost" | "pending" =
+		derived === "success" ? "won" : derived === "failed" ? "lost" : "pending";
+
+	const stakeNaira = bet.stake / 100;
+	const oddsValue = bet.totalOdds ? Number.parseFloat(bet.totalOdds) : 0;
+	const potentialWin = oddsValue > 0 ? stakeNaira * oddsValue : 0;
+
+	let rawSelections: Array<Record<string, any>> = [];
+	try {
+		const parsed = bet.betData ? JSON.parse(bet.betData) : null;
+		if (parsed && Array.isArray(parsed.bet_odds)) {
+			rawSelections = parsed.bet_odds;
+		}
+	} catch {
+		rawSelections = [];
+	}
+
+	const selections = rawSelections.map((s) => ({
+		matchId: s.match_id ?? null,
+
+		match: s.match_id ?? "Unknown match",
+		market: s.market_id ? `Market ${s.market_id}` : null,
+		result: null,
+		pick: s.odd_ratio ? `@${s.odd_ratio}` : null,
+		status: deriveSelectionStatus(s.odd_status ?? null),
+	}));
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				ticketId: bet.id,
+				dateTime: toWAT(bet.createdAt),
+				betType: bet.betType ? (BET_TYPE_LABELS[bet.betType] ?? "Unknown") : "Unknown",
+				outcome,
+				stake: stakeNaira,
+				totalOdds: oddsValue,
+				totalReturn: outcome === "won" ? (bet.settleAmount ?? 0) / 100 : null,
+				potentialCashout: outcome === "pending" ? potentialWin : null,
+				numberOfBets: selections.length,
+				selections,
 			},
 		},
 		200,
