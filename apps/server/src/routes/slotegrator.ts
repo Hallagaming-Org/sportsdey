@@ -1,7 +1,12 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import {
+	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
+	BONUS_ENGINE_PRODUCT_TYPE,
+	reportBonusEngineBet,
+} from "@/services/bonus-engine";
 import { verifySlotitegrationSignature } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -501,6 +506,61 @@ slotegratorRoute.post("/", async (c) => {
 		}
 
 		const balance = newBalance / 100;
+
+		const reportPromise = (async () => {
+			let providerId: string = BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.uniqueId;
+			let gameId = gameUuid || undefined;
+			if (gameUuid) {
+				const [catalogGame] = await db
+					.select({
+						id: schema.game.id,
+						code: schema.game.code,
+						providerId: schema.game.providerId,
+					})
+					.from(schema.game)
+					.where(
+						or(eq(schema.game.code, gameUuid), eq(schema.game.id, gameUuid)),
+					)
+					.limit(1);
+				if (catalogGame) {
+					providerId =
+						catalogGame.providerId?.trim() ||
+						BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.uniqueId;					
+					gameId = catalogGame.code || catalogGame.id;
+				}
+			}
+
+			const result = await reportBonusEngineBet({
+				env: c.env,
+				bet: {
+					userId: playerId,
+					betId: transactionId,
+					amount,
+					productType: BONUS_ENGINE_PRODUCT_TYPE.CASINO,
+					currency,
+					providerId,
+					gameId,
+				},
+			});
+			if (!result.ok) {
+				console.error("Bonus Engine bet report failed", {
+					betId: transactionId,
+					userId: playerId,
+					status: result.status,
+					error: result.error,
+				});
+			}
+		})().catch((error: unknown) => {
+			console.error("Bonus Engine bet report error", {
+				betId: transactionId,
+				userId: playerId,
+				error,
+			});
+		});
+
+		if (typeof c.executionCtx?.waitUntil === "function") {
+			c.executionCtx.waitUntil(reportPromise);
+		}
 
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
