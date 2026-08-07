@@ -17,8 +17,17 @@ import TwentyOneLogo from "../logos/twentyone.svg?react";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
-	validateSearch: (search: Record<string, unknown>): { category?: string } => ({
-		category: (search.category as string) || undefined,
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { category?: string; play?: string } => ({
+		category:
+			typeof search.category === "string" && search.category
+				? search.category
+				: undefined,
+		play:
+			typeof search.play === "string" && search.play.trim()
+				? search.play.trim()
+				: undefined,
 	}),
 });
 
@@ -237,13 +246,15 @@ const isThundrGame = (code: string) => {
 
 function GamesPage() {
 	const navigate = useNavigate({ from: "/games" });
-	const { category } = Route.useSearch();
+	const { category, play } = Route.useSearch();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
 	const [sortAsc, setSortAsc] = useState<boolean | null>(null);
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+	const [launchError, setLaunchError] = useState<string | null>(null);
+	const autoPlayHandledRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		setSelectedCategory(category || null);
@@ -496,6 +507,44 @@ function GamesPage() {
 		}
 	};
 
+	/**
+	 * Mission CTAs deep-link with `?play=<provider_games.game.unique_id>`.
+	 * Match by SportsDey game id or Slotegrator code — Admin may store either.
+	 */
+	useEffect(() => {
+		if (!play || isLoading || allGames.length === 0) return;
+		if (autoPlayHandledRef.current === play) return;
+		autoPlayHandledRef.current = play;
+
+		const needle = play.trim().toLowerCase();
+		const target = allGames.find((game) => {
+			const id = game.id.trim().toLowerCase();
+			const code = game.code.trim().toLowerCase();
+			return id === needle || code === needle;
+		});
+
+		navigate({
+			to: "/games",
+			search: {
+				category: selectedCategory || undefined,
+				play: undefined,
+			},
+			replace: true,
+		});
+
+		if (!target) {
+			setLaunchError(
+				"This mission game is not available in the lobby yet. Pick another title below.",
+			);
+			return;
+		}
+
+		void handleGameClick(target);
+		// ponytail: intentionally omit handleGameClick from deps — launch helper is
+		// recreated each render; autoPlayHandledRef ensures one attempt per play id.
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+	}, [play, isLoading, allGames, navigate, selectedCategory]);
+
 	const handleKeyDown = (e: React.KeyboardEvent, game: Game) => {
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
@@ -571,6 +620,11 @@ function GamesPage() {
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
 			<div className="container mx-auto px-4 pb-8 relative">
+				{launchError ? (
+					<p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+						{launchError}
+					</p>
+				) : null}
 				<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
 					<div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
 						<h1 className="font-bold text-2xl text-gray-900 dark:text-white">
