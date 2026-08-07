@@ -14,6 +14,7 @@ import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
 import WorldIcon from "@/logos/world.svg?react";
+import AeroplaneIcon from "@/logos/aeroplane.svg?react";
 import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
@@ -34,13 +35,12 @@ export default function Header(
 	// const { totalFavoritesCount } = useFavorites();
 
 	const [open, setOpen] = useState(false);
+	const [showPilotModal, setShowPilotModal] = useState(false);
 	const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 	const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 	const router = useRouter();
 
-	const goToDeposit = () => {
-		router.navigate({ to: "/wallet" });
-	};
+	const openPilotModal = () => setShowPilotModal(true);
 	const { data: walletData } = useQuery({
 		queryKey: ["wallet"],
 		queryFn: () =>
@@ -144,7 +144,7 @@ export default function Header(
 
 								<button
 									type="button"
-									onClick={goToDeposit}
+									onClick={openPilotModal}
 									aria-label="Add funds"
 									className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent text-white transition-colors hover:bg-blue-600"
 								>
@@ -286,7 +286,7 @@ export default function Header(
 
 								<button
 									type="button"
-									onClick={goToDeposit}
+									onClick={openPilotModal}
 									aria-label="Add funds"
 									className="flex h-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-accent px-2 font-semibold text-[11px] text-white transition-colors hover:bg-[#00d600]"
 								>
@@ -463,6 +463,41 @@ export default function Header(
 			</div>
 
 			{/* mobile sub-navigation removed */}
+
+			{showPilotModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
+						<div className="flex items-center justify-between">
+							<h2 className="font-semibold text-primary text-xl dark:text-white">
+								Deposit
+							</h2>
+							<button
+								type="button"
+								onClick={() => setShowPilotModal(false)}
+								aria-label="Close"
+								className="cursor-pointer rounded-md px-2 py-1 text-primary text-sm dark:text-white"
+							>
+								<X className="h-4 w-4" />
+							</button>
+						</div>
+						<div className="mt-6 flex justify-center">
+							<AeroplaneIcon className="animate-plane-fly-in h-20 w-20 text-white" />
+						</div>
+						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
+							Pilot mode boss.
+							<br />
+							Deposits are currently blocked
+						</p>
+						<button
+							type="button"
+							onClick={() => setShowPilotModal(false)}
+							className="mt-6 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white"
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -63,7 +63,9 @@ function WalletPage() {
 	const [depositError, setDepositError] = useState("");
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<"withdraw" | null>(null);
+	const [blockedModal, setBlockedModal] = useState<"deposit" | "withdraw" | null>(
+		null,
+	);
 	const [walletIdCopied, setWalletIdCopied] = useState(false);
 	const [billPaymentCategory, setBillPaymentCategory] = useState<{
 		code: string;
@@ -74,7 +76,7 @@ function WalletPage() {
 	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
 		if (search.openDeposit) {
-			setIsDepositModalOpen(true);
+			setBlockedModal("deposit");
 		}
 	}, [search.openDeposit]);
 	const { data: session, isPending: isSessionLoading } = useSession();
@@ -239,13 +241,13 @@ function WalletPage() {
 									)}
 								</div>
 								<div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
-									<button
-										type="button"
-										onClick={() => setIsDepositModalOpen(true)}
-										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
-									>
-										Deposit
-									</button>
+								<button
+									type="button"
+									onClick={() => setBlockedModal("deposit")}
+									className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
+								>
+									Deposit
+								</button>
 									<button
 										type="button"
 										onClick={() => {
@@ -357,7 +359,7 @@ function WalletPage() {
 					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
 						<div className="flex items-center justify-between">
 							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								Withdraw
+								{blockedModal === "deposit" ? "Deposit" : "Withdraw"}
 							</h2>
 							<button
 								type="button"
@@ -374,7 +376,9 @@ function WalletPage() {
 						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
 							Pilot mode boss.
 							<br />
-							Withdrawals are currently blocked
+							{blockedModal === "deposit"
+								? "Deposits are currently blocked"
+								: "Withdrawals are currently blocked"}
 						</p>
 						<button
 							type="button"
