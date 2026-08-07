@@ -99,6 +99,8 @@ function WalletPage() {
 					credentials: "include",
 				}),
 			enabled: !!session?.user,
+			refetchOnMount: "always",
+			refetchOnWindowFocus: true,
 		});
 	const depositMutation = useMutation({
 		mutationFn: (amount: number) =>
