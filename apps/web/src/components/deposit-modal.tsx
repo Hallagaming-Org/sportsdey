@@ -37,10 +37,11 @@ const BANKS = [
 	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
 ];
 
+/** Order matches deposit Figma: Bank Transfer → Card → Crypto → Direct Banking */
 const BASE_METHOD_TABS: { key: DepositMethod; label: string }[] = [
+	{ key: "bank_transfer", label: "Bank Transfer" },
 	{ key: "card", label: "Card" },
 	{ key: "direct_banking", label: "Direct Banking" },
-	{ key: "bank_transfer", label: "Bank Transfer" },
 ];
 
 type BankTransferDetails = {
@@ -81,7 +82,8 @@ export function DepositModal({
 	walletBalance,
 	bankTransferDetails = DEFAULT_BANK_TRANSFER_DETAILS,
 }: DepositModalProps) {
-	const [activeMethod, setActiveMethod] = useState<DepositMethod>("card");
+	const [activeMethod, setActiveMethod] =
+		useState<DepositMethod>("bank_transfer");
 	const [selectedBank, setSelectedBank] = useState<string | null>(null);
 	const [cardNumber, setCardNumber] = useState("");
 	const [expiry, setExpiry] = useState("");
@@ -90,7 +92,13 @@ export function DepositModal({
 
 	const methodTabs = useMemo(() => {
 		if (!isOpenfortEnabled()) return BASE_METHOD_TABS;
-		return [...BASE_METHOD_TABS, { key: "crypto" as const, label: "Crypto" }];
+		// Insert Crypto after Card: Bank Transfer → Card → Crypto → Direct Banking
+		return [
+			BASE_METHOD_TABS[0],
+			BASE_METHOD_TABS[1],
+			{ key: "crypto" as const, label: "Crypto" },
+			BASE_METHOD_TABS[2],
+		];
 	}, []);
 
 	if (!isOpen) return null;
@@ -337,14 +345,6 @@ export function DepositModal({
 										</span>
 									</div>
 									
-								</div>
-
-								<div className="flex items-start gap-3 rounded-lg bg-[#B5B7B5] px-4 py-3">
-									<Info className="mt-0.5 h-4 w-4 shrink-0 text-black" />
-									<p className="text-black text-sm">
-										Please note that deposits over ₦10,000 attracts a ₦150 fee:
-										₦10,000 or less attracts ₦100.
-									</p>
 								</div>
 							</>
 						)}

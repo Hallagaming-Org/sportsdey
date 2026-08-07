@@ -314,7 +314,13 @@ function WalletPage() {
 							</ul>
 						</div>
 					</div>
-					<Suspense fallback={null}>
+					<Suspense
+						fallback={
+							<section className="mt-6 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 text-[#6C7073] text-sm">
+								Loading crypto…
+							</section>
+						}
+					>
 						<OpenfortCryptoWallet />
 					</Suspense>
 					<WalletRecentTransactions

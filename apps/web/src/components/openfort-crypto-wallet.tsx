@@ -15,6 +15,7 @@ import {
 	isOpenfortEnabled,
 	OPENFORT_CHAIN_LABEL,
 } from "@/lib/openfort/config";
+import { useOpenfortReady } from "@/lib/openfort/scope";
 
 function truncateAddress(address: string) {
 	if (address.length <= 12) return address;
@@ -206,6 +207,8 @@ function OpenfortCryptoWalletInner() {
 }
 
 export function OpenfortCryptoWallet() {
+	const openfortReady = useOpenfortReady();
+
 	if (!isOpenfortEnabled()) return null;
 
 	return (
@@ -216,7 +219,14 @@ export function OpenfortCryptoWallet() {
 					Test
 				</span>
 			</div>
-			<OpenfortCryptoWalletInner />
+			{openfortReady ? (
+				<OpenfortCryptoWalletInner />
+			) : (
+				<p className="flex items-center gap-2 text-[#6C7073] text-sm">
+					<Loader2 className="h-4 w-4 animate-spin" />
+					Loading crypto wallet…
+				</p>
+			)}
 		</section>
 	);
 }
