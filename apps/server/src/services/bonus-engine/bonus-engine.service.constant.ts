@@ -55,6 +55,12 @@ export const BONUS_ENGINE_FALLBACK_CASINO_PROVIDER = {
 	isLiveGame: 0,
 } as const;
 
+/** `product_type` values accepted by Bonus Engine `POST /bet`. */
+export const BONUS_ENGINE_PRODUCT_TYPE = {
+	CASINO: "casino",
+	SPORTSBOOK: "sportsbook",
+} as const;
+
 export const BONUS_ENGINE_CONTENT_TYPE_JSON = "application/json";
 
 /** Docs: reject invalid inbound signatures with HTTP 413. */
