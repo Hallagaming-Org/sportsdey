@@ -79,6 +79,7 @@ export function MissionCard({ mission }: MissionCardProps) {
 				) : (
 					<Link
 						to={mission.actionHref}
+						search={mission.actionSearch}
 						className="mt-auto flex h-11 w-full items-center justify-center rounded-xl bg-accent font-bold text-sm text-[#040C01] transition-colors hover:bg-[#158f03] hover:text-white"
 					>
 						{mission.actionLabel}
