@@ -286,16 +286,21 @@ async function main() {
 	if (dryRun) {
 		console.log(`Would insert ${rows.length} rows in ${Math.ceil(rows.length / BATCH)} batches`);
 	} else {
+		const statements: string[] = [];
 		for (let i = 0; i < gameValues.length; i += BATCH) {
 			const chunk = gameValues.slice(i, i + BATCH);
-			const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES\n${chunk.join(",\n")};`;
+			statements.push(
+				`INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES\n${chunk.join(",\n")};`,
+			);
+		}
+		if (statements.length > 0) {
 			await executeSqlFile(
 				dbName,
 				env,
-				sql,
-				`game insert batch ${i / BATCH + 1}`,
+				statements.join("\n"),
+				`${statements.length} game insert batches`,
 				"sync-scorpio",
-				i / BATCH,
+				0,
 				{ remote, throwOnError: true },
 			);
 		}
