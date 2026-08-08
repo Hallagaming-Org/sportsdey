@@ -65,6 +65,9 @@ export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 const POPULAR_GAME_NAMES = [
 	"Aviator",
 	"Lagos Rush",
+	"Halla Bomb",
+	"Halla Dice",
+	"Halla Metronite",
 	"Penalty Shoot Out",
 	"Sweet Bonanza",
 	"Mines",
@@ -104,6 +107,9 @@ export const CLASSIC_PRIORITY_GAMES = [
 	"EAGLEHB",
 	"LUCKYRISEHB",
 	"LAGOSRUSH",
+	"HALLABOMB",
+	"HALLADICE",
+	"HALLAMETRONITE",
 	"sportsdey-crash",
 	"spin_and_win",
 ];
@@ -117,7 +123,20 @@ export const CLASSIC_THUNDR_CODES = [
 	"plinko",
 ];
 
-export const CLASSIC_ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash", "spin_and_win"];
+export const CLASSIC_ORIGINALS_CODES = [
+	"LAGOSRUSH",
+	"HALLABOMB",
+	"HALLADICE",
+	"HALLAMETRONITE",
+	"sportsdey-crash",
+	"spin_and_win",
+];
+
+const HALLA_LAUNCH_PATHS: Record<string, string> = {
+	HALLABOMB: "/halla/bomb/launcher",
+	HALLADICE: "/halla/dice/launcher",
+	HALLAMETRONITE: "/halla/metronite/launcher",
+};
 
 export const CLASSIC_SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
 
@@ -185,6 +204,18 @@ export const CLASSIC_KNOWN_GAMES: Record<
 		subtitle: "fulfilling games",
 		image: "/lagos-rush.png",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
+	},
+	HALLABOMB: {
+		subtitle: "halla mini game",
+		gradient: "linear-gradient(to bottom, #1a1a2e, #c0392b, #e74c3c)",
+	},
+	HALLADICE: {
+		subtitle: "halla mini game",
+		gradient: "linear-gradient(to bottom, #0f2027, #203a43, #2c5364)",
+	},
+	HALLAMETRONITE: {
+		subtitle: "halla mini game",
+		gradient: "linear-gradient(to bottom, #141e30, #243b55, #4a90d9)",
 	},
 	"sportsdey-crash": {
 		subtitle: "sportsdey original",
@@ -357,6 +388,9 @@ export async function launchClassicGame(
 			body = {};
 		} else if (game.code === "LAGOSRUSH") {
 			path = "/lagos-rush/launcher";
+			body = { game: game.code };
+		} else if (HALLA_LAUNCH_PATHS[game.code]) {
+			path = HALLA_LAUNCH_PATHS[game.code];
 			body = { game: game.code };
 		} else {
 			path = `/thndr/play/${game.code}`;

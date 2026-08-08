@@ -107,6 +107,9 @@ export function getTransactionDetails(
 			title = "Received from friend";
 			iconType = "transfer";
 		}
+	} else if (methodLower === "crypto") {
+		title = "Crypto Deposit";
+		iconType = "deposit";
 	} else if (
 		methodLower === "card" ||
 		methodLower === "paystack" ||
@@ -200,7 +203,18 @@ export function getTransactionTypeLabel(transaction: WalletTransaction): string 
 		return transferDebit ? "Transfer to friend" : "Received - Transfer";
 	}
 
-	if (methodLower === "paystack" || methodLower === "manual") {
+	if (methodLower === "crypto") {
+		const asset = meta?.asset ? String(meta.asset) : "Crypto";
+		return isCredit ? `Crypto Deposit · ${asset}` : `Crypto Send · ${asset}`;
+	}
+
+	if (
+		methodLower === "paystack" ||
+		methodLower === "manual" ||
+		methodLower === "card" ||
+		methodLower === "bank_transfer" ||
+		methodLower === "bank transfer"
+	) {
 		return isCredit ? "Deposit" : "Withdrawal";
 	}
 
@@ -244,6 +258,182 @@ export function getTransactionTypeLabel(transaction: WalletTransaction): string 
 		return `Winnings - ${paymentMethod}`;
 	}
 	return `Loss - ${paymentMethod}`;
+}
+
+function truncateReceiptId(id: string): string {
+	if (id.length <= 16) return id;
+	return `${id.slice(0, 8)}...${id.slice(-4)}`;
+}
+
+function formatNairaAmount(amount: number, signed = false): string {
+	const abs = Math.abs(amount);
+	const formatted = `₦${abs.toLocaleString("en-US", {
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 2,
+	})}`;
+	if (signed && amount < 0) return `- ${formatted}`;
+	return formatted;
+}
+
+/** Receipt rows matching the Figma Transaction Details modal. */
+export function getWalletReceiptDetails(
+	tx: WalletTransaction,
+): Array<{
+	label: string;
+	value: string;
+	copyable?: boolean;
+	copyValue?: string;
+}> {
+	const { iconType } = getTransactionDetails(tx);
+	const meta = (tx.metadata ?? {}) as Record<string, string | number | undefined>;
+	const methodLower = (tx.paymentMethod || "").toLowerCase();
+	const txId = String(tx.reference || tx.id);
+	const details: Array<{
+		label: string;
+		value: string;
+		copyable?: boolean;
+		copyValue?: string;
+	}> = [];
+
+	if (methodLower === "crypto") {
+		details.push({ label: "Transaction Type", value: "Crypto Deposit" });
+		details.push({
+			label: "Amount",
+			value: String(meta.amountLabel || `${tx.amount ?? 0}`),
+		});
+		details.push({ label: "Asset", value: String(meta.asset || "Crypto") });
+		details.push({
+			label: "Network",
+			value: String(meta.network || "Polygon Amoy"),
+		});
+		if (meta.from) {
+			const from = String(meta.from);
+			details.push({
+				label: "From",
+				value: truncateReceiptId(from),
+				copyable: true,
+				copyValue: from,
+			});
+		}
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+		details.push({
+			label: "Transaction ID",
+			value: truncateReceiptId(txId),
+			copyable: true,
+			copyValue: txId,
+		});
+		return details;
+	}
+
+	if (iconType === "transfer") {
+		const transferType = meta.transferType;
+		if (transferType === "outgoing") {
+			details.push({
+				label: "Recipient Name",
+				value: String(meta.recipientName || "N/A"),
+			});
+			details.push({
+				label: "Recipient Wallet ID",
+				value: truncateReceiptId(String(meta.recipientWalletId || "N/A")),
+				copyable: true,
+				copyValue: String(meta.recipientWalletId || ""),
+			});
+		} else if (transferType === "incoming") {
+			details.push({
+				label: "Sender Name",
+				value: String(meta.senderName || "N/A"),
+			});
+			details.push({
+				label: "Sender Wallet ID",
+				value: truncateReceiptId(String(meta.senderWalletId || "N/A")),
+				copyable: true,
+				copyValue: String(meta.senderWalletId || ""),
+			});
+		}
+		details.push({
+			label: "Amount",
+			value: formatNairaAmount(tx.amount || 0),
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+		details.push({ label: "Transaction Type", value: "Transfer" });
+	} else if (
+		iconType === "mtn" ||
+		iconType === "airtel" ||
+		iconType === "electricity"
+	) {
+		details.push({
+			label: "To",
+			value: meta.customerId
+				? `${meta.customerId} (${meta.billerName || ""})`
+				: "Utility Bill",
+		});
+		details.push({
+			label: "Amount",
+			value: formatNairaAmount(-(Math.abs(tx.amount || 0)), true),
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Description",
+			value: meta.service ? `${meta.service} Purchase` : "Bill Payment",
+		});
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+		details.push({ label: "Transaction Type", value: "Bills" });
+	} else if (iconType === "deposit") {
+		const fee =
+			typeof meta.fees === "number"
+				? formatNairaAmount(meta.fees)
+				: typeof meta.fees === "string" && meta.fees
+					? `₦${meta.fees}`
+					: "₦0";
+		details.push({ label: "Transaction Type", value: "Credit (Deposit)" });
+		details.push({
+			label: "Amount",
+			value: formatNairaAmount(Math.abs(tx.amount || 0)),
+		});
+		details.push({ label: "Fee", value: fee });
+		if (meta.provider) {
+			details.push({ label: "Provider", value: String(meta.provider) });
+		}
+		if (meta.cardLast4) {
+			details.push({
+				label: "Card",
+				value: `${String(meta.cardType || "Card").toUpperCase()} ****${meta.cardLast4}`,
+			});
+		}
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+	} else {
+		details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
+		details.push({
+			label: "Amount",
+			value: formatNairaAmount(-(Math.abs(tx.amount || 0)), true),
+		});
+		details.push({ label: "Fee", value: "₦0" });
+		details.push({
+			label: "Date",
+			value: formatTransactionDate(tx.createdAt),
+		});
+	}
+
+	details.push({
+		label: "Transaction ID",
+		value: truncateReceiptId(txId),
+		copyable: true,
+		copyValue: txId,
+	});
+	return details;
 }
 
 export type WalletTransactionsMonthGroup = {
