@@ -96,12 +96,8 @@ const proxyUrl = process.env.PROXY_URL;
 const proxySecret = process.env.PROXY_SECRET;
 
 if (!proxyUrl || !proxySecret) {
-	console.error(
-		"Error: Missing PROXY_URL or PROXY_SECRET",
-	);
-	console.error(
-		"Please set these environment variables in your env file",
-	);
+	console.error("Error: Missing PROXY_URL or PROXY_SECRET");
+	console.error("Please set these environment variables in your env file");
 	process.exit(1);
 }
 
