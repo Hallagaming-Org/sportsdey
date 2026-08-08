@@ -102,6 +102,7 @@ export default defineConfig({
 			"/slotegrator": proxyToLocalApi(),
 			"/scorpio": proxyToLocalApi(),
 			"/lagos-rush": proxyToLocalApi(),
+			"/halla": proxyToLocalApi(),
 			"/thndr": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),

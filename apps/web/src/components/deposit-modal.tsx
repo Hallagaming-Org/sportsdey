@@ -4,14 +4,12 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DepositCryptoPanel } from "@/components/deposit-crypto-panel";
 import { isOpenfortEnabled } from "@/lib/openfort/config";
-import FlutterwaveIcon from "@/logos/flutterwave.svg?react";
 import KudaIcon from "@/logos/kuda.svg?react";
 import MastercardIcon from "@/logos/mastercard.svg?react";
-import MoniepointIcon from "@/logos/moniepoint.svg?react";
-import MonnifyIcon from "@/logos/moninify.svg?react";
 import OpayIcon from "@/logos/opay.svg?react";
-import PalmPayIcon from "@/logos/palmpay.svg?react";
 import PaystackIcon from "@/logos/paystack.svg?react";
+import VerveIcon from "@/logos/verve.svg?react";
+import VisaIcon from "@/logos/visa.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
 type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
@@ -19,22 +17,15 @@ type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
 
 const CARD_PROVIDER_LOGOS = [
-	{ key: "opay", Icon: OpayIcon },
-	{ key: "palmpay", Icon: PalmPayIcon },
-	{ key: "paystack", Icon: PaystackIcon },
-	{ key: "monnify", Icon: MonnifyIcon },
 	{ key: "mastercard", Icon: MastercardIcon },
-	{ key: "kuda", Icon: KudaIcon },
-	{ key: "flutterwave", Icon: FlutterwaveIcon },
+	{ key: "visa", Icon: VisaIcon },
+	{ key: "verve", Icon: VerveIcon },
 ];
 
 const BANKS = [
 	{ key: "opay", name: "Opay", Icon: OpayIcon },
-	{ key: "moniepoint", name: "Moniepoint", Icon: MoniepointIcon },
-	{ key: "palmpay", name: "PalmPay", Icon: PalmPayIcon },
-	{ key: "kuda", name: "Kuda", Icon: KudaIcon },
-	{ key: "monnify", name: "Monnify", Icon: MonnifyIcon },
 	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
+	{ key: "kuda", name: "Kuda", Icon: KudaIcon },
 ];
 
 /** Order matches deposit Figma: Bank Transfer → Card → Crypto → Direct Banking */
@@ -185,7 +176,7 @@ export function DepositModal({
 										Payment Information
 									</p>
 									<p className="mt-1 text-[#8C8F8F] text-sm">
-										To make purchases, enter your credit card information.
+										To make purchases, enter your debit card information.
 									</p>
 								</div>
 

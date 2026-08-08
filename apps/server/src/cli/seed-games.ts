@@ -44,6 +44,21 @@ const GAMES: SeedGame[] = [
 		categories: ["popular", "crash-games"],
 	},
 	{
+		name: "Halla Bomb",
+		code: "HALLABOMB",
+		categories: ["popular", "original", "arcade"],
+	},
+	{
+		name: "Halla Dice",
+		code: "HALLADICE",
+		categories: ["popular", "original", "dice"],
+	},
+	{
+		name: "Halla Metronite",
+		code: "HALLAMETRONITE",
+		categories: ["popular", "original", "arcade"],
+	},
+	{
 		name: "Sportsdey Crash",
 		code: "sportsdey-crash",
 		categories: ["popular", "crash-games", "original"],
@@ -65,6 +80,8 @@ const CATEGORY_META: Record<string, { name: string; slug: string }> = {
 	classic: { name: "classic", slug: "classic" },
 	tablecardgames: { name: "table_card_games", slug: "tablecardgames" },
 	original: { name: "Original", slug: "original" },
+	arcade: { name: "arcade", slug: "arcade" },
+	dice: { name: "dice", slug: "dice" },
 };
 
 function main() {
@@ -79,7 +96,7 @@ function main() {
 	const categoryValues = [...usedCategories]
 		.map((slug) => {
 			const meta = CATEGORY_META[slug] ?? { name: slug, slug };
-			return `(${slug}, ${meta.name}, ${slug}, ${now})`;
+			return `(${escape(slug)}, ${escape(meta.name)}, ${escape(slug)}, ${now})`;
 		})
 		.join(",\n");
 
