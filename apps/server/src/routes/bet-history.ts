@@ -5,6 +5,7 @@ import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 import { fetchBetDetailsById } from "@/utils/bet-details";
+import { getFixtureTitlesByIds } from "@/utils/fixtures";
 
 const betHistoryRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -341,11 +342,13 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 	} catch {
 		rawSelections = [];
 	}
+	const matchIds = rawSelections.map((s) => s.match_id).filter(Boolean) as string[];
+	const titleById = await getFixtureTitlesByIds(c.env, matchIds);
+
 
 	const selections = rawSelections.map((s) => ({
 		matchId: s.match_id ?? null,
-
-		match: s.match_id ?? "Unknown match",
+		match: (s.match_id ? titleById.get(s.match_id) : undefined) ?? s.match_id ?? "Unknown match",
 		market: s.market_id ? `Market ${s.market_id}` : null,
 		result: null,
 		pick: s.odd_ratio ? `@${s.odd_ratio}` : null,
