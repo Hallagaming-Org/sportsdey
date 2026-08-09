@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { toast } from "sonner";
 import Trophy from "@/logos/trophy.svg?react";
+import { apiRequest } from "@/lib/api";
 
 export const Route = createFileRoute("/bet-history/$ticketId")({
 	component: TicketDetailsPage,
@@ -11,17 +13,11 @@ type SelectionStatus = "won" | "lost" | "pending";
 type TicketOutcome = "won" | "lost" | "pending";
 
 type BetSelection = {
-	id: string;
-	dateTime: string;
-	league: string;
-	homeTeam: string;
-	awayTeam: string;
-	homeScore: number;
-	awayScore: number;
-	matchStatus: string;
-	market: string;
-	result: string;
-	pick: string;
+	matchId: string | null;
+	match: string;
+	market: string | null;
+	result: string | null;
+	pick: string | null;
 	status: SelectionStatus;
 };
 
@@ -32,131 +28,18 @@ type TicketDetail = {
 	outcome: TicketOutcome;
 	stake: number;
 	totalOdds: number;
-	totalReturn?: number;
-	potentialCashout?: number;
+	totalReturn: number | null;
+	potentialCashout: number | null;
 	numberOfBets: number;
 	selections: BetSelection[];
 };
 
-
-
-const MOCK_TICKETS: Record<string, TicketDetail> = {
-	"12345-won": {
-		ticketId: "12345",
-		dateTime: "08/08 - 13:17",
-		betType: "Multiple",
-		outcome: "won",
-		stake: 100,
-		totalOdds: 7.32,
-		totalReturn: 1741.3,
-		numberOfBets: 8,
-		selections: Array.from({ length: 8 }, (_, i) => ({
-			id: `sel-${i}`,
-			dateTime: "Aug 8, 2025 10:42 pm",
-			league: "International Champions",
-			homeTeam: "Kortrijk",
-			awayTeam: "Gent",
-			homeScore: 4,
-			awayScore: 0,
-			matchStatus: "FT",
-			market: i % 2 === 0 ? "1×2" : "Over/under",
-			result: i % 2 === 0 ? "Home" : "Under 2.5",
-			pick: i % 2 === 0 ? "Away @1.32" : "Over 2.5 @1.44",
-			status: "won" as const,
-		})),
-	},
-	"12345-lost": {
-		ticketId: "12345",
-		dateTime: "08/08 - 13:17",
-		betType: "Multiple",
-		outcome: "lost",
-		stake: 100,
-		totalOdds: 7.32,
-		numberOfBets: 4,
-		selections: [
-			{
-				id: "sel-0",
-				dateTime: "08/08 - 13:17",
-				league: "International Club-Friendly Game",
-				homeTeam: "Kortrijk",
-				awayTeam: "Gent",
-				homeScore: 0,
-				awayScore: 1,
-				matchStatus: "FT",
-				market: "(Over/Under)",
-				result: "Under 1.5",
-				pick: "Over 1.5 @1.18",
-				status: "lost",
-			},
-			{
-				id: "sel-1",
-				dateTime: "08/08 - 13:17",
-				league: "International Club-Friendly Game",
-				homeTeam: "St. Gallen",
-				awayTeam: "Young Boys",
-				homeScore: 4,
-				awayScore: 0,
-				matchStatus: "FT",
-				market: "(Over/Under)",
-				result: "Over 2.5",
-				pick: "Over 2.5 @1.46",
-				status: "won",
-			},
-			{
-				id: "sel-2",
-				dateTime: "08/08 - 13:17",
-				league: "International Club-Friendly Game",
-				homeTeam: "Kortrijk",
-				awayTeam: "Gent",
-				homeScore: 0,
-				awayScore: 1,
-				matchStatus: "FT",
-				market: "(Over/Under)",
-				result: "Under 1.5",
-				pick: "Over 1.5 @1.18",
-				status: "lost",
-			},
-			{
-				id: "sel-3",
-				dateTime: "08/08 - 13:17",
-				league: "International Club-Friendly Game",
-				homeTeam: "St. Gallen",
-				awayTeam: "Young Boys",
-				homeScore: 4,
-				awayScore: 0,
-				matchStatus: "FT",
-				market: "(Over/Under)",
-				result: "Over 2.5",
-				pick: "Over 2.5 @1.46",
-				status: "won",
-			},
-		],
-	},
-	"12345-pending": {
-		ticketId: "12345",
-		dateTime: "08/08 - 13:17",
-		betType: "Multiple",
-		outcome: "pending",
-		stake: 100,
-		totalOdds: 7.32,
-		potentialCashout: 1732.0,
-		numberOfBets: 8,
-		selections: Array.from({ length: 8 }, (_, i) => ({
-			id: `sel-${i}`,
-			dateTime: "Aug 8, 2025 10:42 pm",
-			league: "International Champions",
-			homeTeam: "Kortrijk",
-			awayTeam: "Gent",
-			homeScore: 4,
-			awayScore: 0,
-			matchStatus: "FT",
-			market: i % 2 === 0 ? "1×2" : "Over/under",
-			result: i % 2 === 0 ? "Home" : "Under 2.5",
-			pick: i % 2 === 0 ? "Away @1.32" : "Over 2.5 @1.44",
-			status: i % 2 === 0 ? ("won" as const) : ("lost" as const),
-		})),
-	},
-};
+async function fetchTicketDetail(ticketId: string): Promise<TicketDetail> {
+	return apiRequest<TicketDetail>(`bet-history/${ticketId}`, {
+		method: "GET",
+		credentials: "include",
+	});
+}
 
 function formatMoney(value: number) {
 	return value.toLocaleString("en-NG", { minimumFractionDigits: 2 });
@@ -209,40 +92,30 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 
 				<div className="flex-1 px-4 py-3">
 					<div className="flex items-center justify-between text-xs">
-						<span className="text-[#8C8F8F]">{selection.dateTime}</span>
+						<span className="text-[#8C8F8F]">
+							
+							{"—"}
+						</span>
 						<span className="truncate text-[#B5B7B5] underline decoration-[#B5B7B5]/40">
-							{selection.league}
+							{selection.match}
 						</span>
-					</div>
-
-					<div className="mt-3 grid grid-cols-[1fr_40px_32px] items-center gap-1 text-sm">
-						<span className="text-white">{selection.homeTeam}</span>
-						<span />
-						<span className="text-right text-white">{selection.homeScore}</span>
-
-						<span className="text-white">{selection.awayTeam}</span>
-						<span className="text-center text-[10px] text-[#6B6E6C]">
-							{selection.matchStatus}
-						</span>
-						<span className="text-right text-white">{selection.awayScore}</span>
 					</div>
 
 					<div className="mt-3 space-y-1 text-sm">
 						<div className="flex justify-between">
 							<span className="text-[#8C8F8F]">Market:</span>
-							<span className="text-white">{selection.market}</span>
+							<span className="text-white">{selection.market ?? "—"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-[#8C8F8F]">Result:</span>
-							<span className="text-white">{selection.result}</span>
+							<span className="text-white">{selection.result ?? "—"}</span>
 						</div>
 						<div className="flex justify-between">
 							<span className="text-[#8C8F8F]">Pick:</span>
-							<span className="text-white">{selection.pick}</span>
+							<span className="text-white">{selection.pick ?? "—"}</span>
 						</div>
 					</div>
 
-					{/* wire up destination */}
 					<button
 						type="button"
 						className="mt-3 w-full cursor-not-allowed rounded-lg bg-[#1C1D1F] py-2 text-[#6B6E6C] text-xs"
@@ -260,7 +133,27 @@ function TicketDetailsPage() {
 	const navigate = useNavigate();
 	const { ticketId } = useParams({ from: "/bet-history/$ticketId" });
 
-	const ticket = MOCK_TICKETS[ticketId] ?? MOCK_TICKETS["12345-won"];
+	const { data: ticket, isLoading, isError } = useQuery({
+		queryKey: ["ticket-detail", ticketId],
+		queryFn: () => fetchTicketDetail(ticketId),
+	});
+
+	if (isLoading) {
+		return (
+			<div className="flex min-h-[50vh] items-center justify-center text-[#6B6E6C]">
+				Loading ticket…
+			</div>
+		);
+	}
+
+	if (isError || !ticket) {
+		return (
+			<div className="flex min-h-[50vh] items-center justify-center text-[#F0668A]">
+				Couldn't load this ticket. Try again.
+			</div>
+		);
+	}
+
 	const isWon = ticket.outcome === "won";
 	const isPending = ticket.outcome === "pending";
 
@@ -296,7 +189,7 @@ function TicketDetailsPage() {
 							{ticket.dateTime} &nbsp;
 							<span className="text-white">{ticket.betType}</span>
 						</span>
-						<span className="flex text-white  items-center gap-1.5">
+						<span className="flex text-white items-center gap-1.5">
 							Ticket ID: {ticket.ticketId}
 							<button
 								type="button"
@@ -339,7 +232,7 @@ function TicketDetailsPage() {
 							<span className="text-[#FFFFFF]">Total Odds</span>
 							<span className="font-semibold text-white">{ticket.totalOdds.toFixed(2)}</span>
 						</div>
-						{isWon && ticket.totalReturn !== undefined && (
+						{isWon && ticket.totalReturn !== null && (
 							<div className="flex items-center justify-between">
 								<span className="text-[#FFFFFF]">Total Return</span>
 								<span className="font-semibold text-[#2EFF0C]">
@@ -347,7 +240,7 @@ function TicketDetailsPage() {
 								</span>
 							</div>
 						)}
-						{isPending && ticket.potentialCashout !== undefined && (
+						{isPending && ticket.potentialCashout !== null && (
 							<div className="flex items-center justify-between">
 								<span className="text-[#FFFFFF]">Potential Cashout</span>
 								<span className="font-semibold text-white">
@@ -358,16 +251,13 @@ function TicketDetailsPage() {
 					</div>
 				</div>
 
-				{/* DESKTOP: table view  */}
+				{/* DESKTOP: table view */}
 				<div className="mt-4 hidden overflow-hidden rounded-2xl border border-[#1C1D1F] md:block">
 					<div className="overflow-x-auto">
 						<table className="w-full min-w-[720px] border-collapse text-left">
 							<thead>
 								<tr className="border-[#1C1D1F] border-b text-[#6B6E6C] text-xs uppercase tracking-wide">
-									<th className="px-4 py-3 font-medium">Date &amp; Time</th>
-									<th className="px-4 py-3 font-medium">League</th>
 									<th className="px-4 py-3 font-medium">Match</th>
-									<th className="px-4 py-3 font-medium">Score</th>
 									<th className="px-4 py-3 font-medium">Market</th>
 									<th className="px-4 py-3 font-medium">Result</th>
 									<th className="px-4 py-3 font-medium">Pick</th>
@@ -378,22 +268,15 @@ function TicketDetailsPage() {
 							<tbody>
 								{ticket.selections.map((sel, index) => (
 									<tr
-										key={sel.id}
+										key={sel.matchId ?? index}
 										className={`border-[#1C1D1F] border-b last:border-none ${
 											isWon ? (index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent") : "bg-transparent"
 										}`}
 									>
-										<td className="px-4 py-3 text-[#FFFFFF] text-sm">{sel.dateTime}</td>
-										<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.league}</td>
-										<td className="px-4 py-3 text-white text-sm">
-											{sel.homeTeam} {sel.awayTeam}          
-										</td>
-										<td className="px-4 py-3 text-white text-sm">
-											{sel.homeScore} {sel.awayScore}
-										</td>
-										<td className="px-4 py-3 text-white text-sm">{sel.market}</td>
-										<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result}</td>
-										<td className="px-4 py-3 text-white text-sm">{sel.pick}</td>
+										<td className="px-4 py-3 text-white text-sm">{sel.match}</td>
+										<td className="px-4 py-3 text-white text-sm">{sel.market ?? "—"}</td>
+										<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result ?? "—"}</td>
+										<td className="px-4 py-3 text-white text-sm">{sel.pick ?? "—"}</td>
 										<td className="px-4 py-3">
 											<span
 												className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${statusBadgeClass(sel.status)}`}
@@ -413,12 +296,12 @@ function TicketDetailsPage() {
 
 				{/* MOBILE: vertical strip cards */}
 				<div className="mt-4 space-y-3 md:hidden">
-					{ticket.selections.map((sel) => (
-						<SelectionCard key={sel.id} selection={sel} />
+					{ticket.selections.map((sel, index) => (
+						<SelectionCard key={sel.matchId ?? index} selection={sel} />
 					))}
 				</div>
 
-				{/* Footer  */}
+				{/* Footer */}
 				<div className="mt-4 divide-y divide-[#1C1D1F] rounded-2xl border border-[#1C1D1F]">
 					<div className="flex items-center justify-between px-5 py-4">
 						<span className="text-[#B5B7B5] text-sm">
