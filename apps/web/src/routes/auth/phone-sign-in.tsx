@@ -93,7 +93,7 @@ function PhoneSignInPage() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="flex h-[60px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+          <div className="flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
             <div className="flex items-center gap-3 pr-4">
               <span className="text-xl">🇳🇬</span>
               <span className="font-medium text-[#6f7471] text-base">+234</span>
@@ -108,7 +108,7 @@ function PhoneSignInPage() {
             />
           </div>
 
-          <div className="flex h-[60px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+          <div className="flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
             <Lock className="text-[#9a9d9a] shrink-0" size={20} />
             <input
               type={showPassword ? "text" : "password"}
@@ -126,7 +126,7 @@ function PhoneSignInPage() {
             </button>
           </div>
 
-          <div className="relative flex h-[60px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+          <div className="relative flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
             <input
               type="text"
               value={referralCode}
@@ -177,7 +177,7 @@ function PhoneSignInPage() {
 
         <div className="mt-8 flex items-center gap-4">
           <div className="h-px flex-1 bg-[#dbdbdb]"></div>
-          <span className="text-[#9a9d9a] text-sm">or</span>
+          <span className="text-[#9a9d9a] text-sm py-2 border border-[#8C8C8C] px-6 rounded-full">or</span>
           <div className="h-px flex-1 bg-[#dbdbdb]"></div>
         </div>
 
