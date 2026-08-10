@@ -1114,15 +1114,23 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 
 		let rawSelections: Array<Record<string, any>> = [];
 		let rawBetBuilderOdds: Array<Record<string, any>> = [];
+		let rawBetData: any = null;
 		try {
-			const parsed = bet.betData ? JSON.parse(bet.betData) : null;
-			if (parsed && Array.isArray(parsed.bet_odds)) {
-				rawSelections = parsed.bet_odds;
+			if (bet.betData) {
+				rawBetData = JSON.parse(bet.betData);
+				
+				if (rawBetData && Array.isArray(rawBetData.bet_odds)) {
+					rawSelections = rawBetData.bet_odds;
+				}
+				
+				if (rawBetData && Array.isArray(rawBetData.bet_builder_odds)) {
+					rawBetBuilderOdds = rawBetData.bet_builder_odds;
+				}
+				
+				console.log(`[getTicketById] Found ${rawSelections.length} selections, ${rawBetBuilderOdds.length} bet builder odds`);
 			}
-			if (parsed && Array.isArray(parsed.bet_builder_odds)) {
-				rawBetBuilderOdds = parsed.bet_builder_odds;
-			}
-		} catch {
+		} catch (error) {
+			console.error('[getTicketById] Failed to parse betData:', error);
 			rawSelections = [];
 			rawBetBuilderOdds = [];
 		}
@@ -1150,10 +1158,12 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		const titleById = await getFixtureTitlesByIds(c.env, sportEventIds);
 
 		const selections = rawSelections.map((s) => {
-			const title = s.match_id ? titleById.get(s.match_id) : undefined;
+			const matchId = s.match_id;
+			const title = matchId ? titleById.get(matchId) : undefined;
+			
 			return {
-				matchId: s.match_id ?? null,
-				match: title ?? s.match_id ?? "Unknown match",
+				matchId: matchId ?? null,
+				match: title ?? matchId ?? "Unknown match",
 				marketId: s.market_id ?? null,
 				oddId: s.odd_id ?? null,
 				odds: s.odd_ratio ?? null,
@@ -1162,15 +1172,16 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		});
 
 		const betBuilderSelections = rawBetBuilderOdds.map((builder) => {
-			const groupTitle = builder.match_id
-				? titleById.get(builder.match_id)
-				: undefined;
+			const groupMatchId = builder.match_id;
+			const groupTitle = groupMatchId ? titleById.get(groupMatchId) : undefined;
+			
 			const legs = Array.isArray(builder.odds)
 				? builder.odds.map((o: any) => {
-						const legTitle = o.match_id ? titleById.get(o.match_id) : undefined;
+						const legMatchId = o.match_id;
+						const legTitle = legMatchId ? titleById.get(legMatchId) : undefined;
 						return {
-							matchId: o.match_id ?? null,
-							match: legTitle ?? o.match_id ?? "Unknown match",
+							matchId: legMatchId ?? null,
+							match: legTitle ?? legMatchId ?? "Unknown match",
 							marketId: o.market_id ?? null,
 							oddId: o.odd_id ?? null,
 							odds: o.odd_ratio ?? null,
@@ -1178,9 +1189,10 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 						};
 					})
 				: [];
+			
 			return {
-				matchId: builder.match_id ?? null,
-				match: groupTitle ?? builder.match_id ?? "Unknown match",
+				matchId: groupMatchId ?? null,
+				match: groupTitle ?? groupMatchId ?? "Unknown match",
 				ratio: builder.ratio ?? null,
 				status: builder.status ?? null,
 				legs,
