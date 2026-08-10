@@ -1,4 +1,4 @@
-const MONNIFY_BASE_URL = "https://sandbox.monnify.com/api";
+const MONNIFY_BASE_URL = "https://api.monnify.com/api";
 
 interface MonnifyAccessToken {
 	token: string;
@@ -130,66 +130,59 @@ async function monnifyRequest<T>(
 
 	console.log({ url, method, headers, body });
 
-	try {
-		const res = await fetch(url, {
-			method,
-			headers,
-			...(body ? { body: JSON.stringify(body) } : {}),
-		});
+	const res = await fetch(url, {
+		method,
+		headers,
+		...(body ? { body: JSON.stringify(body) } : {}),
+	});
 
-		const responseText = await res.text();
-		console.log("monnify_response", { status: res.status, body: responseText });
+	const responseText = await res.text();
+	console.log("monnify_response", { status: res.status, body: responseText });
 
-		const data = JSON.parse(responseText) as
-			| { responseCode: string; responseMessage: string; responseBody: T }
-			| MonnifyErrorResponse;
+	const data = JSON.parse(responseText) as
+		| { responseCode: string; responseMessage: string; responseBody: T }
+		| MonnifyErrorResponse;
 
-		if ("requestSuccessful" in data && data.requestSuccessful === true) {
-			const body = data as {
-				requestSuccessful: boolean;
-				responseCode: string;
-				responseMessage: string;
-				responseBody: T;
-			};
-			return { ok: true, data: body.responseBody };
-		}
-
-		if ("requestSuccessful" in data && data.requestSuccessful === false) {
-			return {
-				ok: false,
-				error: data.responseMessage || `API error: ${data.responseCode}`,
-			};
-		}
-
-		if ("responseCode" in data && data.responseCode === "0") {
-			const body = data as {
-				responseCode: string;
-				responseMessage: string;
-				responseBody: T;
-			};
-			return { ok: true, data: body.responseBody };
-		}
-
-		if ("responseCode" in data && data.responseCode !== "0") {
-			return {
-				ok: false,
-				error: data.responseMessage || `API error: ${data.responseCode}`,
-			};
-		}
-
-		return {
-			ok: false,
-			error:
-				"responseMessage" in data
-					? (data as MonnifyErrorResponse).responseMessage
-					: "Unknown error",
+	if ("requestSuccessful" in data && data.requestSuccessful === true) {
+		const body = data as {
+			requestSuccessful: boolean;
+			responseCode: string;
+			responseMessage: string;
+			responseBody: T;
 		};
-	} catch (err) {
+		return { ok: true, data: body.responseBody };
+	}
+
+	if ("requestSuccessful" in data && data.requestSuccessful === false) {
 		return {
 			ok: false,
-			error: err instanceof Error ? err.message : "Unknown error",
+			error: data.responseMessage || `API error: ${data.responseCode}`,
 		};
 	}
+
+	if ("responseCode" in data && data.responseCode === "0") {
+		const body = data as {
+			responseCode: string;
+			responseMessage: string;
+			responseBody: T;
+		};
+		return { ok: true, data: body.responseBody };
+	}
+
+	if ("responseCode" in data && data.responseCode !== "0") {
+		return {
+			ok: false,
+			error: data.responseMessage || `API error: ${data.responseCode}`,
+		};
+	}
+
+	return {
+		ok: false,
+		error:
+			"responseMessage" in data
+				? (data as MonnifyErrorResponse).responseMessage
+				: "Unknown error",
+	};
 }
 
 export async function getAccessToken(env: {
@@ -214,31 +207,27 @@ export async function getAccessToken(env: {
 
 	console.log({ url, method, headers, body });
 
-	try {
-		const res = await fetch(url, { method, headers });
+	const res = await fetch(url, { method, headers });
 
-		const data = (await res.json()) as {
-			requestSuccessful?: boolean;
-			responseCode: string;
-			responseMessage: string;
-			responseBody?: { accessToken: string; expiresIn: number };
+	const data = (await res.json()) as {
+		requestSuccessful?: boolean;
+		responseCode: string;
+		responseMessage: string;
+		responseBody?: { accessToken: string; expiresIn: number };
+	};
+
+	console.log("access_token_result", data);
+
+	if (
+		data.requestSuccessful === true &&
+		data.responseCode === "0" &&
+		data.responseBody
+	) {
+		cachedToken = {
+			token: data.responseBody.accessToken,
+			expiresAt: Date.now() + (data.responseBody.expiresIn - 60) * 1000,
 		};
-
-		console.log("access_token_result", data);
-
-		if (
-			data.requestSuccessful === true &&
-			data.responseCode === "0" &&
-			data.responseBody
-		) {
-			cachedToken = {
-				token: data.responseBody.accessToken,
-				expiresAt: Date.now() + (data.responseBody.expiresIn - 60) * 1000,
-			};
-			return cachedToken.token;
-		}
-	} catch {
-		return null;
+		return cachedToken.token;
 	}
 
 	return null;

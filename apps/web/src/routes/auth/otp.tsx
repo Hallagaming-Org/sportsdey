@@ -1,11 +1,23 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail } from "lucide-react";
-import { type KeyboardEvent, useMemo, useRef, useState } from "react";
+import {
+	type KeyboardEvent,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import z from "zod";
-import { verifyPhoneOtp } from "@/lib/auth/client";
+import { storePendingReferralCode } from "@/lib/affnook";
+import { authClient, requestPhoneOtp, verifyPhoneOtp } from "@/lib/auth/client";
+import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
+import { loginWebengageUser } from "@/lib/webengage";
+
+const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
 const otpSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
+	referralCode: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/auth/otp")({
@@ -15,17 +27,27 @@ export const Route = createFileRoute("/auth/otp")({
 
 function OtpPage() {
 	const navigate = useNavigate();
-	const { phone } = Route.useSearch();
+	const { phone, referralCode } = Route.useSearch();
 	const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 	const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
 	const [error, setError] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
-	const secondsLeft = 44;
+	const [isResending, setIsResending] = useState(false);
+	const [secondsLeft, setSecondsLeft] = useState(OTP_RESEND_COOLDOWN_SECONDS);
 
 	const canVerify = useMemo(
 		() => otpDigits.every((digit) => digit.length === 1),
 		[otpDigits],
 	);
+	const canResend = secondsLeft <= 0 && !isResending;
+
+	useEffect(() => {
+		if (secondsLeft <= 0) return;
+		const timer = window.setTimeout(() => {
+			setSecondsLeft((prev) => prev - 1);
+		}, 1000);
+		return () => window.clearTimeout(timer);
+	}, [secondsLeft]);
 
 	const handleInput = (index: number, value: string) => {
 		const cleanedValue = value.replace(/\D/g, "").slice(-1);
@@ -46,6 +68,32 @@ function OtpPage() {
 		}
 	};
 
+	const handleResend = async () => {
+		if (!canResend) return;
+		if (!phone) {
+			setError("Phone number missing. Please start again.");
+			navigate({ to: "/auth/phone-sign-in" });
+			return;
+		}
+
+		setError("");
+		setIsResending(true);
+		try {
+			await requestPhoneOtp(phone);
+			setSecondsLeft(OTP_RESEND_COOLDOWN_SECONDS);
+			setOtpDigits(["", "", "", "", "", ""]);
+			inputsRef.current[0]?.focus();
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to resend code. Please try again.",
+			);
+		} finally {
+			setIsResending(false);
+		}
+	};
+
 	const handleVerify = async () => {
 		if (!canVerify) return;
 		if (!phone) {
@@ -60,15 +108,39 @@ function OtpPage() {
 		try {
 			const otp = otpDigits.join("");
 			const data = await verifyPhoneOtp(phone, otp);
-			if (data.isFirstTimeSignIn) {
+			const session = await authClient.getSession();
+			if (!session?.data?.session) {
+				throw new Error(
+					"Sign-in succeeded but session was not established. Please try again.",
+				);
+			}
+			authClient.$store.notify("$sessionSignal");
+
+			loginWebengageUser(data.user.id);
+
+			const trimmedReferral = referralCode?.trim();
+			if (trimmedReferral) {
+				storePendingReferralCode(trimmedReferral);
+			}
+
+			if (
+				needsPhoneProfileCompletion({
+					...data.user,
+					isFirstTimeSignIn: data.isFirstTimeSignIn,
+					needsProfileCompletion: data.needsProfileCompletion,
+				})
+			) {
 				navigate({
 					to: "/auth/complete-profile",
-					search: { phone },
+					search: {
+						phone,
+						referralCode: trimmedReferral || undefined,
+					},
 				});
 				return;
 			}
 
-			navigate({ to: "/" });
+			navigate({ to: "/", search: { league: "sports", sports: "football" } });
 		} catch (err) {
 			setError(
 				err instanceof Error ? err.message : "Invalid OTP. Please try again.",
@@ -126,7 +198,20 @@ function OtpPage() {
 
 				<div className="mx-auto mt-10 flex w-full max-w-[420px] items-center gap-3 text-[#2a302d] text-sm">
 					<div className="h-px flex-1 bg-[#b7b7b7]" />
-					<span>Resend code in 0:{String(secondsLeft).padStart(2, "0")}</span>
+					{canResend ? (
+						<button
+							type="button"
+							onClick={handleResend}
+							disabled={isResending}
+							className="font-medium text-[#17b000] transition-opacity disabled:opacity-60"
+						>
+							{isResending ? "Sending..." : "Resend code"}
+						</button>
+					) : (
+						<span>
+							Resend code in 0:{String(secondsLeft).padStart(2, "0")}
+						</span>
+					)}
 					<div className="h-px flex-1 bg-[#b7b7b7]" />
 				</div>
 			</div>

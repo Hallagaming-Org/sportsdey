@@ -246,6 +246,8 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 			userId: playerId,
 			type: "DEBIT",
 			amount: amount,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			currency,
 		})
 		.returning();
@@ -393,6 +395,8 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 			userId: playerId,
 			type: "CREDIT",
 			amount: amount,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			currency,
 		})
 		.returning();
@@ -544,6 +548,8 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 			userId: playerId,
 			type: "REFUND",
 			amount: amount,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
 			currency,
 		})
 		.returning();

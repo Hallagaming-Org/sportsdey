@@ -148,63 +148,56 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 			? wallet.balance + amountInKobo
 			: wallet.balance - amountInKobo;
 
-	try {
-		await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.wallet.id, wallet.id));
-
-		const [txn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: user.id,
-				amount,
-				type: action,
-				reference,
-				status: "completed",
-				paymentMethod: "hashcodex",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					source: "hashcodex",
-				}),
-			})
-			.returning();
-
-		if (!txn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record transaction" },
-				500,
-			);
-		}
-
+	const walletUpdate = await db
+		.update(schema.wallet)
+		.set({
+			balance: newBalance,
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.wallet.id, wallet.id))
+		.returning();
+	if (walletUpdate.length === 0) {
 		return c.json(
-			{
-				success: true as const,
-				data: {
-					balance: newBalance / 100,
-					amount,
-					action,
-				},
-			},
-			200,
-		);
-	} catch (error) {
-		return c.json(
-			{
-				success: false as const,
-				error:
-					error instanceof Error
-						? error.message
-						: "Failed to process transaction",
-				details: null,
-			},
-			400,
+			{ success: false, error: "Failed to update user balance" },
+			500,
 		);
 	}
+
+	const [txn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: user.id,
+			amount: amountInKobo,
+			type: action,
+			reference,
+			status: "completed",
+			paymentMethod: "hashcodex",
+			balance: newBalance,
+			metadata: JSON.stringify({
+				source: "hashcodex",
+			}),
+		})
+		.returning();
+
+	if (!txn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record transaction" },
+			500,
+		);
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				balance: newBalance / 100,
+				amount,
+				action,
+			},
+		},
+		200,
+	);
 });
 
 export default hashcodexRoute;

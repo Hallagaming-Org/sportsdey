@@ -201,6 +201,32 @@ body {
 	@apply dark:bg-card
 }
 
+.animate-plane-fly-in {
+	animation: plane-fly-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	transform-origin: center;
+}
+
+@keyframes plane-fly-in {
+	0% {
+		transform: translateX(-120px) translateY(30px) rotate(-15deg);
+		opacity: 0;
+	}
+	60% {
+		transform: translateX(8px) translateY(-4px) rotate(3deg);
+		opacity: 1;
+	}
+	100% {
+		transform: translateX(0) translateY(0) rotate(0deg);
+		opacity: 1;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-plane-takeoff {
+		animation: none;
+	}
+}
+
 /* Custom animations for live tennis scores */
 @keyframes fadeIn {
 	0% {

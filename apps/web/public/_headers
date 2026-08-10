@@ -4,6 +4,10 @@
 /*.js
   Content-Type: application/javascript
   Cache-Control: public, max-age=31536000, immutable
+/service-worker.js
+  Content-Type: application/javascript
+  Service-Worker-Allowed: /
+  Cache-Control: no-cache
 /*.svg
   Content-Type: image/svg+xml
   Cache-Control: public, max-age=31536000, immutable

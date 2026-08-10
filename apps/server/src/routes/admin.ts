@@ -25,7 +25,7 @@ import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { parseQueryDateRange } from "@/utils";
+import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -54,12 +54,8 @@ const ErrorSchemaWithDetails = z.object({
 
 function safeParsePermissions(permissions: string | null): string[] {
 	if (!permissions) return [];
-	try {
-		const parsed = JSON.parse(permissions);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
+	const parsed = JSON.parse(permissions);
+	return Array.isArray(parsed) ? parsed : [];
 }
 
 const SignInSchema = z.object({
@@ -98,6 +94,7 @@ const AdminSignInResponseSchema = z.object({
 	admin: AdminResponseSchema,
 	token: z.string().openapi({
 		description: "Admin session token for bearer auth",
+		example: "sess_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
 	}),
 });
 
@@ -105,6 +102,7 @@ const AdminMeResponseSchema = z.object({
 	admin: AdminResponseSchema,
 	token: z.string().openapi({
 		description: "Current admin session token",
+		example: "sess_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
 	}),
 });
 
@@ -158,7 +156,7 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.optional()
 		.openapi({ description: "Filter by transaction type" }),
 	status: z
-		.enum(["won", "pending", "failed", "refund"])
+		.enum(["success", "pending", "failed", "refund"])
 		.optional()
 		.openapi({ description: "Filter by transaction status" }),
 	page: z.coerce
@@ -699,6 +697,7 @@ const deleteDeviceRoute = createRoute({
 });
 
 function formatDateTime(date: Date) {
+	const watDate = new Date(date.getTime() + 60 * 60 * 1000);
 	const months = [
 		"Jan",
 		"Feb",
@@ -713,12 +712,12 @@ function formatDateTime(date: Date) {
 		"Nov",
 		"Dec",
 	];
-	const month = months[date.getMonth()];
-	const day = date.getDate();
-	const year = date.getFullYear();
+	const month = months[watDate.getMonth()];
+	const day = watDate.getDate();
+	const year = watDate.getFullYear();
 
-	const hours = date.getHours();
-	const minutes = date.getMinutes();
+	const hours = watDate.getHours();
+	const minutes = watDate.getMinutes();
 	const ampm = hours >= 12 ? "pm" : "am";
 	const displayHours = hours % 12 || 12;
 	const displayMinutes = minutes.toString().padStart(2, "0");
@@ -779,7 +778,7 @@ adminRoute.openapi(signInRoute, async (c) => {
 				image: adminUser.image,
 				role: adminUser.role,
 				permissions: safeParsePermissions(adminUser.permissions),
-				createdAt: adminUser.createdAt?.toISOString() || "",
+				createdAt: toWAT(adminUser.createdAt) || "",
 			},
 			token,
 		},
@@ -849,8 +848,8 @@ adminRoute.openapi(getDevicesRoute, async (c) => {
 			deviceName: s.deviceName || "Unknown Device",
 			ipAddress: s.ipAddress,
 			browser: s.browser || "Unknown",
-			lastActiveAt: s.lastActiveAt?.toISOString() || "",
-			createdAt: s.createdAt?.toISOString() || "",
+			lastActiveAt: toWAT(s.lastActiveAt) || "",
+			createdAt: toWAT(s.createdAt) || "",
 			isCurrentDevice: s.token === token,
 		};
 	});
@@ -915,7 +914,7 @@ adminRoute.openapi(getMeRoute, async (c) => {
 				image: adminUser.image,
 				role: adminUser.role,
 				permissions: safeParsePermissions(adminUser.permissions),
-				createdAt: adminUser.createdAt?.toISOString() || "",
+				createdAt: toWAT(adminUser.createdAt) || "",
 			},
 			token,
 		},
@@ -923,76 +922,71 @@ adminRoute.openapi(getMeRoute, async (c) => {
 });
 
 adminRoute.openapi(updateMeRoute, async (c) => {
-	try {
-		const token = getSessionToken(c.req.raw.headers);
-		if (!token) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const session = await validateAdminSession(c.env, token);
-		if (!session) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const body = await c.req.json();
-		const result = UpdateMeSchema.safeParse(body);
-		if (!result.success) {
-			const error = result.error;
-			const issues = error.issues || [];
-			const message = issues[0]?.message || "Invalid request body";
-			return c.json(
-				{
-					success: false,
-					error: message,
-				},
-				400,
-			);
-		}
-
-		const { name, email, mobileNumber } = result.data;
-
-		console.log("PATCH /me - updating admin:", {
-			adminId: session.adminId,
-			name,
-			email,
-			mobileNumber,
-		});
-
-		if (email) {
-			const existing = await getAdminByEmail(c.env, email);
-			if (existing && existing.id !== session.adminId) {
-				return c.json({ success: false, error: "Email already in use" }, 400);
-			}
-		}
-
-		const updatedAdmin = await updateAdminById(c.env, session.adminId, {
-			name,
-			email,
-			mobileNumber,
-		});
-
-		console.log("PATCH /me - updatedAdmin:", updatedAdmin);
-
-		if (!updatedAdmin) {
-			return c.json({ success: false, error: "Failed to update profile" }, 500);
-		}
-
-		return c.json({
-			success: true,
-			data: {
-				id: updatedAdmin.id,
-				email: updatedAdmin.email,
-				name: updatedAdmin.name,
-				mobileNumber: updatedAdmin.mobileNumber,
-				image: updatedAdmin.image,
-				role: updatedAdmin.role,
-				createdAt: updatedAdmin.createdAt?.toISOString() || "",
-			},
-		});
-	} catch (error) {
-		console.error("Error in PATCH /me:", error);
-		return c.json({ success: false, error: "Internal server error" }, 500);
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const body = await c.req.json();
+	const result = UpdateMeSchema.safeParse(body);
+	if (!result.success) {
+		const error = result.error;
+		const issues = error.issues || [];
+		const message = issues[0]?.message || "Invalid request body";
+		return c.json(
+			{
+				success: false,
+				error: message,
+			},
+			400,
+		);
+	}
+
+	const { name, email, mobileNumber } = result.data;
+
+	console.log("PATCH /me - updating admin:", {
+		adminId: session.adminId,
+		name,
+		email,
+		mobileNumber,
+	});
+
+	if (email) {
+		const existing = await getAdminByEmail(c.env, email);
+		if (existing && existing.id !== session.adminId) {
+			return c.json({ success: false, error: "Email already in use" }, 400);
+		}
+	}
+
+	const updatedAdmin = await updateAdminById(c.env, session.adminId, {
+		name,
+		email,
+		mobileNumber,
+	});
+
+	console.log("PATCH /me - updatedAdmin:", updatedAdmin);
+
+	if (!updatedAdmin) {
+		return c.json({ success: false, error: "Failed to update profile" }, 500);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			id: updatedAdmin.id,
+			email: updatedAdmin.email,
+			name: updatedAdmin.name,
+			mobileNumber: updatedAdmin.mobileNumber,
+			image: updatedAdmin.image,
+			role: updatedAdmin.role,
+			createdAt: toWAT(updatedAdmin.createdAt) || "",
+		},
+	});
 });
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -1005,90 +999,85 @@ const ALLOWED_IMAGE_TYPES = [
 ];
 
 adminRoute.openapi(updateProfilePictureRoute, async (c) => {
-	try {
-		const token = getSessionToken(c.req.raw.headers);
-		if (!token) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const session = await validateAdminSession(c.env, token);
-		if (!session) {
-			return c.json({ success: false, error: "Unauthorized" }, 401);
-		}
-
-		const formData = await c.req.parseBody();
-		const file = formData.file as File | undefined;
-
-		if (!file) {
-			return c.json({ success: false, error: "No file provided" }, 400);
-		}
-
-		if (!file.type.startsWith("image/")) {
-			return c.json(
-				{ success: false, error: "Only image files are allowed" },
-				400,
-			);
-		}
-
-		if (file.size > MAX_FILE_SIZE) {
-			return c.json(
-				{ success: false, error: "File size must be less than 5MB" },
-				400,
-			);
-		}
-
-		const bucket =
-			c.env.NODE_ENV === "production"
-				? c.env.PRODUCTION_BUCKET
-				: c.env.STAGING_BUCKET;
-
-		if (!bucket) {
-			return c.json({ success: false, error: "Storage not configured" }, 500);
-		}
-
-		const id = crypto.randomUUID();
-		const ext = file.name.split(".").pop() || "jpg";
-		const r2Key = `admin-profiles/${session.adminId}/${id}.${ext}`;
-		const arrayBuffer = await file.arrayBuffer();
-
-		await bucket.put(r2Key, arrayBuffer, {
-			httpMetadata: {
-				contentType: file.type || "image/jpeg",
-			},
-			customMetadata: {
-				originalName: file.name,
-				adminId: session.adminId,
-			},
-		});
-
-		const baseUrl =
-			c.env.NODE_ENV === "production"
-				? "https://bucket.sportsdey.com"
-				: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
-
-		const imageUrl = `${baseUrl}/${r2Key}`;
-
-		const updatedAdmin = await updateAdminById(c.env, session.adminId, {
-			image: imageUrl,
-		});
-
-		if (!updatedAdmin) {
-			return c.json(
-				{ success: false, error: "Failed to update profile picture" },
-				500,
-			);
-		}
-
-		return c.json({
-			success: true,
-			data: {
-				image: updatedAdmin.image,
-			},
-		});
-	} catch (error) {
-		console.error("Error in PATCH /me/profile-picture:", error);
-		return c.json({ success: false, error: "Internal server error" }, 500);
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json({ success: false, error: "Unauthorized" }, 401);
+	}
+
+	const formData = await c.req.parseBody();
+	const file = formData.file as File | undefined;
+
+	if (!file) {
+		return c.json({ success: false, error: "No file provided" }, 400);
+	}
+
+	if (!file.type.startsWith("image/")) {
+		return c.json(
+			{ success: false, error: "Only image files are allowed" },
+			400,
+		);
+	}
+
+	if (file.size > MAX_FILE_SIZE) {
+		return c.json(
+			{ success: false, error: "File size must be less than 5MB" },
+			400,
+		);
+	}
+
+	const bucket =
+		c.env.NODE_ENV === "production"
+			? c.env.PRODUCTION_BUCKET
+			: c.env.STAGING_BUCKET;
+
+	if (!bucket) {
+		return c.json({ success: false, error: "Storage not configured" }, 500);
+	}
+
+	const id = crypto.randomUUID();
+	const ext = file.name.split(".").pop() || "jpg";
+	const r2Key = `admin-profiles/${session.adminId}/${id}.${ext}`;
+	const arrayBuffer = await file.arrayBuffer();
+
+	await bucket.put(r2Key, arrayBuffer, {
+		httpMetadata: {
+			contentType: file.type || "image/jpeg",
+		},
+		customMetadata: {
+			originalName: file.name,
+			adminId: session.adminId,
+		},
+	});
+
+	const baseUrl =
+		c.env.NODE_ENV === "production"
+			? "https://bucket.sportsdey.com"
+			: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
+
+	const imageUrl = `${baseUrl}/${r2Key}`;
+
+	const updatedAdmin = await updateAdminById(c.env, session.adminId, {
+		image: imageUrl,
+	});
+
+	if (!updatedAdmin) {
+		return c.json(
+			{ success: false, error: "Failed to update profile picture" },
+			500,
+		);
+	}
+
+	return c.json({
+		success: true,
+		data: {
+			image: updatedAdmin.image,
+		},
+	});
 });
 
 const listAdminsRoute = createRoute({
@@ -1144,7 +1133,7 @@ adminRoute.openapi(listAdminsRoute, async (c) => {
 			image: admin.image,
 			role: admin.role,
 			permissions: safeParsePermissions(admin.permissions),
-			createdAt: admin.createdAt?.toISOString() || "",
+			createdAt: toWAT(admin.createdAt) || "",
 		})),
 	});
 });
@@ -1187,7 +1176,7 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 			email: admin?.email,
 			name: admin?.name,
 			role: admin?.role,
-			createdAt: admin?.createdAt?.toISOString() || new Date().toISOString(),
+			createdAt: toWAT(admin?.createdAt) || toWAT(new Date()),
 		},
 	});
 });
@@ -1237,7 +1226,7 @@ const forceLogoutAdminRoute = createRoute({
 				"application/json": {
 					schema: successResponseSchema(
 						z.object({
-							sessionsRevoked: z.number(),
+							sessionsRevoked: z.number().openapi({ example: 3 }),
 						}),
 					),
 				},
@@ -1305,7 +1294,10 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		!requirePermission(session, "transaction_read")
 	) {
 		return c.json(
-			{ success: false, error: "Forbidden - transaction read permission required" },
+			{
+				success: false,
+				error: "Forbidden - transaction read permission required",
+			},
 			403,
 		);
 	}
@@ -1353,12 +1345,12 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		conditions.push(
 			and(
 				eq(schema.walletTransaction.type, "debit"),
-				eq(schema.walletTransaction.paymentMethod, "wallet_transfer"),
+				eq(schema.walletTransaction.paymentMethod, "bill_payment"),
 			),
 		);
 	}
 
-	if (status === "won") {
+	if (status === "success") {
 		conditions.push(
 			inArray(schema.walletTransaction.status, ["success", "completed"]),
 		);
@@ -1382,12 +1374,35 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	// fetch all matching transactions (without date constraints) and apply
 	// date filtering + pagination in-memory
 	const transactions = await db
-		.select()
+		.select({
+			id: schema.walletTransaction.id,
+			userId: schema.walletTransaction.userId,
+			amount: schema.walletTransaction.amount,
+			type: schema.walletTransaction.type,
+			reference: schema.walletTransaction.reference,
+			status: schema.walletTransaction.status,
+			paymentMethod: schema.walletTransaction.paymentMethod,
+			recipientWalletId: schema.walletTransaction.recipientWalletId,
+			recipientName: schema.walletTransaction.recipientName,
+			balance: schema.walletTransaction.balance,
+			metadata: schema.walletTransaction.metadata,
+			createdAt: schema.walletTransaction.createdAt,
+			userEmail: schema.user.email,
+		})
 		.from(schema.walletTransaction)
+		.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
 		.where(whereClause)
 		.orderBy(desc(schema.walletTransaction.createdAt));
 
+	const excludedPaymentMethods = [
+		"slotegrator games",
+		"lucky games",
+		"lagos rush",
+		"thndr games",
+	];
+
 	const filtered = transactions.filter((tx) => {
+		if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
 		if (!fromDateBoundary && !toDateBoundary) return true;
 		const ts = new Date(tx.createdAt).getTime();
 		if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
@@ -1412,6 +1427,8 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 
 		return {
 			transaction_id: tx.id,
+			user_id: tx.userId,
+			user_email: tx.userEmail ?? "Unknown",
 			date_time: formatDateTime(new Date(tx.createdAt)),
 			type: txType,
 			payment_method: tx.paymentMethod,
@@ -1637,7 +1654,7 @@ adminRoute.openapi(getAdminByIdRoute, async (c) => {
 			image: admin.image,
 			role: admin.role,
 			permissions: safeParsePermissions(admin.permissions),
-			createdAt: admin.createdAt?.toISOString() || "",
+			createdAt: toWAT(admin.createdAt) || "",
 		},
 	});
 });
@@ -1653,9 +1670,10 @@ adminRoute.openapi(listAdminPermissionsRoute, async (c) => {
 		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
 
-	const permissions = Object.entries(permissionLabels).map(
-		([key, label]) => ({ key, label }),
-	);
+	const permissions = Object.entries(permissionLabels).map(([key, label]) => ({
+		key,
+		label,
+	}));
 
 	return c.json({
 		success: true,

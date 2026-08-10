@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 type TransferResponse = {
 	transactionId: string;
@@ -41,6 +42,10 @@ export function TransferModal({
 			setTransferSuccess(
 				`₦${formatAmount(data.amount)} transferred to ${data.recipientName}`,
 			);
+			trackWebengageEvent("transfer_funds initated", {
+				"wallet id": recipientWalletId.trim(),
+				amount: data.amount,
+			});
 			setTimeout(() => {
 				handleClose();
 			}, 2000);

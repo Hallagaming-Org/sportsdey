@@ -22,6 +22,7 @@ export const user = sqliteTable("user", {
 		.default("not_verified")
 		.notNull(),
 	suspended: integer("suspended", { mode: "boolean" }).default(false).notNull(),
+	lastLoginIp: text("last_login_ip"),
 });
 
 export const session = sqliteTable(
@@ -174,6 +175,8 @@ export const sportsbookBetEvent = sqliteTable("sportsbook_bet_event", {
 	requestId: text("request_id").unique(),
 	eventType: text("event_type").notNull(),
 	eventData: text("event_data"),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -382,6 +385,8 @@ export const gameTransactions = sqliteTable("game_transactions", {
 	providerTxId: text("provider_tx_id").notNull().unique(),
 	type: text("type").notNull(),
 	amount: integer("amount").notNull(),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	sessionToken: text("session_token").notNull(),
 	game: text("game").notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
@@ -447,6 +452,8 @@ export const thundrTransactions = sqliteTable("thundr_transactions", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	type: text("type").notNull(),
 	amount: integer("amount").notNull(),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	roundId: text("round_id").notNull(),
 	gameId: text("game_id").notNull(),
 	sessionId: text("session_id").notNull(),
@@ -473,6 +480,8 @@ export const pocketsTransactions = sqliteTable("pockets_transactions", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	type: text("type").notNull(),
 	amount: integer("amount").notNull(),
+	balanceBefore: integer("balance_before"),
+	balanceAfter: integer("balance_after"),
 	currency: text("currency").notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -529,6 +538,8 @@ export const slotitegrationTransactions = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		type: text("type").notNull(),
 		amount: integer("amount").notNull(),
+		balanceBefore: integer("balance_before"),
+		balanceAfter: integer("balance_after"),
 		currency: text("currency").notNull(),
 		roundId: text("round_id"),
 		gameId: text("game_id"),
@@ -666,7 +677,6 @@ export const game = sqliteTable("game", {
 	name: text("name").notNull(),
 	code: text("code").notNull(),
 	imageUrl: text("image_url"),
-	category: text("category"),
 	enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -676,5 +686,51 @@ export const game = sqliteTable("game", {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+export const category = sqliteTable("category", {
+	id: text("id").primaryKey(),
+	name: text("name").notNull().unique(),
+	slug: text("slug").notNull().unique(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+});
+
+export const gameCategory = sqliteTable(
+	"game_category",
+	{
+		gameId: text("game_id")
+			.notNull()
+			.references(() => game.id, { onDelete: "cascade" }),
+		categoryId: text("category_id")
+			.notNull()
+			.references(() => category.id, { onDelete: "cascade" }),
+	},
+	(table) => ({
+		pk: index("game_category_game_id_category_id_idx").on(
+			table.gameId,
+			table.categoryId,
+		),
+	}),
+);
+
+export const gameRelations = relations(game, ({ many }) => ({
+	categories: many(gameCategory),
+}));
+
+export const categoryRelations = relations(category, ({ many }) => ({
+	games: many(gameCategory),
+}));
+
+export const gameCategoryRelations = relations(gameCategory, ({ one }) => ({
+	game: one(game, {
+		fields: [gameCategory.gameId],
+		references: [game.id],
+	}),
+	category: one(category, {
+		fields: [gameCategory.categoryId],
+		references: [category.id],
+	}),
+}));
 
 export * from "./schema/admin";

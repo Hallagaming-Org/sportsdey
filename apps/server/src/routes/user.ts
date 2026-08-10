@@ -1,16 +1,27 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import {
-	generateSessionToken,
-	getSessionToken,
-	validateAdminSession,
-} from "@/auth/admin";
+import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
+import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
-import { parseQueryDateRange } from "@/utils";
+import { parseQueryDateRange, toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
+
+function toIsoTimestamp(value: Date | string | number): string {
+	if (value instanceof Date) return value.toISOString();
+	return String(value);
+}
+
+const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
+	"sportsbook",
+	"thndr games",
+	"lagos rush",
+	"lucky games",
+	"hashcodex",
+	"slotegrator games",
+];
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -20,25 +31,47 @@ const UpdateUserSchema = z
 			description: "User's full name",
 			example: "John Doe",
 		}),
+		email: z.string().email().optional().openapi({
+			description: "User's email address",
+			example: "john@example.com",
+		}),
+		image: z.string().url().optional().openapi({
+			description: "Profile image URL",
+			example: "https://cdn.example.com/avatar.jpg",
+		}),
 		country: z.string().optional().openapi({
 			description: "User's country",
 			example: "Nigeria",
 		}),
-		mobileNumber: z
-			.string()
-			.regex(
-				/^(0|\+?234)[789][01]\d{8}$/,
-				"Invalid Nigerian phone number format",
-			)
-			.optional()
-			.openapi({
-				description: "User's mobile number",
-				example: "08012345678",
-			}),
+		mobileNumber: z.preprocess(
+			(value) => (value === "" || value === null ? undefined : value),
+			z
+				.string()
+				.regex(
+					/^(0|\+?234)[789][01]\d{8}$/,
+					"Invalid Nigerian phone number format",
+				)
+				.optional(),
+		).openapi({
+			description:
+				"User's mobile number. Omit or leave empty to keep the existing number.",
+			example: "08012345678",
+		}),
 	})
 	.openapi("UpdateUser");
 
-const UserResponseSchema = z
+const RecentSessionSchema = z
+	.object({
+		ipAddresses: z
+			.array(z.string())
+			.openapi({ description: "IP addresses from the last 3 active sessions" }),
+		devices: z.array(z.string()).openapi({
+			description: "Device/browser info from the last 3 active sessions",
+		}),
+	})
+	.openapi("RecentSession");
+
+const SelfUserResponseSchema = z
 	.object({
 		id: z.string().openapi({ description: "User ID" }),
 		name: z.string().openapi({ description: "User's name" }),
@@ -58,8 +91,12 @@ const UserResponseSchema = z
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
+		verificationStatus: z
+			.string()
+			.optional()
+			.openapi({ description: "Verification status" }),
 	})
-	.openapi("UserResponse");
+	.openapi("SelfUserResponse");
 
 const UpdateUserErrorSchema = z
 	.object({
@@ -72,9 +109,16 @@ const UpdateUserErrorSchema = z
 const UpdateUserResponseSchema = z
 	.object({
 		success: z.literal(true).openapi({ description: "Success status" }),
-		data: UserResponseSchema.openapi({ description: "User data" }),
+		data: SelfUserResponseSchema.openapi({ description: "User data" }),
 	})
 	.openapi("UpdateUserResponse");
+
+const AdminErrorSchema = z
+	.object({
+		success: z.literal(false),
+		error: z.string(),
+	})
+	.openapi("AdminError");
 
 const GetAllUsersQuerySchema = z
 	.object({
@@ -107,13 +151,10 @@ const GetAllUsersQuerySchema = z
 			.enum(["all", "recent", "pending"])
 			.optional()
 			.openapi({ description: "Filter by tab", example: "all" }),
-		search: z
-			.string()
-			.optional()
-			.openapi({
-				description: "Search users by name, email, or ID",
-				example: "john",
-			}),
+		search: z.string().optional().openapi({
+			description: "Search users by name, email, or ID",
+			example: "john",
+		}),
 		fromDate: z.string().optional().openapi({
 			description:
 				"Filter users registered on or after this date (ISO format: YYYY-MM-DD)",
@@ -136,6 +177,10 @@ const UserListItemSchema = z
 		status: z.string().openapi({ description: "Verification status" }),
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		registeredDate: z.string().openapi({ description: "Registration date" }),
+		registeredIpAddress: z
+			.string()
+			.nullable()
+			.openapi({ description: "Latest IP address from active session" }),
 	})
 	.openapi("UserListItem");
 
@@ -174,6 +219,14 @@ const getUserRoute = createRoute({
 		},
 		401: {
 			description: "Unauthorized - user not authenticated",
+			content: {
+				"application/json": {
+					schema: UpdateUserErrorSchema,
+				},
+			},
+		},
+		404: {
+			description: "User not found",
 			content: {
 				"application/json": {
 					schema: UpdateUserErrorSchema,
@@ -224,6 +277,14 @@ const updateUserRoute = createRoute({
 				},
 			},
 		},
+		404: {
+			description: "User not found",
+			content: {
+				"application/json": {
+					schema: UpdateUserErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -259,24 +320,22 @@ userRoute.openapi(getUserRoute, async (c) => {
 		);
 	}
 
-	const userResponse = {
-		id: existingUser.id,
-		name: existingUser.name,
-		email: existingUser.email,
-		emailVerified: existingUser.emailVerified,
-		image: existingUser.image,
-		country: existingUser.country,
-		mobileNumber: existingUser.mobileNumber,
-		suspended: existingUser.suspended,
-		createdAt: existingUser.createdAt,
-		updatedAt: existingUser.updatedAt,
-		verificationStatus: existingUser.verificationStatus,
-	};
-
 	return c.json(
 		{
 			success: true as const,
-			data: userResponse,
+			data: {
+				id: existingUser.id,
+				name: existingUser.name,
+				email: existingUser.email,
+				emailVerified: existingUser.emailVerified,
+				image: existingUser.image,
+				country: existingUser.country,
+				mobileNumber: existingUser.mobileNumber,
+				suspended: existingUser.suspended,
+				createdAt: toIsoTimestamp(existingUser.createdAt),
+				updatedAt: toIsoTimestamp(existingUser.updatedAt),
+				verificationStatus: existingUser.verificationStatus,
+			},
 		},
 		200,
 	);
@@ -295,28 +354,74 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const result = UpdateUserSchema.safeParse(await c.req.json());
-	if (!result.success) {
+	const { name, email, image, country, mobileNumber } = c.req.valid("json");
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select()
+		.from(schema.user)
+		.where(eq(schema.user.id, user.id))
+		.limit(1);
+
+	if (!existingUser) {
 		return c.json(
 			{
 				success: false as const,
-				error: "Invalid request",
+				error: "User not found",
 				details: null,
 			},
-			400,
+			404,
 		);
 	}
 
-	const { name, country, mobileNumber } = result.data;
-	const db = drizzle(c.env.DB, { schema });
+	const nextEmail = email?.trim().toLowerCase();
+	const updates: {
+		name: string;
+		country?: string | null;
+		mobileNumber?: string | null;
+		email?: string;
+		emailVerified?: boolean;
+		image?: string | null;
+	} = {
+		name,
+	};
+
+	// Partial update: never wipe country/mobile when the client omits them.
+	if (country !== undefined) {
+		updates.country = country.trim() ? country.trim() : null;
+	}
+	if (mobileNumber !== undefined && mobileNumber.trim() !== "") {
+		updates.mobileNumber = mobileNumber.trim();
+	}
+	if (image !== undefined) {
+		updates.image = image.trim() ? image.trim() : null;
+	}
+
+	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
+		const [emailTaken] = await db
+			.select({ id: schema.user.id })
+			.from(schema.user)
+			.where(eq(schema.user.email, nextEmail))
+			.limit(1);
+
+		if (emailTaken && emailTaken.id !== existingUser.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Email already in use",
+					details: null,
+				},
+				400,
+			);
+		}
+
+		updates.email = nextEmail;
+		updates.emailVerified = false;
+	}
 
 	const [updatedUser] = await db
 		.update(schema.user)
-		.set({
-			name,
-			country: country ?? null,
-			mobileNumber: mobileNumber ?? null,
-		})
+		.set(updates)
 		.where(eq(schema.user.id, user.id))
 		.returning();
 
@@ -331,23 +436,37 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const userResponse = {
-		id: updatedUser.id,
-		name: updatedUser.name,
-		email: updatedUser.email,
-		emailVerified: updatedUser.emailVerified,
-		image: updatedUser.image,
-		country: updatedUser.country,
-		mobileNumber: updatedUser.mobileNumber,
-		suspended: updatedUser.suspended,
-		createdAt: updatedUser.createdAt,
-		updatedAt: updatedUser.updatedAt,
-	};
+	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
+	const firstName = nameParts[0] || "";
+	const lastName = nameParts.slice(1).join(" ") || "";
+
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: updatedUser.id,
+			email: updatedUser.email ?? "",
+			firstName,
+			lastName,
+			phone: updatedUser.mobileNumber ?? undefined,
+		},
+		c.executionCtx,
+	);
 
 	return c.json(
 		{
 			success: true as const,
-			data: userResponse,
+			data: {
+				id: updatedUser.id,
+				name: updatedUser.name,
+				email: updatedUser.email,
+				emailVerified: updatedUser.emailVerified,
+				image: updatedUser.image,
+				country: updatedUser.country,
+				mobileNumber: updatedUser.mobileNumber,
+				suspended: updatedUser.suspended,
+				createdAt: toIsoTimestamp(updatedUser.createdAt),
+				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
+			},
 		},
 		200,
 	);
@@ -469,8 +588,6 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		toDate: c.req.query("toDate"),
 	});
 
-	const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
 	let baseQuery = db
 		.select({
 			id: schema.user.id,
@@ -480,6 +597,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 			status: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
 			registeredDate: schema.user.createdAt,
+			registeredIpAddress: schema.user.lastLoginIp,
 		})
 		.from(schema.user)
 		.leftJoin(schema.wallet, eq(schema.wallet.userId, schema.user.id));
@@ -487,11 +605,6 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	if (status && status !== "all") {
 		const statusCondition = and(eq(schema.user.verificationStatus, status));
 		baseQuery = baseQuery.where(statusCondition) as typeof baseQuery;
-	}
-
-	if (tab === "recent") {
-		const recentCondition = and(gte(schema.user.createdAt, sevenDaysAgo));
-		baseQuery = baseQuery.where(recentCondition) as typeof baseQuery;
 	}
 
 	if (tab === "pending") {
@@ -506,7 +619,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// filtering at the application layer.
 
 	const orderByClause =
-		sort === "desc" ? desc(schema.user.name) : asc(schema.user.name);
+		sort === "asc" ? asc(schema.user.createdAt) : desc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory
@@ -520,6 +633,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		status: u.status,
 		suspended: u.suspended,
 		registeredDate: u.registeredDate,
+		registeredIpAddress: u.registeredIpAddress ?? null,
 	}));
 
 	// apply search and date filters in memory
@@ -650,11 +764,21 @@ userRoute.openapi(
 					},
 				},
 			},
+			403: {
+				description: "Forbidden - admin only",
+				content: {
+					"application/json": {
+						schema: z.object({
+							success: z.literal(false),
+							error: z.string(),
+						}),
+					},
+				},
+			},
 		},
 	}),
 	async (c) => {
 		const token = getSessionToken(c.req.raw.headers);
-		console.log(token);
 		if (!token) {
 			return c.json({ success: false as const, error: "Unauthorized" }, 401);
 		}
@@ -667,15 +791,7 @@ userRoute.openapi(
 			);
 		}
 
-		const result = CreateUserSchema.safeParse(await c.req.json());
-		if (!result.success) {
-			return c.json(
-				{ success: false as const, error: "Invalid request body" },
-				400,
-			);
-		}
-
-		const { name, email, country, mobileNumber } = result.data;
+		const { name, email, country, mobileNumber } = c.req.valid("json");
 		const db = drizzle(c.env.DB, { schema });
 
 		const existingUser = await db
@@ -704,6 +820,13 @@ userRoute.openapi(
 			})
 			.returning();
 
+		if (!newUser) {
+			return c.json(
+				{ success: false as const, error: "Failed to create user" },
+				400,
+			);
+		}
+
 		return c.json(
 			{
 				success: true as const,
@@ -713,7 +836,10 @@ userRoute.openapi(
 					email: newUser.email,
 					emailVerified: newUser.emailVerified,
 					verificationStatus: newUser.verificationStatus,
-					createdAt: newUser.createdAt,
+					createdAt:
+						newUser.createdAt instanceof Date
+							? newUser.createdAt.getTime()
+							: Number(newUser.createdAt),
 				},
 			},
 			201,
@@ -749,6 +875,9 @@ const UserProfileResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "Last top-up date" }),
+		recentSessions: RecentSessionSchema.openapi({
+			description: "Last 3 active sessions with device and IP info",
+		}),
 	})
 	.openapi("UserProfile");
 
@@ -760,13 +889,6 @@ const GetUserProfileResponseSchema = z
 		}),
 	})
 	.openapi("GetUserProfileResponse");
-
-const ToggleSuspendedSchema = z.object({
-	userId: z.string().min(1).openapi({
-		description: "User ID to toggle suspension",
-		example: "user_123",
-	}),
-});
 
 const getUserProfileRoute = createRoute({
 	method: "get",
@@ -813,6 +935,17 @@ const getUserProfileRoute = createRoute({
 		},
 		404: {
 			description: "User not found",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		400: {
+			description: "Invalid request",
 			content: {
 				"application/json": {
 					schema: z.object({
@@ -915,6 +1048,30 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 		.orderBy(desc(schema.walletTransaction.createdAt))
 		.limit(1);
 
+	const recentSessionsRows = await db
+		.select({
+			ipAddress: schema.session.ipAddress,
+			device: schema.session.userAgent,
+		})
+		.from(schema.session)
+		.where(
+			and(
+				eq(schema.session.userId, userId),
+				gt(schema.session.expiresAt, new Date()),
+			),
+		)
+		.orderBy(desc(schema.session.createdAt))
+		.limit(3);
+
+	const recentSessions = {
+		ipAddresses: recentSessionsRows
+			.map((s) => s.ipAddress)
+			.filter(Boolean) as string[],
+		devices: recentSessionsRows
+			.map((s) => s.device)
+			.filter(Boolean) as string[],
+	};
+
 	return c.json(
 		{
 			success: true as const,
@@ -927,11 +1084,12 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 				country: existingUser.country,
 				verificationStatus: existingUser.verificationStatus,
 				suspended: existingUser.suspended,
-				createdAt: existingUser.createdAt.toISOString(),
+				createdAt: toWAT(existingUser.createdAt),
 				wallet: {
 					balance: (wallet?.balance ?? 0) / 100,
 				},
-				lastTopUp: lastTopUpTransaction?.createdAt?.toISOString() ?? null,
+				lastTopUp: toWAT(lastTopUpTransaction?.createdAt) ?? null,
+				recentSessions,
 			},
 		},
 		200,
@@ -1079,6 +1237,10 @@ userRoute.openapi(
 			.where(eq(schema.user.id, userId))
 			.returning();
 
+		if (!updatedUser) {
+			return c.json({ success: false as const, error: "User not found" }, 404);
+		}
+
 		return c.json(
 			{
 				success: true as const,
@@ -1091,8 +1253,6 @@ userRoute.openapi(
 		);
 	},
 );
-
-// ─── Wallet Overview ───────────────────────────────────────────────────────────
 
 const WalletOverviewResponseSchema = z
 	.object({
@@ -1126,25 +1286,56 @@ const getWalletOverviewRoute = createRoute({
 			description: "Wallet overview retrieved successfully",
 			content: { "application/json": { schema: WalletOverviewResponseSchema } },
 		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
 	},
 });
 
 userRoute.openapi(getWalletOverviewRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
-	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	if (!token)
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (!session)
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
 	if (session.role !== "super_admin" && session.role !== "admin") {
-		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
 	}
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
-		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
 	}
 
 	const userId = c.req.param("userId");
 	const { fromDate: fd, toDate: td } = c.req.valid("query");
-	const { fromDate, toDate } = parseQueryDateRange({ fromDate: fd, toDate: td });
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: fd,
+		toDate: td,
+	});
 
 	const db = drizzle(c.env.DB, { schema });
 
@@ -1160,12 +1351,20 @@ userRoute.openapi(getWalletOverviewRoute, async (c) => {
 		eq(schema.walletTransaction.userId, userId),
 		eq(schema.walletTransaction.type, "credit"),
 		eq(schema.walletTransaction.status, "success"),
+		notInArray(
+			schema.walletTransaction.paymentMethod,
+			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
+		),
 	];
-	if (fromDate) depositFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) depositFilters.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		depositFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		depositFilters.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [depositResult] = await db
-		.select({ total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)` })
+		.select({
+			total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
+		})
 		.from(schema.walletTransaction)
 		.where(and(...depositFilters));
 
@@ -1175,12 +1374,20 @@ userRoute.openapi(getWalletOverviewRoute, async (c) => {
 		eq(schema.walletTransaction.userId, userId),
 		eq(schema.walletTransaction.type, "debit"),
 		eq(schema.walletTransaction.status, "success"),
+		notInArray(
+			schema.walletTransaction.paymentMethod,
+			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
+		),
 	];
-	if (fromDate) withdrawalFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) withdrawalFilters.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		withdrawalFilters.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		withdrawalFilters.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [withdrawalResult] = await db
-		.select({ total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)` })
+		.select({
+			total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
+		})
 		.from(schema.walletTransaction)
 		.where(and(...withdrawalFilters));
 
@@ -1238,43 +1445,85 @@ const getWalletTransactionsRoute = createRoute({
 	responses: {
 		200: {
 			description: "Wallet transactions retrieved successfully",
-			content: { "application/json": { schema: WalletTransactionsResponseSchema } },
+			content: {
+				"application/json": { schema: WalletTransactionsResponseSchema },
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
 });
 
 userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
-	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	if (!token)
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (!session)
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
 	if (session.role !== "super_admin" && session.role !== "admin") {
-		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
 	}
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
-		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
 	}
 
 	const userId = c.req.param("userId");
 	const query = c.req.valid("query");
-	const page = Math.max(1, parseInt(query.page || "1", 10));
-	const limit = Math.min(100, Math.max(1, parseInt(query.limit || "10", 10)));
+	const page = Math.max(1, Number.parseInt(query.page || "1", 10));
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.parseInt(query.limit || "10", 10)),
+	);
 	const offset = (page - 1) * limit;
-	const { fromDate, toDate } = parseQueryDateRange({ fromDate: query.fromDate, toDate: query.toDate });
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: query.fromDate,
+		toDate: query.toDate,
+	});
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const filters = [eq(schema.walletTransaction.userId, userId)];
+	const filters = [
+		eq(schema.walletTransaction.userId, userId),
+		notInArray(
+			schema.walletTransaction.paymentMethod,
+			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
+		),
+	];
 	if (fromDate) filters.push(gte(schema.walletTransaction.createdAt, fromDate));
 	if (toDate) filters.push(lte(schema.walletTransaction.createdAt, toDate));
 
-	const [{ count }] = await db
+	const [countRow] = await db
 		.select({ count: sql<number>`COUNT(*)` })
 		.from(schema.walletTransaction)
 		.where(and(...filters));
 
-	const total = Number(count);
+	const total = Number(countRow?.count ?? 0);
 	const totalPages = Math.ceil(total / limit);
 
 	const rows = await db
@@ -1296,16 +1545,18 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const transactions = rows.map((row) => {
 		let displayType: string;
 		if (row.type === "credit") {
-			displayType = row.paymentMethod === "manual" ? "manual_credit" : "deposit";
+			displayType =
+				row.paymentMethod === "manual" ? "manual_credit" : "deposit";
 		} else {
-			displayType = row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
+			displayType =
+				row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
 		}
 		return {
 			id: row.id,
 			type: displayType,
 			amount: row.amount / 100,
 			referenceId: row.reference ?? "",
-			dateTime: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date(row.createdAt).toISOString(),
+			dateTime: toWAT(row.createdAt),
 			status: row.status,
 		};
 	});
@@ -1318,8 +1569,6 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		200,
 	);
 });
-
-// ─── Manual Credit/Debit ──────────────────────────────────────────────────────
 
 const ManualTransactionSchema = z
 	.object({
@@ -1356,22 +1605,60 @@ const postManualTransactionRoute = createRoute({
 	responses: {
 		200: {
 			description: "Manual transaction processed successfully",
-			content: { "application/json": { schema: ManualTransactionResponseSchema } },
+			content: {
+				"application/json": { schema: ManualTransactionResponseSchema },
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		404: {
+			description: "Not found",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		400: {
+			description: "Invalid request",
+			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
 });
 
 userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
-	if (!token) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	if (!token)
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session) return c.json({ success: false as const, error: "Forbidden - admin only" }, 403);
+	if (!session)
+		return c.json(
+			{ success: false as const, error: "Forbidden - admin only" },
+			403,
+		);
 	if (session.role !== "super_admin" && session.role !== "admin") {
-		return c.json({ success: false as const, error: "Forbidden - super admin or admin only" }, 403);
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+			},
+			403,
+		);
 	}
-	if (session.role !== "super_admin" && !requirePermission(session, "view_player_details")) {
-		return c.json({ success: false as const, error: "Forbidden - view_player_details permission required" }, 403);
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "manual_credit_debit")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+			},
+			403,
+		);
 	}
 
 	const userId = c.req.param("userId");
@@ -1405,7 +1692,10 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 			: walletRow.balance - amountInKobo;
 
 	if (body.type === "debit" && newBalance < 0) {
-		return c.json({ success: false as const, error: "Insufficient balance" }, 400);
+		return c.json(
+			{ success: false as const, error: "Insufficient balance" },
+			400,
+		);
 	}
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
@@ -1421,7 +1711,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 		balance: newBalance,
 		metadata: JSON.stringify({
 			reason: body.reason,
-			processedBy: session.id,
+			processedBy: session.adminId,
 			description: `Manual ${body.type} - ${body.reason}`,
 		}),
 		createdAt: new Date(),

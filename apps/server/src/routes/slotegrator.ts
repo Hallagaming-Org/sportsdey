@@ -354,6 +354,7 @@ slotegratorRoute.post("/", async (c) => {
 		const transactionId = params.get("transaction_id") || "";
 		const sessionId = params.get("session_id") || "";
 		const type = params.get("type") || "bet";
+		const round_id = params.get("round_id");
 
 		if (
 			!playerId ||
@@ -480,9 +481,12 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
+				balanceBefore: wallet.balance,
+				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,
 				sessionId,
+				roundId: round_id,
 			})
 			.returning();
 
@@ -509,6 +513,7 @@ slotegratorRoute.post("/", async (c) => {
 		const transactionId = params.get("transaction_id") || "";
 		const sessionId = params.get("session_id") || "";
 		const type = params.get("type") || "win";
+		const round_id = params.get("round_id");
 
 		if (!playerId || isNaN(amount) || !transactionId || !sessionId) {
 			return c.json(
@@ -608,9 +613,12 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
+				balanceBefore: currentBalance,
+				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,
 				sessionId,
+				roundId: round_id,
 			})
 			.returning();
 
@@ -638,6 +646,7 @@ slotegratorRoute.post("/", async (c) => {
 		const sessionId = params.get("session_id") || "";
 		const betTransactionId = params.get("bet_transaction_id") || "";
 		const type = params.get("type") || "refund";
+		const round_id = params.get("round_id");
 
 		console.log("REFUND");
 
@@ -713,6 +722,12 @@ slotegratorRoute.post("/", async (c) => {
 		if (!originalBet || originalBet.type !== "bet") {
 			const txId = crypto.randomUUID();
 			const amountInKobo = Math.round(amount * 100);
+			const [walletForRefund] = await db
+				.select()
+				.from(schema.wallet)
+				.where(eq(schema.wallet.userId, playerId))
+				.limit(1);
+			const refundWalletBalance = walletForRefund?.balance ?? 0;
 
 			const [refundTxn] = await db
 				.insert(schema.slotitegrationTransactions)
@@ -722,9 +737,12 @@ slotegratorRoute.post("/", async (c) => {
 					userId: playerId,
 					type: type,
 					amount: amountInKobo,
+					balanceBefore: refundWalletBalance,
+					balanceAfter: refundWalletBalance,
 					currency,
 					gameId: gameUuid,
 					sessionId,
+					roundId: round_id,
 				})
 				.returning();
 
@@ -737,12 +755,7 @@ slotegratorRoute.post("/", async (c) => {
 					200,
 				);
 			}
-			const [wallet] = await db
-				.select()
-				.from(schema.wallet)
-				.where(eq(schema.wallet.userId, playerId))
-				.limit(1);
-			const balance = (wallet?.balance ?? 0) / 100;
+			const balance = refundWalletBalance / 100;
 			return c.json({ balance, transaction_id: txId }, 200);
 		}
 
@@ -813,10 +826,13 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
+				balanceBefore: currentBalance,
+				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,
 				sessionId,
 				originalTransactionId: betTransactionId,
+				roundId: round_id,
 			})
 			.returning();
 
@@ -840,6 +856,7 @@ slotegratorRoute.post("/", async (c) => {
 		const gameUuid = params.get("game_uuid") || "";
 		const transactionId = params.get("transaction_id") || "";
 		const sessionId = params.get("session_id") || "";
+		const roundId = params.get("round_id");
 
 		console.log("ROLLBACK");
 		console.log("all params entries:", [...params.entries()]);
@@ -1004,9 +1021,12 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: "rollback",
 				amount: 0,
+				balanceBefore: wallet.balance,
+				balanceAfter: currentBalance,
 				currency,
 				gameId: gameUuid,
 				sessionId,
+				roundId,
 			})
 			.returning();
 

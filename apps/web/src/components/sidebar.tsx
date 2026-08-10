@@ -1,18 +1,28 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { Gamepad2, Gift, Home, Newspaper, Trophy, ChevronDown } from "lucide-react";
+import {
+	ChevronDown,
+	Gamepad2,
+	Gift,
+	Home,
+	Newspaper,
+	Trophy,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { SPORTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
+import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
+import ScoresIcon from "@/logos/scores.svg?react";
 import Video from "@/logos/Video";
 import { useActiveTab } from "./active-tab-context";
-import PVPIcon from "@/logos/PVPIcon";
+
 
 type MenuItem = {
 	id: string;
@@ -21,7 +31,12 @@ type MenuItem = {
 	isActive: boolean;
 	onClick?: () => void;
 	disabled?: boolean;
-	subItems?: { id: string; label: string; onClick: () => void; isActive: boolean }[];
+	subItems?: {
+		id: string;
+		label: string;
+		onClick: () => void;
+		isActive: boolean;
+	}[];
 };
 
 type SidebarProps = {
@@ -39,7 +54,9 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
-	const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+	const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
+		{},
+	);
 
 	useEffect(() => {
 		setActiveOverride(null);
@@ -53,6 +70,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToHome = () => {
 		setTab("scores");
+		trackWebengageEvent("Category", { Name: "Home" });
 		const target =
 			currentSport === SPORTS.TENNIS
 				? "/tennis"
@@ -71,6 +89,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToScores = () => {
 		setTab("match-scores");
+		trackWebengageEvent("Category", { Name: "Scores" });
 		const targetSport = currentSport || "football";
 		navigate({
 			to:
@@ -85,11 +104,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToCasino = () => {
 		setTab("games");
+		trackWebengageEvent("Category", { Name: "Casino" });
 		navigate({ to: "/games", search: { category: undefined } });
 	};
 
 	const goToSportsbook = () => {
 		setTab("betting");
+		trackWebengageEvent("Category", { Name: "Sportsbook" });
 		navigate({
 			to: "/sportsbetting",
 			search: { sports: currentSport } as any,
@@ -98,6 +119,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToNews = () => {
 		setTab("news");
+		trackWebengageEvent("Category", { Name: "News" });
 		navigate({
 			to: "/news",
 			search: { sports: currentSport || SPORTS.FOOTBALL },
@@ -114,6 +136,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const goToVideos = () => {
 		setTab("videos");
+		trackWebengageEvent("Category", { Name: "Videos" });
 		navigate({
 			to: "/videos",
 			search: { sports: currentSport || SPORTS.FOOTBALL },
@@ -154,18 +177,25 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToHome,
 		},
 		{
-			id: isMobile ? "scores" : "betting",
-			label: isMobile ? "Scores" : "Sports Betting",
-			icon: isMobile ? Soccer : SportsIcon,
+			id: "betting",
+			label: "Sports",
+			icon: SportsIcon,
 			isActive: isItemActive(
-				isMobile ? "scores" : "betting",
-				isMobile
-					? location.pathname.includes("/matches")
-					: location.pathname.startsWith("/sportsbetting"),
+				"betting",
+				location.pathname.startsWith("/sportsbetting"),
 			),
-			onClick: isMobile ? goToScores : goToSportsbook,
+			onClick: goToSportsbook,
 		},
-
+		{
+			id: "scores",
+			label: "Scores",
+			icon: ScoresIcon,
+			isActive: isItemActive(
+				"scores",
+				location.pathname.includes("matches"),
+			),
+			onClick: goToScores,
+		},
 		{
 			id: "casino",
 			label: "Casino",
@@ -173,32 +203,42 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive(
 				"casino",
 				(location.pathname.startsWith("/games") ||
-					location.pathname.startsWith("/game/")) && params.get("category") !== "pvp",
+					location.pathname.startsWith("/game/")) &&
+					params.get("category") !== "pvp",
 			),
 			onClick: goToCasino,
 		},
 		{
 			id: "p2p",
 			label: "PvP",
-			icon: ({ className }: { className?: string }) => <PVPIcon className={className} height={24} width={24} />,
-			isActive: isItemActive("p2p", location.pathname.startsWith("/games") && params.get("category") === "pvp") || expandedItems["p2p"],
+			icon: (className?: string) => (
+				<PVPIcon className={className} height={24} width={24} />
+			),
+			isActive: isItemActive(
+				"p2p",
+				location.pathname.startsWith("/games") &&
+					params.get("category") === "pvp",
+			),
 			subItems: [
 				{
 					id: "pvp-casino",
 					label: "PvP Games",
-					isActive: location.pathname.startsWith("/games") && params.get("category") === "pvp",
+					isActive:
+						location.pathname.startsWith("/games") &&
+						params.get("category") === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({ to: "/games", search: { category: "pvp" } });
-					}
+					},
 				},
 				{
 					id: "pvp-esports",
 					label: "Esports Tournaments",
 					isActive: false,
-					onClick: () => window.open("https://tournaments.sportsdey.com/", "_blank"),
-				}
-			]
+					onClick: () =>
+						window.open("https://tournaments.sportsdey.com/", "_blank"),
+				},
+			],
 		},
 		{
 			id: "news",
@@ -269,9 +309,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "promotions",
 			label: "Promotions",
 			icon: Gift,
-			isActive: isItemActive("promotions", location.pathname.startsWith("/promotions")),
+			isActive: isItemActive(
+				"promotions",
+				location.pathname.startsWith("/promotions"),
+			),
 			onClick: () => {
 				setTab("promotions");
+				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
 			},
 		},
@@ -293,16 +337,16 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					"_blank",
 				),
 		},
-	];
+	]
 
-	return (
+return (
 		<div className="w-full space-y-6">
 			{/* Menu list */}
 			<div
 				className={cn(
 					"w-full transition-colors",
 					!isMobile &&
-					"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
+						"rounded-2xl border border-[#F1F2F4] bg-white p-3 shadow-sm dark:border-[#2F3033] dark:bg-[#1C1D1F]",
 				)}
 			>
 				<nav
@@ -318,7 +362,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 								<button
 									onClick={() => {
 										if (item.subItems) {
-											setExpandedItems(prev => ({ ...prev, [item.id]: !prev[item.id] }));
+											setExpandedItems((prev) => ({
+												...prev,
+												[item.id]: !prev[item.id],
+											}));
 										} else {
 											item.onClick?.();
 											onItemClick?.();
@@ -330,40 +377,49 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 										"flex w-full cursor-pointer items-center justify-between text-left font-semibold text-sm transition-all",
 										isMobile ? "px-2 py-4" : "rounded-xl px-4 py-3",
 										isMobile &&
-										!isLast &&
-										"border-b border-gray-300 dark:border-[#2F3033]",
+											!isLast &&
+											"border-b border-gray-300 dark:border-[#2F3033]",
 										!isMobile &&
-										item.isActive &&
-										"bg-accent text-white shadow-md shadow-accent/15",
+											item.isActive &&
+											"bg-accent text-white shadow-md shadow-accent/15",
 										!isMobile &&
-										!item.isActive &&
-										"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
+											!item.isActive &&
+											"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
 										isMobile && item.isActive && "text-accent",
 										isMobile &&
-										!item.isActive &&
-										"text-gray-900 dark:text-[#8C8F8F]",
+											!item.isActive &&
+											"text-gray-900 dark:text-[#8C8F8F]",
 										item.disabled &&
-										"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
+											"cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent",
 									)}
 								>
 									<div className="flex items-center gap-3">
 										<Icon
 											className={cn(
-												"h-4 w-4 shrink-0",
+												"h-4 w-4 shrink-0 transition-all",
+												!isMobile &&
+													item.isActive &&
+													"text-white fill-white stroke-white [filter:brightness(0)_invert(1)] opacity-100",
+												isMobile && item.isActive && "text-accent fill-accent stroke-accent opacity-100",
 												isMobile &&
-												!item.isActive &&
-												"text-gray-500 dark:text-[#8C8F8F]",
+													!item.isActive &&
+													"text-gray-500 dark:text-[#8C8F8F]",
 											)}
 										/>
 										<span>{item.label}</span>
 									</div>
 									{item.subItems && (
-										<ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
+										<ChevronDown
+											className={cn(
+												"w-4 h-4 transition-transform",
+												isExpanded && "rotate-180",
+											)}
+										/>
 									)}
 								</button>
 								{item.subItems && isExpanded && (
 									<div className="flex flex-col gap-1 pl-11 pr-4 py-2">
-										{item.subItems.map(sub => (
+										{item.subItems.map((sub) => (
 											<button
 												key={sub.id}
 												onClick={() => {
@@ -374,7 +430,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 													"text-left text-sm py-2 px-3 rounded-lg transition-colors",
 													sub.isActive
 														? "text-accent font-semibold bg-accent/10"
-														: "text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-card/45"
+														: "text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-card/45",
 												)}
 											>
 												{sub.label}
@@ -429,6 +485,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			</div>*/}
 		</div>
 	);
-};
+}
 
 export default Sidebar;

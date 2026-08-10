@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { VideosTab } from "@/components/basketball-section/VideosTab";
 import { FootballMatchInfo } from "@/components/football-match-info";
 import FootballStandingsTab from "@/components/football-section/FootballStandingsTab";
@@ -11,6 +11,7 @@ import { TopScorers } from "@/components/top-scorers";
 import { useFootballMatchInfo } from "@/hooks/use-footmatch-info";
 import { useFavorites } from "@/hooks/useFavorites";
 import { apiRequest } from "@/lib/api";
+import { trackWebengageEvent } from "@/lib/webengage";
 import DetailsImageCard from "@/shared/DetailsImageCard";
 import ImportantUpdate from "@/shared/ImportantUpdate";
 import type {
@@ -30,6 +31,7 @@ function RouteComponent() {
 	const [statsEnabled, setStatsEnabled] = useState(false);
 	const { gameId } = Route.useParams();
 	const { data: gameInfo, isLoading } = useFootballMatchInfo(gameId, "en");
+	const matchTrackedRef = useRef(false);
 	const {
 		isFavoriteTeam,
 		toggleFavoriteTeam,
@@ -68,6 +70,23 @@ function RouteComponent() {
 			setStatsEnabled(true);
 		}
 	}, [tab]);
+
+	useEffect(() => {
+		if (gameInfo && !matchTrackedRef.current) {
+			matchTrackedRef.current = true;
+			trackWebengageEvent("Match viewed", {
+				match_id: gameId,
+				sport: "football",
+				league: gameInfo.competition?.name || "",
+				teams: `${gameInfo.competitors?.home?.name || ""} vs ${gameInfo.competitors?.away?.name || ""}`,
+				timings: gameInfo.match_info?.date_time || "",
+				match_status: matchStatus || "",
+				match_score: `${gameInfo.competitors?.home?.score || ""} - ${gameInfo.competitors?.away?.score || ""}`,
+				match_time: gameInfo.clock || "",
+				referrer: "",
+			});
+		}
+	}, [gameInfo, gameId, matchStatus]);
 
 	useEffect(() => {
 		if (matchStatus === "SCH" && gameInfo?.match_info.date_time) {

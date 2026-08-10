@@ -21,12 +21,14 @@ import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
+import { Route as GeneralBettingRulesRouteImport } from './routes/general-betting-rules'
 import { Route as GamesRouteImport } from './routes/games'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as FaqsRouteImport } from './routes/faqs'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as BoxingRouteImport } from './routes/boxing'
 import { Route as BettingRouteImport } from './routes/betting'
+import { Route as BetHistoryRouteImport } from './routes/bet-history'
 import { Route as BasketballRouteImport } from './routes/basketball'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AboutRouteImport } from './routes/about'
@@ -60,6 +62,7 @@ import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthPhoneSignInRouteImport } from './routes/auth/phone-sign-in'
 import { Route as AuthOtpRouteImport } from './routes/auth/otp'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth/complete-profile'
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthLayoutRouteImport } from './routes/auth/_layout'
 import { Route as TennisTournamentTournamentIdRouteImport } from './routes/tennis.tournament.$tournamentId'
 import { Route as NewsSlugOgRouteImport } from './routes/news.$slug.og'
@@ -126,6 +129,11 @@ const KycRoute = KycRouteImport.update({
   path: '/kyc',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GeneralBettingRulesRoute = GeneralBettingRulesRouteImport.update({
+  id: '/general-betting-rules',
+  path: '/general-betting-rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GamesRoute = GamesRouteImport.update({
   id: '/games',
   path: '/games',
@@ -154,6 +162,11 @@ const BoxingRoute = BoxingRouteImport.update({
 const BettingRoute = BettingRouteImport.update({
   id: '/betting',
   path: '/betting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BetHistoryRoute = BetHistoryRouteImport.update({
+  id: '/bet-history',
+  path: '/bet-history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BasketballRoute = BasketballRouteImport.update({
@@ -321,6 +334,11 @@ const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
   path: '/auth/complete-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthLayoutRoute = AuthLayoutRouteImport.update({
   id: '/auth/_layout',
   path: '/auth',
@@ -355,12 +373,14 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
   '/basketball': typeof BasketballRouteWithChildren
+  '/bet-history': typeof BetHistoryRoute
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/notifications': typeof NotificationsRouteWithChildren
@@ -374,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
@@ -412,11 +433,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
+  '/bet-history': typeof BetHistoryRoute
   '/betting': typeof BettingRoute
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/receipt-preview': typeof ReceiptPreviewRoute
   '/sportsbetting': typeof SportsbettingRouteWithChildren
@@ -424,6 +447,7 @@ export interface FileRoutesByTo {
   '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth': typeof AuthLayoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
@@ -464,12 +488,14 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
   '/basketball': typeof BasketballRouteWithChildren
+  '/bet-history': typeof BetHistoryRoute
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
   '/games': typeof GamesRoute
+  '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
   '/news': typeof NewsRouteWithChildren
   '/notifications': typeof NotificationsRouteWithChildren
@@ -483,6 +509,7 @@ export interface FileRoutesById {
   '/wallet': typeof WalletRouteWithChildren
   '/wallet-transaction-status': typeof WalletTransactionStatusRoute
   '/auth/_layout': typeof AuthLayoutRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
@@ -524,12 +551,14 @@ export interface FileRouteTypes {
     | '/about'
     | '/account'
     | '/basketball'
+    | '/bet-history'
     | '/betting'
     | '/boxing'
     | '/faq'
     | '/faqs'
     | '/favorites'
     | '/games'
+    | '/general-betting-rules'
     | '/kyc'
     | '/news'
     | '/notifications'
@@ -543,6 +572,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth'
+    | '/auth/callback'
     | '/auth/complete-profile'
     | '/auth/otp'
     | '/auth/phone-sign-in'
@@ -581,11 +611,13 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/account'
+    | '/bet-history'
     | '/betting'
     | '/faq'
     | '/faqs'
     | '/favorites'
     | '/games'
+    | '/general-betting-rules'
     | '/privacy-policy'
     | '/receipt-preview'
     | '/sportsbetting'
@@ -593,6 +625,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth'
+    | '/auth/callback'
     | '/auth/complete-profile'
     | '/auth/otp'
     | '/auth/phone-sign-in'
@@ -632,12 +665,14 @@ export interface FileRouteTypes {
     | '/about'
     | '/account'
     | '/basketball'
+    | '/bet-history'
     | '/betting'
     | '/boxing'
     | '/faq'
     | '/faqs'
     | '/favorites'
     | '/games'
+    | '/general-betting-rules'
     | '/kyc'
     | '/news'
     | '/notifications'
@@ -651,6 +686,7 @@ export interface FileRouteTypes {
     | '/wallet'
     | '/wallet-transaction-status'
     | '/auth/_layout'
+    | '/auth/callback'
     | '/auth/complete-profile'
     | '/auth/otp'
     | '/auth/phone-sign-in'
@@ -691,12 +727,14 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   AccountRoute: typeof AccountRoute
   BasketballRoute: typeof BasketballRouteWithChildren
+  BetHistoryRoute: typeof BetHistoryRoute
   BettingRoute: typeof BettingRoute
   BoxingRoute: typeof BoxingRouteWithChildren
   FaqRoute: typeof FaqRoute
   FaqsRoute: typeof FaqsRoute
   FavoritesRoute: typeof FavoritesRoute
   GamesRoute: typeof GamesRoute
+  GeneralBettingRulesRoute: typeof GeneralBettingRulesRoute
   KycRoute: typeof KycRouteWithChildren
   NewsRoute: typeof NewsRouteWithChildren
   NotificationsRoute: typeof NotificationsRouteWithChildren
@@ -710,6 +748,7 @@ export interface RootRouteChildren {
   WalletRoute: typeof WalletRouteWithChildren
   WalletTransactionStatusRoute: typeof WalletTransactionStatusRoute
   AuthLayoutRoute: typeof AuthLayoutRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
   AuthOtpRoute: typeof AuthOtpRoute
   AuthPhoneSignInRoute: typeof AuthPhoneSignInRoute
@@ -811,6 +850,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KycRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/general-betting-rules': {
+      id: '/general-betting-rules'
+      path: '/general-betting-rules'
+      fullPath: '/general-betting-rules'
+      preLoaderRoute: typeof GeneralBettingRulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/games': {
       id: '/games'
       path: '/games'
@@ -851,6 +897,13 @@ declare module '@tanstack/react-router' {
       path: '/betting'
       fullPath: '/betting'
       preLoaderRoute: typeof BettingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bet-history': {
+      id: '/bet-history'
+      path: '/bet-history'
+      fullPath: '/bet-history'
+      preLoaderRoute: typeof BetHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/basketball': {
@@ -1084,6 +1137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCompleteProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/_layout': {
       id: '/auth/_layout'
       path: '/auth'
@@ -1267,12 +1327,14 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   AccountRoute: AccountRoute,
   BasketballRoute: BasketballRouteWithChildren,
+  BetHistoryRoute: BetHistoryRoute,
   BettingRoute: BettingRoute,
   BoxingRoute: BoxingRouteWithChildren,
   FaqRoute: FaqRoute,
   FaqsRoute: FaqsRoute,
   FavoritesRoute: FavoritesRoute,
   GamesRoute: GamesRoute,
+  GeneralBettingRulesRoute: GeneralBettingRulesRoute,
   KycRoute: KycRouteWithChildren,
   NewsRoute: NewsRouteWithChildren,
   NotificationsRoute: NotificationsRouteWithChildren,
@@ -1286,6 +1348,7 @@ const rootRouteChildren: RootRouteChildren = {
   WalletRoute: WalletRouteWithChildren,
   WalletTransactionStatusRoute: WalletTransactionStatusRoute,
   AuthLayoutRoute: AuthLayoutRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
   AuthOtpRoute: AuthOtpRoute,
   AuthPhoneSignInRoute: AuthPhoneSignInRoute,

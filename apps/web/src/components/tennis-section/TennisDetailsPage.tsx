@@ -2,10 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ErrorState } from "@/components/ErrorState";
 import { useApiError } from "@/hooks/useApiError";
 import { apiRequest } from "@/lib/api";
+import { trackWebengageEvent } from "@/lib/webengage";
 import DetailsImageCard from "@/shared/DetailsImageCard";
 import type { TennisMatchInfoData } from "@/types/api";
 import { getTimeUntilStart, safeParseDate } from "@/utils/timeUtils";
@@ -16,6 +17,7 @@ const TennisDetailsPage = () => {
 	const search = useSearch({ from: "/tennis/$Id" });
 	const [activeTab, setActiveTab] = useState("info");
 	const [countdown, setCountdown] = useState<string>("");
+	const matchTrackedRef = useRef(false);
 
 	const { data, isLoading, error, isError, refetch } = useQuery({
 		queryKey: ["tennis", "match", Id],
@@ -23,6 +25,26 @@ const TennisDetailsPage = () => {
 	});
 
 	const { isNetworkError } = useApiError({ error, isError, refetch });
+
+	useEffect(() => {
+		if (data && !matchTrackedRef.current) {
+			matchTrackedRef.current = true;
+			let status = "upcoming";
+			if (data.status === "inprogress") status = "live";
+			else if (data.status === "closed") status = "finished";
+			trackWebengageEvent("Match viewed", {
+				match_id: Id,
+				sport: "tennis",
+				league: data.competition?.name || "",
+				teams: `${data.home?.name || ""} vs ${data.away?.name || ""}`,
+				timings: data.start_time || "",
+				match_status: status,
+				match_score: "",
+				match_time: "",
+				referrer: "",
+			});
+		}
+	}, [data, Id]);
 
 	useEffect(() => {
 		if (data?.status === "scheduled" && data.start_time) {

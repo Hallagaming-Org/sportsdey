@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
+import { Phone } from "lucide-react";
 
 export const Route = createFileRoute("/auth/sign-in")({
 	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
@@ -12,24 +13,19 @@ export const Route = createFileRoute("/auth/sign-in")({
 });
 
 export default function SignInPage() {
-	const navigate = useNavigate();
 	const { returnTo } = Route.useSearch();
-	
-	const baseCallbackURL = import.meta.env.DEV
-		? "http://localhost:3001"
-		: import.meta.env.VITE_PUBLIC_URL ||
-			(typeof window !== "undefined"
-				? window.location.origin
-				: "https://sportsdey.com");
-	
-	const callbackURL = returnTo 
-		? `${baseCallbackURL}${returnTo}` 
-		: baseCallbackURL;
+	const navigate = useNavigate();
+
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
+	const webURL = import.meta.env.VITE_PUBLIC_URL;
+	const callbackURL = returnTo
+		? `${webURL}auth/callback?returnTo=${encodeURIComponent(returnTo)}`
+		: `${webURL}auth/callback`;
+
 	const handleSocialSignIn = async (
-		provider: "google" | "facebook",
+		provider: "google" | "apple" | "facebook",
 	) => {
 		setIsLoading(true);
 		setError("");
@@ -52,7 +48,7 @@ export default function SignInPage() {
 					<h1 className="mb-2 font-bold text-2xl text-gray-900">
 						Log in to your account
 					</h1>
-					<p className="text-gray-500">It&apos;s fun, easy, and enjoyable.</p>
+					<p className="text-[#0a0f0d] text-base font-medium">It&apos;s quick, easy, and enjoyable.</p>
 				</div>
 
 				{error && (
@@ -62,6 +58,16 @@ export default function SignInPage() {
 				)}
 
 				<div className="space-y-3">
+					<button
+						type="button"
+						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
+					>
+						<Phone className="h-5 w-5 text-gray-700" />
+						<span className="font-medium text-gray-700">
+							Sign in with phone number
+						</span>
+					</button>
 					<button
 						onClick={() => handleSocialSignIn("google")}
 						disabled={isLoading}
@@ -90,9 +96,20 @@ export default function SignInPage() {
 						</span>
 					</button>
 
+					<button
+						onClick={() => handleSocialSignIn("apple")}
+						disabled={isLoading}
+						className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
+					>
+						<svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+							<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+						</svg>
+						<span className="font-medium text-gray-700">
+							Continue with Apple
+						</span>
+					</button>
 
-
-					{/*<button
+					<button
 						onClick={() => handleSocialSignIn("facebook")}
 						disabled={isLoading}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -103,16 +120,16 @@ export default function SignInPage() {
 						<span className="font-medium text-gray-700">
 							Continue with Facebook
 						</span>
-					</button>*/}
+					</button>
 				</div>
 
-				<p className="mt-6 text-center text-gray-500 text-sm">
-					By continuing, you acknowledge that you understand and accept out{" "}
-					<Link to="/terms" className="font-medium text-accent">
+				<p className="mt-6 text-center font-inter text-sm text-gray-400">
+					By continuing, you confirm that you are 18 years or older, understand and agree to our{" "}
+					<Link to="/terms" className="font-medium italic text-accent underline">
 						Terms &amp; Conditions
 					</Link>{" "}
 					and{" "}
-					<Link to="/privacy-policy" className="font-medium text-accent">
+					<Link to="/privacy-policy" className="font-medium italic text-accent underline">
 						Privacy policy
 					</Link>
 					.

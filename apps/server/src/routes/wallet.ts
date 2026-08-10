@@ -1,8 +1,12 @@
-import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import crypto from "node:crypto";
-import { and, desc, eq, gte, lt, lte, inArray } from "drizzle-orm";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { and, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import {
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
 import {
 	CallbackQuerySchema,
 	CreateWithdrawalAccountErrorSchema,
@@ -32,6 +36,7 @@ import {
 	WithdrawErrorSchema,
 	WithdrawSchema,
 } from "@/schemas/wallet";
+import { toWAT } from "@/utils";
 import {
 	getNigerianBanks,
 	initializeTransaction,
@@ -615,79 +620,74 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		currentBalance = existingWallet.balance;
 	}
 
-	try{
-		const callbackUrl = `${c.env.SERVER_URL}/wallet/callback`;
-		const paystackResult = await initializeTransaction(
-			c.env.PAYSTACK_SECRET_KEY,
-			amount,
-			user.email,
-			{
-				userId: user.id,
-				type: "wallet_funding",
-			},
-			callbackUrl,
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
-		console.log("paystackResult", paystackResult);
+	const callbackUrl = `${c.env.SERVER_URL}/wallet/callback`;
+	const paystackResult = await initializeTransaction(
+		c.env.PAYSTACK_SECRET_KEY,
+		amount,
+		user.email,
+		{
+			userId: user.id,
+			type: "wallet_funding",
+		},
+		callbackUrl,
+		c.env.PROXY_URL,
+		c.env.PROXY_SECRET,
+	);
+	console.log("paystackResult", paystackResult);
 
-		const [creditTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: transactionId,
-				userId: user.id,
-				amount: amount * 100,
-				type: "credit",
-				reference: paystackResult.reference,
-				status: "pending",
-				paymentMethod: "card",
-				balance: currentBalance,
-				createdAt: new Date(),
-				metadata: JSON.stringify({
-					source: "card",
-					paystackReference: paystackResult.reference,
-					ipAddress,
-					device,
-					location,
-					transactionChannel,
-					description: "Deposit to main Wallet",
-					provider: "Paystack",
-					fees: 0,
-				}),
-			})
-			.returning();
+	const [creditTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: transactionId,
+			userId: user.id,
+			amount: amount * 100,
+			type: "credit",
+			reference: paystackResult.reference,
+			status: "pending",
+			paymentMethod: "card",
+			balance: currentBalance,
+			createdAt: new Date(),
+			metadata: JSON.stringify({
+				source: "card",
+				paystackReference: paystackResult.reference,
+				ipAddress,
+				device,
+				location,
+				transactionChannel,
+				description: "Deposit to main Wallet",
+				provider: "Paystack",
+				fees: 0,
+			}),
+		})
+		.returning();
 
-		if (!creditTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record deposit transaction" },
-				500,
-			);
-		}
-
+	if (!creditTxn?.id) {
 		return c.json(
-			{
-				success: true as const,
-				data: {
-					authorizationUrl: paystackResult.authorizationUrl,
-					reference: paystackResult.reference,
-					balance: currentBalance + amount * 100,
-				},
-			},
-			200,
-		);
-	} catch (error) {
-		console.log("fund error message", error instanceof Error ? error.message : error);
-		console.log("fund error cause", error instanceof Error && 'cause' in error ? error.cause : "N/A");
-		return c.json(
-			{
-				success: false as const,
-				error:
-						 "Failed to initialize payment",
-				details: null,
-			},
+			{ success: false, error: "Failed to record deposit transaction" },
 			500,
 		);
 	}
+
+	// trackWebengageEvent(c.env, {
+	// 	userId: user.id,
+	// 	eventName: "deposit_initiated",
+	// 	eventData: {
+	// 		amount,
+	// 		currency: "NGN",
+	// 	},
+	// }, c.executionCtx);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				authorizationUrl: paystackResult.authorizationUrl,
+				reference: paystackResult.reference,
+				balance: currentBalance + amount * 100,
+			},
+		},
+		200,
+	);
 });
 
 walletRoute.openapi(getWalletRoute, async (c) => {
@@ -724,8 +724,8 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 		const walletResponse = {
 			id: newWallet.id,
 			balance: newWallet.balance / 100,
-			createdAt: newWallet.createdAt,
-			updatedAt: newWallet.updatedAt,
+			createdAt: toWAT(newWallet.createdAt),
+			updatedAt: toWAT(newWallet.updatedAt),
 		};
 
 		return c.json(
@@ -740,8 +740,8 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 	const walletResponse = {
 		id: wallet.id,
 		balance: wallet.balance / 100,
-		createdAt: wallet.createdAt,
-		updatedAt: wallet.updatedAt,
+		createdAt: toWAT(wallet.createdAt),
+		updatedAt: toWAT(wallet.updatedAt),
 	};
 
 	return c.json(
@@ -768,16 +768,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 	const query = c.req.valid("query");
-	const filters = [
-		eq(schema.walletTransaction.userId, user.id),
-		inArray(schema.walletTransaction.paymentMethod, [
-			"card",
-			"paystack",
-			"bank transfer",
-			"bank_transfer",
-			"wallet_transfer",
-		]),
-	];
+	const filters = [eq(schema.walletTransaction.userId, user.id)];
 
 	if (query.month) {
 		const [yearString, monthString] = query.month.split("-");
@@ -818,6 +809,7 @@ walletRoute.openapi(getTransactionsRoute, async (c) => {
 		...tx,
 		amount: (tx.amount ?? 0) / 100,
 		balance: (tx.balance ?? 0) / 100,
+		createdAt: toWAT(tx.createdAt),
 		...(tx.paymentMethod !== "wallet_transfer" && {
 			recipientWalletId: undefined,
 			recipientName: undefined,
@@ -847,33 +839,22 @@ walletRoute.openapi(getBanksRoute, async (c) => {
 		);
 	}
 
-	try {
-		const banks = await getNigerianBanks(
-			c.env.PAYSTACK_SECRET_KEY,
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
-		const normalizedBanks = banks
-			.map((bank) => ({ name: bank.name, code: bank.code }))
-			.sort((a, b) => a.name.localeCompare(b.name));
+	const banks = await getNigerianBanks(
+		c.env.PAYSTACK_SECRET_KEY,
+		c.env.PROXY_URL,
+		c.env.PROXY_SECRET,
+	);
+	const normalizedBanks = banks
+		.map((bank) => ({ name: bank.name, code: bank.code }))
+		.sort((a, b) => a.name.localeCompare(b.name));
 
-		return c.json(
-			{
-				success: true as const,
-				data: normalizedBanks,
-			},
-			200,
-		);
-	} catch (error) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Failed to fetch banks",
-				details: null,
-			},
-			500,
-		);
-	}
+	return c.json(
+		{
+			success: true as const,
+			data: normalizedBanks,
+		},
+		200,
+	);
 });
 
 walletRoute.openapi(callbackRoute, async (c) => {
@@ -895,13 +876,14 @@ walletRoute.openapi(callbackRoute, async (c) => {
 			txType = transaction.type === "credit" ? "deposit" : "withdrawal";
 		}
 
-		try {
-			const tx = await verifyTransaction(
-				c.env.PAYSTACK_SECRET_KEY,
-				reference,
-				c.env.PROXY_URL,
-				c.env.PROXY_SECRET,
-			);
+		const tx = await verifyTransaction(
+			c.env.PAYSTACK_SECRET_KEY,
+			reference,
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
+		).catch(() => null);
+
+		if (tx) {
 			const txStatus = tx.status.toLowerCase();
 			status =
 				txStatus === "success"
@@ -912,7 +894,23 @@ walletRoute.openapi(callbackRoute, async (c) => {
 
 			const paymentMethod = tx.channel === "card" ? "card" : "bank_transfer";
 
-				if (status === "success") {
+			if (status === "failed" && transaction) {
+				trackWebengageEvent(
+					c.env,
+					{
+						userId: transaction.userId,
+						eventName: "deposit_failed",
+						eventData: {
+							amount: (tx.amount ?? transaction.amount) / 100,
+							payment_method: paymentMethod,
+							failure_reason: tx.gateway_response || "Payment failed",
+						},
+					},
+					c.executionCtx,
+				);
+			}
+
+			if (status === "success") {
 				if (transaction && transaction.status !== "success") {
 					const [wallet] = await db
 						.select()
@@ -935,10 +933,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							.where(eq(schema.wallet.userId, transaction.userId));
 					}
 
-					let existingMeta: Record<string, unknown> = {};
-					try {
-						existingMeta = JSON.parse(transaction.metadata || "{}");
-					} catch { /* empty */ }
+					let existingMeta: Record<string, unknown> = JSON.parse(transaction.metadata || "{}");
 
 					const auth = tx.authorization;
 					if (transaction.type === "credit") {
@@ -961,10 +956,45 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							metadata: JSON.stringify(existingMeta),
 						})
 						.where(eq(schema.walletTransaction.reference, reference));
+
+					const userEmail = transaction.userId;
+					const userRecord = await db
+						.select({ email: schema.user.email, name: schema.user.name })
+						.from(schema.user)
+						.where(eq(schema.user.id, transaction.userId))
+						.limit(1)
+						.then((r) => r[0]);
+
+					trackWebengageEvent(
+						c.env,
+						{
+							userId: transaction.userId,
+							eventName: "deposit_completed",
+							eventData: {
+								amount: (tx.amount ?? transaction.amount) / 100,
+								currency: "NGN",
+								payment_method: paymentMethod,
+								transaction_id: reference,
+								type: "credit",
+								wallet_balance_after: newBalance / 100,
+							},
+						},
+						c.executionCtx,
+					);
+
+					setWebengageUserAttributes(
+						c.env,
+						{
+							userId: transaction.userId,
+							email: userRecord?.email,
+							firstName: userRecord?.name?.split(" ")[0],
+							lastName: userRecord?.name?.split(" ").slice(1).join(" "),
+							wallet_balance: newBalance / 100,
+						},
+						c.executionCtx,
+					);
 				}
 			}
-		} catch {
-			status = "pending";
 		}
 	}
 
@@ -1295,78 +1325,66 @@ walletRoute.openapi(createWithdrawalAccountRoute, async (c) => {
 	const db = drizzle(c.env.DB, { schema });
 	const { bankCode, accountNumber, accountName } = result.data;
 
-	try {
-		const verification = await verifyAccountNumber(
-			c.env.PAYSTACK_SECRET_KEY,
-			accountNumber,
-			bankCode,
-			c.env.PROXY_URL,
-			c.env.PROXY_SECRET,
-		);
+	const verification = await verifyAccountNumber(
+		c.env.PAYSTACK_SECRET_KEY,
+		accountNumber,
+		bankCode,
+		c.env.PROXY_URL,
+		c.env.PROXY_SECRET,
+	);
 
-		if (!verification.isValid) {
-			return c.json(
-				{
-					success: false as const,
-					error: "Invalid account number or bank code",
-					details: null,
-				},
-				400,
-			);
-		}
-
-		const normalizedInput = accountName.toLowerCase().trim();
-		const normalizedPaystack = verification.accountName.toLowerCase().trim();
-
-		if (normalizedInput !== normalizedPaystack) {
-			return c.json(
-				{
-					success: false as const,
-					error: "Account holder name does not match bank records",
-					details: null,
-				},
-				400,
-			);
-		}
-
-		const [account] = await db
-			.insert(schema.withdrawalAccount)
-			.values({
-				id: `wda_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: user.id,
-				bankCode,
-				bankName: result.data.bankName || "",
-				accountNumber,
-				accountName: verification.accountName,
-			})
-			.returning();
-
-		return c.json(
-			{
-				success: true as const,
-				data: {
-					id: account.id,
-					bankCode: account.bankCode,
-					bankName: account.bankName,
-					accountNumber: account.accountNumber,
-					accountName: account.accountName,
-					createdAt: account.createdAt,
-					updatedAt: account.updatedAt,
-				},
-			},
-			201,
-		);
-	} catch (error) {
+	if (!verification.isValid) {
 		return c.json(
 			{
 				success: false as const,
-				error:
-					error instanceof Error ? error.message : "Failed to verify account",
+				error: "Invalid account number or bank code",
 				details: null,
 			},
 			400,
 		);
 	}
+
+	const normalizedInput = accountName.toLowerCase().trim();
+	const normalizedPaystack = verification.accountName.toLowerCase().trim();
+
+	if (normalizedInput !== normalizedPaystack) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Account holder name does not match bank records",
+				details: null,
+			},
+			400,
+		);
+	}
+
+	const [account] = await db
+		.insert(schema.withdrawalAccount)
+		.values({
+			id: `wda_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: user.id,
+			bankCode,
+			bankName: result.data.bankName || "",
+			accountNumber,
+			accountName: verification.accountName,
+		})
+		.returning();
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				id: account.id,
+				bankCode: account.bankCode,
+				bankName: account.bankName,
+				accountNumber: account.accountNumber,
+				accountName: account.accountName,
+				createdAt: toWAT(account.createdAt),
+				updatedAt: toWAT(account.updatedAt),
+			},
+		},
+		201,
+	);
 });
 
 walletRoute.openapi(getWithdrawalAccountsRoute, async (c) => {
@@ -1399,8 +1417,8 @@ walletRoute.openapi(getWithdrawalAccountsRoute, async (c) => {
 				bankName: account.bankName,
 				accountNumber: account.accountNumber,
 				accountName: account.accountName,
-				createdAt: account.createdAt,
-				updatedAt: account.updatedAt,
+				createdAt: toWAT(account.createdAt),
+				updatedAt: toWAT(account.updatedAt),
 			})),
 		},
 		200,
@@ -1449,8 +1467,8 @@ walletRoute.openapi(getWithdrawalAccountRoute, async (c) => {
 				bankName: account.bankName,
 				accountNumber: account.accountNumber,
 				accountName: account.accountName,
-				createdAt: account.createdAt,
-				updatedAt: account.updatedAt,
+				createdAt: toWAT(account.createdAt),
+				updatedAt: toWAT(account.updatedAt),
 			},
 		},
 		200,
@@ -1574,91 +1592,93 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 	const reference = `wd_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	try {
-		const amountInKobo = amount * 100;
-		const newBalance = wallet.balance - amountInKobo;
+	const amountInKobo = amount * 100;
+	const newBalance = wallet.balance - amountInKobo;
 
-		const [withdrawalTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: txnId,
-				userId: user.id,
-				amount: amountInKobo,
-				type: "debit",
-				reference,
-				status: "pending_approval",
-				paymentMethod: "paystack",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					destinationBank: accountName,
-					bankCode,
-					accountNumber,
-					accountName,
-					balanceBefore: wallet.balance / 100,
-					ipAddress,
-					device,
-					location,
-					transactionChannel,
-					feesAmount: 0,
-				}),
-			})
-			.returning();
+	const [withdrawalTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: txnId,
+			userId: user.id,
+			amount: amountInKobo,
+			type: "debit",
+			reference,
+			status: "pending_approval",
+			paymentMethod: "paystack",
+			balance: newBalance,
+			metadata: JSON.stringify({
+				destinationBank: accountName,
+				bankCode,
+				accountNumber,
+				accountName,
+				balanceBefore: wallet.balance / 100,
+				ipAddress,
+				device,
+				location,
+				transactionChannel,
+				feesAmount: 0,
+			}),
+		})
+		.returning();
 
-		if (!withdrawalTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record withdrawal request" },
-				500,
-			);
-		}
-
-		await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, user.id));
-
-		const superAdmins = await db
-			.select({ id: schema.admin.id })
-			.from(schema.admin)
-			.where(eq(schema.admin.role, "super_admin"));
-
-		if (superAdmins.length > 0) {
-			await db.insert(schema.adminNotification).values(
-				superAdmins.map((sa) => ({
-					id: `an_${crypto.randomUUID()}`,
-					adminId: sa.id,
-					title: "New Withdrawal Request",
-					message: `${user.name || user.email} requested a withdrawal of ₦${amount}`,
-					type: "withdrawal_request",
-					referenceId: txnId,
-				})),
-			);
-		}
-
+	if (!withdrawalTxn?.id) {
 		return c.json(
-			{
-				success: true as const,
-				data: {
-					reference,
-					amount,
-					status: "pending_approval",
-					balance: newBalance / 100,
-				},
-			},
-			200,
-		);
-	} catch (error) {
-		return c.json(
-			{
-				success: false as const,
-				error:
-					error instanceof Error
-						? error.message
-						: "Failed to process withdrawal",
-				details: null,
-			},
-			400,
+			{ success: false, error: "Failed to record withdrawal request" },
+			500,
 		);
 	}
+
+	await db
+		.update(schema.wallet)
+		.set({ balance: newBalance })
+		.where(eq(schema.wallet.userId, user.id));
+
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "withdrawal_requested",
+			eventData: {
+				amount,
+				bank: bankCode,
+				wallet_balance_before: wallet.balance / 100,
+				"account number": accountNumber,
+				"account name": accountName ?? "",
+			},
+		},
+		c.executionCtx,
+	);
+
+	const superAdmins = await db
+		.select({ id: schema.admin.id })
+		.from(schema.admin)
+		.where(eq(schema.admin.role, "super_admin"));
+
+	if (superAdmins.length > 0) {
+		await db.insert(schema.adminNotification).values(
+			superAdmins.map((sa) => ({
+				id: `an_${crypto.randomUUID()}`,
+				adminId: sa.id,
+				title: "New Withdrawal Request",
+				message: `${user.name || user.email} requested a withdrawal of ₦${amount}`,
+				type: "withdrawal_request",
+				referenceId: txnId,
+			})),
+		);
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				reference,
+				amount,
+				status: "pending_approval",
+				balance: newBalance / 100,
+			},
+		},
+		200,
+	);
 });
 
 walletRoute.openapi(transferRoute, async (c) => {
@@ -1764,102 +1784,105 @@ walletRoute.openapi(transferRoute, async (c) => {
 
 	const reference = `trf_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	try {
-		await db
-			.update(schema.wallet)
-			.set({
-				balance: senderWallet.balance - amount * 100,
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.wallet.id, senderWallet.id));
+	await db
+		.update(schema.wallet)
+		.set({
+			balance: senderWallet.balance - amount * 100,
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.wallet.id, senderWallet.id));
 
-		await db
-			.update(schema.wallet)
-			.set({
-				balance: recipientWallet.balance + amount * 100,
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.wallet.id, recipientWallet.id));
+	await db
+		.update(schema.wallet)
+		.set({
+			balance: recipientWallet.balance + amount * 100,
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.wallet.id, recipientWallet.id));
 
-		const [senderTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: generateUUIDv7(),
-				userId: user.id,
-				amount: -amount * 100,
-				type: "debit",
-				reference: `${reference}_sender`,
-				status: "completed",
-				paymentMethod: "wallet_transfer",
-				balance: senderWallet.balance - amount * 100,
-				recipientWalletId,
+	const [senderTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: generateUUIDv7(),
+			userId: user.id,
+			amount: amount * 100,
+			type: "debit",
+			reference: `${reference}_sender`,
+			status: "completed",
+			paymentMethod: "wallet_transfer",
+			balance: senderWallet.balance - amount * 100,
+			recipientWalletId,
+			recipientName,
+			metadata: JSON.stringify({
+				transferType: "outgoing",
 				recipientName,
-				metadata: JSON.stringify({
-					transferType: "outgoing",
-					recipientName,
-					recipientWalletId,
-				}),
-			})
-			.returning();
-
-		if (!senderTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record sender transaction" },
-				500,
-			);
-		}
-
-		const [recipientTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: generateUUIDv7(),
-				userId: recipientWallet.userId,
-				amount: amount * 100,
-				type: "credit",
-				reference: `${reference}_recipient`,
-				status: "completed",
-				paymentMethod: "wallet_transfer",
-				balance: recipientWallet.balance + amount * 100,
 				recipientWalletId,
-				recipientName,
-				metadata: JSON.stringify({
-					transferType: "incoming",
-					senderName: user.name || "Unknown",
-					senderWalletId: senderWallet.id,
-				}),
-			})
-			.returning();
+			}),
+		})
+		.returning();
 
-		if (!recipientTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record recipient transaction" },
-				500,
-			);
-		}
-
+	if (!senderTxn?.id) {
 		return c.json(
-			{
-				success: true as const,
-				data: {
-					transactionId: reference,
-					amount,
-					recipientWalletId,
-					recipientName,
-				},
-			},
-			200,
-		);
-	} catch (error) {
-		return c.json(
-			{
-				success: false as const,
-				error:
-					error instanceof Error ? error.message : "Failed to process transfer",
-				details: null,
-			},
-			400,
+			{ success: false, error: "Failed to record sender transaction" },
+			500,
 		);
 	}
+
+	const [recipientTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: generateUUIDv7(),
+			userId: recipientWallet.userId,
+			amount: amount * 100,
+			type: "credit",
+			reference: `${reference}_recipient`,
+			status: "completed",
+			paymentMethod: "wallet_transfer",
+			balance: recipientWallet.balance + amount * 100,
+			recipientWalletId,
+			recipientName,
+			metadata: JSON.stringify({
+				transferType: "incoming",
+				senderName: user.name || "Unknown",
+				senderWalletId: senderWallet.id,
+			}),
+		})
+		.returning();
+
+	if (!recipientTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record recipient transaction" },
+			500,
+		);
+	}
+
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds completed",
+			eventData: {
+				"wallet id": recipientWalletId,
+				amount,
+				transaction_id: reference,
+				wallet_balance_after: senderWallet.balance / 100 - amount,
+			},
+		},
+		c.executionCtx,
+	);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				transactionId: reference,
+				amount,
+				recipientWalletId,
+				recipientName,
+			},
+		},
+		200,
+	);
 });
 
 walletRoute.openapi(getGameWalletRoute, async (c) => {
@@ -1896,8 +1919,8 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 		const walletResponse = {
 			id: newGameWallet.id,
 			balance: newGameWallet.balance,
-			createdAt: newGameWallet.createdAt,
-			updatedAt: newGameWallet.updatedAt,
+			createdAt: toWAT(newGameWallet.createdAt),
+			updatedAt: toWAT(newGameWallet.updatedAt),
 		};
 
 		return c.json(
@@ -1912,8 +1935,8 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 	const walletResponse = {
 		id: gameWallet.id,
 		balance: gameWallet.balance / 100,
-		createdAt: gameWallet.createdAt,
-		updatedAt: gameWallet.updatedAt,
+		createdAt: toWAT(gameWallet.createdAt),
+		updatedAt: toWAT(gameWallet.updatedAt),
 	};
 
 	return c.json(
@@ -2006,105 +2029,119 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 
 	const reference = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	try {
-		await db
-			.update(schema.wallet)
-			.set({
-				balance: normalWallet.balance - amount * 100,
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.wallet.id, normalWallet.id));
-
-		await db
-			.update(schema.gameWallet)
-			.set({
-				balance: gameWallet.balance + amount * 100,
-				updatedAt: new Date(),
-			})
-			.where(eq(schema.gameWallet.id, gameWallet.id));
-
-		const [normalTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: generateUUIDv7(),
-				userId: user.id,
-				amount: -amount * 100,
-				type: "debit",
-				reference: `${reference}_normal`,
-				status: "completed",
-				paymentMethod: "wallet_transfer",
-				balance: normalWallet.balance - amount * 100,
-				metadata: JSON.stringify({
-					transferType: "to_game_wallet",
-					gameWalletId: gameWallet.id,
-				}),
-			})
-			.returning();
-
-		if (!normalTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record normal wallet transaction" },
-				500,
-			);
-		}
-
-		const [gameTxn] = await db
-			.insert(schema.gameWalletTransaction)
-			.values({
-				id: generateUUIDv7(),
-				userId: user.id,
-				amount: amount * 100,
-				type: "credit",
-				reference: `${reference}_game`,
-				status: "completed",
-			})
-			.returning();
-
-		if (!gameTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record game wallet transaction" },
-				500,
-			);
-		}
-
-		const [updatedNormalWallet] = await db
-			.select()
-			.from(schema.wallet)
-			.where(eq(schema.wallet.id, normalWallet.id))
-			.limit(1);
-
-		const [updatedGameWallet] = await db
-			.select()
-			.from(schema.gameWallet)
-			.where(eq(schema.gameWallet.id, gameWallet.id))
-			.limit(1);
-
-		return c.json(
-			{
-				success: true as const,
-				data: {
-					transactionId: reference,
-					amount,
-					gameWalletId: gameWallet.id,
-					normalWalletBalance: (updatedNormalWallet?.balance ?? 0) / 100,
-					gameWalletBalance: (updatedGameWallet?.balance ?? amount * 100) / 100,
-				},
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds initated",
+			eventData: {
+				"wallet id": "game_wallet",
+				amount,
 			},
-			200,
-		);
-	} catch (error) {
+		},
+		c.executionCtx,
+	);
+
+	await db
+		.update(schema.wallet)
+		.set({
+			balance: normalWallet.balance - amount * 100,
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.wallet.id, normalWallet.id));
+
+	await db
+		.update(schema.gameWallet)
+		.set({
+			balance: gameWallet.balance + amount * 100,
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.gameWallet.id, gameWallet.id));
+
+	const [normalTxn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: generateUUIDv7(),
+			userId: user.id,
+			amount: amount * 100,
+			type: "debit",
+			reference: `${reference}_normal`,
+			status: "completed",
+			paymentMethod: "wallet_transfer",
+			balance: normalWallet.balance - amount * 100,
+			metadata: JSON.stringify({
+				transferType: "to_game_wallet",
+				gameWalletId: gameWallet.id,
+			}),
+		})
+		.returning();
+
+	if (!normalTxn?.id) {
 		return c.json(
-			{
-				success: false as const,
-				error:
-					error instanceof Error
-						? error.message
-						: "Failed to transfer to game wallet",
-				details: null,
-			},
-			400,
+			{ success: false, error: "Failed to record normal wallet transaction" },
+			500,
 		);
 	}
+
+	const [gameTxn] = await db
+		.insert(schema.gameWalletTransaction)
+		.values({
+			id: generateUUIDv7(),
+			userId: user.id,
+			amount: amount * 100,
+			type: "credit",
+			reference: `${reference}_game`,
+			status: "completed",
+		})
+		.returning();
+
+	if (!gameTxn?.id) {
+		return c.json(
+			{ success: false, error: "Failed to record game wallet transaction" },
+			500,
+		);
+	}
+
+	const [updatedNormalWallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.id, normalWallet.id))
+		.limit(1);
+
+	const [updatedGameWallet] = await db
+		.select()
+		.from(schema.gameWallet)
+		.where(eq(schema.gameWallet.id, gameWallet.id))
+		.limit(1);
+
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds completed",
+			eventData: {
+				"wallet id": "game_wallet",
+				amount,
+				transaction_id: reference,
+				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+			},
+		},
+		c.executionCtx,
+	);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				transactionId: reference,
+				amount,
+				gameWalletId: gameWallet.id,
+				normalWalletBalance: (updatedNormalWallet?.balance ?? 0) / 100,
+				gameWalletBalance: (updatedGameWallet?.balance ?? amount * 100) / 100,
+			},
+		},
+		200,
+	);
 });
 
 export default walletRoute;

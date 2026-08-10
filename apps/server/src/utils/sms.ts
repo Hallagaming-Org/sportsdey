@@ -15,25 +15,17 @@ export async function sendSms(opts: {
 		message: opts.message,
 	};
 
-	try {
-		const res = await fetch(url, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${token}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify(payload),
-		});
+	const res = await fetch(url, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(payload),
+	});
 
-		let body = null;
-		try {
-			body = await res.json();
-		} catch (e) {
-			body = null;
-		}
+	let body = null;
+	body = await res.json();
 
-		return { ok: res.ok, status: res.status, body };
-	} catch (error: any) {
-		return { ok: false, error: error?.message || String(error) };
-	}
+	return { ok: res.ok, status: res.status, body };
 }

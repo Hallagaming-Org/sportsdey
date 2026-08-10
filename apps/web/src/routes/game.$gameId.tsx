@@ -5,10 +5,14 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/game/$gameId")({
 	component: GamePage,
+	validateSearch: (search: Record<string, unknown>): { category?: string } => ({
+		category: (search.category as string) || undefined,
+	}),
 });
 
 function GamePage() {
 	const { gameId } = Route.useParams();
+	const { category } = Route.useSearch();
 	const location = useLocation();
 	const gameUrl = (location.state as { gameUrl?: string })?.gameUrl;
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
@@ -36,7 +40,7 @@ function GamePage() {
 		<div className="relative h-full w-full flex flex-col">
 			<div className="bg-[#121212] flex items-center px-4 py-3 shrink-0">
 				<button 
-					onClick={() => router.history.back()}
+					onClick={() => router.navigate({ to: "/games", search: { category } })}
 					className="flex items-center gap-2 text-white hover:text-[#1BAA04] transition-colors cursor-pointer font-medium"
 				>
 					<ArrowLeft className="h-5 w-5" />

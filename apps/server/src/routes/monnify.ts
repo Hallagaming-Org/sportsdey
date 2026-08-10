@@ -452,11 +452,11 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 	const upperProductCode = productCode.toUpperCase();
 	const serviceCategory = upperProductCode.includes("AIRTIME")
 		? "airtime"
-		: upperProductCode.includes("DATA")
+		: upperProductCode.includes("DATA_BUNDLE")
 			? "data"
 			: upperProductCode.includes("ELECTRICITY")
 				? "electricity"
-				: upperProductCode.includes("TV")
+				: upperProductCode.includes("CABLE_TV")
 					? "cable_tv"
 					: "data";
 

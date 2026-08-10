@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 export interface FavoriteTeam {
 	id: string; // Unique identifier (name if id is missing, or specific id)
@@ -107,9 +108,27 @@ export const useFavorites = () => {
 		if (exists) {
 			newFavorites = favoriteMatches.filter((m) => m.id !== match.id);
 			toast.info("Removed match from favorites");
+			trackWebengageEvent("Match Removed from Favourite", {
+				match_id: match.id,
+				sport: match.sport,
+				league: match.tournament || "",
+				teams: `${match.team1} vs ${match.team2}`,
+				timings: match.date || "",
+				match_status: "",
+				referrer: "",
+			});
 		} else {
 			newFavorites = [...favoriteMatches, match];
 			toast.success("Added match to favorites");
+			trackWebengageEvent("Match Added to Favourite", {
+				match_id: match.id,
+				sport: match.sport,
+				league: match.tournament || "",
+				teams: `${match.team1} vs ${match.team2}`,
+				timings: match.date || "",
+				match_status: "",
+				referrer: "",
+			});
 		}
 		setFavoriteMatches(newFavorites);
 		setStorageItem("favorite_matches", newFavorites);

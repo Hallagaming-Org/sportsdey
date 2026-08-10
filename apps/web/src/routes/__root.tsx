@@ -21,7 +21,9 @@ import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
+
 import { cn } from "@/lib/utils";
 import { store } from "@/store";
 import Header from "../components/header";
@@ -82,12 +84,13 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
-	
+	const { data: session } = useSession();
+
 	useEffect(() => {
-		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+		window.scrollTo(0, 0);
 		const mains = document.querySelectorAll("main");
 		mains.forEach((main) => {
-			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+			main.scrollTo(0, 0);
 		});
 	}, [location.pathname]);
 
@@ -132,12 +135,14 @@ function RootDocument() {
 		"/about",
 		"/privacy-policy",
 		"/terms",
+		"/general-betting-rules",
 		"/kyc",
 		"/kyc/",
 		"/kyc/verify",
 		"/promotions",
 		"/promotions/",
 		"/promotions/$id",
+		"/bet-history",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
 

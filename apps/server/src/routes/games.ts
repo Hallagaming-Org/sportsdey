@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
+import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const gamesRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -24,11 +25,10 @@ const CreateGameSchema = z
 			.nullable()
 			.optional()
 			.openapi({ description: "Image URL (optional)" }),
-		category: z
-			.string()
-			.nullable()
+		categoryIds: z
+			.array(z.string())
 			.optional()
-			.openapi({ description: "Game category" }),
+			.openapi({ description: "Category IDs to assign" }),
 		enabled: z
 			.boolean()
 			.optional()
@@ -63,7 +63,15 @@ const GameResponseSchema = z
 		name: z.string().openapi({ description: "Game name" }),
 		code: z.string().openapi({ description: "Game code" }),
 		imageUrl: z.string().nullable().openapi({ description: "Image URL" }),
-		category: z.string().nullable().openapi({ description: "Game category" }),
+		categories: z
+			.array(
+				z.object({
+					id: z.string(),
+					name: z.string(),
+					slug: z.string(),
+				}),
+			)
+			.openapi({ description: "Game categories" }),
 		enabled: z.boolean().openapi({ description: "Enabled status" }),
 		createdAt: z.number().openapi({ description: "Created at timestamp" }),
 		updatedAt: z.number().openapi({ description: "Updated at timestamp" }),
@@ -79,15 +87,25 @@ const GameListQuerySchema = z
 		category: z
 			.string()
 			.optional()
-			.openapi({ description: "Filter by game category" }),
-		offset: z
-			.coerce.number()
+			.openapi({ description: "Filter by game category slug" }),
+		search: z
+			.string()
+			.optional()
+			.openapi({ description: "Search games by name" }),
+		sort: z
+			.enum(["asc", "desc"])
+			.optional()
+			.openapi({
+				description: "Sort order (default: Aviator-first then alphabetical)",
+			}),
+		offset: z.coerce
+			.number()
 			.int()
 			.min(0)
 			.optional()
 			.openapi({ description: "Offset for pagination" }),
-		limit: z
-			.coerce.number()
+		limit: z.coerce
+			.number()
 			.int()
 			.min(1)
 			.max(100)
@@ -118,20 +136,45 @@ gamesRoute.openapi(
 		tags: ["Games"],
 	}),
 	async (c) => {
-		const { category, offset, limit } = c.req.valid("query");
 		const db = drizzle(c.env.DB, { schema });
-		let query: any = db.select().from(schema.game).orderBy(schema.game.name);
-		if (category) {
-			query = query.where(eq(schema.game.category, category));
-		}
-		if (offset !== undefined) {
-			query = query.offset(offset);
-		}
-		if (limit !== undefined) {
-			query = query.limit(limit);
-		}
-		const games = await query;
-		return c.json({ success: true as const, data: games }, 200);
+
+		const games = await db.query.game.findMany({
+			with: {
+				categories: {
+					with: {
+						category: true,
+					},
+				},
+			},
+		});
+
+		return c.json(
+			{
+				success: true as const,
+				data: games.map((g) => ({
+					id: g.id,
+					name: g.name,
+					code: g.code,
+					imageUrl: g.imageUrl,
+					enabled: g.enabled,
+					createdAt: toWAT(g.createdAt),
+					updatedAt: toWAT(g.updatedAt),
+					categories: [
+						...new Map(
+							g.categories.map((gc) => [
+								gc.category.slug,
+								{
+									id: gc.category.id,
+									name: gc.category.name,
+									slug: gc.category.slug,
+								},
+							]),
+						).values(),
+					],
+				})),
+			},
+			200,
+		);
 	},
 );
 
@@ -180,7 +223,31 @@ gamesRoute.openapi(
 			);
 		}
 
-		return c.json({ success: true as const, data: game }, 200);
+		const categories = await db
+			.select({
+				id: schema.category.id,
+				name: schema.category.name,
+				slug: schema.category.slug,
+			})
+			.from(schema.gameCategory)
+			.innerJoin(
+				schema.category,
+				eq(schema.gameCategory.categoryId, schema.category.id),
+			)
+			.where(eq(schema.gameCategory.gameId, game.id));
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					...game,
+					categories: [...new Map(categories.map((c) => [c.slug, c])).values()],
+					createdAt: toWAT(game.createdAt),
+					updatedAt: toWAT(game.updatedAt),
+				},
+			},
+			200,
+		);
 	},
 );
 
@@ -266,7 +333,6 @@ gamesRoute.openapi(
 			name: game.name,
 			code: game.code,
 			imageUrl: game.imageUrl ?? null,
-			category: game.category ?? null,
 			enabled: game.enabled ?? true,
 			createdAt: now,
 			updatedAt: now,
@@ -284,7 +350,67 @@ gamesRoute.openapi(
 			);
 		}
 
-		return c.json({ success: true as const, data: inserted }, 201);
+		const gameCategoryValues: { gameId: string; categoryId: string }[] = [];
+		for (let i = 0; i < inserted.length; i++) {
+			const categoryIds = result.data[i]?.categoryIds;
+			if (categoryIds) {
+				for (const catId of categoryIds) {
+					gameCategoryValues.push({
+						gameId: inserted[i].id,
+						categoryId: catId,
+					});
+				}
+			}
+		}
+		if (gameCategoryValues.length > 0) {
+			await db
+				.insert(schema.gameCategory)
+				.values(gameCategoryValues)
+				.onConflictDoNothing();
+		}
+
+		const ids = inserted.map((g) => g.id);
+		const categoryMap: Record<
+			string,
+			{ id: string; name: string; slug: string }[]
+		> = {};
+		if (ids.length > 0) {
+			const gameCategories = await db
+				.select({
+					gameId: schema.gameCategory.gameId,
+					id: schema.category.id,
+					name: schema.category.name,
+					slug: schema.category.slug,
+				})
+				.from(schema.gameCategory)
+				.innerJoin(
+					schema.category,
+					eq(schema.gameCategory.categoryId, schema.category.id),
+				)
+				.where(inArray(schema.gameCategory.gameId, ids));
+
+			for (const gc of gameCategories) {
+				if (!categoryMap[gc.gameId]) categoryMap[gc.gameId] = [];
+				categoryMap[gc.gameId].push({
+					id: gc.id,
+					name: gc.name,
+					slug: gc.slug,
+				});
+			}
+		}
+
+		return c.json(
+			{
+				success: true as const,
+				data: inserted.map((g) => ({
+					...g,
+					categories: categoryMap[g.id] ?? [],
+					createdAt: toWAT(g.createdAt),
+					updatedAt: toWAT(g.updatedAt),
+				})),
+			},
+			201,
+		);
 	},
 );
 
@@ -379,20 +505,56 @@ gamesRoute.openapi(
 			.where(eq(schema.game.id, id))
 			.get();
 
-		if (!existing.length) {
+		if (!existing) {
 			return c.json(
 				{ success: false as const, error: "Game not found", details: null },
 				404,
 			);
 		}
 
+		const { categoryIds, ...updateFields } = result.data;
 		const [updated] = await db
 			.update(schema.game)
-			.set({ ...result.data, updatedAt: new Date() })
+			.set({ ...updateFields, updatedAt: new Date() })
 			.where(eq(schema.game.id, id))
 			.returning();
 
-		return c.json({ success: true as const, data: updated }, 200);
+		if (categoryIds) {
+			await db
+				.delete(schema.gameCategory)
+				.where(eq(schema.gameCategory.gameId, id));
+			await db
+				.insert(schema.gameCategory)
+				.values(
+					categoryIds.map((catId) => ({ gameId: id, categoryId: catId })),
+				);
+		}
+
+		const categories = await db
+			.select({
+				id: schema.category.id,
+				name: schema.category.name,
+				slug: schema.category.slug,
+			})
+			.from(schema.gameCategory)
+			.innerJoin(
+				schema.category,
+				eq(schema.gameCategory.categoryId, schema.category.id),
+			)
+			.where(eq(schema.gameCategory.gameId, id));
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					...updated,
+					categories,
+					createdAt: toWAT(updated.createdAt),
+					updatedAt: toWAT(updated.updatedAt),
+				},
+			},
+			200,
+		);
 	},
 );
 

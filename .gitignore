@@ -11,6 +11,8 @@ build
 # Environment variables
 .env
 .env*.local
+.env.production
+!.env.example
 
 # IDEs and editors
 .vscode/*
@@ -53,3 +55,13 @@ match.json
 nul
 
 prompt.md
+
+
+*/notes
+.notes
+notes
+
+.agents
+.agents/*
+skills-lock.json
+skills-lock.json/*

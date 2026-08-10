@@ -1,13 +1,33 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, ChevronDown, Mail, User } from "lucide-react";
+import { CalendarDays, Mail, User } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import z from "zod";
+import {
+	clearPendingReferralCode,
+	getPendingReferralCode,
+	syncAffnookRegistrationReferral,
+} from "@/lib/affnook";
 import { apiRequest } from "@/lib/api";
-import { changeEmail, useSession } from "@/lib/auth/client";
+import { authClient, useSession } from "@/lib/auth/client";
+import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
+import {
+	loginWebengageUser,
+	setWebengageUserAttributes,
+	trackWebengageEvent,
+} from "@/lib/webengage";
 
 const profileSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
+	referralCode: z.string().optional().catch(""),
 });
+
+type SessionUserWithMobile = {
+	id?: string;
+	name?: string | null;
+	email?: string | null;
+	mobileNumber?: string | null;
+};
 
 export const Route = createFileRoute("/auth/complete-profile")({
 	validateSearch: profileSearchSchema,
@@ -16,24 +36,31 @@ export const Route = createFileRoute("/auth/complete-profile")({
 
 function CompleteProfilePage() {
 	const navigate = useNavigate();
-	const { data: session, isPending: isSessionLoading } = useSession();
+	const { phone, referralCode } = Route.useSearch();
+	const {
+		data: session,
+		isPending: isSessionLoading,
+		refetch: refetchSession,
+	} = useSession();
 	const [fullName, setFullName] = useState("");
 	const [email, setEmail] = useState("");
 	const [dob, setDob] = useState("");
 	const [error, setError] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	useEffect(() => {
-		if (session?.user?.name) {
-			setFullName(session.user.name);
-		}
-		if (session?.user?.email) {
-			setEmail(session.user.email);
-		}
-	}, [session?.user?.email, session?.user?.name]);
+	const sessionUser = session?.user as SessionUserWithMobile | undefined;
 
-	const isGeneratedLocalEmail = (value: string) =>
-		/^phone_\d+@sportsdey\.local$/.test(value.trim());
+	useEffect(() => {
+		if (sessionUser?.id) {
+			loginWebengageUser(sessionUser.id);
+		}
+		if (sessionUser?.name) {
+			setFullName(sessionUser.name);
+		}
+		if (sessionUser?.email && !isPhonePlaceholderEmail(sessionUser.email)) {
+			setEmail(sessionUser.email);
+		}
+	}, [sessionUser?.email, sessionUser?.id, sessionUser?.name]);
 
 	const canProceed =
 		fullName.trim().length > 1 &&
@@ -47,28 +74,69 @@ function CompleteProfilePage() {
 		setIsSubmitting(true);
 
 		try {
-			await apiRequest("user/", {
+			const patchBody: {
+				name: string;
+				email: string;
+				mobileNumber?: string;
+			} = {
+				name: fullName.trim(),
+				email: email.trim(),
+			};
+			const phoneToPersist = (sessionUser?.mobileNumber || phone || "").trim();
+			if (phoneToPersist) {
+				patchBody.mobileNumber = phoneToPersist;
+			}
+
+			await apiRequest("user", {
 				method: "PATCH",
 				credentials: "include",
-				body: JSON.stringify({ name: fullName }),
+				body: JSON.stringify(patchBody),
 			});
 
-			if (
-				email.trim() &&
-				email.trim() !== session?.user?.email &&
-				!isGeneratedLocalEmail(email)
-			) {
-				const { error: emailError } = await changeEmail({
-					newEmail: email.trim(),
-					callbackURL: "/",
-				});
+			const nameParts = fullName.trim().split(/\s+/);
+			const firstName = nameParts[0] || "";
+			const lastName = nameParts.slice(1).join(" ") || "";
+			const userMobile = sessionUser?.mobileNumber || phone || "";
+			setWebengageUserAttributes({
+				we_first_name: firstName,
+				we_last_name: lastName,
+				we_email: email.trim(),
+				we_phone: userMobile,
+			});
 
-				if (emailError) {
-					throw new Error(emailError.message);
+			const pendingReferral =
+				referralCode?.trim() || getPendingReferralCode() || "";
+			if (pendingReferral) {
+				try {
+					const affnook = await syncAffnookRegistrationReferral({
+						promocode: pendingReferral,
+					});
+					clearPendingReferralCode();
+					if (affnook.message) {
+						toast.success(affnook.message);
+					}
+				} catch (affnookError) {
+					toast.error(
+						affnookError instanceof Error
+							? affnookError.message
+							: "Profile saved, but referral sync failed",
+					);
 				}
 			}
 
-			navigate({ to: "/", search: {} as any });
+			trackWebengageEvent("Profile Completed", {
+				"First Name": firstName,
+				"Last Name": lastName,
+				Mobile: userMobile,
+				Country: "",
+				"Reference Id": pendingReferral,
+			});
+
+			await authClient.getSession();
+			authClient.$store.notify("$sessionSignal");
+			await refetchSession();
+
+			navigate({ to: "/", search: { league: "sports", sports: "football" } });
 		} catch (err) {
 			setError(
 				err instanceof Error
@@ -134,8 +202,7 @@ function CompleteProfilePage() {
 							onChange={(event) => setDob(event.target.value)}
 							placeholder="DD/MM/YYYY"
 							className="w-full bg-transparent text-[#666] text-sm outline-none placeholder:text-[#8d8d8d]"
-						/>
-						<ChevronDown className="h-5 w-5 text-[#b6b6b6]" />
+						/>						
 					</label>
 				</div>
 				{error ? (
@@ -154,11 +221,18 @@ function CompleteProfilePage() {
 				</button>
 
 				<div className="mt-6 text-center">
-					<Link to="/" search={{} as any} className="text-[#1e2421] text-sm underline">
+					<Link
+						to="/"
+						search={{ league: "sports", sports: "football" }}
+						className="text-[#1e2421] text-sm underline"
+						onClick={() => {
+							authClient.$store.notify("$sessionSignal");
+						}}
+					>
 						Skip for now
 					</Link>
 				</div>
-		</div>
+			</div>
 		</div>
 	);
 }
