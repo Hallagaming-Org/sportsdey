@@ -7,7 +7,6 @@ import {
 } from "@tanstack/react-router";
 import { Check, Copy, Loader2, X } from "lucide-react";
 import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
-import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -62,15 +61,10 @@ function WalletPage() {
 	const [depositAmount, setDepositAmount] = useState("");
 	const [depositError, setDepositError] = useState("");
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
-	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
 	const [blockedModal, setBlockedModal] = useState<"deposit" | "withdraw" | null>(
 		null,
 	);
 	const [walletIdCopied, setWalletIdCopied] = useState(false);
-	const [billPaymentCategory, setBillPaymentCategory] = useState<{
-		code: string;
-		name: string;
-	} | null>(null);
 	const location = useLocation();
 	const search = Route.useSearch();
 	const isWalletRoot = location.pathname === "/wallet";
@@ -299,10 +293,6 @@ function WalletPage() {
 									<li key={code}>
 										<button
 											type="button"
-											onClick={() => {
-												setBillPaymentCategory({ code, name });
-												setIsBillPaymentOpen(true);
-											}}
 											className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-[#1B2722] bg-[#04100B] p-3 transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14] lg:flex-row lg:justify-start lg:gap-3 lg:px-4 lg:py-3.5"
 										>
 											<Icon className="h-5 w-5 shrink-0 text-white" />
@@ -389,17 +379,6 @@ function WalletPage() {
 						</button>
 					</div>
 				</div>
-			)}
-			{billPaymentCategory && (
-				<BillPaymentModal
-					isOpen={isBillPaymentOpen}
-					onClose={() => {
-						setIsBillPaymentOpen(false);
-						setBillPaymentCategory(null);
-					}}
-					categoryCode={billPaymentCategory.code}
-					categoryName={billPaymentCategory.name}
-				/>
 			)}
 		</>
 	);
