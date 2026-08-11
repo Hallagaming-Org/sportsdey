@@ -14,12 +14,13 @@ import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
 import {
 	CLASSIC_KNOWN_GAMES,
-	CLASSIC_PRIORITY_GAMES,
 	type ClassicLaunchMode,
 	type ClassicLobbyGame,
 	fetchClassicLobbyGames,
+	HOT_CASINO_GAME_NAMES,
 	isSlotegratorLobbyGame,
 	launchClassicGame,
+	pickGamesByOrderedNames,
 } from "@/lib/classic-lobby";
 import {
 	fetchScorpioLobbyGames,
@@ -424,31 +425,26 @@ function HotCasinoPanel() {
 					: "Slotegrator",
 			}));
 
-		const classicPriority = [...classic].sort((a, b) => {
-			const aPri = CLASSIC_PRIORITY_GAMES.indexOf(a.code);
-			const bPri = CLASSIC_PRIORITY_GAMES.indexOf(b.code);
-			if (aPri !== -1 && bPri !== -1) return aPri - bPri;
-			if (aPri !== -1) return -1;
-			if (bPri !== -1) return 1;
-			return a.name.localeCompare(b.name);
-		});
+		const scorpio: HotLobbyGame[] = (scorpioQuery.data ?? []).filter(
+			(game) => game.enabled,
+		);
 
-		const scorpio = [...(scorpioQuery.data ?? [])]
-			.filter((game) => game.enabled)
-			.sort((a, b) => a.name.localeCompare(b.name));
-
-		// Classic priority first so Slotegrator/Thndr originals appear, then Scorpio.
-		const merged: HotLobbyGame[] = [...classicPriority, ...scorpio];
-		const seen = new Set<string>();
-		const unique: HotLobbyGame[] = [];
+		// Prefer classic/Slotegrator when the same title exists in both catalogs.
+		const merged: HotLobbyGame[] = [...classic, ...scorpio];
+		const seenNames = new Set<string>();
+		const deduped: HotLobbyGame[] = [];
 		for (const game of merged) {
-			const key = `${game.provider}:${game.code}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			unique.push(game);
-			if (unique.length >= HOT_CASINO_LIMIT) break;
+			const key = game.name.toLowerCase().trim();
+			if (seenNames.has(key)) continue;
+			seenNames.add(key);
+			deduped.push(game);
 		}
-		return unique;
+
+		return pickGamesByOrderedNames(
+			deduped,
+			HOT_CASINO_GAME_NAMES,
+			HOT_CASINO_LIMIT,
+		);
 	}, [classicQuery.data, scorpioQuery.data]);
 
 	const goSignIn = useCallback(() => {

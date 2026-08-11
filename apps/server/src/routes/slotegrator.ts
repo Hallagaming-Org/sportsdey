@@ -366,17 +366,6 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 			body: new URLSearchParams(requestBody),
 		},
 	);
-	console.log("slotegrator body", JSON.stringify(response.body));
-	console.log(
-		"slotegrator headers",
-		JSON.stringify({
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
-		}),
-	);
 
 	let upstreamData: unknown = null;
 	const upstreamText = await response.text();

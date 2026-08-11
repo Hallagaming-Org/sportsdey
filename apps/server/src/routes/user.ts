@@ -19,6 +19,7 @@ const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 	"sportsbook",
 	"thndr games",
 	"lagos rush",
+	"halla",
 	"lucky games",
 	"hashcodex",
 	"slotegrator games",

@@ -4,6 +4,7 @@ import {
 	MinigodLauncherResponseSchema,
 } from "@/schemas/minigod";
 import type { CloudflareBindings } from "../types";
+import hallaPocketsRoute from "./halla-pockets";
 
 type HallaGame = "bomb" | "dice" | "metronite";
 
@@ -126,20 +127,30 @@ function createLauncherRoute(game: HallaGame) {
 		});
 
 		const data = (await response.json()) as {
-			success: boolean;
+			success?: boolean;
 			data?: { gameUrl: string };
 			error?: string;
+			message?: string | string[];
 		};
 
-		if (!response.ok || !data.success) {
+		if (!response.ok || data.success === false) {
+			const upstream =
+				(Array.isArray(data.message)
+					? data.message.join("; ")
+					: data.message) ||
+				data.error ||
+				`upstream ${response.status}`;
 			console.error(`${config.label} launch failed`, {
 				status: response.status,
-				error: data.error,
+				upstream,
 			});
 			return c.json(
 				{
 					success: false as const,
-					error: "Failed to launch game",
+					error:
+						upstream === "Can't get wallet balance"
+							? "Halla can't reach Sportsdey wallet callbacks. Confirm they point at /halla/pockets/* with POCKETS_SECRET_KEY."
+							: `Failed to launch game (${upstream})`,
 				},
 				400,
 			);
@@ -160,5 +171,8 @@ function createLauncherRoute(game: HallaGame) {
 createLauncherRoute("bomb");
 createLauncherRoute("dice");
 createLauncherRoute("metronite");
+
+/** Naira in/out wallet callbacks (Lagos Rush keeps kobo on /pockets/*). */
+hallaRoute.route("/pockets", hallaPocketsRoute);
 
 export default hallaRoute;
