@@ -129,6 +129,7 @@ export function getTransactionDetails(
 		methodLower === "thndr games" ||
 		methodLower === "lucky games" ||
 		methodLower === "lagos rush" ||
+		methodLower === "halla" ||
 		methodLower === "slotegrator games"
 	) {
 		const action = meta?.action || "";
@@ -186,6 +187,7 @@ export function getTransactionTypeLabel(transaction: WalletTransaction): string 
 
 	const casinoPaymentMethods = new Set([
 		"lagos rush",
+		"halla",
 		"lucky games",
 		"lucky rise",
 		"slotegrator games",
