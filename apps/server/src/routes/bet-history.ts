@@ -71,13 +71,73 @@ const getBetHistoryRoute = createRoute({
 	},
 });
 
-function parseGameType(betData: string | null): string {
-	if (!betData) return "Sportsbook";
+function parseGameType(betData: string | null, betType: number | null = null): string {
+	if (betType) {
+		const typeMap: Record<number, string> = {
+			1: "Bets - Single",
+			2: "Bets - Accumulator",
+			3: "Bets - System",
+			4: "Bets - Chain",
+			5: "Bets - Conditional",
+			6: "Bets - Multi-single",
+			7: "Bets - Multi-accumulator",
+			8: "Bets - Live series",
+			9: "Bets - Live accumulator",
+		};
+		return typeMap[betType] || "Bets - Sport";
+	}
+	
+	if (!betData) return "Bets - Sport";
+	
 	try {
-		const parsed = JSON.parse(betData) as { gameType?: string };
-		return parsed.gameType || "Sportsbook";
+		const parsed = JSON.parse(betData);
+		
+		if (parsed.gameType) {
+			if (parsed.gameType === "Sportsbook") {
+				if (parsed.sport) {
+					return `Bets - ${parsed.sport}`;
+				}
+				if (parsed.bet_odds && parsed.bet_odds.length > 0) {
+					const firstOdd = parsed.bet_odds[0];
+					if (firstOdd.sport_id) {
+						const sportMap: Record<string, string> = {
+							'football': 'Sport',
+							'soccer': 'Sport',
+							'basketball': 'Basketball',
+							'tennis': 'Tennis',
+							'baseball': 'Baseball',
+							'americanfootball': 'American Football',
+							'icehockey': 'Ice Hockey',
+							'rugby': 'Rugby',
+							'cricket': 'Cricket',
+							'boxing': 'Boxing',
+							'mma': 'MMA',
+							'esports': 'Esports',
+						};
+						const sportName = sportMap[firstOdd.sport_id] || 'Sport';
+						return `Bets - ${sportName}`;
+					}
+				}
+				const bt = parsed.bet_type || parsed.betType;
+				if (bt === 2) {
+					return "Bets - Accumulator";
+				} else if (bt === 1) {
+					return "Bets - Single";
+				}
+				return "Bets - Sport";
+			}
+			return parsed.gameType;
+		}
+		
+		if (parsed.provider || parsed.game_name || parsed.gameName) {
+			const gameName = parsed.game_name || parsed.gameName || 'Casino';
+			return `Casino - ${gameName}`;
+		}
+		
+		// Default
+		return "Bets - Sport";
 	} catch {
-		return "Sportsbook";
+		return "Bets - Sport";
 	}
 }
 
@@ -161,7 +221,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		return {
 			id: row.id,
 			ticketId: row.id,
-			type: parseGameType(row.betData),
+			type: parseGameType(row.betData, row.betType),
 			amount: stakeNaira,
 			multiplier: oddsValue,
 			status: deriveStatus(row.status, row.settleType),
