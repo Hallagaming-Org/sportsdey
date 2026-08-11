@@ -84,6 +84,7 @@ declare namespace Cloudflare {
 		BONUS_ENGINE_PRIVATE_KEY: string;
 		BONUS_ENGINE_CALLBACK_PUBLIC_KEY: string;
 		BONUS_ENGINE_CURRENCY: string;
+		EXPORT_QUEUE: Queue<import("./src/types/exports").ExportQueueMessage>;
 		staging_kv?: KVNamespace;
 	}
 }

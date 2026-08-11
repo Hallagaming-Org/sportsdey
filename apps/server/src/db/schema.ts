@@ -6,6 +6,7 @@ import {
 	real,
 	sqliteTable,
 	text,
+	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
@@ -991,6 +992,59 @@ export const bonusEngineMissionProgress = sqliteTable(
 			name: "bonus_engine_mission_progress_pk",
 			columns: [table.userId, table.missionId],
 		}),
+	],
+);
+
+export const exportJob = sqliteTable(
+	"export_job",
+	{
+		id: text("id").primaryKey(),
+		source: text("source").notNull(),
+		format: text("format").notNull(),
+		filters: text("filters").notNull().default("{}"),
+		status: text("status").notNull().default("queued"),
+		requestedBy: text("requested_by").notNull(),
+		rowCount: integer("row_count").notNull().default(0),
+		chunkCount: integer("chunk_count").notNull().default(0),
+		chunksDone: integer("chunks_done").notNull().default(0),
+		chunksFailed: integer("chunks_failed").notNull().default(0),
+		snapshotAt: integer("snapshot_at", { mode: "timestamp_ms" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+	},
+	(table) => [
+		index("export_job_requested_by_idx").on(table.requestedBy),
+		index("export_job_expires_at_idx").on(table.expiresAt),
+	],
+);
+
+export const exportChunk = sqliteTable(
+	"export_chunk",
+	{
+		id: text("id").primaryKey(),
+		jobId: text("job_id")
+			.notNull()
+			.references(() => exportJob.id, { onDelete: "cascade" }),
+		chunkIndex: integer("chunk_index").notNull(),
+		startOffset: integer("start_offset").notNull(),
+		rowLimit: integer("row_limit").notNull(),
+		status: text("status").notNull().default("queued"),
+		r2Key: text("r2_key"),
+		rowCount: integer("row_count").notNull().default(0),
+		error: text("error"),
+		attempts: integer("attempts").notNull().default(0),
+		claimedAt: integer("claimed_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+	},
+	(table) => [
+		index("export_chunk_job_id_idx").on(table.jobId),
+		uniqueIndex("export_chunk_job_index_idx").on(table.jobId, table.chunkIndex),
 	],
 );
 

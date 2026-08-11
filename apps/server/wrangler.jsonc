@@ -19,12 +19,12 @@
 			"persist": true
 		}
 	},
-			"vars": {
-				"NODE_ENV": "development"
-				// "CORS_ORIGIN": "http://localhost:3001",:
-				// "COOKIE_DOMAIN": "sportsdey.com",
-				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
-			},
+	"vars": {
+		"NODE_ENV": "development"
+		// "CORS_ORIGIN": "http://localhost:3001",:
+		// "COOKIE_DOMAIN": "sportsdey.com",
+		// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
+	},
 	"env": {
 		"staging": {
 			"name": "sportsdey-staging",
@@ -59,6 +59,11 @@
 			"routes": [
 				"staging-api.sportsdey.com"
 			],
+			"queues": {
+				"producers": [{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-staging-exports" }],
+				"consumers": [{ "queue": "sportsdey-staging-exports", "max_batch_size": 10, "max_concurrency": 2, "max_retries": 3 }]
+			},
+			"triggers": { "crons": ["0 * * * *"] },
 			"vars": {
 				"NODE_ENV": "staging"
 				// "CORS_ORIGIN": "https://staging.sportsdey.com",
@@ -68,9 +73,12 @@
 		},
 		"production": {
 			"name": "sportsdey-prod",
-			"routes": [
-				"api.sportsdey.com"
-			],
+			"routes": ["api.sportsdey.com"],
+			"queues": {
+				"producers": [{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-production-exports" }],
+				"consumers": [{ "queue": "sportsdey-production-exports", "max_batch_size": 10, "max_concurrency": 2, "max_retries": 3 }]
+			},
+			"triggers": { "crons": ["0 * * * *"] },
 			"d1_databases": [
 				{
 					"binding": "DB",
@@ -120,5 +128,5 @@
 			"binding": "PRODUCTION_BUCKET",
 			"bucket_name": "sportsdey-prod"
 		}
-]
+	]
 }
