@@ -55,6 +55,7 @@ declare namespace Cloudflare {
 		WEBENGAGE_API_KEY: string;
 		WEBENGAGE_LICENSE_CODE: string;
 		WEBENGAGE_HOST: string;
+		EXPORT_QUEUE: Queue<import("./src/exports/types").ExportQueueMessage>;
 	}
 }
 export interface CloudflareBindings extends Cloudflare.Env {}
