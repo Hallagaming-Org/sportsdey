@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { requestPhoneOtp } from "@/lib/auth/client";
 import { Lock, Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 import z from "zod";
 
 const phoneSignInSearchSchema = z.object({
@@ -120,22 +121,41 @@ function PhoneSignInPage() {
             />
           </div>
 
-          <div className="flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-            <Lock className="text-[#9a9d9a] shrink-0" size={20} />
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="********"
-              className="w-full bg-transparent px-4 text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="text-[#9a9d9a] focus:outline-none shrink-0"
-            >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-            </button>
+          <div>
+            <div className="flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+              <Lock className="text-[#9a9d9a] shrink-0" size={20} />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="********"
+                className="w-full bg-transparent px-4 text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-[#9a9d9a] focus:outline-none shrink-0"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+            {!isSignUp && (
+              <div className="mt-2 flex justify-end pr-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (phoneNumber) {
+                      toast.info("Password reset request sent for " + phoneNumber);
+                    } else {
+                      toast.info("Please enter your phone number to reset password.");
+                    }
+                  }}
+                  className="text-sm font-medium text-[#17b000] cursor-pointer underline focus:outline-none"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="relative flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
