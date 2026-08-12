@@ -174,14 +174,14 @@ export default function Header(
 								<div className="flex gap-x-1.5">
 									<Link
 										to="/auth/sign-in"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[10px] text-black text-secondary leading-tight transition-colors"
 									>
 										Log in
 									</Link>
 									<Link
 										to="/auth/sign-up"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "signup" }}
 										className="flex cursor-pointer items-center justify-center gap-x-1 whitespace-nowrap rounded-full bg-accent px-3 py-1 text-[10px] text-white leading-tight transition-colors"
 									>
 										Join now
@@ -345,14 +345,14 @@ export default function Header(
 								<div className="flex justify-center gap-x-2">
 									<Link
 										to="/auth/sign-in"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer rounded-full bg-white px-3 py-1.5 text-black text-secondary text-xs transition-colors"
 									>
 										Log in
 									</Link>
 									<Link
 										to="/auth/sign-up"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "signup" }}
 										className="flex cursor-pointer items-center justify-center gap-x-2 rounded-full bg-accent px-4 py-1.5 text-white text-xs transition-colors"
 									>
 										Join now
