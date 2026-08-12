@@ -2,8 +2,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { requestPhoneOtp } from "@/lib/auth/client";
 import { Lock, Eye, EyeOff } from "lucide-react";
+import z from "zod";
+
+const phoneSignInSearchSchema = z.object({
+  mode: z.enum(["login", "signup"]).optional().catch("login"),
+  returnTo: z.string().optional().catch(""),
+});
 
 export const Route = createFileRoute("/auth/phone-sign-in")({
+  validateSearch: phoneSignInSearchSchema,
   component: PhoneSignInPage,
 });
 
@@ -23,6 +30,8 @@ const normalizePhoneNumber = (value: string) => {
 };
 
 function PhoneSignInPage() {
+  const { mode } = Route.useSearch();
+  const isSignUp = mode === "signup";
   const navigate = useNavigate();
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -85,7 +94,7 @@ function PhoneSignInPage() {
       <div className="w-full max-w-[530px]">
         <div className="mb-10 text-center">
           <h1 className="font-bold text-[32px] text-[#0a0f0d] leading-tight">
-            Log in to your account
+            {isSignUp ? "Sign up to your account" : "Log in to your account"}
           </h1>
           <p className="mt-2 text-[#0a0f0d] text-base font-medium">
             It's quick, easy, and enjoyable.
