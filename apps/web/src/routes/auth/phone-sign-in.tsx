@@ -102,7 +102,10 @@ function PhoneSignInPage() {
             <input
               type="tel"
               value={phoneNumber}
-              onChange={(event) => setPhoneNumber(event.target.value)}
+              onChange={(event) => {
+                const numericValue = event.target.value.replace(/[^0-9]/g, "");
+                setPhoneNumber(numericValue);
+              }}
               placeholder="012 345 6789"
               className="w-full bg-transparent px-4 text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
             />
