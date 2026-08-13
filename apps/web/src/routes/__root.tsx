@@ -146,6 +146,8 @@ function RootDocument() {
 		"/promotions",
 		"/promotions/",
 		"/promotions/$id",
+		"/missions",
+		"/missions/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);

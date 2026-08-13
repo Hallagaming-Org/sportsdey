@@ -186,10 +186,11 @@ export async function executeSqlFile(
 	label: string,
 	suffix: string,
 	index: number,
-	options: { remote?: boolean; throwOnError?: boolean } = {},
+	options: { remote?: boolean; throwOnError?: boolean; timeoutMs?: number } = {},
 ): Promise<void> {
 	const remote = options.remote !== false;
 	const throwOnError = options.throwOnError !== false;
+	const timeoutMs = options.timeoutMs ?? 10 * 60 * 1000;
 	const tempFile = path.join(os.tmpdir(), `${suffix}-${Date.now()}-${index}.sql`);
 	fs.writeFileSync(tempFile, sql);
 	try {
@@ -197,12 +198,16 @@ export async function executeSqlFile(
 			const remoteFlag = remote ? "--remote" : "--local";
 			const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" ${remoteFlag} --env ${env}`;
 			console.log(`Executing ${label} (${remote ? "remote" : "local"})...`);
-			exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
+			exec(cmd, { timeout: timeoutMs }, (error, stdout, stderr) => {
 				try {
 					fs.unlinkSync(tempFile);
 				} catch {}
 				if (error) {
-					console.error(`${label} failed:`, error.message);
+					const timedOut = error.killed && error.signal === "SIGTERM";
+					console.error(
+						`${label} failed${timedOut ? ` after timing out at ${timeoutMs}ms` : ""}:`,
+						error.message,
+					);
 					if (stderr) console.error(stderr);
 					reject(error);
 				} else {

@@ -2320,7 +2320,21 @@
 		"Mafia",
 		"CHICAGOⅡ",
 		"Gold Stealer",
-		"Navigator"
+		"Navigator",
+		"Bingo Mania",
+		"Cosmic Clusters!",
+		"Big Bass Blast",
+		"Poker Kingdom Win",
+		"Wolf Power Megaways",
+		"Solar Queen",
+		"Merry Giftmas: Hold and Win",
+		"Legend of Cleopatra Megaways",
+		"Diamonds Power: Holds and Win",
+		"Buffalo Power Megaways",
+		"3 Pots Riches: Hold and Win",
+		"Royal Express: Hold and Win",
+		"Bluffy Cat",
+		"4 Scarab Coins: Hold and Win"
 	],
 	"crash-games": [
 		"Adrenaline Rush",
@@ -2579,7 +2593,11 @@
 		"Fortune bingo",
 		"Bingo Mania"
 	],
-	"dice": ["Dice Clash", "Rocket Dice", "Rocket Dice XY"],
+	"dice": [
+		"Dice Clash",
+		"Rocket Dice",
+		"Rocket Dice XY"
+	],
 	"scratch": [
 		"3 Kings Scratch",
 		"Capymania Green",
@@ -2622,5 +2640,17 @@
 		"European Roulette",
 		"French Roulette",
 		"Royal Roulette 500X"
+	],
+	"crash_games": [
+		"Coyote Crash",
+		"Aviator",
+		"Chicken Road 2",
+		"Chicken Road Ice",
+		"Rabbit Road",
+		"Chicken Road Vegas",
+		"Cricket Road",
+		"Chicken Road Gold",
+		"Chicken Road Race",
+		"Chicken vs Zombies"
 	]
 }

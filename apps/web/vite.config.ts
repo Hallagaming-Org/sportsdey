@@ -7,9 +7,9 @@ import { defineConfig } from "vite";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-// Must match apps/web/.env VITE_SERVER_URL (wrangler --port=8787).
+// Must match apps/server `wrangler dev --port=3000`.
 // Do NOT proxy "/games" — that path is the TanStack lobby page; the API is reached via VITE_SERVER_URL.
-const LOCAL_API_TARGET = "http://localhost:8787";
+const LOCAL_API_TARGET = "http://localhost:3000";
 
 /** TanStack pages under /auth — must not be proxied to the API worker. */
 const WEB_AUTH_PAGE_PATHS = new Set([
@@ -67,6 +67,23 @@ function proxyWalletToLocalApi() {
 	};
 }
 
+/**
+ * Proxies Bonus Engine mission API (`/mission/*`) without swallowing the
+ * TanStack `/missions` page — Vite prefix matching treats `/missions` as
+ * under `/mission`.
+ */
+function proxyMissionApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/missions" || path.startsWith("/missions/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
@@ -106,6 +123,10 @@ export default defineConfig({
 			"/thndr": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
+			"/loyalty": proxyToLocalApi(),
+			"/mission": proxyMissionApiToLocalApi(),
+			"/bonus-engine": proxyToLocalApi(),
+			"/gamification": proxyToLocalApi(),
 		},
 	},
 });

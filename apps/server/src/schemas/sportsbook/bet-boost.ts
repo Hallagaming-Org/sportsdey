@@ -1,29 +1,22 @@
 import { z } from "@hono/zod-openapi";
 import { BetConditionSchema } from "./bet";
 
-/** Params shared across Databet calculation strategies (static / steps / margin). */
-const BetBoostStrategyParamsSchema = z
-	.object({
-		// static
-		multiplier: z.string().optional(),
-		min_selections: z.number().optional(),
-		// steps
-		selections_per_step: z.number().optional(),
-		multiplier_per_step: z.string().optional(),
-		// steps + margin
-		max_multiplier: z.string().optional(),
-		// margin (Databet spelling)
-		min_marge_ratio: z.string().optional(),
-		max_marge_ratio: z.string().optional(),
-	})
-	.passthrough();
+export const SportSchema = z.enum(["Football", "Basketball", "Tennis"]);
+export type Sport = z.infer<typeof SportSchema>;
 
-const BetBoostCalculationStrategySchema = z.object({
-	type: z.enum(["static", "steps", "margin"]),
-	strategy: z.object({
-		conditions: z.array(z.any()).optional(),
-		params: BetBoostStrategyParamsSchema.optional(),
-	}),
+export const BetBoostCreateSchema = z.object({
+	boostName: z.string(),
+	description: z.string(),
+	boostPercentage: z.number(),
+	eligibleUsers: z.string(),
+	eligibleSports: z.array(SportSchema),
+	minimumSelections: z.number(),
+	maximumSelections: z.number(),
+	competitionIDs: z.array(z.string()).default([]),
+	eligibleEventsID: z.array(z.string()).default([]),
+	minimumOddsPerSelection: z.number(),
+	endDateTime: z.string(),
+	maximumWin: z.number().optional(),
 });
 
 export const AccumulatorPresetSchema = z.object({
@@ -65,12 +58,13 @@ export const BetBoostCreateSchema = z
 
 export const BetBoostCreateResponseSchema = z.object({
 	success: z.literal(true),
-	data: z.object({
-		id: z.string(),
-		dataBetBoostId: z.string(),
-		bonusPercent: z.number().optional(),
-		multiplier: z.string().optional(),
-	}),
+	data: z.array(
+		z.object({
+			id: z.string(),
+			dataBetBoostId: z.string(),
+			playerId: z.string().nullable(),
+		}),
+	),
 });
 
 export const AccumulatorBonusTableResponseSchema = z.object({

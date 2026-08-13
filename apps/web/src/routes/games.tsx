@@ -23,6 +23,7 @@ import {
 	CLASSIC_CATEGORY_EMOJIS,
 	CLASSIC_KNOWN_GAMES,
 	CLASSIC_PRIORITY_GAMES,
+	CLASSIC_THUNDR_CODES,
 	type ClassicLaunchMode,
 	classicCategoryCounts,
 	type ClassicLobbyGame,
@@ -52,6 +53,8 @@ const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
 const PAGE_SIZE = 24;
+
+const GAMES_HIDDEN_FROM_ALL = new Set(CLASSIC_THUNDR_CODES);
 
 function isScorpioGame(game: LobbyGame): game is ScorpioLobbyGame {
 	return "provider" in game && game.provider === "scorpio";
@@ -197,6 +200,11 @@ function GamesPage() {
 		[classicGames, scorpioGames],
 	);
 
+	const allGamesVisible = useMemo(
+		() => allGames.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code)),
+		[allGames],
+	);
+
 	const isLoading =
 		isSessionLoading ||
 		((classicQuery.isLoading || scorpioQuery.isLoading) &&
@@ -263,7 +271,14 @@ function GamesPage() {
 			});
 		}
 
-		return mergeLobbyGames(classicFiltered, scorpioFiltered);
+		const visibleClassicFiltered = !selectedCategory
+			? classicFiltered.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code))
+			: classicFiltered;
+		const visibleScorpioFiltered = !selectedCategory
+			? scorpioFiltered.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code))
+			: scorpioFiltered;
+
+		return mergeLobbyGames(visibleClassicFiltered, visibleScorpioFiltered);
 	}, [classicGames, scorpioGames, selectedCategory, search]);
 
 	const sortedGames = useMemo(() => {
@@ -602,7 +617,7 @@ function GamesPage() {
 										: "bg-[#1B2722] text-gray-300"
 								}`}
 							>
-								{allGames.length.toLocaleString()}
+								{allGamesVisible.length.toLocaleString()}
 							</span>
 						</button>
 						{categoryTabs.map((cat) => (

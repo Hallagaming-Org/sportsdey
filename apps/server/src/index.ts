@@ -13,11 +13,19 @@ import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 } from "./constants/session";
+import {
+	deleteExpiredExports,
+	processExportMessage,
+	requeueStaleChunks,
+} from "./utils/exports/service";
+import type { ExportQueueMessage } from "./types/exports";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
+import adminExportsRoute from "./routes/admin-exports";
 import adminLogNotesRoute from "./routes/admin-log-notes";
 import adminNotificationsRoute from "./routes/admin-notifications";
 import adminOverviewRoute from "./routes/admin-overview";
+import adminPromotionsRoute from "./routes/admin-promotions";
 import adminTicketOverviewRoute from "./routes/admin-ticket-overview";
 import adminTicketsRoute from "./routes/admin-tickets";
 import adminTransactionsRoute from "./routes/admin-transactions";
@@ -188,7 +196,10 @@ app.use("*", async (c, next) => {
 		path.startsWith("/scorpio/callback") ||
 		path.startsWith("/api/scorpio/callback") ||
 		path.startsWith("/webhooks/") ||
-		path.startsWith("/admin")
+		path.startsWith("/admin") ||
+		path.startsWith("/bonus-engine/callback/") ||
+		path.startsWith("/gamification/callback/") ||
+		path.startsWith("/bem/api/BonusEngine/")
 	) {
 		return next();
 	}
@@ -204,9 +215,11 @@ app.use("*", async (c, next) => {
 app.route("/", routes);
 app.route("/admin", adminRoute);
 app.route("/admin", adminWithdrawalsRoute);
+app.route("/admin", adminExportsRoute);
 app.route("/admin", adminTransactionsRoute);
 app.route("/admin", adminTicketsRoute);
 app.route("/admin", adminTicketOverviewRoute);
+app.route("/admin", adminPromotionsRoute);
 app.route("/admin", adminLogNotesRoute);
 app.route("/admin", adminNotificationsRoute);
 app.route("/admin", adminOverviewRoute);
@@ -223,18 +236,32 @@ app.doc("/openapi.json", {
 	},
 });
 
-/**
- * Staging Worker has a Queue consumer attached in the Cloudflare dashboard.
- * Export a no-op queue handler so deploys don't fail with CF error 11001
- * ("Queue handler is missing") when no local queues{} block is defined.
- */
-const worker = {
-	fetch: app.fetch.bind(app),
-	async queue(batch: { messages: Array<{ ack: () => void }> }) {
+export default {
+	fetch: app.fetch,
+	async queue(
+		batch: {
+			messages: ReadonlyArray<{
+				body: ExportQueueMessage;
+				attempts: number;
+				retry(options?: { delaySeconds?: number }): void;
+			}>;
+		},
+		env: CloudflareBindings,
+	) {
 		for (const message of batch.messages) {
-			message.ack();
+			const result = await processExportMessage(
+				env,
+				message.body,
+				message.attempts,
+			);
+			if (result === "retry")
+				message.retry({
+					delaySeconds: Math.min(300, 2 ** message.attempts * 10),
+				});
 		}
 	},
+	async scheduled(_controller: unknown, env: CloudflareBindings) {
+		await requeueStaleChunks(env);
+		await deleteExpiredExports(env);
+	},
 };
-
-export default worker;
