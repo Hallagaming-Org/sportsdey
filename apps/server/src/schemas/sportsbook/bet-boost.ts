@@ -19,6 +19,43 @@ export const BetBoostCreateSchema = z.object({
 	maximumWin: z.number().optional(),
 });
 
+export const AccumulatorPresetSchema = z.object({
+	sport: z.enum(["football", "basketball", "tennis"]),
+	selections: z.number().int().min(2).max(50),
+});
+
+export const BetBoostCreateSchema = z
+	.object({
+		player_id: z.string(),
+		currency: z.string(),
+		initial_quantity: z.number(),
+		calculation_strategy: BetBoostCalculationStrategySchema.optional(),
+		applicable_conditions: z.array(BetConditionSchema).optional(),
+		required_conditions: z.array(BetConditionSchema).optional(),
+		expires_at: z.string(),
+		/** Fill DataBet strategy + conditions from the Sportsdey accumulator bonus table. */
+		accumulator: AccumulatorPresetSchema.optional(),
+	})
+	.superRefine((value, ctx) => {
+		if (value.accumulator) return;
+		if (!value.required_conditions?.length) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"required_conditions is required unless accumulator preset is set",
+				path: ["required_conditions"],
+			});
+		}
+		if (!value.applicable_conditions?.length) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"applicable_conditions is required unless accumulator preset is set",
+				path: ["applicable_conditions"],
+			});
+		}
+	});
+
 export const BetBoostCreateResponseSchema = z.object({
 	success: z.literal(true),
 	data: z.array(
@@ -30,7 +67,33 @@ export const BetBoostCreateResponseSchema = z.object({
 	),
 });
 
-export const BetBoostListQuerySchema = z.object({});
+export const AccumulatorBonusTableResponseSchema = z.object({
+	success: z.literal(true),
+	data: z.object({
+		sports: z.array(z.enum(["football", "basketball", "tennis"])),
+		minSelections: z.object({
+			football: z.number(),
+			basketball: z.number(),
+			tennis: z.number(),
+		}),
+		maxSelections: z.number(),
+		rows: z.array(
+			z.object({
+				selections: z.number(),
+				label: z.string(),
+				football: z.number().nullable(),
+				basketball: z.number().nullable(),
+				tennis: z.number().nullable(),
+			}),
+		),
+	}),
+});
+
+export const BetBoostListQuerySchema = z.object({
+	player_id: z.string().optional().openapi({
+		description: "Optional Databet player id filter (Sportsdey user id)",
+	}),
+});
 
 export const BetBoostItemSchema = z.object({
 	id: z.string(),
@@ -64,23 +127,7 @@ export const BetBoostGetResponseSchema = z.object({
 export const BetBoostUpdateSchema = z.object({
 	player_id: z.string(),
 	boost_id: z.string(),
-	calculation_strategy: z
-		.object({
-			type: z.string(),
-			strategy: z
-				.object({
-					conditions: z.array(z.any()).optional(),
-					params: z
-						.object({
-							max_multiplier: z.string().optional(),
-							min_marge_ratio: z.string().optional(),
-							max_marge_ratio: z.string().optional(),
-						})
-						.optional(),
-				})
-				.optional(),
-		})
-		.optional(),
+	calculation_strategy: BetBoostCalculationStrategySchema.optional(),
 	applicable_conditions: z.array(BetConditionSchema).optional(),
 	required_conditions: z.array(BetConditionSchema).optional(),
 	expires_at: z.string().optional(),

@@ -455,7 +455,6 @@ function GamesPage() {
 			const image = game.imageUrl || known?.image || null;
 			return {
 				name: game.name,
-				subtitle: known?.subtitle ?? "Play now",
 				image,
 				Icon: image ? undefined : known?.icon,
 				gradient: known?.gradient ?? DEFAULT_GRADIENT,
@@ -464,7 +463,6 @@ function GamesPage() {
 
 		return {
 			name: game.name,
-			subtitle: game.providerName || "Scorpio Play",
 			image: game.imageUrl || null,
 			Icon: undefined as ComponentType<{ className?: string }> | undefined,
 			gradient: DEFAULT_GRADIENT,
@@ -724,14 +722,13 @@ function GamesPage() {
 														onPlay={() => void handleGameLaunch(game, "real")}
 													/>
 												)}
-												<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
-													<p className="truncate text-[11px] font-medium text-white">
-														{display.name}
-													</p>
-													<p className="truncate text-[9px] text-white/70">
-														{display.subtitle}
-													</p>
-												</div>
+												{!display.image && (
+													<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
+														<p className="truncate text-[11px] font-medium text-white">
+															{display.name}
+														</p>
+													</div>
+												)}
 											</motion.div>
 										);
 									})}
@@ -790,14 +787,13 @@ function GamesPage() {
 												onPlay={() => void handleGameLaunch(game, "real")}
 											/>
 										)}
-										<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
-											<p className="truncate text-sm font-medium text-white">
-												{display.name}
-											</p>
-											<p className="truncate text-xs text-white/70">
-												{display.subtitle}
-											</p>
-										</div>
+										{!display.image && (
+											<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
+												<p className="truncate text-sm font-medium text-white">
+													{display.name}
+												</p>
+											</div>
+										)}
 									</motion.div>
 								);
 							})}

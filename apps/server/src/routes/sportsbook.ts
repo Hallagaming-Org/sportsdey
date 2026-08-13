@@ -12,6 +12,7 @@ import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import {
+	AccumulatorBonusTableResponseSchema,
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -33,6 +34,13 @@ import {
 	TournamentQuerySchema,
 	TournamentsResponseSchema,
 } from "@/schemas/sportsbook";
+import {
+	ACCUMULATOR_MAX_SELECTIONS,
+	ACCUMULATOR_MIN_SELECTIONS,
+	ACCUMULATOR_SPORTS,
+	buildAccumulatorBoostPayload,
+	getAccumulatorBonusTable,
+} from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -3825,7 +3833,11 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		);
 	}
 
-	const response = await databetFetch(c.env, "/bet-boosts");
+	const { player_id: playerIdFilter } = c.req.valid("query");
+	const listPath = playerIdFilter
+		? `/bet-boosts?player_id=${encodeURIComponent(playerIdFilter)}`
+		: "/bet-boosts";
+	const response = await databetFetch(c.env, listPath);
 
 	if (!response.ok) {
 		const errorText = await response.text();
@@ -3854,10 +3866,14 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		required_conditions?: object[];
 	}>;
 
+	const filtered = playerIdFilter
+		? data.filter((bb) => bb.player_id === playerIdFilter)
+		: data;
+
 	return c.json(
 		{
 			success: true as const,
-			data: data.map((bb) => ({
+			data: filtered.map((bb) => ({
 				id: bb.id,
 				version: bb.version,
 				currencyCode: bb.currency_code,
@@ -3877,6 +3893,62 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 					? JSON.stringify(bb.required_conditions)
 					: null,
 			})),
+		},
+		200,
+	);
+});
+
+const accumulatorBonusTableRoute = createRoute({
+	method: "get",
+	path: "/bet-boost/accumulator-config",
+	tags: ["Sportsbook"],
+	summary: "Accumulator bonus table",
+	description:
+		"Sportsdey accumulator bonus (DataBet bet boost) percentages by fold count for football, basketball, and tennis.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Accumulator bonus table",
+			content: {
+				"application/json": {
+					schema: AccumulatorBonusTableResponseSchema,
+				},
+			},
+		},
+		401: { description: "Unauthorized" },
+		403: { description: "Forbidden - admin or super_admin only" },
+	},
+});
+
+sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				sports: [...ACCUMULATOR_SPORTS],
+				minSelections: ACCUMULATOR_MIN_SELECTIONS,
+				maxSelections: ACCUMULATOR_MAX_SELECTIONS,
+				rows: getAccumulatorBonusTable(),
+			},
 		},
 		200,
 	);
