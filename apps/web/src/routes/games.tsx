@@ -722,13 +722,6 @@ function GamesPage() {
 														onPlay={() => void handleGameLaunch(game, "real")}
 													/>
 												)}
-												{!display.image && (
-													<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
-														<p className="truncate text-[11px] font-medium text-white">
-															{display.name}
-														</p>
-													</div>
-												)}
 											</motion.div>
 										);
 									})}
@@ -786,13 +779,6 @@ function GamesPage() {
 												onDemo={() => void handleGameLaunch(game, "demo")}
 												onPlay={() => void handleGameLaunch(game, "real")}
 											/>
-										)}
-										{!display.image && (
-											<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
-												<p className="truncate text-sm font-medium text-white">
-													{display.name}
-												</p>
-											</div>
 										)}
 									</motion.div>
 								);

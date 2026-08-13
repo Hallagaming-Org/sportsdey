@@ -7,8 +7,10 @@ import * as schema from "@/db/schema";
 import {
 	ScorpioBonusCancelSchema,
 	ScorpioBonusRegisterSchema,
+	ScorpioCallbackRawBodySchema,
 	ScorpioCallbackRequestSchema,
 	ScorpioCallbackResponseSchema,
+	normalizeScorpioCallbackBody,
 	ScorpioErrorResponseSchema,
 	ScorpioIssueIdParamSchema,
 	ScorpioLaunchRequestSchema,
@@ -823,7 +825,7 @@ const callbackRoute = createRoute({
 	request: {
 		body: {
 			content: {
-				"application/json": { schema: ScorpioCallbackRequestSchema },
+				"application/json": { schema: ScorpioCallbackRawBodySchema },
 			},
 		},
 	},
@@ -922,6 +924,13 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
 	}
 
+	const queryCommand = c.req.query("command");
+	if (
+		(typeof body.command !== "string" || body.command.length === 0) &&
+		queryCommand
+	) {
+		body.command = queryCommand;
+	}
 	const command = typeof body.command === "string" ? body.command : null;
 	const settings = loadScorpioSettings(c.env);
 	const signature = c.req.header("X-Request-Signature") || undefined;
@@ -957,7 +966,9 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 		return c.json({ statusCode }, 200);
 	}
 
-	const parsed = ScorpioCallbackRequestSchema.safeParse(body);
+	const parsed = ScorpioCallbackRequestSchema.safeParse(
+		normalizeScorpioCallbackBody(body),
+	);
 	if (!parsed.success) {
 		console.log("scorpio callback rejected", {
 			timestamp: new Date().toISOString(),
