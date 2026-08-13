@@ -223,4 +223,18 @@ app.doc("/openapi.json", {
 	},
 });
 
-export default app;
+/**
+ * Staging Worker has a Queue consumer attached in the Cloudflare dashboard.
+ * Export a no-op queue handler so deploys don't fail with CF error 11001
+ * ("Queue handler is missing") when no local queues{} block is defined.
+ */
+const worker = {
+	fetch: app.fetch.bind(app),
+	async queue(batch: { messages: Array<{ ack: () => void }> }) {
+		for (const message of batch.messages) {
+			message.ack();
+		}
+	},
+};
+
+export default worker;

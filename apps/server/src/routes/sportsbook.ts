@@ -11,6 +11,7 @@ import {
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
+	AccumulatorBonusTableResponseSchema,
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -28,6 +29,13 @@ import {
 	CreateSportsbookTokenResponseSchema,
 	SportsbookTokenErrorSchema,
 } from "@/schemas/sportsbook";
+import {
+	ACCUMULATOR_MAX_SELECTIONS,
+	ACCUMULATOR_MIN_SELECTIONS,
+	ACCUMULATOR_SPORTS,
+	buildAccumulatorBoostPayload,
+	getAccumulatorBonusTable,
+} from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -3512,18 +3520,53 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 
 	const result = await c.req.valid("json");
 
+	let bonusPercent: number | undefined;
+	let multiplier: string | undefined;
+	let applicableConditions = result.applicable_conditions;
+	let requiredConditions = result.required_conditions;
+	let calculationStrategy = result.calculation_strategy;
+
+	if (result.accumulator) {
+		const preset = buildAccumulatorBoostPayload(result.accumulator);
+		if (!preset) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No accumulator bonus for this sport and selection count",
+				},
+				400,
+			);
+		}
+		bonusPercent = preset.bonusPercent;
+		multiplier = preset.multiplier;
+		calculationStrategy = preset.calculation_strategy;
+		requiredConditions = preset.required_conditions as typeof requiredConditions;
+		applicableConditions =
+			preset.applicable_conditions as typeof applicableConditions;
+	}
+
+	if (!requiredConditions?.length || !applicableConditions?.length) {
+		return c.json(
+			{
+				success: false as const,
+				error: "required_conditions and applicable_conditions are required",
+			},
+			400,
+		);
+	}
+
 	const apiRequestBody: Record<string, unknown> = {
 		idempotence_id: crypto.randomUUID(),
 		player_id: result.player_id,
 		currency_code: result.currency,
 		initial_quantity: result.initial_quantity,
-		applicable_conditions: result.applicable_conditions,
-		required_conditions: result.required_conditions,
+		applicable_conditions: applicableConditions,
+		required_conditions: requiredConditions,
 		expires_at: result.expires_at,
 	};
 
-	if (result.calculation_strategy) {
-		apiRequestBody.calculation_strategy = result.calculation_strategy;
+	if (calculationStrategy) {
+		apiRequestBody.calculation_strategy = calculationStrategy;
 	}
 
 	const response = await databetFetch(c.env, "/bet-boosts", {
@@ -3548,14 +3591,12 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 		);
 	}
 
-	const data = (await response.json()) as Array<{
-		id: string;
-		currency_code: string;
-		calculation_strategy: unknown;
-	}>;
-
-	const createdBoost = data[0];
-	if (!createdBoost) {
+	const raw = (await response.json()) as
+		| { id: string; player_id?: string }
+		| Array<{ id: string; player_id?: string }>;
+	// Databet returns a single object (confirmed 201 on staging); tolerate array too.
+	const createdBoost = Array.isArray(raw) ? raw[0] : raw;
+	if (!createdBoost?.id) {
 		return c.json(
 			{
 				success: false as const,
@@ -3573,6 +3614,7 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			data: {
 				id: idempotenceId,
 				dataBetBoostId: createdBoost.id,
+				...(bonusPercent != null ? { bonusPercent, multiplier } : {}),
 			},
 		},
 		200,
@@ -3637,7 +3679,11 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		);
 	}
 
-	const response = await databetFetch(c.env, "/bet-boosts");
+	const { player_id: playerIdFilter } = c.req.valid("query");
+	const listPath = playerIdFilter
+		? `/bet-boosts?player_id=${encodeURIComponent(playerIdFilter)}`
+		: "/bet-boosts";
+	const response = await databetFetch(c.env, listPath);
 
 	if (!response.ok) {
 		const errorText = await response.text();
@@ -3666,10 +3712,14 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		required_conditions?: object[];
 	}>;
 
+	const filtered = playerIdFilter
+		? data.filter((bb) => bb.player_id === playerIdFilter)
+		: data;
+
 	return c.json(
 		{
 			success: true as const,
-			data: data.map((bb) => ({
+			data: filtered.map((bb) => ({
 				id: bb.id,
 				version: bb.version,
 				currencyCode: bb.currency_code,
@@ -3689,6 +3739,62 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 					? JSON.stringify(bb.required_conditions)
 					: null,
 			})),
+		},
+		200,
+	);
+});
+
+const accumulatorBonusTableRoute = createRoute({
+	method: "get",
+	path: "/bet-boost/accumulator-config",
+	tags: ["Sportsbook"],
+	summary: "Accumulator bonus table",
+	description:
+		"Sportsdey accumulator bonus (DataBet bet boost) percentages by fold count for football, basketball, and tennis.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Accumulator bonus table",
+			content: {
+				"application/json": {
+					schema: AccumulatorBonusTableResponseSchema,
+				},
+			},
+		},
+		401: { description: "Unauthorized" },
+		403: { description: "Forbidden - admin or super_admin only" },
+	},
+});
+
+sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				sports: [...ACCUMULATOR_SPORTS],
+				minSelections: ACCUMULATOR_MIN_SELECTIONS,
+				maxSelections: ACCUMULATOR_MAX_SELECTIONS,
+				rows: getAccumulatorBonusTable(),
+			},
 		},
 		200,
 	);

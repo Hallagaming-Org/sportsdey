@@ -63,9 +63,14 @@ export const CashOutDeclinedRequestSchema = z.object({
 
 export const BetConditionDataSchema = z.record(z.string(), z.any());
 
+/**
+ * Databet Bet Boost / freebet condition detail.
+ * Docs use `type: "single" | "express" | "system"` (string), not a numeric bet_type.
+ * @see https://docs.data.bet/betting/bet-boost/
+ */
 export const BetConditionBetDetailSchema = z.object({
-	bet_type: z.number(),
-	data: BetConditionDataSchema,
+	type: z.string(),
+	data: BetConditionDataSchema.optional(),
 });
 
 export const BetConditionSchema = z.object({

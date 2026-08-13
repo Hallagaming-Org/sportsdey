@@ -657,14 +657,13 @@ function HotCasinoPanel() {
 									onPlay={() => void handleGameLaunch(game, "real")}
 								/>
 							)}
-							<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
-								<p className="truncate font-semibold text-white text-xs">
-									{game.name}
-								</p>
-								<p className="truncate text-[10px] text-white/80">
-									{game.providerName}
-								</p>
-							</div>
+							{!image && (
+								<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/70 to-transparent px-1 pb-2 pt-6 text-center">
+									<p className="truncate font-semibold text-white text-xs">
+										{game.name}
+									</p>
+								</div>
+							)}
 						</div>
 					);
 				})}
