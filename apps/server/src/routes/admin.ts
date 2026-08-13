@@ -1486,6 +1486,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		"slotegrator games",
 		"lucky games",
 		"lagos rush",
+		"halla",
 		"thndr games",
 		"sportsbook",
 	];

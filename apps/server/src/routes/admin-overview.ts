@@ -351,6 +351,7 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 		"thndr games",
 		"slotegrator games",
 		"lagos rush",
+		"halla",
 		"lucky games",
 		"bill_payment",
 		"hashcodex",
