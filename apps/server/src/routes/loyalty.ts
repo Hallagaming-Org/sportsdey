@@ -10,37 +10,12 @@ import {
 	extractBonusEngineMessage,
 	getBonusEngineLoyaltyHistory,
 	getBonusEngineLoyaltyPoints,
-	getBonusEngineWalletBalances,
 	isBonusEngineConfigured,
-	loginBonusEnginePlayer,
 	redeemBonusEngineLoyaltyPoints,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 const loyaltyRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
-
-/**
- * Ensures the player exists on Bonus Engine with current wallet balances before feature calls.
- */
-async function syncBonusEnginePlayer(payload: {
-	env: CloudflareBindings;
-	userId: string;
-	username: string;
-}) {
-	const balances = await getBonusEngineWalletBalances({
-		env: payload.env,
-		userId: payload.userId,
-	});
-	return loginBonusEnginePlayer({
-		env: payload.env,
-		player: {
-			userId: payload.userId,
-			username: payload.username,
-			realWalletBalance: balances.realWalletBalance,
-			bonusWalletBalance: balances.bonusWalletBalance,
-		},
-	});
-}
 
 function mapUpstreamStatus(status: number): 400 | 401 | 502 | 503 {
 	if (status === 401) return 401;
@@ -93,21 +68,6 @@ loyaltyRoute.openapi(pointsRoute, async (c) => {
 				error: "Bonus Engine is not configured",
 			},
 			503,
-		);
-	}
-
-	const sync = await syncBonusEnginePlayer({
-		env: c.env,
-		userId: user.id,
-		username: user.name || user.email || user.id,
-	});
-	if (!sync.ok) {
-		return c.json(
-			{
-				success: false as const,
-				error: sync.error ?? "Failed to sync player with Bonus Engine",
-			},
-			mapUpstreamStatus(sync.status),
 		);
 	}
 
@@ -193,21 +153,6 @@ loyaltyRoute.openapi(redeemRoute, async (c) => {
 	}
 
 	const body = c.req.valid("json");
-	const sync = await syncBonusEnginePlayer({
-		env: c.env,
-		userId: user.id,
-		username: user.name || user.email || user.id,
-	});
-	if (!sync.ok) {
-		return c.json(
-			{
-				success: false as const,
-				error: sync.error ?? "Failed to sync player with Bonus Engine",
-			},
-			mapUpstreamStatus(sync.status),
-		);
-	}
-
 	const result = await redeemBonusEngineLoyaltyPoints({
 		env: c.env,
 		userId: user.id,
@@ -280,21 +225,6 @@ loyaltyRoute.openapi(historyRoute, async (c) => {
 				error: "Bonus Engine is not configured",
 			},
 			503,
-		);
-	}
-
-	const sync = await syncBonusEnginePlayer({
-		env: c.env,
-		userId: user.id,
-		username: user.name || user.email || user.id,
-	});
-	if (!sync.ok) {
-		return c.json(
-			{
-				success: false as const,
-				error: sync.error ?? "Failed to sync player with Bonus Engine",
-			},
-			mapUpstreamStatus(sync.status),
 		);
 	}
 
