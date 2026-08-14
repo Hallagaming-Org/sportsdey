@@ -31,7 +31,7 @@ const normalizePhoneNumber = (value: string) => {
 };
 
 function PhoneSignInPage() {
-  const { mode } = Route.useSearch();
+  const { mode, returnTo } = Route.useSearch();
   const isSignUp = mode === "signup";
   const navigate = useNavigate();
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -45,13 +45,13 @@ function PhoneSignInPage() {
   const canContinue = useMemo(() => {
     const normalizedLength = phoneNumber.replace(/\D/g, "").length;
     return (
-      acceptedTerms &&
+      (!isSignUp || acceptedTerms) &&
       password.length >= 6 &&
       (normalizedLength === 10 ||
         normalizedLength === 11 ||
         normalizedLength === 13)
     );
-  }, [phoneNumber, password, acceptedTerms]);
+  }, [phoneNumber, password, acceptedTerms, isSignUp]);
 
   const handleContinue = async () => {
     if (!canContinue) return;
@@ -71,7 +71,7 @@ function PhoneSignInPage() {
         to: "/auth/otp",
         search: {
           phone,
-          referralCode: referralCode.trim() || undefined,
+          referralCode: isSignUp ? referralCode.trim() || undefined : undefined,
         },
       });
     } catch (err) {
@@ -158,39 +158,43 @@ function PhoneSignInPage() {
             )}
           </div>
 
-          <div className="relative flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-            <input
-              type="text"
-              value={referralCode}
-              onChange={(event) => setReferralCode(event.target.value)}
-              placeholder="Referral Code (e.g 123456)"
-              className="w-full bg-transparent pr-20 text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
-            />
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#9a9d9a] text-sm">
-              (optional)
-            </span>
-          </div>
+          {isSignUp && (
+            <div className="relative flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(event) => setReferralCode(event.target.value)}
+                placeholder="Referral Code (e.g 123456)"
+                className="w-full bg-transparent pr-20 text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
+              />
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#9a9d9a] text-sm">
+                (optional)
+              </span>
+            </div>
+          )}
         </div>
 
-        <label className="mt-6 flex cursor-pointer items-start gap-3 text-[#8f9491] text-sm leading-tight">
-          <input
-            type="checkbox"
-            className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-transparent bg-[#EBE9F4] accent-[#17b000]"
-            checked={acceptedTerms}
-            onChange={(event) => setAcceptedTerms(event.target.checked)}
-          />
-          <span>
-            I confirm that I am 18 years or older, understand and agree to the{" "}
-            <Link to="/terms" className="font-medium text-[#17b000] underline">
-              Terms & Conditions
-            </Link>{" "}
-            and{" "}
-            <Link to="/privacy-policy" className="font-medium text-[#17b000] underline">
-              Privacy policy
-            </Link>
-            .
-          </span>
-        </label>
+        {isSignUp && (
+          <label className="mt-6 flex cursor-pointer items-start gap-3 text-[#8f9491] text-sm leading-tight">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-transparent bg-[#EBE9F4] accent-[#17b000]"
+              checked={acceptedTerms}
+              onChange={(event) => setAcceptedTerms(event.target.checked)}
+            />
+            <span>
+              I confirm that I am 18 years or older, understand and agree to the{" "}
+              <Link to="/terms" className="font-medium text-[#17b000] underline">
+                Terms & Conditions
+              </Link>{" "}
+              and{" "}
+              <Link to="/privacy-policy" className="font-medium text-[#17b000] underline">
+                Privacy policy
+              </Link>
+              .
+            </span>
+          </label>
+        )}
 
         {error ? (
           <div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-red-700 text-sm">
@@ -207,10 +211,10 @@ function PhoneSignInPage() {
           {isLoading ? "Sending OTP..." : "Continue"}
         </button>
 
-        <div className="mt-8 flex items-center gap-4">
-          <div className="h-px flex-1 bg-[#dbdbdb]"></div>
+        <div className="mt-8 flex items-center">
+          <div className="h-px flex-1 bg-[#8C8C8C]"></div>
           <span className="text-[#9a9d9a] text-sm py-2 border border-[#8C8C8C] px-6 rounded-full">or</span>
-          <div className="h-px flex-1 bg-[#dbdbdb]"></div>
+          <div className="h-px flex-1 bg-[#8C8C8C]"></div>
         </div>
 
         <div className="mt-6 text-center">
@@ -247,6 +251,34 @@ function PhoneSignInPage() {
               </svg>
             </button>
           </div>
+        </div>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-[#6f7471]">
+            {isSignUp ? (
+              <>
+                Already have an account?{" "}
+                <Link
+                  to="/auth/phone-sign-in"
+                  search={{ mode: "login", returnTo }}
+                  className="font-medium text-[#17b000] underline"
+                >
+                  Log in
+                </Link>
+              </>
+            ) : (
+              <>
+                Don't have an account?{" "}
+                <Link
+                  to="/auth/phone-sign-in"
+                  search={{ mode: "signup", returnTo }}
+                  className="font-medium text-[#17b000] underline"
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
+          </p>
         </div>
       </div>
     </div>
