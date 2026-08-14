@@ -49,9 +49,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const { setTab } = useActiveTab();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const searchStr = location.search || "";
 	const currentSport = useCurrentSport();
-	const params = new URLSearchParams(searchStr);
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
@@ -208,7 +206,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				"casino",
 				(location.pathname.startsWith("/games") ||
 					location.pathname.startsWith("/game/")) &&
-					params.get("category") !== "pvp",
+					location.search?.category !== "pvp",
 			),
 			onClick: goToCasino,
 		},
@@ -221,7 +219,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive(
 				"p2p",
 				location.pathname.startsWith("/games") &&
-					params.get("category") === "pvp",
+					location.search?.category === "pvp",
 			),
 			subItems: [
 				{
@@ -229,7 +227,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					label: "PvP Games",
 					isActive:
 						location.pathname.startsWith("/games") &&
-						params.get("category") === "pvp",
+						location.search?.category === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({
@@ -253,7 +251,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Newspaper,
 			isActive: isItemActive(
 				"news",
-				location.pathname.startsWith("/news") && params.get("tab") !== "videos",
+				location.pathname.startsWith("/news") &&
+					location.search?.tab !== "videos",
 			),
 			onClick: goToNews,
 		},
