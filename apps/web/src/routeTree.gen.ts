@@ -59,8 +59,10 @@ import { Route as BasketballIdRouteImport } from './routes/basketball/$Id'
 import { Route as AuthorsSlugRouteImport } from './routes/authors.$slug'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as AuthPhoneSignInRouteImport } from './routes/auth/phone-sign-in'
 import { Route as AuthOtpRouteImport } from './routes/auth/otp'
+import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth/complete-profile'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthLayoutRouteImport } from './routes/auth/_layout'
@@ -319,6 +321,11 @@ const AuthSignInRoute = AuthSignInRouteImport.update({
   path: '/auth/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/auth/reset-password',
+  path: '/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthPhoneSignInRoute = AuthPhoneSignInRouteImport.update({
   id: '/auth/phone-sign-in',
   path: '/auth/phone-sign-in',
@@ -327,6 +334,11 @@ const AuthPhoneSignInRoute = AuthPhoneSignInRouteImport.update({
 const AuthOtpRoute = AuthOtpRouteImport.update({
   id: '/auth/otp',
   path: '/auth/otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/auth/forgot-password',
+  path: '/auth/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
@@ -396,8 +408,10 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthLayoutRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/authors/$slug': typeof AuthorsSlugRoute
@@ -449,8 +463,10 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthLayoutRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/authors/$slug': typeof AuthorsSlugRoute
@@ -511,8 +527,10 @@ export interface FileRoutesById {
   '/auth/_layout': typeof AuthLayoutRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/authors/$slug': typeof AuthorsSlugRoute
@@ -574,8 +592,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/auth/callback'
     | '/auth/complete-profile'
+    | '/auth/forgot-password'
     | '/auth/otp'
     | '/auth/phone-sign-in'
+    | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/authors/$slug'
@@ -627,8 +647,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/auth/callback'
     | '/auth/complete-profile'
+    | '/auth/forgot-password'
     | '/auth/otp'
     | '/auth/phone-sign-in'
+    | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/authors/$slug'
@@ -688,8 +710,10 @@ export interface FileRouteTypes {
     | '/auth/_layout'
     | '/auth/callback'
     | '/auth/complete-profile'
+    | '/auth/forgot-password'
     | '/auth/otp'
     | '/auth/phone-sign-in'
+    | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/authors/$slug'
@@ -750,8 +774,10 @@ export interface RootRouteChildren {
   AuthLayoutRoute: typeof AuthLayoutRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
+  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthOtpRoute: typeof AuthOtpRoute
   AuthPhoneSignInRoute: typeof AuthPhoneSignInRoute
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthSignInRoute: typeof AuthSignInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
   AuthorsSlugRoute: typeof AuthorsSlugRoute
@@ -1116,6 +1142,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/phone-sign-in': {
       id: '/auth/phone-sign-in'
       path: '/auth/phone-sign-in'
@@ -1128,6 +1161,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/otp'
       fullPath: '/auth/otp'
       preLoaderRoute: typeof AuthOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/forgot-password': {
+      id: '/auth/forgot-password'
+      path: '/auth/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/complete-profile': {
@@ -1350,8 +1390,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLayoutRoute: AuthLayoutRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
+  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthOtpRoute: AuthOtpRoute,
   AuthPhoneSignInRoute: AuthPhoneSignInRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthSignInRoute: AuthSignInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
   AuthorsSlugRoute: AuthorsSlugRoute,
