@@ -11,6 +11,7 @@ import {
 	SESSION_MAX_AGE_SECONDS,
 } from "@/constants/session";
 import * as schema from "@/db/schema";
+import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../../worker-configuration";
 
 const HMAC_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
@@ -188,13 +189,25 @@ export const createAuth = (env: CloudflareBindings) => {
 		},
 		hooks: {
 			after: createAuthMiddleware(async (ctx) => {
-				const userId = ctx.context.newSession?.user?.id;
-				const ipAddress = ctx.context.newSession?.session?.ipAddress;
+				const newSession = ctx.context.newSession;
+				const userId = newSession?.user?.id;
+				const ipAddress = newSession?.session?.ipAddress;
 				if (userId && ipAddress) {
 					await db
 						.update(schema.user)
 						.set({ lastLoginIp: ipAddress })
 						.where(eq(schema.user.id, userId));
+				}
+				if (userId) {
+					const username =
+						newSession?.user?.name ||
+						newSession?.user?.email ||
+						userId;
+					await syncBonusEnginePlayerOnAppLogin({
+						env,
+						userId,
+						username,
+					});
 				}
 			}),
 		},
