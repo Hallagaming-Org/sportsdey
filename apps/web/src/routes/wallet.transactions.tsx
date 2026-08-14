@@ -267,7 +267,7 @@ function WalletTransactionsPage() {
 											<TransactionIcon type={iconType} />
 											<div className="space-y-1">
 												<p className="font-semibold text-[15px] text-white sm:text-base">
-													{title}
+													{typeLabel}
 												</p>
 												<p className="text-[#9CA3AF] text-[13px] sm:text-sm">
 													{formatTransactionDate(transaction.createdAt)}
