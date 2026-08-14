@@ -18,6 +18,7 @@ const OTP_RESEND_COOLDOWN_SECONDS = 60;
 const otpSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
 	referralCode: z.string().optional().catch(""),
+	flow: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/auth/otp")({
@@ -27,7 +28,8 @@ export const Route = createFileRoute("/auth/otp")({
 
 function OtpPage() {
 	const navigate = useNavigate();
-	const { phone, referralCode } = Route.useSearch();
+	const { phone, referralCode, flow } = Route.useSearch();
+	const isResetPasswordFlow = flow === "reset-password" || flow === "forgot-password";
 	const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 	const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
 	const [error, setError] = useState("");
@@ -123,6 +125,16 @@ function OtpPage() {
 				storePendingReferralCode(trimmedReferral);
 			}
 
+			if (isResetPasswordFlow) {
+				navigate({
+					to: "/auth/reset-password",
+					search: {
+						phone,
+					},
+				});
+				return;
+			}
+
 			if (
 				needsPhoneProfileCompletion({
 					...data.user,
@@ -156,7 +168,12 @@ function OtpPage() {
 				<div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-sm">
 					<Mail className="h-8 w-8 text-[#17b000]" />
 				</div>
-				<h1 className="mt-6 font-bold text-2xl text-[#0a0f0d]">
+				{isResetPasswordFlow && (
+					<p className="mt-4 font-medium text-[#6f7471] text-sm">
+						Step 2 of 3
+					</p>
+				)}
+				<h1 className="mt-4 font-bold text-2xl text-[#0a0f0d]">
 					Enter OTP Code
 				</h1>
 				<p className="mt-3 text-[#1f2522] text-base">

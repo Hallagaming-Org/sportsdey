@@ -18,6 +18,7 @@ import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
 import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
+import { FaHandshakeAngle } from "react-icons/fa6";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import ScoresIcon from "@/logos/scores.svg?react";
@@ -245,6 +246,16 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 						window.open("https://tournaments.sportsdey.com/", "_blank"),
 				},
 			],
+		},
+		{
+			id: "partner",
+			label: "Become a Partner",
+			icon: FaHandshakeAngle,
+			isActive: isItemActive("partner", false),
+			onClick: () => {
+				setActiveOverride("partner");
+				window.open("https://Partners.sportsdey.com", "_blank");
+			},
 		},
 		{
 			id: "news",

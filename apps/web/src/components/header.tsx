@@ -14,6 +14,7 @@ import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
 import WorldIcon from "@/logos/world.svg?react";
+import { FaHandshakeAngle } from "react-icons/fa6";
 import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
@@ -176,14 +177,14 @@ export default function Header(
 								<div className="flex gap-x-1.5">
 									<Link
 										to="/auth/sign-in"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[10px] text-black text-secondary leading-tight transition-colors"
 									>
 										Log in
 									</Link>
 									<Link
 										to="/auth/sign-up"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "signup" }}
 										className="flex cursor-pointer items-center justify-center gap-x-1 whitespace-nowrap rounded-full bg-accent px-3 py-1 text-[10px] text-white leading-tight transition-colors"
 									>
 										Join now
@@ -272,6 +273,18 @@ export default function Header(
 					)} */}
 
 					<div className="flex items-center gap-4 xl:gap-6">
+						{!isAuthRoute && (
+							<a
+								href="https://wa.link/25tnk8"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="hidden lg:flex cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10 hover:text-accent"
+							>
+								<FaHandshakeAngle className="h-3.5 w-3.5 text-accent" />
+								<span>Become a Partner</span>
+							</a>
+						)}
+
 						{!isAuthRoute && !!session?.user && (
 							<div className="flex h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] border border-[#F2EEFB] bg-[#04100B] px-[6px] py-[7px] dark:border-[#F2EEFB] dark:bg-[#04100B]">
 								<div
@@ -347,14 +360,14 @@ export default function Header(
 								<div className="flex justify-center gap-x-2">
 									<Link
 										to="/auth/sign-in"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer rounded-full bg-white px-3 py-1.5 text-black text-secondary text-xs transition-colors"
 									>
 										Log in
 									</Link>
 									<Link
 										to="/auth/sign-up"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "signup" }}
 										className="flex cursor-pointer items-center justify-center gap-x-2 rounded-full bg-accent px-4 py-1.5 text-white text-xs transition-colors"
 									>
 										Join now
