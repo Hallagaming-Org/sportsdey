@@ -33,7 +33,9 @@ export const MISSION_TRIGGER_KEYWORD = {
 	DEPOSIT: /\bdeposit\b/i,
 	INVITE: /\b(refer|invite|friend)\b/i,
 	VIRTUAL: /\bvirtual\b/i,
-	SPORTS: /\b(sportsbook|sporting|sports bet|place bet on sport)\b/i,
+	/** Admin sportsbook triggers — includes "Bet on specific …/sport/odd/market/event". */
+	SPORTS:
+		/\b(sportsbook|sporting|sports bet|place bet on sport|bet on specific provider\/game\/sport|\/sport\/odd\/market\/event)\b/i,
 	WAGER_OR_BET: /\b(wager|bet|login)\b/i,
 } as const;
 
