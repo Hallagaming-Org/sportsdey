@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { requestPhoneOtp } from "@/lib/auth/client";
 import { Lock, Eye, EyeOff } from "lucide-react";
-import { toast } from "sonner";
 import z from "zod";
 
 const phoneSignInSearchSchema = z.object({
@@ -144,11 +143,13 @@ function PhoneSignInPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (phoneNumber) {
-                      toast.info("Password reset request sent for " + phoneNumber);
-                    } else {
-                      toast.info("Please enter your phone number to reset password.");
-                    }
+                    const normalized = normalizePhoneNumber(phoneNumber);
+                    navigate({
+                      to: "/auth/forgot-password",
+                      search: {
+                        phone: normalized || undefined,
+                      },
+                    });
                   }}
                   className="text-sm font-medium text-[#17b000] cursor-pointer underline focus:outline-none"
                 >
