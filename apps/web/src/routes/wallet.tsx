@@ -32,8 +32,8 @@ const OpenfortCryptoWallet = lazy(() =>
 );
 
 export const Route = createFileRoute("/wallet")({
-	validateSearch: (search: Record<string, unknown>) => ({
-		openDeposit: Boolean(search.openDeposit),
+	validateSearch: (search: Record<string, unknown>): { openDeposit?: boolean } => ({
+		openDeposit: search.openDeposit ? Boolean(search.openDeposit) : undefined,
 	}),
 	component: WalletPage,
 });
@@ -326,7 +326,7 @@ function WalletPage() {
 				}}
 				amount={depositAmount}
 				onAmountChange={setDepositAmount}
-				onSubmit={handleDepositSubmit}
+				onSubmit={()=>handleDepositSubmit}
 				isPending={depositMutation.isPending}
 				error={depositError}
 				walletBalance={walletData?.balance ?? undefined}
