@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { signIn } from "@/lib/auth/client";
 import { Phone } from "lucide-react";
+import { useState } from "react";
+import { signIn } from "@/lib/auth/client";import { buildPublicUrl } from "@/lib/public-url";
 import z from "zod";
 
 const signUpSearchSchema = z.object({
 	returnTo: z.string().optional().catch(""),
 	mode: z.enum(["login", "signup"]).optional().catch("signup"),
 });
+
 
 export const Route = createFileRoute("/auth/sign-up")({
 	validateSearch: signUpSearchSchema,
@@ -21,10 +22,11 @@ export default function SignUpPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
-	const webURL = import.meta.env.VITE_PUBLIC_URL;
 	const callbackURL = returnTo
-		? `${webURL}auth/callback?returnTo=${encodeURIComponent(returnTo)}`
-		: `${webURL}auth/callback`;
+		? buildPublicUrl(
+				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+			)
+		: buildPublicUrl("/auth/callback");
 
 	const handleSocialSignUp = async (
 		provider: "google" | "apple" | "facebook",

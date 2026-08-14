@@ -1,10 +1,20 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	lte,
+	notInArray,
+	sql,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
-import { successResponseSchema, ErrorResponseSchema } from "@/schemas";
+import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -13,8 +23,14 @@ type AdminRouteContext = { Bindings: CloudflareBindings };
 const adminOverviewRoute = new OpenAPIHono<AdminRouteContext>();
 
 const OverviewDateQuerySchema = z.object({
-	fromDate: z.string().optional().openapi({ description: "Filter start date (YYYY-MM-DD)" }),
-	toDate: z.string().optional().openapi({ description: "Filter end date (YYYY-MM-DD)" }),
+	fromDate: z
+		.string()
+		.optional()
+		.openapi({ description: "Filter start date (YYYY-MM-DD)" }),
+	toDate: z
+		.string()
+		.optional()
+		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
 });
 
 const OverviewStatsSchema = z.object({
@@ -59,7 +75,9 @@ const DayActivitySchema = z.object({
 	date: z.string(),
 	revenue: z.number(),
 	bets: z.number(),
-	users: z.number(),
+	winnings: z.number(),
+	totalDeposits: z.number(),
+	totalWithdrawals: z.number(),
 });
 
 const ActivityResponseSchema = z.object({
@@ -72,7 +90,7 @@ const getActivityRoute = createRoute({
 	tags: ["Admin - Overview"],
 	summary: "Get activity trends",
 	description:
-		"Retrieve activity data for revenue, bets placed, and new users. Defaults to last 7 days.",
+		"Retrieve activity data for revenue (GGR), settled bets, winnings, deposits, and withdrawals. Defaults to last 7 days.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: OverviewDateQuerySchema,
@@ -146,10 +164,7 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json(
-			{ success: false, error: "Forbidden - admin only" },
-			403,
-		);
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
 	}
 
 	if (
@@ -177,20 +192,21 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 	if (fromDate) userConditions.push(gte(schema.user.createdAt, fromDate));
 	if (toDate) userConditions.push(lte(schema.user.createdAt, toDate));
 
-	const [userCountResult] = userConditions.length > 0
-		? await db
-			.select({ count: sql<number>`COUNT(*)` })
-			.from(schema.user)
-			.where(and(...userConditions))
-		: await db
-			.select({ count: sql<number>`COUNT(*)` })
-			.from(schema.user);
+	const [userCountResult] =
+		userConditions.length > 0
+			? await db
+					.select({ count: sql<number>`COUNT(*)` })
+					.from(schema.user)
+					.where(and(...userConditions))
+			: await db.select({ count: sql<number>`COUNT(*)` }).from(schema.user);
 
 	const totalUsers = Number(userCountResult?.count ?? 0);
 
 	const activeConditions = [];
-	if (fromDate) activeConditions.push(gte(schema.sportsbookBet.createdAt, fromDate));
-	if (toDate) activeConditions.push(lte(schema.sportsbookBet.createdAt, toDate));
+	if (fromDate)
+		activeConditions.push(gte(schema.sportsbookBet.createdAt, fromDate));
+	if (toDate)
+		activeConditions.push(lte(schema.sportsbookBet.createdAt, toDate));
 
 	const [activePlayersResult] = await db
 		.select({
@@ -206,8 +222,10 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		eq(schema.walletTransaction.status, "pending"),
 		eq(schema.walletTransaction.paymentMethod, "paystack"),
 	];
-	if (fromDate) pendingConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) pendingConditions.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		pendingConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		pendingConditions.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [pendingPayoutsResult] = await db
 		.select({
@@ -222,8 +240,10 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		eq(schema.walletTransaction.type, "credit"),
 		eq(schema.walletTransaction.status, "success"),
 	];
-	if (fromDate) creditConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) creditConditions.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		creditConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		creditConditions.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [totalCreditsResult] = await db
 		.select({
@@ -236,8 +256,10 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		eq(schema.walletTransaction.type, "debit"),
 		eq(schema.walletTransaction.status, "success"),
 	];
-	if (fromDate) debitConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) debitConditions.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		debitConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		debitConditions.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [totalDebitsResult] = await db
 		.select({
@@ -247,8 +269,7 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		.where(and(...debitConditions));
 
 	const totalIncome =
-		((totalCreditsResult?.total ?? 0) - (totalDebitsResult?.total ?? 0)) /
-		100;
+		((totalCreditsResult?.total ?? 0) - (totalDebitsResult?.total ?? 0)) / 100;
 
 	return c.json({
 		success: true,
@@ -272,10 +293,7 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json(
-			{ success: false, error: "Forbidden - admin only" },
-			403,
-		);
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
 	}
 
 	if (
@@ -302,7 +320,9 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 		date: string;
 		revenue: number;
 		bets: number;
-		users: number;
+		winnings: number;
+		totalDeposits: number;
+		totalWithdrawals: number;
 	}> = [];
 
 	const now = new Date();
@@ -310,9 +330,33 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 	const rangeEnd = td ?? now;
 
 	const dayCount = Math.min(
-		Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+		Math.ceil(
+			(rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000),
+		) + 1,
 		31,
 	);
+
+	// Gaming metrics must only include settled bets (settle_type set).
+	// settle_type 1 = win, 2 = refund, 3 = loss.
+	const settledBetConditions = (dayStart: Date, dayEnd: Date) =>
+		and(
+			isNotNull(schema.sportsbookBet.settleType),
+			gte(schema.sportsbookBet.createdAt, dayStart),
+			lte(schema.sportsbookBet.createdAt, dayEnd),
+		);
+
+	// Non-deposit credit sources (settlements, game credits, internal transfers, bill payments).
+	const nonDepositPaymentMethods = [
+		"sportsbook",
+		"thndr games",
+		"slotegrator games",
+		"lagos rush",
+		"halla",
+		"lucky games",
+		"bill_payment",
+		"hashcodex",
+		"wallet_transfer",
+	];
 
 	for (let i = dayCount - 1; i >= 0; i--) {
 		const dayStart = new Date(rangeEnd.getTime() - i * 24 * 60 * 60 * 1000);
@@ -327,7 +371,18 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 						weekday: "short",
 					});
 
-		const [revenueResult] = await db
+		const [betsResult] = await db
+			.select({
+				betTurnover: sql<number>`COALESCE(SUM(${schema.sportsbookBet.stake}), 0)`,
+				winnings: sql<number>`COALESCE(SUM(CASE WHEN ${schema.sportsbookBet.settleType} = 1 THEN ${schema.sportsbookBet.settleAmount} ELSE 0 END), 0)`,
+			})
+			.from(schema.sportsbookBet)
+			.where(settledBetConditions(dayStart, dayEnd));
+
+		const betTurnover = Number(betsResult?.betTurnover ?? 0);
+		const winnings = Number(betsResult?.winnings ?? 0);
+
+		const [depositsResult] = await db
 			.select({
 				total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
 			})
@@ -335,41 +390,39 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 			.where(
 				and(
 					eq(schema.walletTransaction.type, "credit"),
-					eq(schema.walletTransaction.status, "success"),
+					inArray(schema.walletTransaction.status, ["success", "completed"]),
+					notInArray(
+						schema.walletTransaction.paymentMethod,
+						nonDepositPaymentMethods,
+					),
 					gte(schema.walletTransaction.createdAt, dayStart),
 					lte(schema.walletTransaction.createdAt, dayEnd),
 				),
 			);
 
-		const [betsResult] = await db
+		const [withdrawalsResult] = await db
 			.select({
-				count: sql<number>`COUNT(*)`,
+				total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
 			})
-			.from(schema.sportsbookBet)
+			.from(schema.walletTransaction)
 			.where(
 				and(
-					gte(schema.sportsbookBet.createdAt, dayStart),
-					lte(schema.sportsbookBet.createdAt, dayEnd),
-				),
-			);
-
-		const [usersResult] = await db
-			.select({
-				count: sql<number>`COUNT(*)`,
-			})
-			.from(schema.user)
-			.where(
-				and(
-					gte(schema.user.createdAt, dayStart),
-					lte(schema.user.createdAt, dayEnd),
+					eq(schema.walletTransaction.type, "debit"),
+					inArray(schema.walletTransaction.status, ["success", "completed"]),
+					eq(schema.walletTransaction.paymentMethod, "paystack"),
+					gte(schema.walletTransaction.createdAt, dayStart),
+					lte(schema.walletTransaction.createdAt, dayEnd),
 				),
 			);
 
 		days.push({
 			date: dayLabel,
-			revenue: (revenueResult?.total ?? 0) / 100,
-			bets: Number(betsResult?.count ?? 0),
-			users: Number(usersResult?.count ?? 0),
+			// Rev (GGR) = settled bet turnover - winnings paid
+			revenue: (betTurnover - winnings) / 100,
+			bets: betTurnover / 100,
+			winnings: winnings / 100,
+			totalDeposits: (depositsResult?.total ?? 0) / 100,
+			totalWithdrawals: (withdrawalsResult?.total ?? 0) / 100,
 		});
 	}
 
@@ -390,10 +443,7 @@ adminOverviewRoute.openapi(getTopBetsRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json(
-			{ success: false, error: "Forbidden - admin only" },
-			403,
-		);
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
 	}
 
 	if (
@@ -422,10 +472,7 @@ adminOverviewRoute.openapi(getTopBetsRoute, async (c) => {
 			amount: schema.sportsbookBet.stake,
 		})
 		.from(schema.sportsbookBet)
-		.innerJoin(
-			schema.user,
-			eq(schema.sportsbookBet.userId, schema.user.id),
-		)
+		.innerJoin(schema.user, eq(schema.sportsbookBet.userId, schema.user.id))
 		.where(gte(schema.sportsbookBet.createdAt, todayStart))
 		.orderBy(desc(schema.sportsbookBet.stake))
 		.limit(5);

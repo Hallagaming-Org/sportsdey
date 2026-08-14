@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import { debitWallet, creditWallet } from "@/db/atomic-wallet";
 import type { CloudflareBindings } from "../types";
 
 const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -143,25 +144,16 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 	}
 
 	const reference = `hcx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-	const newBalance =
-		action === "credit"
-			? wallet.balance + amountInKobo
-			: wallet.balance - amountInKobo;
-
-	const walletUpdate = await db
-		.update(schema.wallet)
-		.set({
-			balance: newBalance,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.wallet.id, wallet.id))
-		.returning();
-	if (walletUpdate.length === 0) {
+	const updatedWallet = action === "credit"
+		? await creditWallet(db, user.id, amountInKobo)
+		: await debitWallet(db, user.id, amountInKobo);
+	if (!updatedWallet) {
 		return c.json(
-			{ success: false, error: "Failed to update user balance" },
+			{ success: false, error: "Insufficient balance or failed to update user balance" },
 			500,
 		);
 	}
+	const newBalance = updatedWallet.balance;
 
 	const [txn] = await db
 		.insert(schema.walletTransaction)

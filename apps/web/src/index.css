@@ -294,3 +294,14 @@ body {
 	z-index: 40 !important;
 	background-color: var(--background);
 }
+
+
+/* Deposit modal scroll bar  */
+.scrollbar-hide {
+  -ms-overflow-style: none; 
+  scrollbar-width: none; 
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; 
+}

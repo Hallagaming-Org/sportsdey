@@ -3,6 +3,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gt, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
@@ -18,6 +19,7 @@ const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 	"sportsbook",
 	"thndr games",
 	"lagos rush",
+	"halla",
 	"lucky games",
 	"hashcodex",
 	"slotegrator games",
@@ -619,7 +621,9 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// filtering at the application layer.
 
 	const orderByClause =
-		sort === "asc" ? asc(schema.user.createdAt) : desc(schema.user.createdAt);
+		tab === "recent" || sort === "desc"
+			? desc(schema.user.createdAt)
+			: asc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
 	// filtering, sorting and pagination in-memory
@@ -1686,17 +1690,21 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	}
 
 	const amountInKobo = Math.round(body.amount * 100);
-	const newBalance =
-		body.type === "credit"
-			? walletRow.balance + amountInKobo
-			: walletRow.balance - amountInKobo;
 
-	if (body.type === "debit" && newBalance < 0) {
+	const updatedWallet =
+		body.type === "credit"
+			? await creditWallet(db, userId, amountInKobo)
+			: await debitWallet(db, userId, amountInKobo);
+	if (!updatedWallet) {
 		return c.json(
-			{ success: false as const, error: "Insufficient balance" },
+			{
+				success: false as const,
+				error: "Insufficient balance or wallet update failed",
+			},
 			400,
 		);
 	}
+	const committedBalance = updatedWallet.balance;
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
@@ -1708,7 +1716,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 		reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 		status: "success",
 		paymentMethod: "manual",
-		balance: newBalance,
+		balance: committedBalance,
 		metadata: JSON.stringify({
 			reason: body.reason,
 			processedBy: session.adminId,
@@ -1717,17 +1725,12 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 		createdAt: new Date(),
 	});
 
-	await db
-		.update(schema.wallet)
-		.set({ balance: newBalance })
-		.where(eq(schema.wallet.id, walletRow.id));
-
 	return c.json(
 		{
 			success: true as const,
 			data: {
 				transactionId: txnId,
-				newBalance: newBalance / 100,
+				newBalance: committedBalance / 100,
 			},
 		},
 		200,

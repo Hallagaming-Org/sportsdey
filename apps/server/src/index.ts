@@ -13,11 +13,19 @@ import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 } from "./constants/session";
+import {
+	deleteExpiredExports,
+	processExportMessage,
+	requeueStaleChunks,
+} from "./utils/exports/service";
+import type { ExportQueueMessage } from "./types/exports";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
+import adminExportsRoute from "./routes/admin-exports";
 import adminLogNotesRoute from "./routes/admin-log-notes";
 import adminNotificationsRoute from "./routes/admin-notifications";
 import adminOverviewRoute from "./routes/admin-overview";
+import adminPromotionsRoute from "./routes/admin-promotions";
 import adminTicketOverviewRoute from "./routes/admin-ticket-overview";
 import adminTicketsRoute from "./routes/admin-tickets";
 import adminTransactionsRoute from "./routes/admin-transactions";
@@ -28,8 +36,68 @@ import type { CloudflareBindings } from "./types";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
+app.onError((err, c) => {
+	console.error("Unhandled error:", err.message, err.stack);
+	return c.json(
+		{
+			error: {
+				code: "internal_error",
+				data: { message: "Internal server error" },
+			},
+		},
+		500,
+	);
+});
+
+let authCache: ReturnType<typeof createAuth> | null = null;
+
 function getAuth(env: CloudflareBindings) {
 	return createAuth(env);
+}
+
+type AuthContext = {
+	env: CloudflareBindings;
+	req: { raw: Request };
+};
+
+function getRawBearerToken(request: Request): string | null {
+	const bearer = extractBearerToken(request);
+	if (bearer && isRawSessionBearer(bearer)) return bearer;
+	return null;
+}
+
+async function resolveAuthRequest(c: AuthContext) {
+	const rawBearer = getRawBearerToken(c.req.raw);
+
+	if (rawBearer) {
+		return withSignedSessionCookie(
+			c.req.raw,
+			rawBearer,
+			c.env.BETTER_AUTH_SECRET,
+			{
+				nodeEnv: c.env.NODE_ENV,
+				authUrl: c.env.BETTER_AUTH_URL,
+			},
+		);
+	}
+	return c.req.raw;
+}
+
+/** Headers-only auth resolution — safe for middleware that must not consume the body. */
+async function resolveAuthHeaders(c: AuthContext) {
+	const rawBearer = getRawBearerToken(c.req.raw);
+	if (rawBearer) {
+		return withSignedSessionHeaders(
+			c.req.raw,
+			rawBearer,
+			c.env.BETTER_AUTH_SECRET,
+			{
+				nodeEnv: c.env.NODE_ENV,
+				authUrl: c.env.BETTER_AUTH_URL,
+			},
+		);
+	}
+	return c.req.raw.headers;
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
@@ -67,7 +135,7 @@ app.use(
 			return allowedOrigins.has(origin) ? origin : "";
 		},
 		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
-		allowHeaders: ["Authorization", "Content-Type"],
+			allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
 		credentials: true,
 	}),
 );
@@ -109,7 +177,7 @@ app.on(["GET", "POST"], "/auth/*", async (c) => {
 				: "ba";
 			response.headers.append(
 				"Set-Cookie",
-				`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
+				`${actualPrefix}.session_token_hash=; Path=/; HttpOnly; Domain=.sportsdey.com; SameSite=${policy.sameSite === "none" ? "None" : "Lax"}${secureFlag}; Max-Age=0`,
 			);
 		}
 	}
@@ -124,7 +192,14 @@ app.use("*", async (c, next) => {
 		path.startsWith("/docs") ||
 		path.startsWith("/openapi") ||
 		path.startsWith("/api/account/") ||
-		path.startsWith("/admin")
+		path.startsWith("/account/") ||
+		path.startsWith("/scorpio/callback") ||
+		path.startsWith("/api/scorpio/callback") ||
+		path.startsWith("/webhooks/") ||
+		path.startsWith("/admin") ||
+		path.startsWith("/bonus-engine/callback/") ||
+		path.startsWith("/gamification/callback/") ||
+		path.startsWith("/bem/api/BonusEngine/")
 	) {
 		return next();
 	}
@@ -140,9 +215,11 @@ app.use("*", async (c, next) => {
 app.route("/", routes);
 app.route("/admin", adminRoute);
 app.route("/admin", adminWithdrawalsRoute);
+app.route("/admin", adminExportsRoute);
 app.route("/admin", adminTransactionsRoute);
 app.route("/admin", adminTicketsRoute);
 app.route("/admin", adminTicketOverviewRoute);
+app.route("/admin", adminPromotionsRoute);
 app.route("/admin", adminLogNotesRoute);
 app.route("/admin", adminNotificationsRoute);
 app.route("/admin", adminOverviewRoute);
@@ -159,4 +236,32 @@ app.doc("/openapi.json", {
 	},
 });
 
-export default app;
+export default {
+	fetch: app.fetch,
+	async queue(
+		batch: {
+			messages: ReadonlyArray<{
+				body: ExportQueueMessage;
+				attempts: number;
+				retry(options?: { delaySeconds?: number }): void;
+			}>;
+		},
+		env: CloudflareBindings,
+	) {
+		for (const message of batch.messages) {
+			const result = await processExportMessage(
+				env,
+				message.body,
+				message.attempts,
+			);
+			if (result === "retry")
+				message.retry({
+					delaySeconds: Math.min(300, 2 ** message.attempts * 10),
+				});
+		}
+	},
+	async scheduled(_controller: unknown, env: CloudflareBindings) {
+		await requeueStaleChunks(env);
+		await deleteExpiredExports(env);
+	},
+};

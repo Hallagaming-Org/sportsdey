@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import { debitWallet } from "@/db/atomic-wallet";
 import {
 	MonnifyBillerSchema,
 	MonnifyCategorySchema,
@@ -536,7 +537,15 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 		.where(eq(schema.utilityTransaction.id, transactionId));
 
 	if (status === "success") {
-		const newBalance = wallet.balance - amountInKobo;
+		const updatedWallet = await debitWallet(db, userId, amountInKobo);
+		if (!updatedWallet) {
+			await db
+				.update(schema.utilityTransaction)
+				.set({ status: "failed" })
+				.where(eq(schema.utilityTransaction.id, transactionId));
+			return c.json({ success: false, error: "Insufficient balance" }, 400);
+		}
+		const newBalance = updatedWallet.balance;
 
 		await db.insert(schema.walletTransaction).values({
 			id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
@@ -557,10 +566,6 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 			}),
 		});
 
-		await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, userId));
 	}
 
 	return c.json(

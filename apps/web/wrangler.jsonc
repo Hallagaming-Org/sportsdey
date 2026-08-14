@@ -2,7 +2,7 @@
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "sportsdey-web",
 	"main": "@tanstack/react-start/server-entry",
-	"compatibility_date": "2026-01-28",
+	"compatibility_date": "2026-01-27",
 	"compatibility_flags": ["nodejs_compat"],
 	"assets": {
 		"directory": "dist/client"
@@ -10,18 +10,24 @@
 	"observability": {
 		"enabled": true
 	},
-"env": {
+	"env": {
 		"staging": {
 			"name": "staging-web",
 			"vars": {
-				"ENV": "staging"
+				"ENV": "staging",
+				"VITE_SERVER_URL": "https://staging-api.sportsdey.com",
+				"VITE_API_URL": "https://staging-api.sportsdey.com",
+				"VITE_PUBLIC_URL": "https://stagingweb.sportsdey.com",
+				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.int.databet.cloud/v2/f7078267/bootstrap.js",
+				"VITE_DATABET_SPA_BASENAME": "/",
+				"VITE_DATABET_DEFAULT_LOCALE": "en"
 			},
 			"routes": [
 				{
 					"pattern": "stagingweb.sportsdey.com",
 					"custom_domain": true
 				}
-			],
+			]
 		},
 		"production": {
 			"name": "prod-web",
@@ -33,7 +39,7 @@
 					"pattern": "sportsdey.com",
 					"custom_domain": true
 				}
-			],
+			]
 		}
 	}
 }

@@ -56,6 +56,15 @@ nul
 
 prompt.md
 
+# Local AI process reference (not for GitHub)
+docs/ai-engineering-checklist.md
+
+# Local Cursor rules (not for GitHub)
+.cursor/rules/db-migrations.mdc
+
+# Local SSH keys — never commit
+shaq
+shaq.pub
 
 */notes
 .notes
@@ -65,3 +74,6 @@ notes
 .agents/*
 skills-lock.json
 skills-lock.json/*
+
+# Vendor API docs (local reference only)
+bonus-engine-setup/

@@ -5,6 +5,7 @@ import {
 	Gift,
 	Home,
 	Newspaper,
+	Target,
 	Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -49,9 +50,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const { setTab } = useActiveTab();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const searchStr = location.search || "";
+	const search = (location.search || {}) as Record<string, any>;
 	const currentSport = useCurrentSport();
-	const params = new URLSearchParams(searchStr);
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
@@ -106,7 +106,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToCasino = () => {
 		setTab("games");
 		trackWebengageEvent("Category", { Name: "Casino" });
-		navigate({ to: "/games", search: { category: undefined } });
+		navigate({
+			to: "/games",
+			search: { category: undefined },
+		});
 	};
 
 	const goToSportsbook = () => {
@@ -205,7 +208,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				"casino",
 				(location.pathname.startsWith("/games") ||
 					location.pathname.startsWith("/game/")) &&
-					params.get("category") !== "pvp",
+					search.category !== "pvp",
 			),
 			onClick: goToCasino,
 		},
@@ -218,7 +221,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive(
 				"p2p",
 				location.pathname.startsWith("/games") &&
-					params.get("category") === "pvp",
+					search.category === "pvp",
 			),
 			subItems: [
 				{
@@ -226,10 +229,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					label: "PvP Games",
 					isActive:
 						location.pathname.startsWith("/games") &&
-						params.get("category") === "pvp",
+						search.category === "pvp",
 					onClick: () => {
 						setTab("games");
-						navigate({ to: "/games", search: { category: "pvp" } });
+						navigate({
+							to: "/games",
+							search: { category: "pvp" },
+						});
 					},
 				},
 				{
@@ -257,7 +263,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Newspaper,
 			isActive: isItemActive(
 				"news",
-				location.pathname.startsWith("/news") && params.get("tab") !== "videos",
+				location.pathname.startsWith("/news") && search.tab !== "videos",
 			),
 			onClick: goToNews,
 		},
@@ -328,6 +334,20 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				setTab("promotions");
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
+			},
+		},
+		{
+			id: "missions",
+			label: "Missions",
+			icon: Target,
+			isActive: isItemActive(
+				"missions",
+				location.pathname.startsWith("/missions"),
+			),
+			onClick: () => {
+				setTab("missions");
+				trackWebengageEvent("Category", { Name: "Missions" });
+				navigate({ to: "/missions" as any });
 			},
 		},
 		// {

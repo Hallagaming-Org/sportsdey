@@ -40,9 +40,11 @@ export async function executeD1Json<T>(
 	dbName: string,
 	env: string,
 	command: string,
+	options: { remote?: boolean } = {},
 ): Promise<T[]> {
+	const remoteFlag = options.remote === false ? "--local" : "--remote";
 	return new Promise((resolve, reject) => {
-		const cmd = `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(command)} --remote --env ${env} --json`;
+		const cmd = `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(command)} ${remoteFlag} --env ${env} --json`;
 		exec(cmd, { timeout: 120000 }, (error, stdout) => {
 			if (error) {
 				reject(new Error(`D1 execute failed: ${error.message}`));
@@ -89,11 +91,13 @@ export function parseTableOutput(output: string): { id: string; name: string }[]
 export async function fetchExistingGames(
 	dbName: string,
 	env: string,
+	options: { remote?: boolean } = {},
 ): Promise<{ id: string; name: string }[]> {
 	return executeD1Json<{ id: string; name: string }>(
 		dbName,
 		env,
 		"SELECT id, name FROM game",
+		options,
 	);
 }
 
@@ -182,19 +186,28 @@ export async function executeSqlFile(
 	label: string,
 	suffix: string,
 	index: number,
+	options: { remote?: boolean; throwOnError?: boolean; timeoutMs?: number } = {},
 ): Promise<void> {
+	const remote = options.remote !== false;
+	const throwOnError = options.throwOnError !== false;
+	const timeoutMs = options.timeoutMs ?? 10 * 60 * 1000;
 	const tempFile = path.join(os.tmpdir(), `${suffix}-${Date.now()}-${index}.sql`);
 	fs.writeFileSync(tempFile, sql);
 	try {
 		await new Promise<void>((resolve, reject) => {
-			const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" --remote --env ${env}`;
-			console.log(`Executing ${label}...`);
-			exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
+			const remoteFlag = remote ? "--remote" : "--local";
+			const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" ${remoteFlag} --env ${env}`;
+			console.log(`Executing ${label} (${remote ? "remote" : "local"})...`);
+			exec(cmd, { timeout: timeoutMs }, (error, stdout, stderr) => {
 				try {
 					fs.unlinkSync(tempFile);
 				} catch {}
 				if (error) {
-					console.error(`${label} failed:`, error.message);
+					const timedOut = error.killed && error.signal === "SIGTERM";
+					console.error(
+						`${label} failed${timedOut ? ` after timing out at ${timeoutMs}ms` : ""}:`,
+						error.message,
+					);
 					if (stderr) console.error(stderr);
 					reject(error);
 				} else {
@@ -205,6 +218,7 @@ export async function executeSqlFile(
 		});
 	} catch (err) {
 		console.error(`Failed to execute ${label}:`, err);
+		if (throwOnError) throw err;
 	}
 }
 
@@ -212,10 +226,12 @@ export async function categorizeGamesFromJson(
 	dbName: string,
 	env: string,
 	jsonPath: string,
+	options: { remote?: boolean } = {},
 ): Promise<void> {
 	console.log(`Loading categories from ${jsonPath}...`);
 	const data = loadCasinoJson(jsonPath);
 	const timestamp = Date.now();
+	const remote = options.remote !== false;
 
 	const { categoryInserts, allCategoryEntries, categories } = buildCategoryInserts(data, timestamp);
 
@@ -234,8 +250,8 @@ export async function categorizeGamesFromJson(
 		console.log(`  popular: ${popularCount} games`);
 	}
 
-	console.log("\nFetching existing games from database...");
-	const games = await fetchExistingGames(dbName, env);
+	console.log(`\nFetching existing games from database (${remote ? "remote" : "local"})...`);
+	const games = await fetchExistingGames(dbName, env, { remote });
 	console.log(`Found ${games.length} games in database`);
 
 	if (games.length === 0) {
@@ -262,11 +278,25 @@ export async function categorizeGamesFromJson(
 
 	const gameCategoryValues = buildDeduplicatedGameCategoryValues(matched);
 	const categorySql = `INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${categoryInserts.join(",\n")};`;
-	const gameCategorySql = `INSERT OR IGNORE INTO game_category (game_id, category_id) VALUES ${gameCategoryValues.join(",\n")};`;
 
 	const suffix = "categorize";
-	await executeSqlFile(dbName, env, categorySql, "category inserts", suffix, 0);
-	await executeSqlFile(dbName, env, gameCategorySql, "game_category inserts", suffix, 1);
+	const execOpts = { remote };
+	await executeSqlFile(dbName, env, categorySql, "category inserts", suffix, 0, execOpts);
+
+	const GC_BATCH = 100;
+	for (let i = 0; i < gameCategoryValues.length; i += GC_BATCH) {
+		const chunk = gameCategoryValues.slice(i, i + GC_BATCH);
+		const gameCategorySql = `INSERT OR IGNORE INTO game_category (game_id, category_id) VALUES ${chunk.join(",\n")};`;
+		await executeSqlFile(
+			dbName,
+			env,
+			gameCategorySql,
+			`game_category inserts batch ${i / GC_BATCH + 1}`,
+			suffix,
+			1 + i / GC_BATCH,
+			execOpts,
+		);
+	}
 
 	console.log('\nMarking uncategorized games as "others"...');
 	await executeSqlFile(
@@ -275,14 +305,15 @@ export async function categorizeGamesFromJson(
 		`INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ('others', 'Others', 'others', ${Date.now()});`,
 		"others category",
 		suffix,
-		2,
+		900,
+		execOpts,
 	);
 
 	const orphansSql = `INSERT OR IGNORE INTO game_category (game_id, category_id)
 SELECT g.id, 'others'
 FROM game g
 WHERE g.id NOT IN (SELECT game_id FROM game_category);`;
-	await executeSqlFile(dbName, env, orphansSql, "orphans marking", suffix, 3);
+	await executeSqlFile(dbName, env, orphansSql, "orphans marking", suffix, 901, execOpts);
 
 	console.log("\nDone! Categories synced.");
 }

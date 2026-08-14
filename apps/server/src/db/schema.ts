@@ -1,5 +1,13 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	primaryKey,
+	real,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
@@ -109,6 +117,8 @@ export const userRelations = relations(user, ({ many }) => ({
 	userFiles: many(userFile),
 	slotitegrationSessions: many(slotitegrationSessions),
 	slotitegrationTransactions: many(slotitegrationTransactions),
+	scorpioPlayers: many(scorpioPlayers),
+	scorpioTransactions: many(scorpioTransactions),
 	kycRecords: many(kyc),
 	notifications: many(userNotification),
 }));
@@ -135,6 +145,118 @@ export const wallet = sqliteTable("wallet", {
 		.unique(),
 	balance: integer("balance").notNull().default(0),
 	frozenBalance: integer("frozen_balance").notNull().default(0),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookSession = sqliteTable("sportsbook_session", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookSessionRelations = relations(
+	sportsbookSession,
+	({ one }) => ({
+		user: one(user, {
+			fields: [sportsbookSession.userId],
+			references: [user.id],
+		}),
+	}),
+);
+
+export const opayTransaction = sqliteTable(
+	"opay_transaction",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		reference: text("reference").notNull().unique(),
+		orderNo: text("order_no").unique(),
+		amount: integer("amount").notNull(),
+		status: text("status").notNull().default("initiated"),
+		cashierUrl: text("cashier_url"),
+		rawCallbackPayload: text("raw_callback_payload"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [index("opay_transaction_userId_idx").on(table.userId)],
+);
+
+export const opayTransactionRelations = relations(
+	opayTransaction,
+	({ one }) => ({
+		user: one(user, {
+			fields: [opayTransaction.userId],
+			references: [user.id],
+		}),
+	}),
+);
+
+export const sportsbookPromotionTypes = ["bet_boost", "free_bet"] as const;
+export type SportsbookPromotionType = (typeof sportsbookPromotionTypes)[number];
+
+export const sportsbookPromotion = sqliteTable("sportsbook_promotion", {
+	id: text("id").primaryKey(),
+	promotionType: text("promotion_type", {
+		enum: sportsbookPromotionTypes,
+	}).notNull(),
+	name: text("name").notNull(),
+	description: text("description").notNull(),
+	eligibleUsers: text("eligible_users").notNull(),
+	eligibleSports: text("eligible_sports").notNull(),
+	competitionIds: text("competition_ids"),
+	eligibleEventIds: text("eligible_event_ids"),
+	boostPercentage: real("boost_percentage"),
+	maximumWin: real("maximum_win"),
+	minimumSelections: integer("minimum_selections"),
+	maximumSelections: integer("maximum_selections"),
+	minimumOddsPerSelection: real("minimum_odds_per_selection"),
+	amount: real("amount"),
+	currency: text("currency"),
+	endDateTime: integer("end_date_time", { mode: "timestamp_ms" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+export const sportsbookBetBoost = sqliteTable("sportsbook_bet_boost", {
+	id: text("id").primaryKey(),
+	dataBetBoostId: text("data_bet_boost_id").notNull().unique(),
+	playerId: text("player_id"),
+	boostName: text("boost_name").notNull(),
+	description: text("description").notNull(),
+	boostPercentage: real("boost_percentage").notNull(),
+	maximumWin: real("maximum_win"),
+	minimumSelections: integer("minimum_selections").notNull(),
+	maximumSelections: integer("maximum_selections").notNull(),
+	minimumOddsPerSelection: real("minimum_odds_per_selection").notNull(),
+	eligibleUsers: text("eligible_users").notNull(),
+	eligibleSports: text("eligible_sports").notNull(),
+	promotionId: text("promotion_id").references(() => sportsbookPromotion.id),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -222,6 +344,23 @@ export const sportsbookBetRelations = relations(sportsbookBet, ({ one }) => ({
 		references: [user.id],
 	}),
 }));
+
+export const sportsbookBetBoostRelations = relations(
+	sportsbookBetBoost,
+	({ one }) => ({
+		promotion: one(sportsbookPromotion, {
+			fields: [sportsbookBetBoost.promotionId],
+			references: [sportsbookPromotion.id],
+		}),
+	}),
+);
+
+export const sportsbookPromotionRelations = relations(
+	sportsbookPromotion,
+	({ many }) => ({
+		betBoosts: many(sportsbookBetBoost),
+	}),
+);
 
 export const walletTransactionRelations = relations(
 	walletTransaction,
@@ -488,6 +627,69 @@ export const pocketsTransactions = sqliteTable("pockets_transactions", {
 		.notNull(),
 });
 
+export const scorpioPlayers = sqliteTable(
+	"scorpio_players",
+	{
+		userId: text("user_id")
+			.primaryKey()
+			.references(() => user.id, { onDelete: "cascade" }),
+		playerCode: integer("player_code").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [index("scorpio_players_playerCode_idx").on(table.playerCode)],
+);
+
+export const scorpioPlayersRelations = relations(scorpioPlayers, ({ one }) => ({
+	user: one(user, {
+		fields: [scorpioPlayers.userId],
+		references: [user.id],
+	}),
+}));
+
+export const scorpioTransactions = sqliteTable(
+	"scorpio_transactions",
+	{
+		id: text("id").primaryKey(),
+		transactionId: text("transaction_id").notNull().unique(),
+		referenceId: text("reference_id"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		type: text("type").notNull(),
+		amount: integer("amount").notNull(),
+		balanceBefore: integer("balance_before"),
+		balanceAfter: integer("balance_after"),
+		roundId: text("round_id").notNull(),
+		providerId: integer("provider_id"),
+		gameCode: text("game_code"),
+		currency: text("currency").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("scorpio_tx_userId_idx").on(table.userId),
+		index("scorpio_tx_referenceId_idx").on(table.referenceId),
+		index("scorpio_tx_roundId_idx").on(table.roundId),
+	],
+);
+
+export const scorpioTransactionsRelations = relations(
+	scorpioTransactions,
+	({ one }) => ({
+		user: one(user, {
+			fields: [scorpioTransactions.userId],
+			references: [user.id],
+		}),
+	}),
+);
+
 export const pocketsTransactionsRelations = relations(
 	pocketsTransactions,
 	({ one }) => ({
@@ -677,6 +879,13 @@ export const game = sqliteTable("game", {
 	name: text("name").notNull(),
 	code: text("code").notNull(),
 	imageUrl: text("image_url"),
+	/** Slotegrator provider id — used by Bonus Engine Admin provider_games dropdowns. */
+	providerId: text("provider_id"),
+	providerName: text("provider_name"),
+	isLiveGame: integer("is_live_game", { mode: "boolean" })
+		.default(false)
+		.notNull(),
+	freeSpin: integer("free_spin", { mode: "boolean" }).default(false).notNull(),
 	enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -732,5 +941,111 @@ export const gameCategoryRelations = relations(gameCategory, ({ one }) => ({
 		references: [category.id],
 	}),
 }));
+
+/** Idempotent log of Bonus Engine inbound callbacks. */
+export const bonusEngineCallbackEvent = sqliteTable(
+	"bonus_engine_callback_event",
+	{
+		id: text("id").primaryKey(),
+		idempotencyKey: text("idempotency_key").notNull().unique(),
+		eventType: text("event_type").notNull(),
+		payloadJson: text("payload_json").notNull(),
+		processedAt: integer("processed_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("bonus_engine_callback_event_type_idx").on(table.eventType),
+	],
+);
+
+/** Local cache of loyalty points/level from Bonus Engine callbacks or fetches. */
+export const bonusEngineLoyaltySnapshot = sqliteTable(
+	"bonus_engine_loyalty_snapshot",
+	{
+		userId: text("user_id").primaryKey(),
+		totalPoints: integer("total_points").notNull().default(0),
+		loyaltyLevel: text("loyalty_level").notNull().default(""),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+);
+
+/** Local cache of mission progress/completion from Bonus Engine callbacks. */
+export const bonusEngineMissionProgress = sqliteTable(
+	"bonus_engine_mission_progress",
+	{
+		userId: text("user_id").notNull(),
+		missionId: text("mission_id").notNull(),
+		progressPercentage: real("progress_percentage").notNull().default(0),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		rewardJson: text("reward_json"),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			name: "bonus_engine_mission_progress_pk",
+			columns: [table.userId, table.missionId],
+		}),
+	],
+);
+
+export const exportJob = sqliteTable(
+	"export_job",
+	{
+		id: text("id").primaryKey(),
+		source: text("source").notNull(),
+		format: text("format").notNull(),
+		filters: text("filters").notNull().default("{}"),
+		status: text("status").notNull().default("queued"),
+		requestedBy: text("requested_by").notNull(),
+		rowCount: integer("row_count").notNull().default(0),
+		chunkCount: integer("chunk_count").notNull().default(0),
+		chunksDone: integer("chunks_done").notNull().default(0),
+		chunksFailed: integer("chunks_failed").notNull().default(0),
+		snapshotAt: integer("snapshot_at", { mode: "timestamp_ms" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+	},
+	(table) => [
+		index("export_job_requested_by_idx").on(table.requestedBy),
+		index("export_job_expires_at_idx").on(table.expiresAt),
+	],
+);
+
+export const exportChunk = sqliteTable(
+	"export_chunk",
+	{
+		id: text("id").primaryKey(),
+		jobId: text("job_id")
+			.notNull()
+			.references(() => exportJob.id, { onDelete: "cascade" }),
+		chunkIndex: integer("chunk_index").notNull(),
+		startOffset: integer("start_offset").notNull(),
+		rowLimit: integer("row_limit").notNull(),
+		status: text("status").notNull().default("queued"),
+		r2Key: text("r2_key"),
+		rowCount: integer("row_count").notNull().default(0),
+		error: text("error"),
+		attempts: integer("attempts").notNull().default(0),
+		claimedAt: integer("claimed_at", { mode: "timestamp_ms" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+	},
+	(table) => [
+		index("export_chunk_job_id_idx").on(table.jobId),
+		uniqueIndex("export_chunk_job_index_idx").on(table.jobId, table.chunkIndex),
+	],
+);
 
 export * from "./schema/admin";

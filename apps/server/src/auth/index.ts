@@ -202,7 +202,10 @@ export const createAuth = (env: CloudflareBindings) => {
 };
 
 /** Cookie name Better Auth expects for the session token. */
-export function getSessionCookieName(nodeEnv?: string, authUrl?: string): string {
+export function getSessionCookieName(
+	nodeEnv?: string,
+	authUrl?: string,
+): string {
 	const { useSecureCookies } = getAuthCookiePolicy({ nodeEnv, authUrl });
 	return useSecureCookies ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME;
 }
@@ -235,5 +238,5 @@ export function createHashCookie(
 	const prefix = policy.useSecureCookies ? "__Secure-ba" : COOKIE_PREFIX;
 	const secureFlag = policy.useSecureCookies ? "; Secure" : "";
 	const sameSite = policy.sameSite === "none" ? "None" : "Lax";
-	return `${prefix}.session_token_hash=${token}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
+	return `${prefix}.session_token_hash=${token}; Domain=.sportsdey.com; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }

@@ -1,10 +1,18 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
+import {
+	creditWallet,
+	debitWallet,
+	freezeWallet,
+	unfreezeWallet,
+} from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
+import { requirePermission } from "@/middleware/admin-permissions";
 import {
+	AccumulatorBonusTableResponseSchema,
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -20,8 +28,19 @@ import {
 	CashOutAcceptedRequestSchema,
 	CashOutDeclinedRequestSchema,
 	CreateSportsbookTokenResponseSchema,
+	SportEventQuerySchema,
+	SportEventsResponseSchema,
 	SportsbookTokenErrorSchema,
+	TournamentQuerySchema,
+	TournamentsResponseSchema,
 } from "@/schemas/sportsbook";
+import {
+	ACCUMULATOR_MAX_SELECTIONS,
+	ACCUMULATOR_MIN_SELECTIONS,
+	ACCUMULATOR_SPORTS,
+	buildAccumulatorBoostPayload,
+	getAccumulatorBonusTable,
+} from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -37,30 +56,110 @@ const BET_TYPE_LABELS: Record<number, string> = {
 	9: "live-accumulator",
 };
 
+const SPORT_IDS: Record<"Football" | "Basketball" | "Tennis", string> = {
+	Football: "football",
+	Basketball: "basketball",
+	Tennis: "tennis",
+};
+
 const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 export default sportsbookRoute;
 
+type SportsbookSelection = {
+	match_id?: string | number;
+	meta?: {
+		sport_event_info_sport_id?: string | number;
+		sport_event_info_tournament_id?: string | number;
+	};
+};
+
+function selectionSport(selection: SportsbookSelection | undefined): string {
+	const value = selection?.meta?.sport_event_info_sport_id;
+	return value == null ? "" : String(value);
+}
+
+function selectionLeague(selection: SportsbookSelection | undefined): string {
+	const value = selection?.meta?.sport_event_info_tournament_id;
+	return value == null ? "" : String(value);
+}
+
+function selectionMatchId(selection: SportsbookSelection | undefined): string {
+	const value = selection?.match_id;
+	return value == null ? "" : String(value);
+}
+
 async function databetFetch(
 	env: CloudflareBindings,
 	path: string,
-	options: { method?: string; body?: unknown } = {},
+	options: {
+		method?: string;
+		body?: unknown;
+		query?: Record<string, string | string[] | undefined>;
+		headers?: Record<string, string>;
+	} = {},
 ): Promise<Response> {
-	const proxyUrl = env.PROXY_URL;
-	const proxySecret = env.PROXY_SECRET;
+	const proxyUrl = env.PROXY_URL?.trim();
+	const proxySecret = env.PROXY_SECRET?.trim();
 
-	const url = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
+	if (!proxyUrl) {
+		throw new Error("PROXY_URL not configured");
+	}
+	if (!proxySecret) {
+		throw new Error("PROXY_SECRET not configured");
+	}
+
+	const searchParams = new URLSearchParams();
+	if (options.query) {
+		for (const [key, value] of Object.entries(options.query)) {
+			if (value === undefined) {
+				continue;
+			}
+			for (const item of Array.isArray(value) ? value : [value]) {
+				searchParams.append(Array.isArray(value) ? `${key}[]` : key, item);
+			}
+		}
+	}
+
+	const baseUrl = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
+	const url =
+		searchParams.size > 0 ? `${baseUrl}?${searchParams.toString()}` : baseUrl;
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
-		"X-Proxy-Auth": proxySecret || "",
+		"X-Proxy-Auth": proxySecret,
+		...options.headers,
 	};
-	console.log("url", url);
 
-	return fetch(url, {
-		method: options.method || "GET",
-		headers,
-		body: options.body ? JSON.stringify(options.body) : undefined,
-	});
+	try {
+		return await fetch(url, {
+			method: options.method || "GET",
+			headers,
+			body: options.body ? JSON.stringify(options.body) : undefined,
+		});
+	} catch (error) {
+		console.error("Sportsbook proxy request threw", {
+			path,
+			nodeEnv: env.NODE_ENV,
+			proxyTarget: url,
+			hasProxyUrl: Boolean(proxyUrl),
+			hasProxySecret: Boolean(proxySecret),
+			// DATABET_CERT is documented at the architecture level, but current
+			// sportsbook traffic is actually proxied through apps/proxy, where the
+			// mTLS cert is attached by nginx rather than the Worker fetch itself.
+			hasDatabetCertBinding: Boolean(
+				(env as unknown as Record<string, unknown>).DATABET_CERT,
+			),
+			error:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack,
+						}
+					: String(error),
+		});
+		throw error;
+	}
 }
 
 const createTokenRoute = createRoute({
@@ -112,9 +211,8 @@ const createTokenRoute = createRoute({
 
 sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	const user = c.get("user");
-	const session = c.get("session");
 
-	if (!c.env.PROXY_URL) {
+	if (!c.env.PROXY_URL?.trim()) {
 		return c.json(
 			{
 				success: false as const,
@@ -124,18 +222,89 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 			500,
 		);
 	}
+	if (!c.env.PROXY_SECRET?.trim()) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Proxy secret not configured",
+				details: null,
+			},
+			500,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+	let sessionId = "";
+
+	if (user) {
+		const now = new Date();
+		const sportsbookSessionId = crypto.randomUUID();
+		sessionId = sportsbookSessionId;
+
+		const sportsbookSession = await db
+			.insert(schema.sportsbookSession)
+			.values({
+				id: sportsbookSessionId,
+				userId: user.id,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+		if (sportsbookSession.length === 0) {
+			return c.json(
+				{
+					success: false as const,
+					error: "An error occured",
+					details: null,
+				},
+				500,
+			);
+		}
+	}
 
 	const requestBody = {
 		locale: "en",
 		currency: "NGN",
-		...(user?.id ? { player_id: user.id } : {}),
-		...(session?.id ? { params: { session_id: session.id } } : {}),
+		...(user ? { player_id: user.id } : {}),
+		...(sessionId === "" ? {} : { params: { session_id: sessionId } }),
 	};
 
-	const response = await databetFetch(c.env, "/token/create", {
-		method: "POST",
-		body: requestBody,
-	});
+	let response: Response;
+	try {
+		response = await databetFetch(c.env, "/token/create", {
+			method: "POST",
+			body: requestBody,
+		});
+	} catch (error) {
+		console.error("Sportsbook token/create failed before upstream response", {
+			nodeEnv: c.env.NODE_ENV,
+			hasProxyUrl: Boolean(c.env.PROXY_URL?.trim()),
+			hasProxySecret: Boolean(c.env.PROXY_SECRET?.trim()),
+			hasDatabetCertBinding: Boolean(
+				(c.env as unknown as Record<string, unknown>).DATABET_CERT,
+			),
+			requestBody,
+			error:
+				error instanceof Error
+					? {
+							name: error.name,
+							message: error.message,
+							stack: error.stack,
+						}
+					: String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Betting API request failed",
+				details:
+					error instanceof Error
+						? error.message
+						: "Unknown proxy request error",
+			},
+			500,
+		);
+	}
 
 	if (!response.ok) {
 		const errorText = await response.text();
@@ -233,17 +402,11 @@ sportsbookRoute.openapi(heartbeatRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const now = new Date();
-
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id),
 	});
 
-	if (!session) {
-		return c.body(null, 404);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < now.getTime()) {
+	if (!sportsbookSession) {
 		return c.body(null, 404);
 	}
 
@@ -289,12 +452,26 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -336,11 +513,11 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
@@ -352,20 +529,8 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		);
 	}
 
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
 	const wallet = await db.query.wallet.findFirst({
-		where: eq(schema.wallet.userId, session.userId),
+		where: eq(schema.wallet.userId, sportsbookSession.userId),
 	});
 
 	if (!wallet) {
@@ -426,12 +591,12 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 
 	const now = new Date();
 	if (!isFreebet) {
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({ frozenBalance: wallet.frozenBalance + stakeKobo })
-			.where(eq(schema.wallet.userId, session.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await freezeWallet(
+			db,
+			sportsbookSession.userId,
+			stakeKobo,
+		);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -452,7 +617,7 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 		.values({
 			id: result.data.bet_id,
 			requestId: result.data.request_id,
-			userId: session.userId,
+			userId: sportsbookSession.userId,
 			stake: stakeKobo,
 			totalOdds: result.data.total_odds_value ?? null,
 			betType: result.data.bet_type ?? null,
@@ -508,16 +673,16 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 	}
 
 	const selections = result.data.bet_odds ?? [];
-	const firstOdds = selections[0] as Record<string, unknown> | undefined;
+	const firstOdds = selections[0] as Record<string, any> | undefined;
 	trackWebengageEvent(
 		c.env,
 		{
-			userId: session.userId,
+			userId: sportsbookSession.userId,
 			eventName: "bet_slip_created",
 			eventData: {
-				sport: firstOdds?.meta?.sport_event_info_sport_id ?? "",
-				league: firstOdds?.meta?.sport_event_info_tournament_id ?? "",
-				match_id: firstOdds?.match_id ?? "",
+				sport: selectionSport(firstOdds),
+				league: selectionLeague(firstOdds),
+				match_id: selectionMatchId(firstOdds),
 				bet_type:
 					BET_TYPE_LABELS[result.data.bet_type ? result.data.bet_type : 1] ??
 					String(result.data.bet_type),
@@ -573,12 +738,26 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -594,7 +773,25 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	const result = BetPlaceRequestSchema.safeParse(await c.req.json());
+	let body: unknown;
+	try {
+		body = await c.req.json();
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_request_body",
+						message: "Request body is not valid JSON",
+					},
+				},
+			},
+			400,
+		);
+	}
+
+	const result = BetPlaceRequestSchema.safeParse(body);
 	if (!result.success) {
 		return c.json(
 			{
@@ -620,27 +817,15 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -681,7 +866,6 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	// 	);
 	// }
 
-	let bal: number;
 	let balAfter: number;
 
 	const wallet = await db.query.wallet.findFirst({
@@ -689,26 +873,39 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	});
 
 	if (!wallet) {
-		throw new Error("Wallet not found");
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "wallet_not_found",
+					},
+				},
+			},
+			400,
+		);
 	}
 
 	const balanceBefore = wallet.balance;
-	bal = balanceBefore;
 	balAfter = balanceBefore;
 
 	if (!bet.betFreebetId) {
-		const newBalance = wallet.balance - bet.stake;
-		const newFrozenBalance = wallet.frozenBalance - bet.stake;
-		balAfter = newBalance;
-
 		const walletUpdate = await db
 			.update(schema.wallet)
 			.set({
-				balance: newBalance,
-				frozenBalance: newFrozenBalance,
+				balance: sql`${schema.wallet.balance} - ${bet.stake}`,
+				frozenBalance: sql`${schema.wallet.frozenBalance} - ${bet.stake}`,
 			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
+			.where(
+				and(
+					eq(schema.wallet.userId, bet.userId),
+					gte(schema.wallet.frozenBalance, bet.stake),
+				),
+			)
+			.returning({
+				userId: schema.wallet.userId,
+				balance: schema.wallet.balance,
+			});
 		if (walletUpdate.length === 0) {
 			return c.json(
 				{
@@ -723,6 +920,8 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate[0]!.balance;
+		balAfter = newBalance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -804,7 +1003,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	}
 
 	const selections = result.data.bet_odds as
-		| Array<Record<string, unknown>>
+		| Array<Record<string, any>>
 		| undefined;
 	const firstSelection = selections?.[0];
 
@@ -835,9 +1034,9 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 					? Number.parseFloat(result.data.total_odds_value)
 					: null,
 				selection_count: selections?.length ?? 0,
-				sport: firstSelection?.meta?.sport_event_info_sport_id ?? "",
-				league: firstSelection?.meta?.sport_event_info_tournament_id ?? "",
-				match_ids: selections?.map((s) => s.match_id ?? "") ?? [],
+				sport: selectionSport(firstSelection),
+				league: selectionLeague(firstSelection),
+				match_ids: selections?.map((s) => selectionMatchId(s)) ?? [],
 				wallet_balance_after: balAfter / 100,
 			},
 		},
@@ -872,7 +1071,7 @@ const betDeclineRoute = createRoute({
 const BetDeclineRequestSchema = z.object({
 	request_id: z.string(),
 	bet_id: z.string(),
-	bet_player_id: z.string().optional(),
+	bet_player_id: z.string(),
 	restrictions: z.array(z.any()).optional(),
 });
 
@@ -893,12 +1092,26 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -940,27 +1153,15 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -992,15 +1193,9 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 
 	if (wallet && !bet.betFreebetId) {
 		if (bet.status === "created") {
-			const walletUpdate = await db
-				.update(schema.wallet)
-				.set({
-					frozenBalance: wallet.frozenBalance - bet.stake,
-				})
-				.where(eq(schema.wallet.userId, bet.userId))
-				.returning({ userId: schema.wallet.userId });
+			const walletUpdate = await unfreezeWallet(db, bet.userId, bet.stake);
 			console.log("wallet update", walletUpdate);
-			if (walletUpdate.length === 0) {
+			if (!walletUpdate) {
 				return c.json(
 					{
 						error: {
@@ -1015,16 +1210,9 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 				);
 			}
 		} else if (bet.status === "accepted") {
-			const newBalance = wallet.balance + bet.stake;
-			const walletUpdate = await db
-				.update(schema.wallet)
-				.set({
-					balance: newBalance,
-				})
-				.where(eq(schema.wallet.userId, bet.userId))
-				.returning({ userId: schema.wallet.userId });
+			const walletUpdate = await creditWallet(db, bet.userId, bet.stake);
 			console.log("wallet update", walletUpdate);
-			if (walletUpdate.length === 0) {
+			if (!walletUpdate) {
 				return c.json(
 					{
 						error: {
@@ -1049,7 +1237,7 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 					reference: `sb_decline_${bet.id}_${crypto.randomUUID()}`,
 					status: "success",
 					paymentMethod: "sportsbook",
-					balance: newBalance,
+					balance: walletUpdate.balance,
 					metadata: JSON.stringify({
 						action: "bet_declined",
 						betId: bet.id,
@@ -1180,12 +1368,26 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1227,27 +1429,15 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -1293,6 +1483,49 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	);
 	const settleType = result.data.settle_type;
 
+	const newStatus =
+		settleType === 3
+			? "loss"
+			: settleType === 2
+				? bet.status === "unsettled"
+					? "refunded_manually"
+					: "rolled_back"
+				: "win";
+
+	const betClaim = await db
+		.update(schema.sportsbookBet)
+		.set({
+			status: newStatus,
+			settleAmount: settleAmount,
+			settleType: settleType,
+			betData: JSON.stringify(result.data),
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(schema.sportsbookBet.id, result.data.bet_id),
+				or(
+					eq(schema.sportsbookBet.status, "accepted"),
+					eq(schema.sportsbookBet.status, "unsettled"),
+				),
+			),
+		)
+		.returning({ id: schema.sportsbookBet.id });
+	if (betClaim.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "bet_already_settled",
+						current_status: bet.status,
+					},
+				},
+			},
+			400,
+		);
+	}
+
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
@@ -1301,15 +1534,8 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	const shouldCredit = !bet.betFreebetId || isFreebetWin;
 
 	if (wallet && shouldCredit) {
-		const newBalance = wallet.balance + settleAmount;
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await creditWallet(db, bet.userId, settleAmount);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -1323,6 +1549,7 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate.balance;
 
 		const settleTypeLabel =
 			settleType === 1 ? "win" : settleType === 2 ? "refund" : "settled";
@@ -1348,41 +1575,6 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		if (!walletTxn?.id) {
 			console.error("Failed to record wallet transaction for bet settle");
 		}
-	}
-
-	const newStatus =
-		settleType === 3
-			? "loss"
-			: settleType === 2
-				? bet.status === "unsettled"
-					? "refunded_manually"
-					: "rolled_back"
-				: "win";
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			status: newStatus,
-			settleAmount: settleAmount,
-			settleType: settleType,
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update bet settlement",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();
@@ -1423,7 +1615,7 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		settleType === 1 ? "win" : settleType === 2 ? "refund" : "loss";
 
 	const settleSelections = result.data.bet_odds as
-		| Array<Record<string, unknown>>
+		| Array<Record<string, any>>
 		| undefined;
 	const settleFirstOdds = settleSelections?.[0];
 
@@ -1436,9 +1628,9 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 				bet_id: result.data.bet_id,
 				payout_amount: result.data.settle_amount,
 				outcome: settleTypeLabel,
-				net_pnl: Number.parseInt(result.data.settle_amount) - bet.stake,
-				sport: settleFirstOdds?.meta?.sport_event_info_sport_id ?? "",
-				league: settleFirstOdds?.meta?.sport_event_info_tournament_id ?? "",
+				net_pnl: Number.parseFloat(result.data.settle_amount) * 100 - bet.stake,
+				sport: selectionSport(settleFirstOdds),
+				league: selectionLeague(settleFirstOdds),
 			},
 		},
 		c.executionCtx,
@@ -1486,12 +1678,26 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1533,27 +1739,15 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -1602,20 +1796,47 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		? Math.round(Number.parseFloat(result.data.unsettle_amount) * 100)
 		: bet.settleAmount || 0;
 
+	const betClaim = await db
+		.update(schema.sportsbookBet)
+		.set({
+			status: "unsettled",
+			settleAmount: null,
+			settleType: null,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(schema.sportsbookBet.id, result.data.bet_id),
+				or(
+					eq(schema.sportsbookBet.status, "settled"),
+					eq(schema.sportsbookBet.status, "rolled_back"),
+					eq(schema.sportsbookBet.status, "refunded_manually"),
+				),
+			),
+		)
+		.returning({ id: schema.sportsbookBet.id });
+	if (betClaim.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "bet_already_unsettle",
+						current_status: bet.status,
+					},
+				},
+			},
+			400,
+		);
+	}
+
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
 
 	if (wallet) {
-		const newBalance = wallet.balance - unsettleAmount;
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await debitWallet(db, bet.userId, unsettleAmount);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -1629,6 +1850,7 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -1651,31 +1873,6 @@ sportsbookRoute.openapi(betUnsettleRoute, async (c) => {
 		if (!walletTxn?.id) {
 			console.error("Failed to record wallet transaction for bet unsettle");
 		}
-	}
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			status: "unsettled",
-			settleAmount: null,
-			settleType: null,
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to unsettle bet status",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();
@@ -1752,12 +1949,26 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -1799,27 +2010,15 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -1849,20 +2048,45 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		Number.parseFloat(result.data.refund_amount) * 100,
 	);
 
+	const existingOrderIds = bet.cashOutOrderIds
+		? JSON.parse(bet.cashOutOrderIds)
+		: [];
+	if (existingOrderIds.includes(result.data.cash_out_order_id)) {
+		return c.body(null, 204);
+	}
+	const newOrderIds = [...existingOrderIds, result.data.cash_out_order_id];
+
+	const betClaim = await db
+		.update(schema.sportsbookBet)
+		.set({
+			cashOutOrderIds: JSON.stringify(newOrderIds),
+			betData: JSON.stringify(result.data),
+			updatedAt: new Date(),
+		})
+		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
+		.returning({ id: schema.sportsbookBet.id });
+	if (betClaim.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "transaction_failed",
+						message: "Failed to update cashout acceptance state",
+					},
+				},
+			},
+			400,
+		);
+	}
+
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
 
 	if (wallet) {
-		const newBalance = wallet.balance + refundAmountKobo;
-		const walletUpdate = await db
-			.update(schema.wallet)
-			.set({
-				balance: newBalance,
-			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+		const walletUpdate = await creditWallet(db, bet.userId, refundAmountKobo);
+		if (!walletUpdate) {
 			return c.json(
 				{
 					error: {
@@ -1876,6 +2100,7 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				400,
 			);
 		}
+		const newBalance = walletUpdate.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -1901,35 +2126,6 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				"Failed to record wallet transaction for cashout acceptance",
 			);
 		}
-	}
-
-	const existingOrderIds = bet.cashOutOrderIds
-		? JSON.parse(bet.cashOutOrderIds)
-		: [];
-	const newOrderIds = [...existingOrderIds, result.data.cash_out_order_id];
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			cashOutOrderIds: JSON.stringify(newOrderIds),
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update cashout acceptance state",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();
@@ -1974,7 +2170,7 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 				cashout_value: result.data.refund_amount,
 				original_stake: bet.stake,
 				refund_amount: result.data.refund_amount,
-				cashout_rate: bet.stake - result.data.refund_amount,
+				cashout_rate: bet.stake - Number.parseFloat(result.data.refund_amount),
 				original_potential_payout: result.data.amount,
 			},
 		},
@@ -2023,12 +2219,26 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		);
 	}
 
-	const foreignParams = JSON.parse(foreignParamsHeader) as {
-		session_id: string;
-		[key: string]: unknown;
-	};
-
-	const { session_id } = foreignParams;
+	let session_id: string;
+	try {
+		const foreignParams = JSON.parse(foreignParamsHeader) as {
+			session_id: string;
+			[key: string]: unknown;
+		};
+		session_id = foreignParams.session_id;
+	} catch {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "invalid_foreign_params",
+					},
+				},
+			},
+			400,
+		);
+	}
 
 	if (!session_id) {
 		return c.json(
@@ -2070,27 +2280,15 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		return c.body(null, 204);
 	}
 
-	const session = await db.query.session.findFirst({
-		where: eq(schema.session.id, session_id as string),
+	const sportsbookSession = await db.query.sportsbookSession.findFirst({
+		where: eq(schema.sportsbookSession.id, session_id as string),
 	});
 
-	if (!session) {
+	if (!sportsbookSession) {
 		return c.json(
 			{
 				error: {
 					code: "auth_session_unknown",
-					data: {},
-				},
-			},
-			400,
-		);
-	}
-
-	if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
-		return c.json(
-			{
-				error: {
-					code: "auth_credentials_expired",
 					data: {},
 				},
 			},
@@ -2172,23 +2370,29 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 		return sum + (acceptedRefundByOrderId.get(orderId) ?? 0);
 	}, 0);
 
-	if (wallet && refundAmountKobo > 0) {
-		const newBalance = wallet.balance - refundAmountKobo;
-		const walletUpdate = await db
-			.update(schema.wallet)
+	if (orderIdsToReverse.length > 0) {
+		const existingOrderIds = bet.cashOutOrderIds
+			? JSON.parse(bet.cashOutOrderIds)
+			: [];
+		const newOrderIds = [...existingOrderIds, ...orderIdsToReverse];
+
+		const betClaim = await db
+			.update(schema.sportsbookBet)
 			.set({
-				balance: newBalance,
+				cashOutOrderIds: JSON.stringify(newOrderIds),
+				betData: JSON.stringify(result.data),
+				updatedAt: new Date(),
 			})
-			.where(eq(schema.wallet.userId, bet.userId))
-			.returning({ userId: schema.wallet.userId });
-		if (walletUpdate.length === 0) {
+			.where(eq(schema.sportsbookBet.id, result.data.bet_id))
+			.returning({ id: schema.sportsbookBet.id });
+		if (betClaim.length === 0) {
 			return c.json(
 				{
 					error: {
 						code: "custom_error",
 						data: {
 							code: "transaction_failed",
-							message: "Failed to reverse wallet credit for cashout decline",
+							message: "Failed to update cashout decline state",
 						},
 					},
 				},
@@ -2196,56 +2400,52 @@ sportsbookRoute.openapi(cashOutDeclinedRoute, async (c) => {
 			);
 		}
 
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: bet.userId,
-				amount: -refundAmountKobo,
-				type: "debit",
-				reference: `sb_cashout_decline_${result.data.bet_id}_${crypto.randomUUID()}`,
-				status: "success",
-				paymentMethod: "sportsbook",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					action: "cash_out_declined",
-					betId: result.data.bet_id,
-					refundAmount: refundAmountKobo,
-				}),
-			})
-			.returning({ id: schema.walletTransaction.id });
-		if (!walletTxn?.id) {
-			console.error("Failed to record wallet transaction for cashout decline");
-		}
-	}
+		const wallet = await db.query.wallet.findFirst({
+			where: eq(schema.wallet.userId, bet.userId),
+		});
 
-	const existingOrderIds = bet.cashOutOrderIds
-		? JSON.parse(bet.cashOutOrderIds)
-		: [];
-	const newOrderIds = [...existingOrderIds, ...orderIdsToReverse];
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			cashOutOrderIds: JSON.stringify(newOrderIds),
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update cashout decline state",
+		if (wallet && refundAmountKobo > 0) {
+			const walletUpdate = await debitWallet(db, bet.userId, refundAmountKobo);
+			if (!walletUpdate) {
+				return c.json(
+					{
+						error: {
+							code: "custom_error",
+							data: {
+								code: "transaction_failed",
+								message: "Failed to reverse wallet credit for cashout decline",
+							},
+						},
 					},
-				},
-			},
-			400,
-		);
+					400,
+				);
+			}
+			const newBalance = walletUpdate.balance;
+
+			const [walletTxn] = await db
+				.insert(schema.walletTransaction)
+				.values({
+					id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+					userId: bet.userId,
+					amount: -refundAmountKobo,
+					type: "debit",
+					reference: `sb_cashout_decline_${result.data.bet_id}_${crypto.randomUUID()}`,
+					status: "success",
+					paymentMethod: "sportsbook",
+					balance: newBalance,
+					metadata: JSON.stringify({
+						action: "cash_out_declined",
+						betId: result.data.bet_id,
+						refundAmount: refundAmountKobo,
+					}),
+				})
+				.returning({ id: schema.walletTransaction.id });
+			if (!walletTxn?.id) {
+				console.error(
+					"Failed to record wallet transaction for cashout decline",
+				);
+			}
+		}
 	}
 
 	const now = new Date();
@@ -2381,7 +2581,6 @@ sportsbookRoute.openapi(freebetCreateRoute, async (c) => {
 	}
 
 	const id = crypto.randomUUID();
-	const amountKobo = Math.round(result.amount * 100);
 
 	const apiRequestBody = {
 		player_id: result.player_id,
@@ -2583,7 +2782,7 @@ sportsbookRoute.openapi(freebetBulkCreateRoute, async (c) => {
 					},
 					index: number,
 				) => ({
-					id: freebetsData[index].id,
+					id: freebetsData[index].idempotence_id,
 					dataBetFreebetId: data.freebet_ids[index],
 					amount: fb.amount,
 					currency: fb.currency,
@@ -3352,68 +3551,225 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 
 	const result = await c.req.valid("json");
 
-	const apiRequestBody: Record<string, unknown> = {
-		idempotence_id: crypto.randomUUID(),
-		player_id: result.player_id,
-		currency_code: result.currency,
-		initial_quantity: result.initial_quantity,
-		applicable_conditions: result.applicable_conditions,
-		required_conditions: result.required_conditions,
-		expires_at: result.expires_at,
-	};
+	const db = drizzle(c.env.DB, { schema });
 
-	if (result.calculation_strategy) {
-		apiRequestBody.calculation_strategy = result.calculation_strategy;
-	}
+	const sportIds = result.eligibleSports.map((sport) => SPORT_IDS[sport]);
+	const multiplier = (1 + result.boostPercentage / 100).toFixed(2);
+	const expiresAt = new Date(result.endDateTime).toISOString();
 
-	const response = await databetFetch(c.env, "/bet-boosts", {
-		method: "POST",
-		body: apiRequestBody,
+	const buildPerOddConditions = () => ({
+		sport: {
+			type: "sport",
+			match_all_odds: true,
+			sport_ids: sportIds,
+		},
+		...(result.competitionIDs.length > 0
+			? {
+					tournament: {
+						type: "tournament",
+						match_all_odds: true,
+						tournament_ids: result.competitionIDs,
+					},
+				}
+			: {}),
+		...(result.eligibleEventsID.length > 0
+			? {
+					sport_event: {
+						type: "sport_event",
+						match_all_odds: true,
+						sport_event_ids: result.eligibleEventsID,
+					},
+				}
+			: {}),
+		odd_value: {
+			type: "odd_value",
+			match_all_odds: true,
+			min: result.minimumOddsPerSelection.toFixed(2),
+		},
 	});
 
-	if (!response.ok) {
-		const errorText = await response.text();
-		console.error(
-			"Data.Bet bet-boost create error:",
-			response.status,
-			errorText,
-		);
-		return c.json(
-			{
-				success: false as const,
-				error: `Failed to create bet boost: ${response.status}`,
-				details: errorText,
+	const buildRequiredConditions = (): Array<Record<string, unknown>> => [
+		{
+			type: "bet_details",
+			bet_details: [
+				{
+					bet_type: 2,
+					data: {
+						...buildPerOddConditions(),
+						odds_count: {
+							type: "odds_count",
+							min: result.minimumSelections,
+							max: result.maximumSelections,
+						},
+					},
+				},
+			],
+		},
+	];
+
+	const buildApplicableConditions = (): Array<Record<string, unknown>> => [
+		{
+			type: "bet_details",
+			bet_details: [
+				{
+					bet_type: 2,
+					data: buildPerOddConditions(),
+				},
+			],
+		},
+	];
+
+	const buildPayload = (playerId?: string) => ({
+		idempotence_id: crypto.randomUUID(),
+		...(playerId ? { player_id: playerId } : {}),
+		currency_code: "NGN",
+		initial_quantity: 0,
+		expires_at: expiresAt,
+		calculation_strategy: {
+			type: "static",
+			strategy: {
+				conditions: [],
+				params: {
+					multiplier,
+					min_selections: result.minimumSelections,
+				},
 			},
-			400,
-		);
+		},
+		required_conditions: buildRequiredConditions(),
+		applicable_conditions: buildApplicableConditions(),
+	});
+
+	let targetPlayerIds: string[] | undefined;
+	if (result.eligibleUsers === "new") {
+		const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+		const newUsers = await db
+			.select({ id: schema.user.id })
+			.from(schema.user)
+			.where(gte(schema.user.createdAt, new Date(sevenDaysAgo)));
+		targetPlayerIds = newUsers.map((newUser) => newUser.id);
+		if (targetPlayerIds.length === 0) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No new users found in the last 7 days",
+				},
+				400,
+			);
+		}
 	}
 
-	const data = (await response.json()) as Array<{
+	const targets: Array<string | undefined> =
+		targetPlayerIds && targetPlayerIds.length > 0
+			? targetPlayerIds
+			: [undefined];
+
+	const promotionId = crypto.randomUUID();
+
+	const created: Array<{
 		id: string;
-		currency_code: string;
-		calculation_strategy: unknown;
-	}>;
+		dataBetBoostId: string;
+		playerId: string | null;
+	}> = [];
+	console.log("targets", targets);
 
-	const createdBoost = data[0];
-	if (!createdBoost) {
-		return c.json(
-			{
-				success: false as const,
-				error: "No boost created",
-			},
-			400,
-		);
+	for (const playerId of targets) {
+		const apiRequestBody = buildPayload(playerId);
+
+		const response = await databetFetch(c.env, "/bet-boosts", {
+			method: "POST",
+			body: apiRequestBody,
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet bet-boost create error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to create bet boost: ${response.status}`,
+					details: errorText,
+				},
+				400,
+			);
+		}
+
+		const data = (await response.json()) as {
+			id: string;
+		};
+
+		console.log("responseData", data)
+
+		const createdBoost = data;
+		if (!createdBoost) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No boost created",
+				},
+				400,
+			);
+		}
+
+		created.push({
+			id: crypto.randomUUID(),
+			dataBetBoostId: createdBoost.id,
+			playerId: playerId ?? null,
+		});
 	}
 
-	const idempotenceId = apiRequestBody.idempotence_id as string;
+	await db.insert(schema.sportsbookPromotion).values({
+		id: promotionId,
+		promotionType: "bet_boost",
+		name: result.boostName,
+		description: result.description,
+		eligibleUsers: result.eligibleUsers,
+		eligibleSports: JSON.stringify(result.eligibleSports),
+		competitionIds:
+			result.competitionIDs.length > 0
+				? JSON.stringify(result.competitionIDs)
+				: null,
+		eligibleEventIds:
+			result.eligibleEventsID.length > 0
+				? JSON.stringify(result.eligibleEventsID)
+				: null,
+		boostPercentage: result.boostPercentage,
+		minimumSelections: result.minimumSelections,
+		maximumSelections: result.maximumSelections,
+		minimumOddsPerSelection: result.minimumOddsPerSelection,
+		...(result.maximumWin !== undefined
+			? { maximumWin: result.maximumWin }
+			: {}),
+		endDateTime: new Date(result.endDateTime),
+	});
+
+	for (const boost of created) {
+		await db.insert(schema.sportsbookBetBoost).values({
+			id: boost.id,
+			dataBetBoostId: boost.dataBetBoostId,
+			playerId: boost.playerId,
+			boostName: result.boostName,
+			description: result.description,
+			boostPercentage: result.boostPercentage,
+			minimumSelections: result.minimumSelections,
+			maximumSelections: result.maximumSelections,
+			minimumOddsPerSelection: result.minimumOddsPerSelection,
+			eligibleUsers: result.eligibleUsers,
+			eligibleSports: JSON.stringify(result.eligibleSports),
+			promotionId,
+			...(result.maximumWin !== undefined
+				? { maximumWin: result.maximumWin }
+				: {}),
+		});
+	}
 
 	return c.json(
 		{
 			success: true as const,
-			data: {
-				id: idempotenceId,
-				dataBetBoostId: createdBoost.id,
-			},
+			data: created,
 		},
 		200,
 	);
@@ -3477,7 +3833,11 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		);
 	}
 
-	const response = await databetFetch(c.env, "/bet-boosts");
+	const { player_id: playerIdFilter } = c.req.valid("query");
+	const listPath = playerIdFilter
+		? `/bet-boosts?player_id=${encodeURIComponent(playerIdFilter)}`
+		: "/bet-boosts";
+	const response = await databetFetch(c.env, listPath);
 
 	if (!response.ok) {
 		const errorText = await response.text();
@@ -3506,10 +3866,14 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 		required_conditions?: object[];
 	}>;
 
+	const filtered = playerIdFilter
+		? data.filter((bb) => bb.player_id === playerIdFilter)
+		: data;
+
 	return c.json(
 		{
 			success: true as const,
-			data: data.map((bb) => ({
+			data: filtered.map((bb) => ({
 				id: bb.id,
 				version: bb.version,
 				currencyCode: bb.currency_code,
@@ -3529,6 +3893,62 @@ sportsbookRoute.openapi(betBoostListRoute, async (c) => {
 					? JSON.stringify(bb.required_conditions)
 					: null,
 			})),
+		},
+		200,
+	);
+});
+
+const accumulatorBonusTableRoute = createRoute({
+	method: "get",
+	path: "/bet-boost/accumulator-config",
+	tags: ["Sportsbook"],
+	summary: "Accumulator bonus table",
+	description:
+		"Sportsdey accumulator bonus (DataBet bet boost) percentages by fold count for football, basketball, and tennis.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Accumulator bonus table",
+			content: {
+				"application/json": {
+					schema: AccumulatorBonusTableResponseSchema,
+				},
+			},
+		},
+		401: { description: "Unauthorized" },
+		403: { description: "Forbidden - admin or super_admin only" },
+	},
+});
+
+sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				sports: [...ACCUMULATOR_SPORTS],
+				minSelections: ACCUMULATOR_MIN_SELECTIONS,
+				maxSelections: ACCUMULATOR_MAX_SELECTIONS,
+				rows: getAccumulatorBonusTable(),
+			},
 		},
 		200,
 	);
@@ -3805,8 +4225,13 @@ const betBoostDeleteRoute = createRoute({
 		params: BetBoostGetSchema,
 	},
 	responses: {
-		204: {
+		200: {
 			description: "Bet boost deleted successfully",
+			content: {
+				"application/json": {
+					schema: z.object({ success: z.literal(true) }),
+				},
+			},
 		},
 		400: {
 			description: "Error deleting bet boost",
@@ -3816,9 +4241,6 @@ const betBoostDeleteRoute = createRoute({
 		},
 		403: {
 			description: "Forbidden - admin or super_admin only",
-		},
-		404: {
-			description: "Bet boost not found",
 		},
 	},
 });
@@ -3855,22 +4277,13 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 		method: "DELETE",
 	});
 
-	if (!response.ok) {
+	if (!response.ok && response.status !== 404) {
 		const errorText = await response.text();
 		console.error(
 			"Data.Bet bet-boost delete error:",
 			response.status,
 			errorText,
 		);
-		if (response.status === 404) {
-			return c.json(
-				{
-					success: false as const,
-					error: "Bet boost not found",
-				},
-				404,
-			);
-		}
 		return c.json(
 			{
 				success: false as const,
@@ -3880,5 +4293,379 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 		);
 	}
 
-	return c.body(null, 204);
+	const db = drizzle(c.env.DB, { schema });
+
+	const boosts = await db
+		.select({
+			id: schema.sportsbookBetBoost.id,
+			promotionId: schema.sportsbookBetBoost.promotionId,
+		})
+		.from(schema.sportsbookBetBoost)
+		.where(eq(schema.sportsbookBetBoost.dataBetBoostId, id));
+
+	const promotionIds = new Set<string>();
+	for (const boost of boosts) {
+		if (boost.promotionId) promotionIds.add(boost.promotionId);
+		await db
+			.delete(schema.sportsbookBetBoost)
+			.where(eq(schema.sportsbookBetBoost.id, boost.id));
+	}
+
+	for (const promotionId of promotionIds) {
+		const [remaining] = await db
+			.select({ count: sql<number>`COUNT(*)` })
+			.from(schema.sportsbookBetBoost)
+			.where(eq(schema.sportsbookBetBoost.promotionId, promotionId));
+		if (Number(remaining?.count ?? 0) === 0) {
+			await db
+				.delete(schema.sportsbookPromotion)
+				.where(eq(schema.sportsbookPromotion.id, promotionId));
+		}
+	}
+
+	return c.json({ success: true as const }, 200);
+});
+
+const sportsbookEventsRoute = createRoute({
+	method: "get",
+	path: "/events",
+	tags: ["Sportsbook"],
+	summary: "List sport events by sport and match status",
+	description:
+		"Fetch a page of sport events matching the given sport ids and match status from the Data.Bet sportsbook, honoring the limit and offset query params. Requires admin or super_admin authentication, or an admin with the create_promotion permission.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: SportEventQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Sport events retrieved successfully",
+			content: {
+				"application/json": {
+					schema: SportEventsResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Invalid query parameters",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - create_promotion permission required",
+		},
+		500: {
+			description: "Failed to fetch sport events from Data.Bet",
+		},
+	},
+});
+
+sportsbookRoute.openapi(sportsbookEventsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "create_promotion")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - create_promotion permission required",
+			},
+			403,
+		);
+	}
+
+	const query = c.req.valid("query");
+	const sportIds = Array.isArray(query.sportId)
+		? query.sportId
+		: [query.sportId];
+	const matchStatus = query.status === "live" ? "LIVE" : "NOT_STARTED";
+	const { offset, limit } = query;
+
+	try {
+		const dateFrom = new Date();
+		const dateTo = new Date(dateFrom.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+		const response = await databetFetch(
+			c.env,
+			"/sport-events-fixtures/search",
+			{
+				query: {
+					locale: "en",
+					sportIds,
+					matchStatuses: [matchStatus],
+					sportEventTypes: ["MATCH"],
+					dateFrom: dateFrom.toISOString(),
+					dateTo: dateTo.toISOString(),
+					offset: String(offset),
+					limit: String(limit),
+				},
+			},
+		);
+		console.log("requestUrl", response.url);
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error(
+				"Data.Bet sport events search error:",
+				response.status,
+				errorText,
+			);
+			return c.json(
+				{
+					success: false as const,
+					error: `Failed to fetch sport events: ${response.status}`,
+					details: errorText,
+				},
+				500,
+			);
+		}
+
+		const data = (await response.json()) as {
+			data?: {
+				sportEventsByFilters?: Array<{
+					id?: string;
+					fixture?: { title?: string };
+				}>;
+			};
+		};
+
+		const rawPage = data.data?.sportEventsByFilters ?? [];
+		const events: Array<{ id: string; title: string }> = [];
+		for (const sportEvent of rawPage) {
+			if (sportEvent.id && sportEvent.fixture?.title) {
+				events.push({
+					id: sportEvent.id,
+					title: sportEvent.fixture.title,
+				});
+			}
+		}
+
+		const hasMore = rawPage.length === limit;
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					events,
+					pagination: {
+						offset,
+						limit,
+						total: offset + events.length,
+						hasMore,
+					},
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Data.Bet sport events search threw", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Failed to fetch sport events",
+			},
+			500,
+		);
+	}
+});
+
+const sportsbookTournamentsRoute = createRoute({
+	method: "get",
+	path: "/tournaments",
+	tags: ["Sportsbook"],
+	summary: "List sportbook tournaments by sport",
+	description:
+		"Fetch a page of tournaments for the given sports from the Data.Bet sportsbook, honoring the limit and offset query params. Requires admin or super_admin authentication, or an admin with the create_promotion permission.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: TournamentQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Tournaments retrieved successfully",
+			content: {
+				"application/json": {
+					schema: TournamentsResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Invalid query parameters",
+		},
+		401: {
+			description: "Unauthorized",
+		},
+		403: {
+			description: "Forbidden - create_promotion permission required",
+		},
+		500: {
+			description: "Failed to fetch tournaments from Data.Bet",
+		},
+	},
+});
+
+sportsbookRoute.openapi(sportsbookTournamentsRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "create_promotion")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - create_promotion permission required",
+			},
+			403,
+		);
+	}
+
+	const query = c.req.valid("query");
+	const sports = Array.isArray(query.sport) ? query.sport : [query.sport];
+	const { offset, limit } = query;
+
+	try {
+		const fetchSport = async (
+			sportId: string,
+		): Promise<{
+			page: Array<{ id: string; title: string }>;
+			fullPage: boolean;
+		}> => {
+			const response = await databetFetch(c.env, "/v2/tournaments/by-filters", {
+				method: "POST",
+				headers: { "Api-Locale": "en" },
+				body: { sport: sportId, limit, offset },
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error(
+					"Data.Bet tournaments by-filters error:",
+					sportId,
+					response.status,
+					errorText,
+				);
+				throw new Error(
+					`Failed to fetch tournaments for ${sportId}: ${response.status}`,
+				);
+			}
+
+			const data = (await response.json()) as {
+				data?: {
+					tournaments_by_filters?: Array<{
+						id?: string;
+						name?: string;
+					}>;
+				};
+			};
+
+			const rawPage = data.data?.tournaments_by_filters ?? [];
+			const page: Array<{ id: string; title: string }> = [];
+			for (const tournament of rawPage) {
+				if (tournament.id && tournament.name) {
+					page.push({
+						id: tournament.id,
+						title: tournament.name,
+					});
+				}
+			}
+
+			return { page, fullPage: rawPage.length === limit };
+		};
+
+		const pagesBySport = await Promise.all(sports.map(fetchSport));
+
+		const seen = new Set<string>();
+		const tournaments: Array<{ id: string; title: string }> = [];
+		for (const result of pagesBySport) {
+			for (const tournament of result.page) {
+				if (seen.has(tournament.id)) {
+					continue;
+				}
+				seen.add(tournament.id);
+				tournaments.push(tournament);
+			}
+		}
+
+		const hasMore = pagesBySport.some((result) => result.fullPage);
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					tournaments,
+					pagination: {
+						offset,
+						limit,
+						total: offset + tournaments.length,
+						hasMore,
+					},
+				},
+			},
+			200,
+		);
+	} catch (error) {
+		console.error("Data.Bet tournaments fetch threw", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Failed to fetch tournaments",
+				details: error instanceof Error ? error.message : String(error),
+			},
+			500,
+		);
+	}
 });
