@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useEffect } from "react";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -22,7 +21,6 @@ import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
 
 import { cn } from "@/lib/utils";
@@ -85,29 +83,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
-	const { data: session } = useSession();
-
-	useEffect(() => {
-		const resetScroll = () => {
-			window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-			document.documentElement.scrollTop = 0;
-			document.body.scrollTop = 0;
-			const scrollables = document.querySelectorAll("main, section, [data-scroll-container]");
-			scrollables.forEach((el) => {
-				el.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-				el.scrollTop = 0;
-			});
-		};
-
-		resetScroll();
-		const frameId = requestAnimationFrame(resetScroll);
-		const timeoutId = setTimeout(resetScroll, 20);
-
-		return () => {
-			cancelAnimationFrame(frameId);
-			clearTimeout(timeoutId);
-		};
-	}, [location.pathname, location.search]);
 
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
