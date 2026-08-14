@@ -61,6 +61,21 @@ export const BONUS_ENGINE_PRODUCT_TYPE = {
 	SPORTSBOOK: "sportsbook",
 } as const;
 
+/**
+ * Reward `type` strings from Admin / mission-complete callbacks that credit
+ * the player's main SportsDey wallet (major currency units → kobo).
+ */
+export const BONUS_ENGINE_REWARD_TYPE = {
+	REAL_CASH: "Real Cash",
+} as const;
+
+export const BONUS_ENGINE_WALLET_PAYMENT_METHOD = {
+	MISSION_REAL_CASH: "bonus_engine_mission",
+} as const;
+
+/** Prefix for wallet_transaction.reference when crediting mission Real Cash. */
+export const BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX = "be_mission_reward";
+
 export const BONUS_ENGINE_CONTENT_TYPE_JSON = "application/json";
 
 /** Docs: reject invalid inbound signatures with HTTP 413. */
