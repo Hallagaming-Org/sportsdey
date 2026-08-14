@@ -102,7 +102,7 @@ function ResetPasswordPage() {
 						Create New Password
 					</h1>
 					<p className="mt-2 font-medium text-[#6f7471] text-sm">
-						Step 3 of 3
+						Step 2 of 2
 					</p>
 				</div>
 
