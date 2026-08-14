@@ -25,6 +25,7 @@ import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 export const Route = createFileRoute("/wallet")({
 	component: WalletPage,
