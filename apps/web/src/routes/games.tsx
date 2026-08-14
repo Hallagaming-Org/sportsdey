@@ -4,7 +4,7 @@ import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import FilerAToZ from "@/logos/FilerAToZ";
@@ -610,9 +610,13 @@ function GamesPage() {
 	}
 
 	if (error) {
+		const message =
+			error instanceof ApiError
+				? error.message
+				: "Failed to load games. Please try again.";
 		return (
 			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<p className="text-red-500">Failed to load games. Please try again.</p>
+				<p className="px-4 text-center text-red-500">{message}</p>
 			</div>
 		);
 	}
