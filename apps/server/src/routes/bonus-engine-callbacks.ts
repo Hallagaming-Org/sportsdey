@@ -6,6 +6,7 @@ import {
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
 } from "@/services/bonus-engine/bonus-engine.service.constant";
 import {
+	creditMissionRealCashReward,
 	getBonusEngineConfig,
 	getBonusEngineWalletBalances,
 	isBonusEngineCallbackVerifyConfigured,
@@ -245,6 +246,29 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 			completedAt: new Date(),
 			rewardJson: reward ? JSON.stringify(reward) : null,
 		});
+
+		try {
+			const cashCredit = await creditMissionRealCashReward({
+				env: c.env,
+				userId: playerId,
+				missionId,
+				reward,
+			});
+			if (cashCredit.credited) {
+				console.info("Mission Real Cash credited", {
+					userId: playerId,
+					missionId,
+					amountKobo: cashCredit.amountKobo,
+					reference: cashCredit.reference,
+				});
+			}
+		} catch (error: unknown) {
+			console.error("Mission Real Cash credit failed", {
+				userId: playerId,
+				missionId,
+				error,
+			});
+		}
 	}
 
 	return c.json(
