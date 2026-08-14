@@ -1,10 +1,11 @@
 import { useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export function ScrollToTop() {
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const searchStr = useRouterState({ select: (s) => s.location.searchStr });
 	const href = useRouterState({ select: (s) => s.location.href });
+	const isFirstMount = useRef(true);
 
 	useEffect(() => {
 		if (typeof window !== "undefined" && "scrollRestoration" in window.history) {
@@ -13,42 +14,73 @@ export function ScrollToTop() {
 	}, []);
 
 	useEffect(() => {
-		const performScroll = () => {
-			window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-			document.documentElement.scrollTop = 0;
-			document.body.scrollTop = 0;
+		if (isFirstMount.current) {
+			isFirstMount.current = false;
+			return;
+		}
 
-			const mains = document.querySelectorAll("main, [id='app-main-content']");
-			mains.forEach((el) => {
-				el.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-				el.scrollTop = 0;
-			});
+		let animationFrameId: number | null = null;
 
-			const scrollables = document.querySelectorAll(
+		const smoothScroll = (duration = 650) => {
+			const targetElements: HTMLElement[] = [];
+			const mains = document.querySelectorAll<HTMLElement>("main, [id='app-main-content']");
+			mains.forEach((el) => targetElements.push(el));
+
+			const scrollables = document.querySelectorAll<HTMLElement>(
 				".overflow-y-auto, .overflow-auto, [data-scroll-container]",
 			);
 			scrollables.forEach((el) => {
-				// Don't scroll sidebar if it's the aside menu
-				if (el.tagName.toLowerCase() !== "aside") {
-					el.scrollTop = 0;
+				if (el.tagName.toLowerCase() !== "aside" && !targetElements.includes(el)) {
+					targetElements.push(el);
 				}
 			});
+
+			const docEl = document.documentElement;
+			const bodyEl = document.body;
+			if (docEl && !targetElements.includes(docEl)) targetElements.push(docEl);
+			if (bodyEl && !targetElements.includes(bodyEl)) targetElements.push(bodyEl);
+
+			const startPositions = targetElements.map((el) => el.scrollTop);
+			const windowStart = window.scrollY;
+
+			const maxScroll = Math.max(...startPositions, windowStart);
+			if (maxScroll <= 0) return;
+
+			const startTime = performance.now();
+
+			// Smooth ease-out cubic animation
+			const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+			const step = (currentTime: number) => {
+				const elapsed = currentTime - startTime;
+				const progress = Math.min(elapsed / duration, 1);
+				const ease = easeOutCubic(progress);
+
+				targetElements.forEach((el, i) => {
+					const start = startPositions[i];
+					if (start && start > 0) {
+						el.scrollTop = Math.round(start * (1 - ease));
+					}
+				});
+
+				if (windowStart > 0) {
+					window.scrollTo({ top: Math.round(windowStart * (1 - ease)), behavior: "auto" });
+				}
+
+				if (progress < 1) {
+					animationFrameId = requestAnimationFrame(step);
+				}
+			};
+
+			animationFrameId = requestAnimationFrame(step);
 		};
 
-		performScroll();
-
-		const frame1 = requestAnimationFrame(performScroll);
-		const frame2 = requestAnimationFrame(() => requestAnimationFrame(performScroll));
-		const t1 = setTimeout(performScroll, 30);
-		const t2 = setTimeout(performScroll, 100);
-		const t3 = setTimeout(performScroll, 250);
+		smoothScroll(650);
 
 		return () => {
-			cancelAnimationFrame(frame1);
-			cancelAnimationFrame(frame2);
-			clearTimeout(t1);
-			clearTimeout(t2);
-			clearTimeout(t3);
+			if (animationFrameId) {
+				cancelAnimationFrame(animationFrameId);
+			}
 		};
 	}, [pathname, searchStr, href]);
 
