@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Phone } from "lucide-react";
 import { useState } from "react";
-import { signIn } from "@/lib/auth/client";import { buildPublicUrl } from "@/lib/public-url";
+import { signIn } from "@/lib/auth/client";
+import { buildPublicUrl } from "@/lib/public-url";
 import z from "zod";
 
 const signUpSearchSchema = z.object({
