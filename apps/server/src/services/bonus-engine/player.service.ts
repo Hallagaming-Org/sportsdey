@@ -5,7 +5,8 @@ import type {
 	BonusEngineLoginInput,
 } from "./bonus-engine.service.type";
 import { bonusEngineRequest } from "./client";
-import { getBonusEngineConfig } from "./config";
+import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
+import { getBonusEngineWalletBalances } from "./persistence.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
 /**
@@ -46,4 +47,45 @@ export async function loginBonusEnginePlayer(payload: {
 			device_type: player.deviceType ?? "desktop",
 		},
 	});
+}
+
+/**
+ * Fire-safe Bonus Engine `/login` sync for real app sign-in (email/OAuth/phone).
+ * Never throws — login UX must not fail if Bonus Engine is down or unconfigured.
+ * Lets Bonus Engine attribute consecutive-login mission progress from merchant logins.
+ */
+export async function syncBonusEnginePlayerOnAppLogin(payload: {
+	env: CloudflareBindings;
+	userId: string;
+	username: string;
+}): Promise<void> {
+	if (!isBonusEngineConfigured(payload.env)) return;
+
+	try {
+		const balances = await getBonusEngineWalletBalances({
+			env: payload.env,
+			userId: payload.userId,
+		});
+		const result = await loginBonusEnginePlayer({
+			env: payload.env,
+			player: {
+				userId: payload.userId,
+				username: payload.username,
+				realWalletBalance: balances.realWalletBalance,
+				bonusWalletBalance: balances.bonusWalletBalance,
+			},
+		});
+		if (!result.ok) {
+			console.error("Bonus Engine app-login sync failed", {
+				userId: payload.userId,
+				status: result.status,
+				error: result.error,
+			});
+		}
+	} catch (error: unknown) {
+		console.error("Bonus Engine app-login sync error", {
+			userId: payload.userId,
+			error,
+		});
+	}
 }
