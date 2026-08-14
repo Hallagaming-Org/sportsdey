@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { requestPhoneOtp } from "@/lib/auth/client";
-import { Mail, Phone } from "lucide-react";
+import { Phone } from "lucide-react";
 import z from "zod";
 
 const forgotPasswordSearchSchema = z.object({
@@ -33,52 +32,24 @@ function ForgotPasswordPage() {
 	const { phone: initialPhone, email: initialEmail } = Route.useSearch();
 	const navigate = useNavigate();
 
-	const [identifier, setIdentifier] = useState(initialPhone || initialEmail || "");
+	const [phoneNumber, setPhoneNumber] = useState(initialPhone || initialEmail || "");
 	const [error, setError] = useState("");
-	const [isLoading, setIsLoading] = useState(false);
 
-	const isPhone = /^[0-9+()\s-]+$/.test(identifier.trim()) && identifier.replace(/\D/g, "").length >= 10;
-	const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim());
-	const canContinue = isPhone || isEmail || identifier.trim().length >= 6;
+	const canContinue = phoneNumber.replace(/\D/g, "").length >= 10 || phoneNumber.trim().length >= 6;
 
-	const handleContinue = async () => {
+	const handleContinue = () => {
 		if (!canContinue) return;
 
+		const cleanPhone = phoneNumber.trim();
+		const normalized = normalizePhoneNumber(cleanPhone) || cleanPhone;
+
 		setError("");
-		setIsLoading(true);
-
-		try {
-			const cleanIdentifier = identifier.trim();
-			const phoneCandidate = normalizePhoneNumber(cleanIdentifier);
-
-			if (isPhone || phoneCandidate) {
-				await requestPhoneOtp(phoneCandidate || cleanIdentifier);
-				navigate({
-					to: "/auth/otp",
-					search: {
-						phone: phoneCandidate || cleanIdentifier,
-						flow: "reset-password",
-					},
-				});
-			} else {
-				// Email flow placeholder / direct to verification
-				navigate({
-					to: "/auth/otp",
-					search: {
-						phone: cleanIdentifier,
-						flow: "reset-password",
-					},
-				});
-			}
-		} catch (err) {
-			setError(
-				err instanceof Error
-					? err.message
-					: "Failed to send verification code. Please try again.",
-			);
-		} finally {
-			setIsLoading(false);
-		}
+		navigate({
+			to: "/auth/reset-password",
+			search: {
+				phone: normalized,
+			},
+		});
 	};
 
 	return (
@@ -89,34 +60,21 @@ function ForgotPasswordPage() {
 						Let's Recover Your Account
 					</h1>
 					<p className="mt-2 font-medium text-[#6f7471] text-sm">
-						Step 1 of 3
+						Step 1 of 2
 					</p>
 				</div>
 
 				<div className="flex flex-col gap-2">
 					<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-						{/* {isPhone ? (
-							<Phone className="mr-3 shrink-0 text-[#9a9d9a]" size={20} />
-						) 
-						: (
-							<Mail className="mr-3 shrink-0 text-[#9a9d9a]" size={20} />
-						)
-						} */}
-						{
-							<Phone className="mr-3 shrink-0 text-[#9a9d9a]" size={20} />
-						}
+						<Phone className="mr-3 shrink-0 text-[#9a9d9a]" size={20} />
 						<input
-							type="text"
-							value={identifier}
-							onChange={(event) => setIdentifier(event.target.value)}
+							type="tel"
+							value={phoneNumber}
+							onChange={(event) => setPhoneNumber(event.target.value)}
 							placeholder="Phone Number"
 							className="w-full bg-transparent text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
 						/>
 					</div>
-
-					<p className="px-1 text-xs text-[#6f7471]">
-						We have sent a 6-digit code to verify your identity.
-					</p>
 				</div>
 
 				{error ? (
@@ -128,10 +86,10 @@ function ForgotPasswordPage() {
 				<button
 					type="button"
 					onClick={handleContinue}
-					disabled={!canContinue || isLoading}
+					disabled={!canContinue}
 					className="mt-8 w-full cursor-pointer rounded-2xl bg-[#17b000] py-[18px] font-semibold text-lg text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60 hover:opacity-90"
 				>
-					{isLoading ? "Sending code..." : "Continue"}
+					Continue
 				</button>
 			</div>
 		</div>
