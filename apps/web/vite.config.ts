@@ -8,7 +8,9 @@ import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 // Must match apps/server `wrangler dev --port=3000`.
-// Do NOT proxy "/games" — that path is the TanStack lobby page; the API is reached via VITE_SERVER_URL.
+// Local web uses VITE_SERVER_URL=http://localhost:3001 so API calls stay same-origin
+// and hit these proxies. `/games` is both the lobby page and the games API — bypass
+// browser document navigations (Accept: text/html) so Vite serves the page.
 const LOCAL_API_TARGET = "http://localhost:3000";
 
 /** TanStack pages under /auth — must not be proxied to the API worker. */
@@ -57,6 +59,26 @@ function proxyMissionApiToLocalApi() {
 	};
 }
 
+/**
+ * Proxies `GET /games` JSON (and other /games API methods) to the worker,
+ * but leaves lobby navigations (`/games`, `/games?play=…`) to TanStack.
+ */
+function proxyGamesApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path !== "/games" && !path.startsWith("/games/")) {
+				return;
+			}
+			const accept = req.headers.accept ?? "";
+			if (accept.includes("text/html")) {
+				return req.url;
+			}
+		},
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
@@ -87,6 +109,7 @@ export default defineConfig({
 			"/bills": proxyToLocalApi(),
 			"/loyalty": proxyToLocalApi(),
 			"/mission": proxyMissionApiToLocalApi(),
+			"/games": proxyGamesApiToLocalApi(),
 			"/bonus-engine": proxyToLocalApi(),
 			"/gamification": proxyToLocalApi(),
 		},
