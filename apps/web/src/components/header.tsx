@@ -273,7 +273,7 @@ export default function Header(
 					)} */}
 
 					<div className="flex items-center gap-4 xl:gap-6">
-						{!isAuthRoute && (
+						{/* {!isAuthRoute && (
 							<a
 								href="https://wa.link/25tnk8"
 								target="_blank"
@@ -283,7 +283,7 @@ export default function Header(
 								<FaHandshakeAngle className="h-3.5 w-3.5 text-accent" />
 								<span>Become a Partner</span>
 							</a>
-						)}
+						)} */}
 
 						{!isAuthRoute && !!session?.user && (
 							<div className="flex h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] border border-[#F2EEFB] bg-[#04100B] px-[6px] py-[7px] dark:border-[#F2EEFB] dark:bg-[#04100B]">
