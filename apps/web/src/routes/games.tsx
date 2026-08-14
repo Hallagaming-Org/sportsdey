@@ -525,7 +525,7 @@ function GamesPage() {
 				onClose={() => setShowBalanceModal(false)}
 				onTopUp={() => {
 					setShowBalanceModal(false);
-					navigate({ to: "/wallet" });
+					navigate({ to: "/wallet", search: (prev) => ({ ...prev, openDeposit: true }) });
 				}}
 			/>
 			<CasinoLaunchSheet
