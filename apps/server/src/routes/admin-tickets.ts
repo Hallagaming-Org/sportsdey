@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, like, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -14,7 +14,8 @@ const adminTicketsRoute = new OpenAPIHono<{
 	Bindings: CloudflareBindings;
 }>();
 
-const MAX_PER_SOURCE = 2000;
+/** Safety cap for unpaginated list responses (Workers memory / response size). */
+const MAX_UNPAGINATED_ROWS = 10_000;
 
 function formatAmount(amount: number): string {
 	return `₦${(amount / 100).toLocaleString("en-NG")}`;
@@ -103,31 +104,19 @@ const TicketSchema = z
 	})
 	.openapi("Ticket");
 
-const PaginationSchema = z
-	.object({
-		page: z.number().openapi({ example: 1 }),
-		limit: z.number().openapi({ example: 10 }),
-		total: z.number().openapi({ example: 42 }),
-		totalPages: z.number().openapi({ example: 5 }),
-	})
-	.openapi("Pagination");
-
 const TicketsDataSchema = z
 	.object({
 		tickets: z.array(TicketSchema),
-		pagination: PaginationSchema,
+		pagination: z.object({
+			page: z.number(),
+			limit: z.number(),
+			total: z.number(),
+			totalPages: z.number(),
+		}),
 	})
 	.openapi("TicketsData");
 
 const TicketsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({ description: "Items per page", example: "10" }),
 	type: z
 		.enum(["all", "casino", "sportsbook"])
 		.optional()
@@ -144,6 +133,11 @@ const TicketsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Search by player name or bet ID" }),
+	page: z.string().optional().openapi({ description: "Page number (default 1)" }),
+	limit: z
+		.string()
+		.optional()
+		.openapi({ description: "Items per page (default 10, max 100)" }),
 });
 
 const GetUserTicketsParamsSchema = z.object({
@@ -151,14 +145,6 @@ const GetUserTicketsParamsSchema = z.object({
 });
 
 const GetUserTicketsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({ description: "Items per page", example: "10" }),
 	type: z
 		.enum(["all", "casino", "sportsbook"])
 		.optional()
@@ -249,7 +235,7 @@ const getTicketsRoute = createRoute({
 	tags: ["Admin - Tickets"],
 	summary: "Get all tickets",
 	description:
-		"Retrieve a paginated list of all tickets across sportsbook and casino. Supports filtering by type, date range, and search.",
+		"Paginated tickets across sportsbook and casino. Use GET /admin/tickets/all for the full unpaginated set.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: TicketsQuerySchema,
@@ -281,7 +267,7 @@ const getUserTicketsRoute = createRoute({
 	tags: ["Admin - Tickets"],
 	summary: "Get tickets for a user",
 	description:
-		"Retrieve a paginated list of tickets for a specific user across sportsbook and casino. Supports filtering by type and date range.",
+		"Retrieve all tickets for a specific user across sportsbook and casino (no pagination, capped at 10,000). Supports filtering by type and date range.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: GetUserTicketsParamsSchema,
@@ -343,7 +329,15 @@ const getTicketByIdRoute = createRoute({
 	},
 });
 
+<<<<<<< HEAD
 adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
+=======
+
+
+const handleGetTicketsList = async (
+	c: Parameters<Parameters<typeof adminTicketsRoute.openapi>[1]>[0],
+) => {
+>>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -378,15 +372,12 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 	}
 
 	const url = new URL(c.req.url);
-	const rawPage = url.searchParams.get("page") || "1";
-	const rawLimit = url.searchParams.get("limit") || "10";
 	const rawType = url.searchParams.get("type") || "all";
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 	const search = url.searchParams.get("search") || undefined;
 
-	const page = Math.max(1, parseInt(rawPage, 10) || 1);
-	const limit = Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 10));
+	const perSourceLimit = MAX_UNPAGINATED_ROWS;
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -449,7 +440,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 			)
 			.where(sbConditions.length > 0 ? and(...sbConditions) : undefined)
 			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(MAX_PER_SOURCE);
+			.limit(perSourceLimit);
 
 		const processedBetIds = new Set<string>();
 		for (const r of sbResults) {
@@ -601,7 +592,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
 				.where(casConditions.length > 0 ? and(...casConditions) : undefined)
 				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_PER_SOURCE);
+				.limit(perSourceLimit);
 
 			for (const r of results) {
 				const ts = r.createdAt.getTime();
@@ -630,70 +621,131 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allTickets.length;
-	const totalPages = Math.ceil(total / limit) || 1;
-	const paginated = allTickets.slice((page - 1) * limit, page * limit);
+	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
 
-	const gameNameCache = new Map<string, string | null>();
-
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
+	// Resolve game names with chunked IN queries — one query per 100 unique
+	// codes instead of one per row.
+	const gameNameByCode = new Map<string, string | null>();
+	const uniqueGameCodes = [
+		...new Set(
+			capped
+				.map((t) => t.gameCode)
+				.filter((code): code is string => Boolean(code)),
+		),
+	];
+	const GAME_CODE_CHUNK = 100;
+	for (let i = 0; i < uniqueGameCodes.length; i += GAME_CODE_CHUNK) {
+		const chunk = uniqueGameCodes.slice(i, i + GAME_CODE_CHUNK);
+		const rows = await db
+			.select({ code: schema.game.code, name: schema.game.name })
 			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
-		return name;
+			.where(inArray(schema.game.code, chunk));
+		for (const row of rows) {
+			gameNameByCode.set(row.code, row.name ?? null);
+		}
 	}
 
-	const ticketsWithNames = await Promise.all(
-		paginated.map(async (t) => {
-			let gameName: string | null = null;
-			if (t.gameCode) {
-				gameName = await getGameName(t.gameCode);
-			}
-			return {
-				id: t.id,
-				userId: t.userId,
-				playerName: t.playerName,
-				betAmount: formatAmount(t.betAmount),
-				odds: t.totalOdds,
-				potentialWin:
-					t.gameType === "Sportsbook" && t.totalOdds
-						? formatAmount(
-								Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
-							)
-						: null,
-				payout: t.payout != null ? formatAmount(t.payout) : null,
-				gameType: t.gameType,
-				outcome: t.outcome,
-				createdAt: formatDate(t.createdAt),
-				balanceBefore:
-					t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
-				balanceAfter:
-					t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
-				roundId: t.roundId,
-				provider: t.provider,
-				gameName,
-			};
-		}),
-	);
+	const ticketsWithNames = capped.map((t) => {
+		const gameName = t.gameCode
+			? (gameNameByCode.get(t.gameCode) ?? null)
+			: null;
+		return {
+			id: t.id,
+			userId: t.userId,
+			playerName: t.playerName,
+			betAmount: formatAmount(t.betAmount),
+			odds: t.totalOdds,
+			potentialWin:
+				t.gameType === "Sportsbook" && t.totalOdds
+					? formatAmount(
+							Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
+						)
+					: null,
+			payout: t.payout != null ? formatAmount(t.payout) : null,
+			gameType: t.gameType,
+			outcome: t.outcome,
+			createdAt: formatDate(t.createdAt),
+			balanceBefore:
+				t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+			balanceAfter:
+				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
+			roundId: t.roundId,
+			provider: t.provider,
+			gameName,
+		};
+	});
 
+	const unpaginated =
+		c.req.path.endsWith("/tickets/all") || c.req.path.endsWith("/tickets/all/");
 	return c.json({
 		success: true,
-		data: {
-			tickets: ticketsWithNames,
-			pagination: {
-				page,
-				limit,
-				total,
-				totalPages,
+		data: paginateTicketRows(ticketsWithNames, url, unpaginated),
+	});
+};
+
+const getTicketsAllRoute = createRoute({
+	method: "get",
+	path: "/tickets/all",
+	tags: ["Admin - Tickets"],
+	summary: "Get every ticket (unpaginated)",
+	description:
+		"New endpoint: full ticket list in one response (capped at 10,000). Does not change GET /admin/tickets, which stays paginated.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: TicketsQuerySchema.omit({ page: true, limit: true }),
+	},
+	responses: {
+		200: {
+			description: "Tickets retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(TicketsDataSchema),
+				},
 			},
 		},
-	});
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
 });
+
+function paginateTicketRows(
+	tickets: Array<Record<string, unknown>>,
+	url: URL,
+	unpaginated: boolean,
+) {
+	const total = tickets.length;
+	if (unpaginated) {
+		return {
+			tickets,
+			pagination: {
+				page: 1,
+				limit: total,
+				total,
+				totalPages: 1,
+			},
+		};
+	}
+	const page = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1);
+	const parsedLimit = Number.parseInt(url.searchParams.get("limit") || "10", 10);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+	return {
+		tickets: tickets.slice((page - 1) * limit, page * limit),
+		pagination: { page, limit, total, totalPages },
+	};
+}
+
+adminTicketsRoute.openapi(getTicketsRoute, handleGetTicketsList);
+adminTicketsRoute.openapi(getTicketsAllRoute, handleGetTicketsList);
 
 adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
@@ -738,14 +790,10 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	}
 
 	const url = new URL(c.req.url);
-	const rawPage = url.searchParams.get("page") || "1";
-	const rawLimit = url.searchParams.get("limit") || "10";
 	const rawType = url.searchParams.get("type") || "all";
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 
-	const page = Math.max(1, parseInt(rawPage, 10) || 1);
-	const limit = Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 10));
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -797,7 +845,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			)
 			.where(eq(schema.sportsbookBet.userId, userId))
 			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(MAX_PER_SOURCE);
+			.limit(MAX_UNPAGINATED_ROWS);
 
 		const processedBetIds = new Set<string>();
 		for (const r of sbResults) {
@@ -938,7 +986,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
 				.where(eq(source.userIdCol, userId))
 				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_PER_SOURCE);
+				.limit(MAX_UNPAGINATED_ROWS);
 
 			for (const r of results) {
 				const ts = r.createdAt.getTime();
@@ -967,66 +1015,67 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allTickets.length;
-	const totalPages = Math.ceil(total / limit) || 1;
-	const paginated = allTickets.slice((page - 1) * limit, page * limit);
+	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
 
-	const gameNameCache = new Map<string, string | null>();
-
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
+	const gameNameByCode = new Map<string, string | null>();
+	const uniqueGameCodes = [
+		...new Set(
+			capped
+				.map((t) => t.gameCode)
+				.filter((code): code is string => Boolean(code)),
+		),
+	];
+	const GAME_CODE_CHUNK = 100;
+	for (let i = 0; i < uniqueGameCodes.length; i += GAME_CODE_CHUNK) {
+		const chunk = uniqueGameCodes.slice(i, i + GAME_CODE_CHUNK);
+		const rows = await db
+			.select({ code: schema.game.code, name: schema.game.name })
 			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
-		return name;
+			.where(inArray(schema.game.code, chunk));
+		for (const row of rows) {
+			gameNameByCode.set(row.code, row.name ?? null);
+		}
 	}
 
-	const ticketsWithNames = await Promise.all(
-		paginated.map(async (t) => {
-			let gameName: string | null = null;
-			if (t.gameCode) {
-				gameName = await getGameName(t.gameCode);
-			}
-			return {
-				id: t.id,
-				userId: t.userId,
-				playerName: t.playerName,
-				betAmount: formatAmount(t.betAmount),
-				potentialWin:
-					t.gameType === "Sportsbook" && t.totalOdds
-						? formatAmount(
-								Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
-							)
-						: null,
-				payout: t.payout != null ? formatAmount(t.payout) : null,
-				odds: t.totalOdds,
-				gameType: t.gameType,
-				outcome: t.outcome,
-				createdAt: formatDate(t.createdAt),
-				balanceBefore:
-					t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
-				balanceAfter:
-					t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
-				roundId: t.roundId,
-				provider: t.provider,
-				gameName,
-			};
-		}),
-	);
+	const ticketsWithNames = capped.map((t) => {
+		const gameName = t.gameCode
+			? (gameNameByCode.get(t.gameCode) ?? null)
+			: null;
+		return {
+			id: t.id,
+			userId: t.userId,
+			playerName: t.playerName,
+			betAmount: formatAmount(t.betAmount),
+			potentialWin:
+				t.gameType === "Sportsbook" && t.totalOdds
+					? formatAmount(
+							Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
+						)
+					: null,
+			payout: t.payout != null ? formatAmount(t.payout) : null,
+			odds: t.totalOdds,
+			gameType: t.gameType,
+			outcome: t.outcome,
+			createdAt: formatDate(t.createdAt),
+			balanceBefore:
+				t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+			balanceAfter:
+				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
+			roundId: t.roundId,
+			provider: t.provider,
+			gameName,
+		};
+	});
 
 	return c.json({
 		success: true,
 		data: {
 			tickets: ticketsWithNames,
 			pagination: {
-				page,
-				limit,
-				total,
-				totalPages,
+				page: 1,
+				limit: ticketsWithNames.length,
+				total: ticketsWithNames.length,
+				totalPages: 1,
 			},
 		},
 	});

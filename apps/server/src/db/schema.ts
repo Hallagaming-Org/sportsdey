@@ -31,6 +31,9 @@ export const user = sqliteTable("user", {
 		.notNull(),
 	suspended: integer("suspended", { mode: "boolean" }).default(false).notNull(),
 	lastLoginIp: text("last_login_ip"),
+	profileSelfEditedAt: integer("profile_self_edited_at", {
+		mode: "timestamp_ms",
+	}),
 });
 
 export const session = sqliteTable(

@@ -2,7 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Phone } from "lucide-react";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
+<<<<<<< HEAD
 import { buildPublicUrl } from "@/lib/public-url";
+=======
+import { publicWebPath } from "@/lib/server-url";
+import { Phone } from "lucide-react";
+>>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
 
 export const Route = createFileRoute("/auth/sign-in")({
 	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
@@ -20,11 +25,18 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
+<<<<<<< HEAD
 	const callbackURL = returnTo
 		? buildPublicUrl(
 				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
 			)
 		: buildPublicUrl("/auth/callback");
+=======
+	const callbackURL = publicWebPath(
+		"/auth/callback",
+		returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "",
+	);
+>>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
 
 	const handleSocialSignIn = async (
 		provider: "google" | "apple" | "facebook",
@@ -32,10 +44,15 @@ export default function SignInPage() {
 		setIsLoading(true);
 		setError("");
 		try {
-			await signIn.social({
+			const result = await signIn.social({
 				provider,
 				callbackURL,
 			});
+			if (result?.error) {
+				setError(
+					result.error.message || `Failed to sign in with ${provider}`,
+				);
+			}
 		} catch (err) {
 			setError("Failed to sign in with " + provider);
 		} finally {

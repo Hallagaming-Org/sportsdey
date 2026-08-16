@@ -165,6 +165,9 @@ const ResetAdminPasswordSchema = z.object({
 	}),
 });
 
+/** Safety cap for unpaginated list responses (Workers memory / response size). */
+const MAX_UNPAGINATED_ROWS = 10_000;
+
 const GetWalletTransactionsQuerySchema = z.object({
 	search: z
 		.string()
@@ -178,19 +181,6 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.enum(["success", "pending", "failed", "refund"])
 		.optional()
 		.openapi({ description: "Filter by transaction status" }),
-	page: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.default(1)
-		.openapi({ description: "Page number" }),
-	limit: z.coerce
-		.number()
-		.int()
-		.min(1)
-		.max(100)
-		.default(20)
-		.openapi({ description: "Items per page" }),
 	fromDate: z
 		.string()
 		.optional()
@@ -199,6 +189,11 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
+	page: z.string().optional().openapi({ description: "Page number (default 1)" }),
+	limit: z
+		.string()
+		.optional()
+		.openapi({ description: "Items per page (default 10, max 100)" }),
 });
 
 const TransactionResponseSchema = z.object({
@@ -600,7 +595,7 @@ const getWalletTransactionsRoute = createRoute({
 	tags: ["Admin - Wallet"],
 	summary: "Get wallet transactions",
 	description:
-		"Retrieve all wallet transactions with pagination and filtering. Admin or super admin access required.",
+		"Paginated wallet transactions. Use GET /admin/wallet-transactions/all for the full unpaginated set.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: GetWalletTransactionsQuerySchema,
@@ -1363,7 +1358,9 @@ adminRoute.openapi(forceLogoutAdminRoute, async (c) => {
 	});
 });
 
-adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
+const handleGetWalletTransactions = async (
+	c: Parameters<Parameters<typeof adminRoute.openapi>[1]>[0],
+) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json({ success: false, error: "Unauthorized" }, 401);
@@ -1394,18 +1391,17 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		search: c.req.query("search"),
 		type: c.req.query("type"),
 		status: c.req.query("status"),
-		page: c.req.query("page"),
-		limit: c.req.query("limit"),
 		fromDate: c.req.query("fromDate"),
 		toDate: c.req.query("toDate"),
+		page: c.req.query("page"),
+		limit: c.req.query("limit"),
 	});
 
 	if (!query.success) {
 		return c.json({ success: false, error: "Invalid query parameters" }, 400);
 	}
 
-	const { search, type, status, page, limit, fromDate, toDate } = query.data;
-	const offset = (page - 1) * limit;
+	const { search, type, status, fromDate, toDate } = query.data;
 
 	const { fromDate: fromDateBoundary, toDate: toDateBoundary } =
 		parseQueryDateRange({
@@ -1460,7 +1456,7 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
 	// fetch all matching transactions (without date constraints) and apply
-	// date filtering + pagination in-memory
+	// date filtering in-memory
 	const transactions = await db
 		.select({
 			id: schema.walletTransaction.id,
@@ -1500,12 +1496,26 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		return true;
 	});
 
+	const unpaginated =
+		c.req.path.endsWith("/wallet-transactions/all") ||
+		c.req.path.endsWith("/wallet-transactions/all/");
 	const total = filtered.length;
-	const totalPages = Math.ceil(total / limit);
+	const page = Math.max(
+		1,
+		Number.parseInt(c.req.query("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+	const limit = unpaginated
+		? Math.min(MAX_UNPAGINATED_ROWS, total)
+		: Math.min(100, Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10));
+	const pageRows = unpaginated
+		? filtered.slice(0, MAX_UNPAGINATED_ROWS)
+		: filtered.slice((page - 1) * limit, page * limit);
+	const totalPages = unpaginated
+		? 1
+		: Math.max(1, Math.ceil(total / limit) || 1);
 
-	const paginated = filtered.slice(offset, offset + limit);
-
-	const formattedTransactions = paginated.map((tx) => {
+	const formattedTransactions = pageRows.map((tx) => {
 		let txType: "deposit" | "withdrawal" | "payment";
 		if (tx.type === "credit") {
 			txType = "deposit";
@@ -1534,14 +1544,31 @@ adminRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		data: {
 			transactions: formattedTransactions,
 			pagination: {
-				page,
-				limit,
+				page: unpaginated ? 1 : page,
+				limit: unpaginated ? formattedTransactions.length : limit,
 				total,
 				totalPages,
 			},
 		},
 	});
+};
+
+const getWalletTransactionsAllRoute = createRoute({
+	method: "get",
+	path: "/wallet-transactions/all",
+	tags: ["Admin - Wallet"],
+	summary: "Get every wallet transaction (unpaginated)",
+	description:
+		"New endpoint: full transaction list in one response (capped at 10,000). Does not change GET /admin/wallet-transactions, which stays paginated.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: GetWalletTransactionsQuerySchema.omit({ page: true, limit: true }),
+	},
+	responses: getWalletTransactionsRoute.responses,
 });
+
+adminRoute.openapi(getWalletTransactionsRoute, handleGetWalletTransactions);
+adminRoute.openapi(getWalletTransactionsAllRoute, handleGetWalletTransactions);
 
 const GetAdminByIdParamsSchema = z.object({
 	id: z.string().openapi({ description: "Admin ID" }),

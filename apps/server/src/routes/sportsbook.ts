@@ -13,6 +13,8 @@ import { trackWebengageEvent } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import {
 	AccumulatorBonusTableResponseSchema,
+	AccumulatorProgramGrantResponseSchema,
+	AccumulatorProgramGrantSchema,
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -35,11 +37,18 @@ import {
 	TournamentsResponseSchema,
 } from "@/schemas/sportsbook";
 import {
+	ACCUMULATOR_MAX_MULTIPLIER,
 	ACCUMULATOR_MAX_SELECTIONS,
 	ACCUMULATOR_MIN_SELECTIONS,
+	ACCUMULATOR_MULTIPLIER_PER_STEP,
+	ACCUMULATOR_PROGRAM_QUANTITY,
 	ACCUMULATOR_SPORTS,
+	type AccumulatorSport,
+	boostCoversAccumulatorSport,
 	buildAccumulatorBoostPayload,
+	defaultAccumulatorProgramExpiry,
 	getAccumulatorBonusTable,
+	listAccumulatorStepsBoostPayloads,
 } from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -160,6 +169,100 @@ async function databetFetch(
 		});
 		throw error;
 	}
+}
+
+type DatabetBoostRecord = {
+	id: string;
+	calculation_strategy?: { type?: string };
+	required_conditions?: Array<{
+		bet_details?: Array<{
+			data?: { sport?: { sport_ids?: string[] } };
+		}>;
+	}>;
+};
+
+async function listPlayerBetBoosts(
+	env: CloudflareBindings,
+	playerId: string,
+): Promise<DatabetBoostRecord[]> {
+	const response = await databetFetch(
+		env,
+		`/bet-boosts?player_id=${encodeURIComponent(playerId)}`,
+	);
+	if (!response.ok) return [];
+	const data = (await response.json()) as DatabetBoostRecord[] | unknown;
+	if (!Array.isArray(data)) return [];
+	return data.filter((boost) => typeof boost?.id === "string");
+}
+
+async function ensureAccumulatorProgramBoosts(
+	env: CloudflareBindings,
+	input: {
+		playerId: string;
+		currency?: string;
+		initialQuantity?: number;
+		expiresAt?: string;
+	},
+): Promise<{
+	created: Array<{ sport: AccumulatorSport; dataBetBoostId: string }>;
+	skipped: AccumulatorSport[];
+	failed: Array<{ sport: AccumulatorSport; error: string }>;
+}> {
+	const created: Array<{ sport: AccumulatorSport; dataBetBoostId: string }> =
+		[];
+	const skipped: AccumulatorSport[] = [];
+	const failed: Array<{ sport: AccumulatorSport; error: string }> = [];
+	const existing = await listPlayerBetBoosts(env, input.playerId);
+	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
+	const initialQuantity =
+		input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
+
+	for (const preset of listAccumulatorStepsBoostPayloads()) {
+		if (existing.some((boost) => boostCoversAccumulatorSport(boost, preset.sport))) {
+			skipped.push(preset.sport);
+			continue;
+		}
+
+		const response = await databetFetch(env, "/bet-boosts", {
+			method: "POST",
+			body: {
+				idempotence_id: crypto.randomUUID(),
+				player_id: input.playerId,
+				currency_code: input.currency ?? "NGN",
+				initial_quantity: initialQuantity,
+				applicable_conditions: preset.applicable_conditions,
+				required_conditions: preset.required_conditions,
+				calculation_strategy: preset.calculation_strategy,
+				expires_at: expiresAt,
+			},
+		});
+
+		if (!response.ok) {
+			failed.push({
+				sport: preset.sport,
+				error: `${response.status} ${await response.text()}`,
+			});
+			continue;
+		}
+
+		const raw = (await response.json()) as
+			| { id: string }
+			| Array<{ id: string }>;
+		const createdBoost = Array.isArray(raw) ? raw[0] : raw;
+		if (!createdBoost?.id) {
+			failed.push({
+				sport: preset.sport,
+				error: "No boost created",
+			});
+			continue;
+		}
+		created.push({
+			sport: preset.sport,
+			dataBetBoostId: createdBoost.id,
+		});
+	}
+
+	return { created, skipped, failed };
 }
 
 const createTokenRoute = createRoute({
@@ -330,6 +433,28 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 			},
 			500,
 		);
+	}
+
+	if (user) {
+		try {
+			const grant = await ensureAccumulatorProgramBoosts(c.env, {
+				playerId: user.id,
+			});
+			if (grant.failed.length > 0) {
+				console.error("Accumulator program grant failed on token create", {
+					playerId: user.id,
+					failed: grant.failed,
+				});
+			}
+		} catch (error) {
+			console.error("Accumulator program grant threw on token create", {
+				playerId: user.id,
+				error:
+					error instanceof Error
+						? { name: error.name, message: error.message }
+						: String(error),
+			});
+		}
 	}
 
 	return c.json(
@@ -3947,7 +4072,84 @@ sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
 				sports: [...ACCUMULATOR_SPORTS],
 				minSelections: ACCUMULATOR_MIN_SELECTIONS,
 				maxSelections: ACCUMULATOR_MAX_SELECTIONS,
+				program: {
+					strategy: "steps" as const,
+					selectionsPerStep: 1,
+					multiplierPerStep: ACCUMULATOR_MULTIPLIER_PER_STEP,
+					maxMultiplier: ACCUMULATOR_MAX_MULTIPLIER,
+				},
 				rows: getAccumulatorBonusTable(),
+			},
+		},
+		200,
+	);
+});
+
+const accumulatorProgramGrantRoute = createRoute({
+	method: "post",
+	path: "/bet-boost/accumulator",
+	tags: ["Sportsbook"],
+	summary: "Grant accumulator bonus program",
+	description:
+		"Create the football, basketball, and tennis DataBet steps boosts for a player. Bonus grows as they add more games. Skips sports that already have a steps boost.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: AccumulatorProgramGrantSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Accumulator program granted",
+			content: {
+				"application/json": {
+					schema: AccumulatorProgramGrantResponseSchema,
+				},
+			},
+		},
+		401: { description: "Unauthorized" },
+		403: { description: "Forbidden - admin or super_admin only" },
+	},
+});
+
+sportsbookRoute.openapi(accumulatorProgramGrantRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin or super_admin only",
+			},
+			403,
+		);
+	}
+
+	const result = c.req.valid("json");
+	const grant = await ensureAccumulatorProgramBoosts(c.env, {
+		playerId: result.player_id,
+		currency: result.currency,
+		initialQuantity: result.initial_quantity,
+		expiresAt: result.expires_at,
+	});
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				playerId: result.player_id,
+				...grant,
 			},
 		},
 		200,

@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+	ACCUMULATOR_MAX_MULTIPLIER,
+	ACCUMULATOR_MAX_STEPS,
+	ACCUMULATOR_MULTIPLIER_PER_STEP,
 	buildAccumulatorBoostPayload,
+	buildAccumulatorStepsBoostPayload,
+	boostCoversAccumulatorSport,
 	getAccumulatorBonusPercent,
 	getAccumulatorBonusTable,
 	getAccumulatorMultiplier,
+	listAccumulatorStepsBoostPayloads,
 } from "./accumulator-bonus";
 
 describe("accumulator bonus table", () => {
@@ -72,5 +78,61 @@ describe("accumulator bonus table", () => {
 		};
 		assert.equal(required.bet_details[0]?.type, "express");
 		assert.equal(required.bet_details[0]?.data.odds_count.min, 5);
+	});
+
+	it("builds one steps boost per sport that grows with extra selections", () => {
+		const football = buildAccumulatorStepsBoostPayload("football");
+		assert.equal(football.calculation_strategy.type, "steps");
+		assert.equal(football.minSelections, 3);
+		assert.equal(football.maxSelections, 10);
+		assert.equal(ACCUMULATOR_MAX_MULTIPLIER, "1.40");
+		assert.equal(ACCUMULATOR_MAX_STEPS, 8);
+		assert.deepEqual(football.calculation_strategy.strategy.params, {
+			selections_per_step: 1,
+			multiplier_per_step: ACCUMULATOR_MULTIPLIER_PER_STEP,
+			max_multiplier: ACCUMULATOR_MAX_MULTIPLIER,
+		});
+		const required = football.required_conditions[0] as {
+			bet_details: Array<{
+				data: { odds_count: { min: number; max: number }; sport: { sport_ids: string[] } };
+			}>;
+		};
+		assert.equal(required.bet_details[0]?.data.odds_count.min, 3);
+		assert.equal(required.bet_details[0]?.data.odds_count.max, 10);
+		assert.deepEqual(required.bet_details[0]?.data.sport.sport_ids, ["football"]);
+
+		const basketball = buildAccumulatorStepsBoostPayload("basketball");
+		const tennisRequired = buildAccumulatorStepsBoostPayload("tennis")
+			.required_conditions[0] as {
+			bet_details: Array<{ data: { odds_count: { min: number } } }>;
+		};
+		assert.equal(basketball.minSelections, 2);
+		assert.equal(basketball.maxSelections, 9);
+		assert.equal(tennisRequired.bet_details[0]?.data.odds_count.min, 2);
+		assert.equal(listAccumulatorStepsBoostPayloads().length, 3);
+	});
+
+	it("detects an existing steps boost for a sport", () => {
+		const payload = buildAccumulatorStepsBoostPayload("tennis");
+		assert.equal(
+			boostCoversAccumulatorSport(
+				{
+					calculation_strategy: payload.calculation_strategy,
+					required_conditions: payload.required_conditions as never,
+				},
+				"tennis",
+			),
+			true,
+		);
+		assert.equal(
+			boostCoversAccumulatorSport(
+				{
+					calculation_strategy: payload.calculation_strategy,
+					required_conditions: payload.required_conditions as never,
+				},
+				"football",
+			),
+			false,
+		);
 	});
 });

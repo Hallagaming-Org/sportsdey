@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BetBoostCreateSchema } from "./bet-boost";
+import {
+	AccumulatorProgramGrantSchema,
+	BetBoostCreateSchema,
+} from "./bet-boost";
 
 /** Minimal static boost shaped like Databet docs (NGN staging). */
 const staticCreateBody = {
@@ -122,6 +125,15 @@ describe("BetBoostCreateSchema", () => {
 		if (!parsed.success) return;
 		assert.equal(parsed.data.accumulator?.sport, "football");
 		assert.equal(parsed.data.accumulator?.selections, 5);
+	});
+
+	it("accepts accumulator program grant with defaults", () => {
+		const parsed = AccumulatorProgramGrantSchema.safeParse({
+			player_id: "test-player-uuid",
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.currency, "NGN");
 	});
 
 	it("rejects legacy bet_type-only condition details", () => {
