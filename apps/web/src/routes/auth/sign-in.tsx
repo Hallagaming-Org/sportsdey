@@ -137,6 +137,17 @@ export default function SignInPage() {
 					</button>
 				</div>
 
+				<p className="mt-6 text-center text-gray-500 text-sm">
+					Don&apos;t have an account?{" "}
+					<Link
+						to="/auth/sign-up"
+						search={{ returnTo }}
+						className="font-medium text-blue-600 hover:text-blue-700"
+					>
+						Sign up
+					</Link>
+				</p>
+
 				<p className="mt-6 text-center font-inter text-sm text-gray-400">
 					By continuing, you confirm that you are 18 years or older, understand and agree to our{" "}
 					<Link to="/terms" className="font-medium italic text-accent underline">
