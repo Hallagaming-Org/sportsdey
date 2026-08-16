@@ -33,9 +33,8 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 
 	useEffect(() => {
 		const path = location.pathname;
-		const searchStr = location.search;
-		const params = new URLSearchParams(searchStr);
-		const tabParam = params.get("tab");
+		// const search = location.search as Record<string, unknown>;
+		// const tabParam = search.tab as string | undefined;
 
 		if (path.startsWith("/favorites") || path.startsWith("/wallet")) {
 			setTab("favourites");
