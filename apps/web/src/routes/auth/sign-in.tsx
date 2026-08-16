@@ -1,20 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Phone } from "lucide-react";
 import { useState } from "react";
+import z from "zod";
 import { signIn } from "@/lib/auth/client";
-<<<<<<< HEAD
 import { buildPublicUrl } from "@/lib/public-url";
-=======
-import { publicWebPath } from "@/lib/server-url";
-import { Phone } from "lucide-react";
->>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
+
+const signInSearchSchema = z.object({
+	returnTo: z.string().optional().catch(""),
+	mode: z.enum(["login", "signup"]).optional().catch("login"),
+});
 
 export const Route = createFileRoute("/auth/sign-in")({
-	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
-		return {
-			returnTo: search.returnTo as string | undefined,
-		};
-	},
+	validateSearch: signInSearchSchema,
 	component: SignInPage,
 });
 
@@ -25,18 +22,11 @@ export default function SignInPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
-<<<<<<< HEAD
 	const callbackURL = returnTo
 		? buildPublicUrl(
 				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
 			)
 		: buildPublicUrl("/auth/callback");
-=======
-	const callbackURL = publicWebPath(
-		"/auth/callback",
-		returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "",
-	);
->>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
 
 	const handleSocialSignIn = async (
 		provider: "google" | "apple" | "facebook",
@@ -79,7 +69,12 @@ export default function SignInPage() {
 				<div className="space-y-3">
 					<button
 						type="button"
-						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						onClick={() =>
+							navigate({
+								to: "/auth/phone-sign-in",
+								search: { mode: "login", returnTo },
+							})
+						}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
 					>
 						<Phone className="h-5 w-5 text-gray-700" />

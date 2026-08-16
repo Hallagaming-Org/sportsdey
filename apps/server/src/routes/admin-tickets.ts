@@ -329,15 +329,9 @@ const getTicketByIdRoute = createRoute({
 	},
 });
 
-<<<<<<< HEAD
-adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
-=======
-
-
 const handleGetTicketsList = async (
 	c: Parameters<Parameters<typeof adminTicketsRoute.openapi>[1]>[0],
 ) => {
->>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(

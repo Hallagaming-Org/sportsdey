@@ -1,20 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Phone } from "lucide-react";
 import { useState } from "react";
+import z from "zod";
 import { signIn } from "@/lib/auth/client";
-<<<<<<< HEAD
 import { buildPublicUrl } from "@/lib/public-url";
-=======
-import { publicWebPath } from "@/lib/server-url";
-import { Phone } from "lucide-react";
->>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
+
+const signUpSearchSchema = z.object({
+	returnTo: z.string().optional().catch(""),
+	mode: z.enum(["login", "signup"]).optional().catch("signup"),
+});
 
 export const Route = createFileRoute("/auth/sign-up")({
-	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
-		return {
-			returnTo: search.returnTo as string | undefined,
-		};
-	},
+	validateSearch: signUpSearchSchema,
 	component: SignUpPage,
 });
 
@@ -25,18 +22,11 @@ export default function SignUpPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
-<<<<<<< HEAD
 	const callbackURL = returnTo
 		? buildPublicUrl(
 				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
 			)
 		: buildPublicUrl("/auth/callback");
-=======
-	const callbackURL = publicWebPath(
-		"/auth/callback",
-		returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : "",
-	);
->>>>>>> 086aace (feat: admin unpaginated lists, accumulator combo boost, and Google auth callback fix)
 
 	const handleSocialSignUp = async (
 		provider: "google" | "apple" | "facebook",
@@ -65,7 +55,7 @@ export default function SignUpPage() {
 			<div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
 				<div className="mb-8 text-center">
 					<h1 className="mb-2 font-bold text-2xl text-gray-900">
-						Create Account
+						Sign up to your account
 					</h1>
 					<p className="text-gray-500">Sign up for an account</p>
 				</div>
@@ -79,7 +69,12 @@ export default function SignUpPage() {
 				<div className="space-y-3">
 					<button
 						type="button"
-						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						onClick={() =>
+							navigate({
+								to: "/auth/phone-sign-in",
+								search: { mode: "signup", returnTo },
+							})
+						}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
 					>
 						<Phone className="h-5 w-5 text-gray-700" />

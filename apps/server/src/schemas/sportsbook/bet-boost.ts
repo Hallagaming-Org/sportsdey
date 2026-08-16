@@ -19,42 +19,31 @@ export const BetBoostCreateSchema = z.object({
 	maximumWin: z.number().optional(),
 });
 
+/** Params shared across Databet calculation strategies (static / steps / margin). */
+const BetBoostStrategyParamsSchema = z
+	.object({
+		multiplier: z.string().optional(),
+		min_selections: z.number().optional(),
+		selections_per_step: z.number().optional(),
+		multiplier_per_step: z.string().optional(),
+		max_multiplier: z.string().optional(),
+		min_marge_ratio: z.string().optional(),
+		max_marge_ratio: z.string().optional(),
+	})
+	.passthrough();
+
+const BetBoostCalculationStrategySchema = z.object({
+	type: z.enum(["static", "steps", "margin"]),
+	strategy: z.object({
+		conditions: z.array(z.any()).optional(),
+		params: BetBoostStrategyParamsSchema.optional(),
+	}),
+});
+
 export const AccumulatorPresetSchema = z.object({
 	sport: z.enum(["football", "basketball", "tennis"]),
 	selections: z.number().int().min(2).max(50),
 });
-
-export const BetBoostCreateSchema = z
-	.object({
-		player_id: z.string(),
-		currency: z.string(),
-		initial_quantity: z.number(),
-		calculation_strategy: BetBoostCalculationStrategySchema.optional(),
-		applicable_conditions: z.array(BetConditionSchema).optional(),
-		required_conditions: z.array(BetConditionSchema).optional(),
-		expires_at: z.string(),
-		/** Fill DataBet strategy + conditions from the Sportsdey accumulator bonus table. */
-		accumulator: AccumulatorPresetSchema.optional(),
-	})
-	.superRefine((value, ctx) => {
-		if (value.accumulator) return;
-		if (!value.required_conditions?.length) {
-			ctx.addIssue({
-				code: "custom",
-				message:
-					"required_conditions is required unless accumulator preset is set",
-				path: ["required_conditions"],
-			});
-		}
-		if (!value.applicable_conditions?.length) {
-			ctx.addIssue({
-				code: "custom",
-				message:
-					"applicable_conditions is required unless accumulator preset is set",
-				path: ["applicable_conditions"],
-			});
-		}
-	});
 
 export const BetBoostCreateResponseSchema = z.object({
 	success: z.literal(true),
