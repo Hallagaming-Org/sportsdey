@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BetBoostCreateSchema } from "./bet-boost";
+import {
+	AccumulatorProgramGrantSchema,
+	BetBoostCreateSchema,
+} from "./bet-boost";
 
 const createBody = {
 	boostName: "Weekend Acca Boost",
@@ -40,5 +43,16 @@ describe("BetBoostCreateSchema", () => {
 			eligibleSports: ["Cricket"],
 		});
 		assert.equal(parsed.success, false);
+	});
+});
+
+describe("AccumulatorProgramGrantSchema", () => {
+	it("accepts accumulator program grant with defaults", () => {
+		const parsed = AccumulatorProgramGrantSchema.safeParse({
+			player_id: "test-player-uuid",
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.currency, "NGN");
 	});
 });

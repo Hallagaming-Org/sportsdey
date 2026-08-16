@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 
 import { useState } from "react";
+import z from "zod";
 import { signIn } from "@/lib/auth/client";
 import { Phone } from "lucide-react";
 import z from "zod";
@@ -35,10 +36,15 @@ export default function SignInPage() {
 		setIsLoading(true);
 		setError("");
 		try {
-			await signIn.social({
+			const result = await signIn.social({
 				provider,
 				callbackURL,
 			});
+			if (result?.error) {
+				setError(
+					result.error.message || `Failed to sign in with ${provider}`,
+				);
+			}
 		} catch (err) {
 			setError("Failed to sign in with " + provider);
 		} finally {

@@ -257,8 +257,8 @@ function GamesPage() {
 				scorpioMatchesCategory(g, selectedCategory),
 			);
 		}
-		if (search) {
-			const q = search.toLowerCase();
+	if (search) {
+		const q = search.toLowerCase();
 			scorpioFiltered = scorpioFiltered.filter((g) => {
 				const inName = g.name.toLowerCase().includes(q);
 				const inProvider = g.providerName.toLowerCase().includes(q);
@@ -284,13 +284,13 @@ function GamesPage() {
 	const sortedGames = useMemo(() => {
 		const list = [...filteredGames];
 		list.sort((a, b) => {
-			const aAviator = a.name.toLowerCase().includes("aviator");
-			const bAviator = b.name.toLowerCase().includes("aviator");
-			if (aAviator && !bAviator) return -1;
-			if (!aAviator && bAviator) return 1;
+		const aAviator = a.name.toLowerCase().includes("aviator");
+		const bAviator = b.name.toLowerCase().includes("aviator");
+		if (aAviator && !bAviator) return -1;
+		if (!aAviator && bAviator) return 1;
 
-			if (sortAsc === true) return a.name.localeCompare(b.name);
-			if (sortAsc === false) return b.name.localeCompare(a.name);
+		if (sortAsc === true) return a.name.localeCompare(b.name);
+		if (sortAsc === false) return b.name.localeCompare(a.name);
 
 			const aPriority = CLASSIC_PRIORITY_GAMES.indexOf(
 				a.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
@@ -298,9 +298,9 @@ function GamesPage() {
 			const bPriority = CLASSIC_PRIORITY_GAMES.indexOf(
 				b.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
 			);
-			if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
-			if (aPriority !== -1) return -1;
-			if (bPriority !== -1) return 1;
+		if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
+		if (aPriority !== -1) return -1;
+		if (bPriority !== -1) return 1;
 
 			// Classic (Slotegrator) before Scorpio when otherwise equal
 			const aScorpio = isScorpioGame(a);
@@ -308,8 +308,8 @@ function GamesPage() {
 			if (!aScorpio && bScorpio) return -1;
 			if (aScorpio && !bScorpio) return 1;
 
-			return a.name.localeCompare(b.name);
-		});
+		return a.name.localeCompare(b.name);
+	});
 		return list;
 	}, [filteredGames, sortAsc]);
 
@@ -621,36 +621,36 @@ function GamesPage() {
 							</span>
 						</button>
 						{categoryTabs.map((cat) => (
-							<button
+								<button
 								type="button"
 								key={cat.slug}
-								onClick={() =>
-									navigate({
-										search: (prev) => ({
-											...prev,
+									onClick={() =>
+										navigate({
+											search: (prev) => ({
+												...prev,
 											category:
 												selectedCategory === cat.slug ? undefined : cat.slug,
-										}),
-									})
-								}
+											}),
+										})
+									}
 								className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium text-white capitalize transition-colors ${
 									selectedCategory === cat.slug
-										? "border-[#1BAA04] bg-[#1BAA04]"
+											? "border-[#1BAA04] bg-[#1BAA04]"
 										: "border-[#1B2722] text-gray-300"
 								}`}
 							>
 								{cat.emoji ? <span>{cat.emoji}</span> : null}
 								<span className="capitalize">{cat.name}</span>
-								<span
+									<span
 									className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
 										selectedCategory === cat.slug
-											? "bg-[#040C01] text-white"
-											: "bg-[#1B2722] text-gray-300"
-									}`}
-								>
+												? "bg-[#040C01] text-white"
+												: "bg-[#1B2722] text-gray-300"
+										}`}
+									>
 									{categoryCounts[cat.slug]?.toLocaleString() ?? 0}
-								</span>
-							</button>
+									</span>
+								</button>
 						))}
 					</div>
 				</div>
@@ -722,13 +722,6 @@ function GamesPage() {
 														onPlay={() => void handleGameLaunch(game, "real")}
 													/>
 												)}
-												{!display.image && (
-													<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-1 pt-6 pb-1.5 text-center">
-														<p className="truncate text-[11px] font-medium text-white">
-															{display.name}
-														</p>
-													</div>
-												)}
 											</motion.div>
 										);
 									})}
@@ -786,13 +779,6 @@ function GamesPage() {
 												onDemo={() => void handleGameLaunch(game, "demo")}
 												onPlay={() => void handleGameLaunch(game, "real")}
 											/>
-										)}
-										{!display.image && (
-											<div className="pointer-events-none relative z-[1] w-full bg-gradient-to-t from-black/80 to-transparent px-2 pt-8 pb-3 text-center">
-												<p className="truncate text-sm font-medium text-white">
-													{display.name}
-												</p>
-											</div>
 										)}
 									</motion.div>
 								);

@@ -23,11 +23,6 @@ const CmsContentQuerySchema = z
 			.enum(["title"])
 			.optional()
 			.openapi({ description: "Sort by field" }),
-		page: z.coerce
-			.number()
-			.optional()
-			.default(1)
-			.openapi({ description: "Page number" }),
 		fromDate: z.string().optional().openapi({
 			description:
 				"Filter content published on or after this date (ISO format: YYYY-MM-DD)",
@@ -274,7 +269,7 @@ cmsRoute.openapi(
 		path: "/content",
 		summary: "List CMS content",
 		description:
-			"List published CMS content with optional search, filtering, sorting and pagination. Returns only verified (published) content.",
+			"Paginated published CMS content. Use GET /cms/content/all for the full unpaginated set.",
 		request: {
 			query: CmsContentQuerySchema,
 		},
@@ -299,13 +294,8 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		const { search, type, sortBy, page, fromDate, toDate } =
-			c.req.valid("query");
+		const { search, type, sortBy, fromDate, toDate } = c.req.valid("query");
 		const client = getSanityClient(c.env);
-
-		const pageSize = 10;
-		const start = (page - 1) * pageSize;
-		const end = start + pageSize;
 
 		let filterConditions = '_type == "news" && !(_id in path("drafts.**"))';
 		const params: Record<string, unknown> = {};
@@ -355,9 +345,7 @@ cmsRoute.openapi(
 			if (toBoundary && publishedMs > toBoundary) return false;
 			return true;
 		});
-		const paginatedContent = filteredContent.slice(start, end);
-
-		const transformedContent = paginatedContent.map((item: SanityContent) => {
+		const transformedContent = filteredContent.map((item: SanityContent) => {
 			const type = categoryToType(item.category);
 			return {
 				_id: item._id,
@@ -375,17 +363,27 @@ cmsRoute.openapi(
 			};
 		});
 
-		const total = filteredContent.length;
-		const totalPages = Math.ceil(total / pageSize);
+		const total = transformedContent.length;
+		const page = Math.max(
+			1,
+			Number.parseInt(c.req.query("page") || "1", 10) || 1,
+		);
+		const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+		const limit = Math.min(
+			100,
+			Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+		);
+		const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+		const paged = transformedContent.slice((page - 1) * limit, page * limit);
 
 		return c.json(
 			{
 				success: true as const,
 				data: {
-					content: transformedContent,
+					content: paged,
 					total,
 					page,
-					limit: pageSize,
+					limit,
 					totalPages,
 				},
 			},
@@ -398,9 +396,9 @@ cmsRoute.openapi(
 	createRoute({
 		method: "get",
 		path: "/content/all",
-		summary: "List all CMS content",
+		summary: "List all CMS content (unpaginated)",
 		description:
-			"List all CMS content including drafts. Requires admin authentication.",
+			"List every CMS content item including drafts in a single response — no pagination. Filters (search, type, fromDate, toDate) still apply. Requires admin authentication.",
 		security: [{ BearerAuth: [] }],
 		request: {
 			query: CmsContentQuerySchema,
@@ -409,7 +407,9 @@ cmsRoute.openapi(
 			200: {
 				content: {
 					"application/json": {
-						schema: successResponseSchema(CmsContentListSchema),
+						schema: successResponseSchema(
+							CmsContentResponseSchema.array(),
+						),
 					},
 				},
 				description: "Successfully retrieved content",
@@ -465,8 +465,7 @@ cmsRoute.openapi(
 			);
 		}
 
-		const { search, type, sortBy, page, fromDate, toDate } =
-			c.req.valid("query");
+		const { search, type, sortBy, fromDate, toDate } = c.req.valid("query");
 		const { fromDate: fromBoundary, toDate: toBoundary } =
 			parseQueryDateRange({
 				fromDate,
@@ -474,9 +473,6 @@ cmsRoute.openapi(
 			}) as { fromDate?: number; toDate?: number };
 		const client = getSanityClient(c.env);
 
-		const pageSize = 10;
-		const start = (page - 1) * pageSize;
-		const end = start + pageSize;
 		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
 		let filterConditions = '_type == "news"';
@@ -519,9 +515,8 @@ cmsRoute.openapi(
 			if (toBoundary && publishedMs > toBoundary) return false;
 			return true;
 		});
-		const paginatedContent = filteredContent.slice(start, end);
 
-		const transformedContent = paginatedContent.map((item: SanityContent) => {
+		const transformedContent = filteredContent.map((item: SanityContent) => {
 			const type = categoryToType(item.category);
 			return {
 				_id: item._id,
@@ -541,19 +536,10 @@ cmsRoute.openapi(
 			};
 		});
 
-		const total = filteredContent.length;
-		const totalPages = Math.ceil(total / pageSize);
-
 		return c.json(
 			{
 				success: true as const,
-				data: {
-					content: transformedContent,
-					total,
-					page,
-					limit: pageSize,
-					totalPages,
-				},
+				data: transformedContent,
 			},
 			200,
 		);

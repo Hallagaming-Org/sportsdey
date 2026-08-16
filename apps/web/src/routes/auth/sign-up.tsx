@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Phone } from "lucide-react";
 import { useState } from "react";
+import z from "zod";
 import { signIn } from "@/lib/auth/client";
 import { buildPublicUrl } from "@/lib/public-url";
 import z from "zod";
@@ -10,6 +11,11 @@ const signUpSearchSchema = z.object({
 	mode: z.enum(["login", "signup"]).optional().catch("signup"),
 });
 
+
+const signUpSearchSchema = z.object({
+	returnTo: z.string().optional().catch(""),
+	mode: z.enum(["login", "signup"]).optional().catch("signup"),
+});
 
 export const Route = createFileRoute("/auth/sign-up")({
 	validateSearch: signUpSearchSchema,
@@ -35,10 +41,15 @@ export default function SignUpPage() {
 		setIsLoading(true);
 		setError("");
 		try {
-			await signIn.social({
+			const result = await signIn.social({
 				provider,
 				callbackURL,
 			});
+			if (result?.error) {
+				setError(
+					result.error.message || `Failed to sign up with ${provider}`,
+				);
+			}
 		} catch (err) {
 			setError("Failed to sign up with " + provider);
 		} finally {
