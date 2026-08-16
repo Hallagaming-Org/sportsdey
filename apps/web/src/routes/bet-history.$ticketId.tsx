@@ -157,6 +157,13 @@ function TicketDetailsPage() {
 	const isWon = ticket.outcome === "won";
 	const isPending = ticket.outcome === "pending";
 
+
+	const shortenTicketId = (ticketId: string) => {
+	return ticketId.length > 8
+		? `${ticketId.slice(0, 5)}...${ticketId.slice(-3)}`
+		: ticketId;
+};
+
 	const handleCopyTicketId = () => {
 		navigator.clipboard.writeText(ticket.ticketId);
 		toast.success("Ticket ID copied");
@@ -189,8 +196,9 @@ function TicketDetailsPage() {
 							{ticket.dateTime} &nbsp;
 							<span className="text-white">{ticket.betType}</span>
 						</span>
+
 						<span className="flex text-white items-center gap-1.5">
-							Ticket ID: {ticket.ticketId}
+							Ticket ID: {shortenTicketId(ticket.ticketId)}
 							<button
 								type="button"
 								onClick={handleCopyTicketId}
@@ -307,12 +315,15 @@ function TicketDetailsPage() {
 						<span className="text-[#B5B7B5] text-sm">
 							Number of Bets: {ticket.numberOfBets}
 						</span>
-						<button type="button" className="text-accent text-sm hover:opacity-80">
+						{/* <button type="button" className="text-accent text-sm hover:opacity-80">
 							Bet Details &gt;
-						</button>
+						</button> */}
 					</div>
 					<div className="flex items-center justify-between px-5 py-4">
-						<button type="button" className="text-[#B5B7B5] text-sm hover:text-white">
+						<button type="button" 
+						onClick={() => navigate({ to: "/bet-history" })}
+						aria-label="Back to bet history"
+						className="text-[#B5B7B5] text-sm cursor-pointer hover:text-white">
 							Check Transaction History
 						</button>
 						<span className="text-[#6B6E6C]">&gt;</span>
