@@ -18,6 +18,7 @@ import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
 import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
+import { FaHandshakeAngle } from "react-icons/fa6";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import ScoresIcon from "@/logos/scores.svg?react";
@@ -49,6 +50,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const { setTab } = useActiveTab();
 	const navigate = useNavigate();
 	const location = useLocation();
+	const search = (location.search || {}) as Record<string, any>;
 	const currentSport = useCurrentSport();
 	// const [email, setEmail] = useState("");
 
@@ -206,7 +208,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				"casino",
 				(location.pathname.startsWith("/games") ||
 					location.pathname.startsWith("/game/")) &&
-					location.search?.category !== "pvp",
+					search.category !== "pvp",
 			),
 			onClick: goToCasino,
 		},
@@ -219,7 +221,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive(
 				"p2p",
 				location.pathname.startsWith("/games") &&
-					location.search?.category === "pvp",
+					search.category === "pvp",
 			),
 			subItems: [
 				{
@@ -227,7 +229,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					label: "PvP Games",
 					isActive:
 						location.pathname.startsWith("/games") &&
-						location.search?.category === "pvp",
+						search.category === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({
@@ -246,13 +248,22 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			],
 		},
 		{
+			id: "partner",
+			label: "Become a Partner",
+			icon: FaHandshakeAngle,
+			isActive: isItemActive("partner", false),
+			onClick: () => {
+				setActiveOverride("partner");
+				window.open("https://Partners.sportsdey.com", "_blank");
+			},
+		},
+		{
 			id: "news",
 			label: "News",
 			icon: Newspaper,
 			isActive: isItemActive(
 				"news",
-				location.pathname.startsWith("/news") &&
-					location.search?.tab !== "videos",
+				location.pathname.startsWith("/news") && search.tab !== "videos",
 			),
 			onClick: goToNews,
 		},

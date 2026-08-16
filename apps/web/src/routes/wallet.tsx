@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { Check, Copy, Loader2, X } from "lucide-react";
 import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
+import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +25,7 @@ import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 import { DepositModal } from "@/components/deposit-modal";
+import { OpenfortWalletScope } from "@/lib/openfort/scope";
 
 const OpenfortCryptoWallet = lazy(() =>
 	import("@/components/openfort-crypto-wallet").then((mod) => ({
@@ -32,7 +34,9 @@ const OpenfortCryptoWallet = lazy(() =>
 );
 
 export const Route = createFileRoute("/wallet")({
-	validateSearch: (search: Record<string, unknown>): { openDeposit?: boolean } => ({
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { openDeposit?: boolean } => ({
 		openDeposit: search.openDeposit ? Boolean(search.openDeposit) : undefined,
 	}),
 	component: WalletPage,
@@ -61,16 +65,19 @@ function WalletPage() {
 	const [depositAmount, setDepositAmount] = useState("");
 	const [depositError, setDepositError] = useState("");
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<"deposit" | "withdraw" | null>(
-		null,
-	);
+	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
+	const [blockedModal, setBlockedModal] = useState<"withdraw" | null>(null);
 	const [walletIdCopied, setWalletIdCopied] = useState(false);
+	const [billPaymentCategory, setBillPaymentCategory] = useState<{
+		code: string;
+		name: string;
+	} | null>(null);
 	const location = useLocation();
 	const search = Route.useSearch();
 	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
 		if (search.openDeposit) {
-			setBlockedModal("deposit");
+			setIsDepositModalOpen(true);
 		}
 	}, [search.openDeposit]);
 	const { data: session, isPending: isSessionLoading } = useSession();
@@ -94,6 +101,8 @@ function WalletPage() {
 					credentials: "include",
 				}),
 			enabled: !!session?.user,
+			refetchOnMount: "always",
+			refetchOnWindowFocus: true,
 		});
 	const depositMutation = useMutation({
 		mutationFn: (amount: number) =>
@@ -159,7 +168,7 @@ function WalletPage() {
 	};
 
 	return (
-		<>
+		<OpenfortWalletScope>
 			{isInitialPageLoading ? (
 				<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 					<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />
@@ -235,13 +244,13 @@ function WalletPage() {
 									)}
 								</div>
 								<div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
-								<button
-									type="button"
-									onClick={() => setBlockedModal("deposit")}
-									className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
-								>
-									Deposit
-								</button>
+									<button
+										type="button"
+										onClick={() => setIsDepositModalOpen(true)}
+										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
+									>
+										Deposit
+									</button>
 									<button
 										type="button"
 										onClick={() => {
@@ -293,6 +302,10 @@ function WalletPage() {
 									<li key={code}>
 										<button
 											type="button"
+											onClick={() => {
+												setBillPaymentCategory({ code, name });
+												setIsBillPaymentOpen(true);
+											}}
 											className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-[#1B2722] bg-[#04100B] p-3 transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14] lg:flex-row lg:justify-start lg:gap-3 lg:px-4 lg:py-3.5"
 										>
 											<Icon className="h-5 w-5 shrink-0 text-white" />
@@ -305,7 +318,13 @@ function WalletPage() {
 							</ul>
 						</div>
 					</div>
-					<Suspense fallback={null}>
+					<Suspense
+						fallback={
+							<section className="mt-6 rounded-2xl border border-[#1B2722] bg-[#000606] p-6 text-[#6C7073] text-sm">
+								Loading crypto…
+							</section>
+						}
+					>
 						<OpenfortCryptoWallet />
 					</Suspense>
 					<WalletRecentTransactions
@@ -349,7 +368,7 @@ function WalletPage() {
 					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
 						<div className="flex items-center justify-between">
 							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								{blockedModal === "deposit" ? "Deposit" : "Withdraw"}
+								Withdraw
 							</h2>
 							<button
 								type="button"
@@ -366,9 +385,7 @@ function WalletPage() {
 						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
 							Pilot mode boss.
 							<br />
-							{blockedModal === "deposit"
-								? "Deposits are currently blocked"
-								: "Withdrawals are currently blocked"}
+							Withdrawals are currently blocked
 						</p>
 						<button
 							type="button"
@@ -380,6 +397,17 @@ function WalletPage() {
 					</div>
 				</div>
 			)}
-		</>
+			{billPaymentCategory && (
+				<BillPaymentModal
+					isOpen={isBillPaymentOpen}
+					onClose={() => {
+						setIsBillPaymentOpen(false);
+						setBillPaymentCategory(null);
+					}}
+					categoryCode={billPaymentCategory.code}
+					categoryName={billPaymentCategory.name}
+				/>
+			)}
+		</OpenfortWalletScope>
 	);
 }

@@ -42,6 +42,12 @@ declare namespace Cloudflare {
 		LAGOS_RUSH_API_KEY: string;
 		LAGOS_RUSH_BASE_URL: string;
 		POCKETS_SECRET_KEY: string;
+		HALLA_BOMB_API_KEY: string;
+		HALLA_BOMB_BASE_URL: string;
+		HALLA_DICE_API_KEY: string;
+		HALLA_DICE_BASE_URL: string;
+		HALLA_METRONITE_API_KEY: string;
+		HALLA_METRONITE_BASE_URL: string;
 		API_SPORTS_KEY: string;
 		SANITY_WRITE_TOKEN: string;
 		SANITY_WRITE_TOKEN_COMMENT: string;
@@ -78,6 +84,7 @@ declare namespace Cloudflare {
 		BONUS_ENGINE_PRIVATE_KEY: string;
 		BONUS_ENGINE_CALLBACK_PUBLIC_KEY: string;
 		BONUS_ENGINE_CURRENCY: string;
+		EXPORT_QUEUE: Queue<import("./src/types/exports").ExportQueueMessage>;
 		staging_kv?: KVNamespace;
 	}
 }

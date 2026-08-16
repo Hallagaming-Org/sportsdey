@@ -13,8 +13,15 @@ import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 } from "./constants/session";
+import {
+	deleteExpiredExports,
+	processExportMessage,
+	requeueStaleChunks,
+} from "./utils/exports/service";
+import type { ExportQueueMessage } from "./types/exports";
 import adminRoute from "./routes/admin";
 import adminCmsRoute from "./routes/admin-cms";
+import adminExportsRoute from "./routes/admin-exports";
 import adminLogNotesRoute from "./routes/admin-log-notes";
 import adminNotificationsRoute from "./routes/admin-notifications";
 import adminOverviewRoute from "./routes/admin-overview";
@@ -208,6 +215,7 @@ app.use("*", async (c, next) => {
 app.route("/", routes);
 app.route("/admin", adminRoute);
 app.route("/admin", adminWithdrawalsRoute);
+app.route("/admin", adminExportsRoute);
 app.route("/admin", adminTransactionsRoute);
 app.route("/admin", adminTicketsRoute);
 app.route("/admin", adminTicketOverviewRoute);
@@ -228,4 +236,32 @@ app.doc("/openapi.json", {
 	},
 });
 
-export default app;
+export default {
+	fetch: app.fetch,
+	async queue(
+		batch: {
+			messages: ReadonlyArray<{
+				body: ExportQueueMessage;
+				attempts: number;
+				retry(options?: { delaySeconds?: number }): void;
+			}>;
+		},
+		env: CloudflareBindings,
+	) {
+		for (const message of batch.messages) {
+			const result = await processExportMessage(
+				env,
+				message.body,
+				message.attempts,
+			);
+			if (result === "retry")
+				message.retry({
+					delaySeconds: Math.min(300, 2 ** message.attempts * 10),
+				});
+		}
+	},
+	async scheduled(_controller: unknown, env: CloudflareBindings) {
+		await requeueStaleChunks(env);
+		await deleteExpiredExports(env);
+	},
+};

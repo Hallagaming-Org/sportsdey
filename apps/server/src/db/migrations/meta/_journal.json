@@ -190,6 +190,13 @@
       "when": 1785949231893,
       "tag": "0026_regular_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1786489383098,
+      "tag": "0027_complex_stark_industries",
+      "breakpoints": true
     }
   ]
 }

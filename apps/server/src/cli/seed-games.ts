@@ -44,6 +44,21 @@ const GAMES: SeedGame[] = [
 		categories: ["popular", "crash-games"],
 	},
 	{
+		name: "Halla Bomb",
+		code: "HALLABOMB",
+		categories: ["popular", "original", "arcade"],
+	},
+	{
+		name: "Halla Dice",
+		code: "HALLADICE",
+		categories: ["popular", "original", "dice"],
+	},
+	{
+		name: "Halla Metronite",
+		code: "HALLAMETRONITE",
+		categories: ["popular", "original", "arcade"],
+	},
+	{
 		name: "Sportsdey Crash",
 		code: "sportsdey-crash",
 		categories: ["popular", "crash-games", "original"],
@@ -63,72 +78,154 @@ const CATEGORY_META: Record<string, { name: string; slug: string }> = {
 	slots: { name: "slots", slug: "slots" },
 	"crash-games": { name: "crash-games", slug: "crash-games" },
 	classic: { name: "classic", slug: "classic" },
+	"table-card-games": { name: "table_card_games", slug: "tablecardgames" },
 	tablecardgames: { name: "table_card_games", slug: "tablecardgames" },
 	original: { name: "Original", slug: "original" },
+	arcade: { name: "arcade", slug: "arcade" },
+	dice: { name: "dice", slug: "dice" },
 };
 
-function main() {
+function executeD1(command: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const tempFile = path.join(
+			os.tmpdir(),
+			`seed-games-${Date.now()}-${crypto.randomUUID()}.sql`,
+		);
+		fs.writeFileSync(tempFile, command);
+		const cmd = `npx wrangler d1 execute ${dbName} --file ${JSON.stringify(tempFile)} --remote --env ${env}`;
+		exec(cmd, { timeout: 120000 }, (error) => {
+			try {
+				fs.unlinkSync(tempFile);
+			} catch {}
+			if (error) reject(error);
+			else resolve();
+		});
+	});
+}
+
+function executeD1Json<T>(command: string): Promise<T[]> {
+	return new Promise((resolve, reject) => {
+		const cmd = `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(command)} --remote --env ${env} --json`;
+		exec(cmd, { timeout: 120000 }, (error, stdout) => {
+			if (error) {
+				reject(error);
+				return;
+			}
+			try {
+				const topLevel = JSON.parse(stdout.trim());
+				const entries = Array.isArray(topLevel) ? topLevel : [topLevel];
+				const results: T[] = [];
+				for (const entry of entries) {
+					if (entry?.results) results.push(...entry.results);
+				}
+				resolve(results);
+			} catch {
+				resolve([]);
+			}
+		});
+	});
+}
+
+async function main() {
 	const now = Date.now();
-	const gameIds = GAMES.map(() => crypto.randomUUID());
 	const usedCategories = new Set(GAMES.flatMap((g) => g.categories));
+	const codes = GAMES.map((g) => g.code);
 
 	console.log(`Seeding games in ${env} database...`);
 	console.log(`Total games: ${GAMES.length}`);
 	console.log(`Categories: ${usedCategories.size}`);
 
+	const existing = await executeD1Json<{ id: string; code: string }>(
+		`SELECT id, code FROM game WHERE code IN (${codes.map((c) => escape(c)).join(", ")}) ORDER BY created_at ASC`,
+	);
+
+	/** Prefer the oldest row when duplicates already exist. */
+	const existingByCode = new Map<string, string>();
+	for (const row of existing) {
+		if (!existingByCode.has(row.code)) {
+			existingByCode.set(row.code, row.id);
+		}
+	}
+
+	const resolved = GAMES.map((game) => {
+		const existingId = existingByCode.get(game.code);
+		return {
+			...game,
+			id: existingId ?? crypto.randomUUID(),
+			isNew: !existingId,
+		};
+	});
+
+	const toInsert = resolved.filter((g) => g.isNew);
+	const toUpdate = resolved.filter((g) => !g.isNew);
+
+	console.log(`Existing: ${toUpdate.length}, new: ${toInsert.length}`);
+
 	const categoryValues = [...usedCategories]
 		.map((slug) => {
 			const meta = CATEGORY_META[slug] ?? { name: slug, slug };
-			return `(${slug}, ${meta.name}, ${slug}, ${now})`;
+			// category.id must match game_category.category_id (the seed key).
+			return `(${escape(slug)}, ${escape(meta.name)}, ${escape(slug)}, ${now})`;
 		})
 		.join(",\n");
 
-	const gameValues = GAMES.map(
-		(game, i) =>
-			`(${escape(gameIds[i])}, ${escape(game.name)}, ${escape(game.code)}, NULL, 1, ${now}, ${now})`,
-	).join(",\n");
+	const statements: string[] = [
+		`INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${categoryValues};`,
+	];
 
-	const gcValues = GAMES.flatMap((game, i) =>
-		game.categories.map((cat) => `(${escape(gameIds[i])}, ${escape(cat)})`),
-	).join(",\n");
-
-	const categorySql = `INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${categoryValues};`;
-	const gameSql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${gameValues};`;
-	const gcSql = `INSERT OR IGNORE INTO game_category (game_id, category_id) VALUES ${gcValues};`;
-
-	if (execute) {
-		const statements = [categorySql, gameSql, gcSql];
-		(async () => {
-			for (const [i, statement] of statements.entries()) {
-				const tempFile = path.join(os.tmpdir(), `seed-games-${now}-${i}.sql`);
-				fs.writeFileSync(tempFile, statement);
-				try {
-					await new Promise<void>((resolve, reject) => {
-						const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" --remote --env ${env}`;
-						exec(cmd, { timeout: 120000 }, (error) => {
-							try {
-								fs.unlinkSync(tempFile);
-							} catch {}
-							if (error) reject(error);
-							else resolve();
-						});
-					});
-					console.log(`Statement ${i + 1}/${statements.length} executed`);
-				} catch (err) {
-					console.error(`Statement ${i + 1} failed:`, err);
-				}
-			}
-			console.log("\nDone!");
-		})();
-	} else {
-		const combinedSql = [categorySql, gameSql, gcSql].join("\n\n");
-		console.log(`\nSQL ready to execute on remote ${env} database`);
-		console.log("Please run this command manually:");
-		console.log(
-			`npx wrangler d1 execute ${dbName} --command "${combinedSql.replace(/"/g, '\\"')}" --remote`,
+	if (toInsert.length > 0) {
+		const gameValues = toInsert
+			.map(
+				(game) =>
+					`(${escape(game.id)}, ${escape(game.name)}, ${escape(game.code)}, NULL, 1, ${now}, ${now})`,
+			)
+			.join(",\n");
+		statements.push(
+			`INSERT INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${gameValues};`,
 		);
-		console.log("\nOr run with --execute flag to execute automatically.");
 	}
+
+	for (const game of toUpdate) {
+		statements.push(
+			`UPDATE game SET name = ${escape(game.name)}, enabled = 1, updated_at = ${now} WHERE id = ${escape(game.id)};`,
+		);
+	}
+
+	for (const game of resolved) {
+		for (const cat of game.categories) {
+			statements.push(
+				`INSERT INTO game_category (game_id, category_id)
+SELECT ${escape(game.id)}, ${escape(cat)}
+WHERE NOT EXISTS (
+  SELECT 1 FROM game_category
+  WHERE game_id = ${escape(game.id)} AND category_id = ${escape(cat)}
+);`,
+			);
+		}
+	}
+
+	if (!execute) {
+		console.log(`\nSQL ready (${statements.length} statements) for remote ${env}`);
+		console.log("Or run with --execute flag to execute automatically.");
+		for (const [i, statement] of statements.entries()) {
+			console.log(`\n-- ${i + 1}/${statements.length}\n${statement}`);
+		}
+		return;
+	}
+
+	for (const [i, statement] of statements.entries()) {
+		try {
+			await executeD1(statement);
+			console.log(`Statement ${i + 1}/${statements.length} executed`);
+		} catch (err) {
+			console.error(`Statement ${i + 1} failed:`, err);
+			throw err;
+		}
+	}
+	console.log("\nDone!");
 }
 
-main();
+main().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});

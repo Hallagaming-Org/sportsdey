@@ -222,7 +222,9 @@ slotegratorRoute.openapi(launchDemoGameRoute, async (c) => {
 	} catch (error) {
 		if (error instanceof SlotegratorApiError) {
 			const allowed = [404, 422, 500, 502, 503] as const;
-			const status = allowed.includes(error.status as (typeof allowed)[number])
+			const status = allowed.includes(
+				error.status as (typeof allowed)[number],
+			)
 				? (error.status as (typeof allowed)[number])
 				: 502;
 			return c.json(
@@ -364,17 +366,6 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 			body: new URLSearchParams(requestBody),
 		},
 	);
-	console.log("slotegrator body", JSON.stringify(response.body));
-	console.log(
-		"slotegrator headers",
-		JSON.stringify({
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
-		}),
-	);
 
 	let upstreamData: unknown = null;
 	const upstreamText = await response.text();
@@ -389,7 +380,9 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	if (!response.ok) {
 		const mapped = mapSlotegratorUpstreamError(response.status, upstreamData);
 		const allowed = [404, 422, 500, 502, 503] as const;
-		const status = allowed.includes(mapped.status as (typeof allowed)[number])
+		const status = allowed.includes(
+			mapped.status as (typeof allowed)[number],
+		)
 			? (mapped.status as (typeof allowed)[number])
 			: 502;
 		return c.json(
@@ -786,7 +779,7 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
-				balanceBefore: wallet!.balance,
+				balanceBefore: currentBalance,
 				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,
@@ -995,7 +988,7 @@ slotegratorRoute.post("/", async (c) => {
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
-				balanceBefore: wallet!.balance,
+				balanceBefore: currentBalance,
 				balanceAfter: newBalance,
 				currency,
 				gameId: gameUuid,

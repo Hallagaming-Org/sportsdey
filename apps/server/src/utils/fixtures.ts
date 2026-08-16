@@ -1,11 +1,42 @@
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
 import type { CloudflareBindings } from "../types";
 
+interface DataBetFixtureResponse {
+	data?: {
+		sportEventsByIds?: Array<{
+			id: string;
+			fixture?: {
+				title?: string;
+				type?: string;
+				startTime?: string;
+				status?: string;
+				sport?: {
+					id?: string;
+					name?: string;
+				};
+				tournament?: {
+					id?: string;
+					name?: string;
+					countryCode?: string;
+				};
+				competitors?: Array<{
+					id?: string;
+					name?: string;
+					type?: string;
+					homeAway?: string;
+					templatePosition?: number;
+				}>;
+			};
+		}>;
+	};
+}
+
 export async function getFixtureTitlesByIds(
 	env: CloudflareBindings,
 	sportEventIds: string[],
 ): Promise<Map<string, string>> {
 	const titleById = new Map<string, string>();
+	
 	if (sportEventIds.length === 0 || !env.PROXY_URL || !env.PROXY_SECRET) {
 		return titleById;
 	}
@@ -28,10 +59,19 @@ export async function getFixtureTitlesByIds(
 			8000,
 		);
 
-		if (!res.ok) return titleById;
+		if (!res.ok) {
+			console.error(`[getFixtureTitlesByIds] API returned ${res.status}`);
+			return titleById;
+		}
 
-		const data = (await res.json()) as any;
-		const events: any[] = data.data?.sportEventsByIds ?? [];
+		const data = await res.json() as DataBetFixtureResponse;
+		
+		const events = data?.data?.sportEventsByIds;
+		
+		if (!events || !Array.isArray(events)) {
+			console.error('[getFixtureTitlesByIds] Unexpected response format');
+			return titleById;
+		}
 
 		for (const event of events) {
 			const id = event.id;
@@ -40,8 +80,11 @@ export async function getFixtureTitlesByIds(
 				titleById.set(id, title);
 			}
 		}
-	} catch {
-		// swallowed 
+		
+		console.log(`[getFixtureTitlesByIds] Found ${titleById.size} titles for ${sportEventIds.length} requested IDs`);
+		
+	} catch (error) {
+		console.error('[getFixtureTitlesByIds] Error:', error);
 	}
 
 	return titleById;

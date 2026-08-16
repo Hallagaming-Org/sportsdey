@@ -17,3 +17,16 @@ export function resolveServerUrl(): string {
 
 	return configured.replace(/\/$/, "");
 }
+
+/** Site origin with no trailing slash (web app, not API). */
+export function resolvePublicWebUrl(): string {
+	const configured = (import.meta.env.VITE_PUBLIC_URL || "").trim();
+	return configured.replace(/\/+$/, "");
+}
+
+/** Join a public web path, even if VITE_PUBLIC_URL omitted the trailing slash. */
+export function publicWebPath(path: string, search = ""): string {
+	const base = resolvePublicWebUrl();
+	const suffix = path.startsWith("/") ? path : `/${path}`;
+	return `${base}${suffix}${search}`;
+}

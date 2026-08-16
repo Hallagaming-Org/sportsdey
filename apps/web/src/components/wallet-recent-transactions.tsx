@@ -1,15 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { MoreHorizontal } from "lucide-react";
-import { useState } from "react";
-import {
-	type ReceiptDetail,
-	TransactionReceipt,
-} from "@/components/transaction-receipt";
+import { useMemo, useState } from "react";
+import { TransactionReceipt } from "@/components/transaction-receipt";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isOpenfortEnabled } from "@/lib/openfort/config";
+import { useOpenfortReady } from "@/lib/openfort/scope";
+import { useCryptoIncomingTransactions } from "@/lib/openfort/use-crypto-transactions";
 import {
-	formatTransactionDate,
 	getTransactionDetails,
 	getTransactionTypeLabel,
+	getWalletReceiptDetails,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
 import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
@@ -18,7 +18,6 @@ type WalletRecentTransactionsProps = {
 	transactions: WalletTransaction[];
 	isLoading: boolean;
 };
-
 
 const statusBadgeStyles = {
 	success: "bg-[#D1FAE5] text-[#065F46]",
@@ -41,7 +40,9 @@ function parseDateTime(createdAt: string | null | undefined) {
 		year: "numeric",
 		timeZone: "UTC",
 	};
-	const formattedDate = new Intl.DateTimeFormat("en-US", dateOptions).format(date);
+	const formattedDate = new Intl.DateTimeFormat("en-US", dateOptions).format(
+		date,
+	);
 
 	const timeOptions: Intl.DateTimeFormatOptions = {
 		hour: "numeric",
@@ -56,142 +57,68 @@ function parseDateTime(createdAt: string | null | undefined) {
 	return { date: formattedDate, time: formattedTime };
 }
 
-function getTransactionAmountLabel(amount?: number | null): string {
-	const amountVal = Math.abs(amount ?? 0);
+function getTransactionAmountLabel(tx: WalletTransaction): string {
+	const meta = tx.metadata as Record<string, string | undefined> | null;
+	if (
+		(tx.paymentMethod || "").toLowerCase() === "crypto" &&
+		meta?.amountLabel
+	) {
+		return meta.amountLabel;
+	}
+	const amountVal = Math.abs(tx.amount ?? 0);
 	return `₦${amountVal.toLocaleString("en-US", {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
 	})}`;
 }
 
-function truncateId(id: string): string {
-	if (id.length <= 16) return id;
-	return `${id.slice(0, 8)}...${id.slice(-4)}`;
+function mergeRecentTransactions(
+	fiat: WalletTransaction[],
+	crypto: WalletTransaction[],
+): WalletTransaction[] {
+	return [...fiat, ...crypto]
+		.filter((tx) => tx.amount != null && tx.amount !== 0)
+		.sort((a, b) => {
+			const aTime = new Date(a.createdAt || 0).getTime();
+			const bTime = new Date(b.createdAt || 0).getTime();
+			return bTime - aTime;
+		})
+		.slice(0, 10);
 }
 
-export function WalletRecentTransactions({
+function WalletRecentTransactionsView({
 	transactions,
+	cryptoTransactions,
 	isLoading,
-}: WalletRecentTransactionsProps) {
+}: {
+	transactions: WalletTransaction[];
+	cryptoTransactions: WalletTransaction[];
+	isLoading: boolean;
+}) {
 	const [selectedTx, setSelectedTx] = useState<WalletTransaction | null>(null);
 
-	const mappedTransactions = (transactions || [])
-		.filter((tx) => tx.amount != null && tx.amount !== 0)
-		.slice(0, 10)
-		.map((tx) => {
-			const { statusText, statusColor } = getTransactionDetails(tx);
-			const { date, time } = parseDateTime(tx.createdAt);
-			const typeLabel = getTransactionTypeLabel(tx);
-			const amountLabel = getTransactionAmountLabel(tx.amount);
-			return {
-				id: tx.id,
-				date,
-				time,
-				typeLabel,
-				amountLabel,
-				statusText: statusText === "Successful" ? "Success" : statusText,
-				statusColor,
-				original: tx,
-			};
-		});
+	const mappedTransactions = useMemo(() => {
+		return mergeRecentTransactions(transactions || [], cryptoTransactions).map(
+			(tx) => {
+				const { statusText, statusColor } = getTransactionDetails(tx);
+				const { date, time } = parseDateTime(tx.createdAt);
+				const typeLabel = getTransactionTypeLabel(tx);
+				const amountLabel = getTransactionAmountLabel(tx);
+				return {
+					id: tx.id,
+					date,
+					time,
+					typeLabel,
+					amountLabel,
+					statusText: statusText === "Successful" ? "Success" : statusText,
+					statusColor,
+					original: tx,
+				};
+			},
+		);
+	}, [transactions, cryptoTransactions]);
 
 	const hasNoTransactions = !isLoading && mappedTransactions.length === 0;
-
-	const getReceiptDetails = (tx: WalletTransaction): ReceiptDetail[] => {
-		const { iconType } = getTransactionDetails(tx);
-		const meta = tx.metadata as Record<string, string | undefined> | null;
-		const details: ReceiptDetail[] = [];
-
-		if (iconType === "transfer") {
-			const transferType = meta?.transferType;
-			if (transferType === "outgoing") {
-				details.push({
-					label: "Recipient Name",
-					value: meta?.recipientName || "N/A",
-				});
-				details.push({
-					label: "Recipient Wallet ID",
-					value: truncateId(String(meta?.recipientWalletId || "N/A")),
-				});
-			} else if (transferType === "incoming") {
-				details.push({
-					label: "Sender Name",
-					value: meta?.senderName || "N/A",
-				});
-				details.push({
-					label: "Sender Wallet ID",
-					value: truncateId(String(meta?.senderWalletId || "N/A")),
-				});
-			}
-			details.push({
-				label: "Amount",
-				value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-			});
-			details.push({ label: "Fee", value: "₦0" });
-			details.push({
-				label: "Date",
-				value: formatTransactionDate(tx.createdAt),
-			});
-			details.push({ label: "Transaction Type", value: "Transfer" });
-		} else if (
-			iconType === "mtn" ||
-			iconType === "airtel" ||
-			iconType === "electricity"
-		) {
-			details.push({
-				label: "To",
-				value: tx.metadata?.customerId
-					? `${tx.metadata.customerId} (${tx.metadata.billerName})`
-					: "Utility Bill",
-			});
-			details.push({
-				label: "Amount",
-				value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-			});
-			details.push({ label: "Fee", value: "₦0" });
-			details.push({
-				label: "Description",
-				value: tx.metadata?.service
-					? `${tx.metadata.service} Purchase`
-					: "Bill Payment",
-			});
-			details.push({
-				label: "Date",
-				value: formatTransactionDate(tx.createdAt),
-			});
-			details.push({ label: "Transaction Type", value: "Bills" });
-		} else if (iconType === "deposit") {
-			details.push({ label: "Transaction Type", value: "Credit (Deposit)" });
-			details.push({
-				label: "Amount",
-				value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-			});
-			details.push({ label: "Fee", value: "₦0" });
-			details.push({
-				label: "Date",
-				value: formatTransactionDate(tx.createdAt),
-			});
-		} else {
-			details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
-			details.push({
-				label: "Amount",
-				value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-			});
-			details.push({ label: "Fee", value: "₦0" });
-			details.push({
-				label: "Date",
-				value: formatTransactionDate(tx.createdAt),
-			});
-		}
-
-		const txId = tx.reference || tx.id;
-		details.push({
-			label: "Transaction ID",
-			value: truncateId(txId),
-			copyable: true,
-		});
-		return details;
-	};
 
 	return (
 		<>
@@ -202,6 +129,7 @@ export function WalletRecentTransactions({
 					</h2>
 					<Link
 						to="/wallet/transactions"
+						search={{}}
 						className="text-[#6C7073] transition-colors hover:text-white"
 						aria-label="View recent transactions"
 					>
@@ -225,11 +153,11 @@ export function WalletRecentTransactions({
 								{[...Array(5)].map((_, i) => (
 									<tr
 										key={i}
-										className="border-b border-[#1B2722]/30 last:border-b-0"
+										className="border-[#1B2722]/30 border-b last:border-b-0"
 									>
 										<td className="py-4 pr-4">
 											<Skeleton className="h-5 w-24 bg-[#1C1C1E]" />
-											<Skeleton className="h-4 w-16 bg-[#1C1C1E] mt-1" />
+											<Skeleton className="mt-1 h-4 w-16 bg-[#1C1C1E]" />
 										</td>
 										<td className="py-4 pr-4">
 											<Skeleton className="h-5 w-32 bg-[#1C1C1E]" />
@@ -241,7 +169,7 @@ export function WalletRecentTransactions({
 											<Skeleton className="h-8 w-[84px] rounded-full bg-[#1C1C1E]" />
 										</td>
 										<td className="py-4 text-right">
-											<Skeleton className="h-5 w-5 bg-[#1C1C1E] ml-auto rounded-full" />
+											<Skeleton className="ml-auto h-5 w-5 rounded-full bg-[#1C1C1E]" />
 										</td>
 									</tr>
 								))}
@@ -320,25 +248,70 @@ export function WalletRecentTransactions({
 				</div>
 			</div>
 
-			{/* Modal for displaying the transaction receipt */}
 			{selectedTx && (
 				<TransactionReceipt
-					details={getReceiptDetails(selectedTx)}
+					title="Transaction Details"
+					details={getWalletReceiptDetails(selectedTx)}
 					statusTitle={
-						selectedTx.status.toLowerCase() === "success"
+						["success", "completed", "successful"].includes(
+							selectedTx.status.toLowerCase(),
+						)
 							? "Successful"
 							: selectedTx.status.toLowerCase() === "pending"
 								? "Pending"
 								: "Failed"
 					}
 					statusMessage={
-						selectedTx.status.toLowerCase() === "success"
+						["success", "completed", "successful"].includes(
+							selectedTx.status.toLowerCase(),
+						)
 							? "Transaction has been completed."
-							: "Transaction processing."
+							: selectedTx.status.toLowerCase() === "pending"
+								? "Transaction is still processing."
+								: "Transaction failed."
 					}
 					onBack={() => setSelectedTx(null)}
 				/>
 			)}
 		</>
+	);
+}
+
+function WalletRecentTransactionsWithCrypto({
+	transactions,
+	isLoading,
+}: WalletRecentTransactionsProps) {
+	const { transactions: cryptoTransactions } = useCryptoIncomingTransactions();
+
+	return (
+		<WalletRecentTransactionsView
+			transactions={transactions}
+			cryptoTransactions={cryptoTransactions}
+			isLoading={isLoading}
+		/>
+	);
+}
+
+export function WalletRecentTransactions({
+	transactions,
+	isLoading,
+}: WalletRecentTransactionsProps) {
+	const openfortReady = useOpenfortReady();
+
+	if (isOpenfortEnabled() && openfortReady) {
+		return (
+			<WalletRecentTransactionsWithCrypto
+				transactions={transactions}
+				isLoading={isLoading}
+			/>
+		);
+	}
+
+	return (
+		<WalletRecentTransactionsView
+			transactions={transactions}
+			cryptoTransactions={[]}
+			isLoading={isLoading}
+		/>
 	);
 }

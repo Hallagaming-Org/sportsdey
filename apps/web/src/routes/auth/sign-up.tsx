@@ -3,13 +3,15 @@ import { Phone } from "lucide-react";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 import { buildPublicUrl } from "@/lib/public-url";
+import z from "zod";
+
+const signUpSearchSchema = z.object({
+	returnTo: z.string().optional().catch(""),
+	mode: z.enum(["login", "signup"]).optional().catch("signup"),
+});
 
 export const Route = createFileRoute("/auth/sign-up")({
-	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
-		return {
-			returnTo: search.returnTo as string | undefined,
-		};
-	},
+	validateSearch: signUpSearchSchema,
 	component: SignUpPage,
 });
 
@@ -21,7 +23,9 @@ export default function SignUpPage() {
 	const [error, setError] = useState("");
 
 	const callbackURL = returnTo
-		? buildPublicUrl(`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`)
+		? buildPublicUrl(
+				`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+			)
 		: buildPublicUrl("/auth/callback");
 
 	const handleSocialSignUp = async (
@@ -30,10 +34,15 @@ export default function SignUpPage() {
 		setIsLoading(true);
 		setError("");
 		try {
-			await signIn.social({
+			const result = await signIn.social({
 				provider,
 				callbackURL,
 			});
+			if (result?.error) {
+				setError(
+					result.error.message || `Failed to sign up with ${provider}`,
+				);
+			}
 		} catch (err) {
 			setError("Failed to sign up with " + provider);
 		} finally {
@@ -46,7 +55,7 @@ export default function SignUpPage() {
 			<div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
 				<div className="mb-8 text-center">
 					<h1 className="mb-2 font-bold text-2xl text-gray-900">
-						Create Account
+						Sign up to your account
 					</h1>
 					<p className="text-gray-500">Sign up for an account</p>
 				</div>
@@ -60,7 +69,12 @@ export default function SignUpPage() {
 				<div className="space-y-3">
 					<button
 						type="button"
-						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						onClick={() =>
+							navigate({
+								to: "/auth/phone-sign-in",
+								search: { mode: "signup", returnTo },
+							})
+						}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
 					>
 						<Phone className="h-5 w-5 text-gray-700" />
@@ -96,7 +110,7 @@ export default function SignUpPage() {
 						</span>
 					</button>
 
-					{/*<button
+					<button
 						onClick={() => handleSocialSignUp("apple")}
 						disabled={isLoading}
 						className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -120,7 +134,7 @@ export default function SignUpPage() {
 						<span className="font-medium text-gray-700">
 							Continue with Facebook
 						</span>
-					</button>*/}
+					</button>
 				</div>
 
 				<p className="mt-6 text-center text-gray-500 text-sm">

@@ -826,7 +826,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 			metadata: JSON.stringify({
 				game,
 				sessionToken: session_token,
-				providerTxId: rollback_provider_tx_id,
+				providerTxId: provider_tx_id,
 				action: "rollback",
 			}),
 		})

@@ -5,7 +5,7 @@ import {
 	useLocation,
 	useNavigate,
 } from "@tanstack/react-router";
-import { ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
@@ -112,6 +112,61 @@ async function fetchBetHistory(params: {
 	});
 }
 
+/** Mobile-only */
+function MobileBetCard({
+	bet,
+	onOpen,
+}: {
+	bet: BetHistoryItem;
+	onOpen: () => void;
+}) {
+	const { datePart, timePart } = formatDateTime(bet.placedAt);
+	const status = STATUS_STYLES[bet.status];
+
+	return (
+		<button
+			type="button"
+			onClick={onOpen}
+			className="w-full rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A] px-4 py-3 text-left"
+		>
+			<div className="flex items-center justify-between">
+				<div>
+					<div className="text-white text-sm">{datePart}</div>
+					<div className="text-[#6B6E6C] text-xs">{timePart}</div>
+				</div>
+				<span
+					className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${status.className}`}
+				>
+					{status.label}
+				</span>
+			</div>
+
+			<div className="mt-3 space-y-1.5 text-sm">
+				<div className="flex items-center justify-between">
+					<span className="text-[#8C8F8F]">Ticket ID</span>
+					<span className="text-[#B5B7B5]">{bet.ticketId}</span>
+				</div>
+				<div className="flex items-center justify-between">
+					<span className="text-[#8C8F8F]">Type</span>
+					<span className="text-[#B5B7B5]">{bet.type}</span>
+				</div>
+				<div className="flex items-center justify-between">
+					<span className="text-[#8C8F8F]">Amount</span>
+					<span className="font-medium text-white">{formatAmount(bet.amount)}</span>
+				</div>
+				<div className="flex items-center justify-between">
+					<span className="text-[#8C8F8F]">Multiplier</span>
+					<span className="text-[#B5B7B5]">{bet.multiplier.toFixed(2)}x</span>
+				</div>
+			</div>
+
+			<div className="mt-3 border-[#1C1D1F] border-t pt-2 text-center text-accent text-xs">
+				View ticket details
+			</div>
+		</button>
+	);
+}
+
 function BetHistoryPage() {
 	const [activeTab, setActiveTab] = useState<FilterTab>("all");
 	const [page, setPage] = useState(1);
@@ -132,7 +187,7 @@ function BetHistoryPage() {
 	const { data, isLoading, isError } = useQuery({
 		queryKey: ["bet-history", activeTab, page, search],
 		queryFn: () => fetchBetHistory({ page, tab: activeTab, search }),
-		enabled: isBetHistoryRoot, // no need to fetch the list while viewing a ticket detail
+		enabled: isBetHistoryRoot,
 	});
 
 	const baseRows = data?.items ?? [];
@@ -186,6 +241,10 @@ function BetHistoryPage() {
 		{ key: "settled", label: "Settled", count: tabCounts?.settled },
 		{ key: "unsettled", label: "Unsettled", count: tabCounts?.unsettled },
 	];
+
+	const goToTicket = (ticketId: string) => {
+		navigate({ to: "/bet-history/$ticketId", params: { ticketId } });
+	};
 
 	return (
 		<div className="min-h-screen bg-background px-4 py-0 text-white lg:container lg:mx-auto lg:px-0">
@@ -313,7 +372,8 @@ function BetHistoryPage() {
 						</div>
 					</div>
 
-					<div className="overflow-hidden rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A]">
+					{/* DESKTOP: table view */}
+					<div className="hidden overflow-hidden rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A] md:block">
 						<div className="overflow-x-auto">
 							<table className="w-full min-w-[720px] border-collapse text-left">
 								<thead>
@@ -414,10 +474,7 @@ function BetHistoryPage() {
 																	<button
 																		type="button"
 																		onClick={() => {
-																			navigate({
-																				to: "/bet-history/$ticketId",
-																				params: { ticketId: bet.ticketId },
-																			});
+																			goToTicket(bet.ticketId);
 																			setOpenRowMenu(null);
 																		}}
 																		className="block w-full px-4 py-2 text-left text-sm text-[#B5B7B5] hover:bg-[#1C1D1F] hover:text-white"
@@ -458,6 +515,72 @@ function BetHistoryPage() {
 								</button>
 							</div>
 						</div>
+					</div>
+
+					{/* MOBILE: card list, mirrors desktop table columns */}
+					<div className="space-y-3 md:hidden">
+						{loading && (
+							<div className="py-10 text-center text-[#6B6E6C] text-sm">
+								Loading your bet history...
+							</div>
+						)}
+
+						{errored && !loading && (
+							<div className="py-10 text-center text-[#F0668A] text-sm">
+								Couldn't load bet history. Try again.
+							</div>
+						)}
+
+						{!loading && !errored && filteredRows.length === 0 && (
+							<div className="flex flex-col items-center gap-2 py-16 text-center">
+								<span className="text-[#6B6E6C] text-sm">
+									{baseRows.length === 0
+										? "No bets placed yet"
+										: "No bets match your filters"}
+								</span>
+								{baseRows.length === 0 && (
+									<span className="text-[#4A4D4B] text-xs">
+										Your bet history will show up here once you place a bet.
+									</span>
+								)}
+							</div>
+						)}
+
+						{!loading &&
+							!errored &&
+							filteredRows.map((bet) => (
+								<MobileBetCard
+									key={bet.id}
+									bet={bet}
+									onOpen={() => goToTicket(bet.ticketId)}
+								/>
+							))}
+
+						{!loading && !errored && filteredRows.length > 0 && (
+							<div className="flex items-center justify-between pt-2 pb-4">
+								<span className="text-[#6B6E6C] text-sm">
+									Page {page} of {totalPages}
+								</span>
+								<div className="flex items-center gap-2">
+									<button
+										type="button"
+										onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+										disabled={page <= 1}
+										className="rounded-lg bg-accent px-4 py-2 font-medium text-black text-sm disabled:cursor-default disabled:opacity-40"
+									>
+										Previous
+									</button>
+									<button
+										type="button"
+										onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+										disabled={page >= totalPages}
+										className="rounded-lg bg-accent px-4 py-2 font-medium text-black text-sm disabled:cursor-default disabled:opacity-40"
+									>
+										Next
+									</button>
+								</div>
+							</div>
+						)}
 					</div>
 				</>
 			) : (

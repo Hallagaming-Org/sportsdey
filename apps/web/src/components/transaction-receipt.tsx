@@ -7,6 +7,8 @@ export type ReceiptDetail = {
 	label: string;
 	value: ReactNode;
 	copyable?: boolean;
+	/** Full value to copy when `value` is truncated for display */
+	copyValue?: string;
 	valueClassName?: string;
 };
 
@@ -199,7 +201,7 @@ export function TransactionReceipt({
 										<span className="text-[#6C7073]">{detail.label}</span>
 										<div className="flex items-center gap-2">
 											<span
-												className={`font-medium text-[10px] ${detail.valueClassName || "text-white"}`}
+												className={`max-w-[220px] truncate text-right font-medium text-sm ${detail.valueClassName || "text-white"}`}
 											>
 												{detail.value}
 											</span>
@@ -207,7 +209,11 @@ export function TransactionReceipt({
 												<button
 													type="button"
 													onClick={() => {
-														const textToCopy = typeof detail.value === "string" ? detail.value : String(detail.value);
+														const textToCopy =
+															detail.copyValue ||
+															(typeof detail.value === "string"
+																? detail.value
+																: String(detail.value));
 														handleCopy(textToCopy);
 													}}
 													className="cursor-pointer text-[#00D600] transition-opacity hover:opacity-80"
@@ -227,7 +233,7 @@ export function TransactionReceipt({
 							type="button"
 							onClick={handleShare}
 							disabled={isSharing}
-							className="w-full flex items-center justify-center cursor-pointer rounded-lg bg-[#00D600] py-4 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+							className="w-full flex items-center justify-center cursor-pointer rounded-lg bg-[#00D600] py-4 font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
 						>
 							{isSharing ? "Generating..." : "Download"}
 						</button>

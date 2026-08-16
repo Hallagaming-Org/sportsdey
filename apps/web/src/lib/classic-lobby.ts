@@ -62,36 +62,33 @@ export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	scratch: "🎫",
 };
 
-const POPULAR_GAME_NAMES = [
+/** Homepage Hot Casino + /games Popular — order from Abiola Hot Casino List. */
+export const HOT_CASINO_GAME_NAMES = [
 	"Aviator",
+	"Aviatrix",
 	"Lagos Rush",
-	"Penalty Shoot Out",
-	"Sweet Bonanza",
-	"Mines",
-	"Plinko",
-	"Gates of Olympus",
-	"High Flyer",
-	"Keno",
-	"Big Bass Splash",
-	"Baccarat",
-	"JetX",
-	"Helicopter X",
-	"Balloon",
-	"Xcape",
-	"Hi Lo",
-	"Blocks",
-	"Eagle",
-	"Avia Rush",
-	"Avia Masters",
-	"Roulette",
-	"Space",
-	"Wild Fortune",
-	"Mystic Fortune",
-	"Football X",
-	"Greyhound",
-	"Car Racing",
+	"Metronite",
+	"Aero",
+	"Doggo Balloon",
+	"Sportsdey Crash",
+	"Lucky Rise",
+	"Navigator",
+	"Chicken Road Race",
+	"Big Bass Crash",
 	"Crash X",
+	"Vortex",
+	"Penalty Roulette",
+	"Penalty Shootout: Cup Mania",
+	"Football Manager",
+	"Avia Rush",
+	"Football Crash",
+	"Mines",
+	"Keno",
+	"Plinko",
 ];
+
+/** @deprecated Use HOT_CASINO_GAME_NAMES */
+const POPULAR_GAME_NAMES = HOT_CASINO_GAME_NAMES;
 
 export const CLASSIC_PRIORITY_GAMES = [
 	"solitaire",
@@ -104,6 +101,9 @@ export const CLASSIC_PRIORITY_GAMES = [
 	"EAGLEHB",
 	"LUCKYRISEHB",
 	"LAGOSRUSH",
+	"HALLABOMB",
+	"HALLADICE",
+	"HALLAMETRONITE",
 	"sportsdey-crash",
 	"spin_and_win",
 ];
@@ -117,7 +117,20 @@ export const CLASSIC_THUNDR_CODES = [
 	"plinko",
 ];
 
-export const CLASSIC_ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash", "spin_and_win"];
+export const CLASSIC_ORIGINALS_CODES = [
+	"LAGOSRUSH",
+	"HALLABOMB",
+	"HALLADICE",
+	"HALLAMETRONITE",
+	"sportsdey-crash",
+	"spin_and_win",
+];
+
+const HALLA_LAUNCH_PATHS: Record<string, string> = {
+	HALLABOMB: "/halla/bomb/launcher",
+	HALLADICE: "/halla/dice/launcher",
+	HALLAMETRONITE: "/halla/metronite/launcher",
+};
 
 export const CLASSIC_SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
 
@@ -186,6 +199,21 @@ export const CLASSIC_KNOWN_GAMES: Record<
 		image: "/lagos-rush.png",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
+	HALLABOMB: {
+		subtitle: "halla mini game",
+		image: "/halla-bomb.png",
+		gradient: "linear-gradient(to bottom, #1a1a2e, #c0392b, #e74c3c)",
+	},
+	HALLADICE: {
+		subtitle: "halla mini game",
+		image: "/halla-dice.png",
+		gradient: "linear-gradient(to bottom, #0f2027, #203a43, #2c5364)",
+	},
+	HALLAMETRONITE: {
+		subtitle: "halla mini game",
+		image: "/halla-metronite.png",
+		gradient: "linear-gradient(to bottom, #141e30, #243b55, #4a90d9)",
+	},
 	"sportsdey-crash": {
 		subtitle: "sportsdey original",
 		image: "/sportsdey-crash.jpeg",
@@ -201,25 +229,56 @@ export const CLASSIC_KNOWN_GAMES: Record<
 const SPORTSDEY_CRASH_URL =
 	"https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino";
 
+function scoreLobbyNameMatch(gameName: string, target: string): number {
+	const g = gameName.toLowerCase().trim();
+	const t = target.toLowerCase().trim();
+	if (g === t) return 0;
+	if (g === `${t} mobile`) return 1;
+	if (g.startsWith(`${t} `) || g.startsWith(`${t}:`)) return 2;
+	if (g.includes(t)) return 3;
+	return 999;
+}
+
+/**
+ * Pick enabled lobby games in the given name order.
+ * Prefers exact title, then "… Mobile", then prefix, then substring.
+ */
+export function pickGamesByOrderedNames<T extends { id: string; name: string }>(
+	games: T[],
+	names: readonly string[],
+	limit: number = Number.POSITIVE_INFINITY,
+): T[] {
+	const result: T[] = [];
+	const addedIds = new Set<string>();
+
+	for (const target of names) {
+		if (result.length >= limit) break;
+
+		let best: T | undefined;
+		let bestScore = 999;
+		for (const game of games) {
+			if (addedIds.has(game.id)) continue;
+			const score = scoreLobbyNameMatch(game.name, target);
+			if (score < bestScore) {
+				bestScore = score;
+				best = game;
+			}
+		}
+
+		if (best && bestScore < 999) {
+			result.push(best);
+			addedIds.add(best.id);
+		}
+	}
+
+	return result;
+}
+
 export function getUniquePopularGames(
 	games: ClassicLobbyGame[],
 	limit: number,
 ): ClassicLobbyGame[] {
-	const result: ClassicLobbyGame[] = [];
-	const addedIds = new Set<string>();
-	for (const popName of POPULAR_GAME_NAMES) {
-		if (result.length >= limit) break;
-		const match = games.find(
-			(g) =>
-				!addedIds.has(g.id) &&
-				g.name.toLowerCase().includes(popName.toLowerCase()),
-		);
-		if (match) {
-			result.push(match);
-			addedIds.add(match.id);
-		}
-	}
-	return result;
+	return pickGamesByOrderedNames(games, POPULAR_GAME_NAMES, limit);
 }
 
 export async function fetchClassicLobbyGames(): Promise<ClassicLobbyGame[]> {
@@ -357,6 +416,9 @@ export async function launchClassicGame(
 			body = {};
 		} else if (game.code === "LAGOSRUSH") {
 			path = "/lagos-rush/launcher";
+			body = { game: game.code };
+		} else if (HALLA_LAUNCH_PATHS[game.code]) {
+			path = HALLA_LAUNCH_PATHS[game.code];
 			body = { game: game.code };
 		} else {
 			path = `/thndr/play/${game.code}`;

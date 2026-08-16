@@ -48,13 +48,32 @@ async function getWalletKobo(db: Db, userId: string): Promise<number> {
 	return wallet?.balance ?? 0;
 }
 
-async function ensureUserExists(db: Db, userId: string): Promise<boolean> {
-	const [user] = await db
+async function resolveScorpioUserId(
+	db: Db,
+	playerId: string,
+): Promise<string | null> {
+	const [byUser] = await db
 		.select({ id: schema.user.id })
 		.from(schema.user)
-		.where(eq(schema.user.id, userId))
+		.where(eq(schema.user.id, playerId))
 		.limit(1);
-	return Boolean(user);
+	if (byUser) return byUser.id;
+
+	const asCode = Number(playerId);
+	if (Number.isInteger(asCode) && asCode > 0) {
+		const [byCode] = await db
+			.select({ userId: schema.scorpioPlayers.userId })
+			.from(schema.scorpioPlayers)
+			.where(eq(schema.scorpioPlayers.playerCode, asCode))
+			.limit(1);
+		if (byCode) return byCode.userId;
+	}
+
+	return null;
+}
+
+async function ensureUserExists(db: Db, playerId: string): Promise<boolean> {
+	return Boolean(await resolveScorpioUserId(db, playerId));
 }
 
 async function findByTransactionId(db: Db, transactionId: string) {
@@ -521,17 +540,20 @@ export async function processScorpioCallback(
 	body: Record<string, unknown>,
 ): Promise<ScorpioCallbackResult> {
 	const command = String(body.command ?? "");
+	const rawPlayerId = String(body.playerId ?? "");
+	const playerId =
+		(await resolveScorpioUserId(db, rawPlayerId)) ?? rawPlayerId;
 
 	try {
 		switch (command) {
 			case "balance":
 				return handleScorpioBalance(db, {
-					playerId: String(body.playerId),
+					playerId,
 					currency: String(body.currency ?? "NGN"),
 				});
 			case "bet":
 				return handleScorpioBet(db, {
-					playerId: String(body.playerId),
+					playerId,
 					transactionId: String(body.transactionId),
 					roundId: String(body.roundId),
 					amount: Number(body.amount),
@@ -541,7 +563,7 @@ export async function processScorpioCallback(
 				});
 			case "win":
 				return handleScorpioWin(db, {
-					playerId: String(body.playerId),
+					playerId,
 					transactionId: String(body.transactionId),
 					roundId: String(body.roundId),
 					amount: Number(body.amount),
@@ -551,7 +573,7 @@ export async function processScorpioCallback(
 				});
 			case "cancel":
 				return handleScorpioCancel(db, {
-					playerId: String(body.playerId),
+					playerId,
 					transactionId: String(body.transactionId),
 					referenceId: String(body.referenceId),
 					roundId: String(body.roundId),

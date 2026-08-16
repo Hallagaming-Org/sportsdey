@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, like, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -7,14 +7,15 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
-import type { CloudflareBindings } from "../types";
 import { getFixtureTitlesByIds } from "@/utils/fixtures";
+import type { CloudflareBindings } from "../types";
 
 const adminTicketsRoute = new OpenAPIHono<{
 	Bindings: CloudflareBindings;
 }>();
 
-const MAX_PER_SOURCE = 2000;
+/** Safety cap for unpaginated list responses (Workers memory / response size). */
+const MAX_UNPAGINATED_ROWS = 10_000;
 
 function formatAmount(amount: number): string {
 	return `₦${(amount / 100).toLocaleString("en-NG")}`;
@@ -57,7 +58,9 @@ function mapSbOutcome(
 	return "Declined";
 }
 
-function mapCasinoOutcome(type: string): "Won" | "Active" | "Lost" | "Declined" {
+function mapCasinoOutcome(
+	type: string,
+): "Won" | "Active" | "Lost" | "Declined" {
 	switch (type) {
 		case "WIN":
 		case "win":
@@ -101,31 +104,19 @@ const TicketSchema = z
 	})
 	.openapi("Ticket");
 
-const PaginationSchema = z
-	.object({
-		page: z.number().openapi({ example: 1 }),
-		limit: z.number().openapi({ example: 10 }),
-		total: z.number().openapi({ example: 42 }),
-		totalPages: z.number().openapi({ example: 5 }),
-	})
-	.openapi("Pagination");
-
 const TicketsDataSchema = z
 	.object({
 		tickets: z.array(TicketSchema),
-		pagination: PaginationSchema,
+		pagination: z.object({
+			page: z.number(),
+			limit: z.number(),
+			total: z.number(),
+			totalPages: z.number(),
+		}),
 	})
 	.openapi("TicketsData");
 
 const TicketsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({ description: "Items per page", example: "10" }),
 	type: z
 		.enum(["all", "casino", "sportsbook"])
 		.optional()
@@ -142,24 +133,18 @@ const TicketsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Search by player name or bet ID" }),
+	page: z.string().optional().openapi({ description: "Page number (default 1)" }),
+	limit: z
+		.string()
+		.optional()
+		.openapi({ description: "Items per page (default 10, max 100)" }),
 });
-
-
-
 
 const GetUserTicketsParamsSchema = z.object({
 	userId: z.string().openapi({ description: "User ID", example: "usr_xyz789" }),
 });
 
 const GetUserTicketsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({ description: "Items per page", example: "10" }),
 	type: z
 		.enum(["all", "casino", "sportsbook"])
 		.optional()
@@ -174,10 +159,10 @@ const GetUserTicketsQuerySchema = z.object({
 		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
 });
 
-
-
 const GetTicketByIdParamsSchema = z.object({
-	id: z.string().openapi({ description: "Ticket (bet) ID", example: "bet_abc123" }),
+	id: z
+		.string()
+		.openapi({ description: "Ticket (bet) ID", example: "bet_abc123" }),
 });
 
 const TicketSelectionSchema = z
@@ -191,7 +176,6 @@ const TicketSelectionSchema = z
 	})
 	.openapi("TicketSelection");
 
-
 const BetBuilderSelectionSchema = z
 	.object({
 		matchId: z.string().nullable().openapi({ example: "1:1" }),
@@ -203,8 +187,6 @@ const BetBuilderSelectionSchema = z
 		}),
 	})
 	.openapi("BetBuilderSelection");
-
-
 
 const TicketPlayerSchema = z
 	.object({
@@ -246,16 +228,14 @@ const TicketDetailSchema = z
 	})
 	.openapi("TicketDetail");
 
-
-
-//Ticket Route creattion  
+//Ticket Route creattion
 const getTicketsRoute = createRoute({
 	method: "get",
 	path: "/tickets",
 	tags: ["Admin - Tickets"],
 	summary: "Get all tickets",
 	description:
-		"Retrieve a paginated list of all tickets across sportsbook and casino. Supports filtering by type, date range, and search.",
+		"Paginated tickets across sportsbook and casino. Use GET /admin/tickets/all for the full unpaginated set.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: TicketsQuerySchema,
@@ -280,7 +260,6 @@ const getTicketsRoute = createRoute({
 	},
 });
 
-
 // Get user tickets route
 const getUserTicketsRoute = createRoute({
 	method: "get",
@@ -288,7 +267,7 @@ const getUserTicketsRoute = createRoute({
 	tags: ["Admin - Tickets"],
 	summary: "Get tickets for a user",
 	description:
-		"Retrieve a paginated list of tickets for a specific user across sportsbook and casino. Supports filtering by type and date range.",
+		"Retrieve all tickets for a specific user across sportsbook and casino (no pagination, capped at 10,000). Supports filtering by type and date range.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: GetUserTicketsParamsSchema,
@@ -350,9 +329,9 @@ const getTicketByIdRoute = createRoute({
 	},
 });
 
-
-
-adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
+const handleGetTicketsList = async (
+	c: Parameters<Parameters<typeof adminTicketsRoute.openapi>[1]>[0],
+) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -387,15 +366,12 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 	}
 
 	const url = new URL(c.req.url);
-	const rawPage = url.searchParams.get("page") || "1";
-	const rawLimit = url.searchParams.get("limit") || "10";
 	const rawType = url.searchParams.get("type") || "all";
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 	const search = url.searchParams.get("search") || undefined;
 
-	const page = Math.max(1, parseInt(rawPage, 10) || 1);
-	const limit = Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 10));
+	const perSourceLimit = MAX_UNPAGINATED_ROWS;
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -458,7 +434,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 			)
 			.where(sbConditions.length > 0 ? and(...sbConditions) : undefined)
 			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(MAX_PER_SOURCE);
+			.limit(perSourceLimit);
 
 		const processedBetIds = new Set<string>();
 		for (const r of sbResults) {
@@ -515,7 +491,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 				roundIdCol: null,
 				gameIdCol: schema.gameTransactions.game,
 				winTypes: ["WIN"],
-				provider: "ICRASH",
+				provider: "ISCRASH",
 			},
 			{
 				table: schema.thundrTransactions,
@@ -610,7 +586,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
 				.where(casConditions.length > 0 ? and(...casConditions) : undefined)
 				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_PER_SOURCE);
+				.limit(perSourceLimit);
 
 			for (const r of results) {
 				const ts = r.createdAt.getTime();
@@ -639,70 +615,131 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allTickets.length;
-	const totalPages = Math.ceil(total / limit) || 1;
-	const paginated = allTickets.slice((page - 1) * limit, page * limit);
+	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
 
-	const gameNameCache = new Map<string, string | null>();
-
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
+	// Resolve game names with chunked IN queries — one query per 100 unique
+	// codes instead of one per row.
+	const gameNameByCode = new Map<string, string | null>();
+	const uniqueGameCodes = [
+		...new Set(
+			capped
+				.map((t) => t.gameCode)
+				.filter((code): code is string => Boolean(code)),
+		),
+	];
+	const GAME_CODE_CHUNK = 100;
+	for (let i = 0; i < uniqueGameCodes.length; i += GAME_CODE_CHUNK) {
+		const chunk = uniqueGameCodes.slice(i, i + GAME_CODE_CHUNK);
+		const rows = await db
+			.select({ code: schema.game.code, name: schema.game.name })
 			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
-		return name;
+			.where(inArray(schema.game.code, chunk));
+		for (const row of rows) {
+			gameNameByCode.set(row.code, row.name ?? null);
+		}
 	}
 
-	const ticketsWithNames = await Promise.all(
-		paginated.map(async (t) => {
-			let gameName: string | null = null;
-			if (t.gameCode) {
-				gameName = await getGameName(t.gameCode);
-			}
-			return {
-				id: t.id,
-				userId: t.userId,
-				playerName: t.playerName,
-				betAmount: formatAmount(t.betAmount),
-				odds: t.totalOdds,
-				potentialWin:
-					t.gameType === "Sportsbook" && t.totalOdds
-						? formatAmount(
-								Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
-							)
-						: null,
-				payout: t.payout != null ? formatAmount(t.payout) : null,
-				gameType: t.gameType,
-				outcome: t.outcome,
-				createdAt: formatDate(t.createdAt),
-				balanceBefore:
-					t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
-				balanceAfter:
-					t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
-				roundId: t.roundId,
-				provider: t.provider,
-				gameName,
-			};
-		}),
-	);
+	const ticketsWithNames = capped.map((t) => {
+		const gameName = t.gameCode
+			? (gameNameByCode.get(t.gameCode) ?? null)
+			: null;
+		return {
+			id: t.id,
+			userId: t.userId,
+			playerName: t.playerName,
+			betAmount: formatAmount(t.betAmount),
+			odds: t.totalOdds,
+			potentialWin:
+				t.gameType === "Sportsbook" && t.totalOdds
+					? formatAmount(
+							Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
+						)
+					: null,
+			payout: t.payout != null ? formatAmount(t.payout) : null,
+			gameType: t.gameType,
+			outcome: t.outcome,
+			createdAt: formatDate(t.createdAt),
+			balanceBefore:
+				t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+			balanceAfter:
+				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
+			roundId: t.roundId,
+			provider: t.provider,
+			gameName,
+		};
+	});
 
+	const unpaginated =
+		c.req.path.endsWith("/tickets/all") || c.req.path.endsWith("/tickets/all/");
 	return c.json({
 		success: true,
-		data: {
-			tickets: ticketsWithNames,
-			pagination: {
-				page,
-				limit,
-				total,
-				totalPages,
+		data: paginateTicketRows(ticketsWithNames, url, unpaginated),
+	});
+};
+
+const getTicketsAllRoute = createRoute({
+	method: "get",
+	path: "/tickets/all",
+	tags: ["Admin - Tickets"],
+	summary: "Get every ticket (unpaginated)",
+	description:
+		"New endpoint: full ticket list in one response (capped at 10,000). Does not change GET /admin/tickets, which stays paginated.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: TicketsQuerySchema.omit({ page: true, limit: true }),
+	},
+	responses: {
+		200: {
+			description: "Tickets retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(TicketsDataSchema),
+				},
 			},
 		},
-	});
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
 });
+
+function paginateTicketRows(
+	tickets: Array<Record<string, unknown>>,
+	url: URL,
+	unpaginated: boolean,
+) {
+	const total = tickets.length;
+	if (unpaginated) {
+		return {
+			tickets,
+			pagination: {
+				page: 1,
+				limit: total,
+				total,
+				totalPages: 1,
+			},
+		};
+	}
+	const page = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1);
+	const parsedLimit = Number.parseInt(url.searchParams.get("limit") || "10", 10);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+	return {
+		tickets: tickets.slice((page - 1) * limit, page * limit),
+		pagination: { page, limit, total, totalPages },
+	};
+}
+
+adminTicketsRoute.openapi(getTicketsRoute, handleGetTicketsList);
+adminTicketsRoute.openapi(getTicketsAllRoute, handleGetTicketsList);
 
 adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
@@ -747,14 +784,10 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	}
 
 	const url = new URL(c.req.url);
-	const rawPage = url.searchParams.get("page") || "1";
-	const rawLimit = url.searchParams.get("limit") || "10";
 	const rawType = url.searchParams.get("type") || "all";
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 
-	const page = Math.max(1, parseInt(rawPage, 10) || 1);
-	const limit = Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 10));
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -806,7 +839,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			)
 			.where(eq(schema.sportsbookBet.userId, userId))
 			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(MAX_PER_SOURCE);
+			.limit(MAX_UNPAGINATED_ROWS);
 
 		const processedBetIds = new Set<string>();
 		for (const r of sbResults) {
@@ -947,7 +980,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
 				.where(eq(source.userIdCol, userId))
 				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_PER_SOURCE);
+				.limit(MAX_UNPAGINATED_ROWS);
 
 			for (const r of results) {
 				const ts = r.createdAt.getTime();
@@ -976,66 +1009,67 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allTickets.length;
-	const totalPages = Math.ceil(total / limit) || 1;
-	const paginated = allTickets.slice((page - 1) * limit, page * limit);
+	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
 
-	const gameNameCache = new Map<string, string | null>();
-
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
+	const gameNameByCode = new Map<string, string | null>();
+	const uniqueGameCodes = [
+		...new Set(
+			capped
+				.map((t) => t.gameCode)
+				.filter((code): code is string => Boolean(code)),
+		),
+	];
+	const GAME_CODE_CHUNK = 100;
+	for (let i = 0; i < uniqueGameCodes.length; i += GAME_CODE_CHUNK) {
+		const chunk = uniqueGameCodes.slice(i, i + GAME_CODE_CHUNK);
+		const rows = await db
+			.select({ code: schema.game.code, name: schema.game.name })
 			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
-		return name;
+			.where(inArray(schema.game.code, chunk));
+		for (const row of rows) {
+			gameNameByCode.set(row.code, row.name ?? null);
+		}
 	}
 
-	const ticketsWithNames = await Promise.all(
-		paginated.map(async (t) => {
-			let gameName: string | null = null;
-			if (t.gameCode) {
-				gameName = await getGameName(t.gameCode);
-			}
-			return {
-				id: t.id,
-				userId: t.userId,
-				playerName: t.playerName,
-				betAmount: formatAmount(t.betAmount),
-				potentialWin:
-					t.gameType === "Sportsbook" && t.totalOdds
-						? formatAmount(
-								Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
-							)
-						: null,
-				payout: t.payout != null ? formatAmount(t.payout) : null,
-				odds: t.totalOdds,
-				gameType: t.gameType,
-				outcome: t.outcome,
-				createdAt: formatDate(t.createdAt),
-				balanceBefore:
-					t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
-				balanceAfter:
-					t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
-				roundId: t.roundId,
-				provider: t.provider,
-				gameName,
-			};
-		}),
-	);
+	const ticketsWithNames = capped.map((t) => {
+		const gameName = t.gameCode
+			? (gameNameByCode.get(t.gameCode) ?? null)
+			: null;
+		return {
+			id: t.id,
+			userId: t.userId,
+			playerName: t.playerName,
+			betAmount: formatAmount(t.betAmount),
+			potentialWin:
+				t.gameType === "Sportsbook" && t.totalOdds
+					? formatAmount(
+							Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
+						)
+					: null,
+			payout: t.payout != null ? formatAmount(t.payout) : null,
+			odds: t.totalOdds,
+			gameType: t.gameType,
+			outcome: t.outcome,
+			createdAt: formatDate(t.createdAt),
+			balanceBefore:
+				t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+			balanceAfter:
+				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
+			roundId: t.roundId,
+			provider: t.provider,
+			gameName,
+		};
+	});
 
 	return c.json({
 		success: true,
 		data: {
 			tickets: ticketsWithNames,
 			pagination: {
-				page,
-				limit,
-				total,
-				totalPages,
+				page: 1,
+				limit: ticketsWithNames.length,
+				total: ticketsWithNames.length,
+				totalPages: 1,
 			},
 		},
 	});
@@ -1044,17 +1078,33 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
-		return c.json({ success: false, error: "Unauthorized", details: null }, 401);
+		return c.json(
+			{ success: false, error: "Unauthorized", details: null },
+			401,
+		);
 	}
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
-		return c.json({ success: false, error: "Forbidden - admin only", details: null }, 403);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{ success: false, error: "Forbidden - admin only", details: null },
+			403,
+		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "view_ticket_history")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_ticket_history")
+	) {
 		return c.json(
-			{ success: false, error: "Forbidden - view_ticket_history permission required", details: null },
+			{
+				success: false,
+				error: "Forbidden - view_ticket_history permission required",
+				details: null,
+			},
 			403,
 		);
 	}
@@ -1062,7 +1112,6 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 	const { id } = c.req.valid("param");
 	const db = drizzle(c.env.DB, { schema });
 
-	
 	const bet = await db
 		.select({
 			id: schema.sportsbookBet.id,
@@ -1100,46 +1149,64 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			.where(eq(schema.sportsbookBetEvent.betId, id))
 			.orderBy(schema.sportsbookBetEvent.createdAt);
 
-
-		const wasCashedOut = events.some((e) => e.eventType === "cash_out_accepted");
+		const wasCashedOut = events.some(
+			(e) => e.eventType === "cash_out_accepted",
+		);
 		const balanceBefore = events[0]?.balanceBefore ?? null;
 		const balanceAfter = events[events.length - 1]?.balanceAfter ?? null;
 
 		let rawSelections: Array<Record<string, any>> = [];
 		let rawBetBuilderOdds: Array<Record<string, any>> = [];
+		let rawBetData: any = null;
 		try {
-			const parsed = bet.betData ? JSON.parse(bet.betData) : null;
-			if (parsed && Array.isArray(parsed.bet_odds)) {
-				rawSelections = parsed.bet_odds;
+			if (bet.betData) {
+				rawBetData = JSON.parse(bet.betData);
+				
+				if (rawBetData && Array.isArray(rawBetData.bet_odds)) {
+					rawSelections = rawBetData.bet_odds;
+				}
+				
+				if (rawBetData && Array.isArray(rawBetData.bet_builder_odds)) {
+					rawBetBuilderOdds = rawBetData.bet_builder_odds;
+				}
+				
+				console.log(`[getTicketById] Found ${rawSelections.length} selections, ${rawBetBuilderOdds.length} bet builder odds`);
 			}
-			if (parsed && Array.isArray(parsed.bet_builder_odds)) {
-				rawBetBuilderOdds = parsed.bet_builder_odds;
-			}
-		} catch {
+		} catch (error) {
+			console.error('[getTicketById] Failed to parse betData:', error);
 			rawSelections = [];
 			rawBetBuilderOdds = [];
 		}
 
-
-		const regularMatchIds = rawSelections.map((s) => s.match_id).filter(Boolean);
-		const builderGroupMatchIds = rawBetBuilderOdds.map((b) => b.match_id).filter(Boolean);
+		const regularMatchIds = rawSelections
+			.map((s) => s.match_id)
+			.filter(Boolean);
+		const builderGroupMatchIds = rawBetBuilderOdds
+			.map((b) => b.match_id)
+			.filter(Boolean);
 		const builderLegMatchIds = rawBetBuilderOdds.flatMap((b) =>
-			Array.isArray(b.odds) ? b.odds.map((o: any) => o.match_id).filter(Boolean) : [],
+			Array.isArray(b.odds)
+				? b.odds.map((o: any) => o.match_id).filter(Boolean)
+				: [],
 		);
 
-
 		const sportEventIds = Array.from(
-			new Set([...regularMatchIds, ...builderGroupMatchIds, ...builderLegMatchIds]),
+			new Set([
+				...regularMatchIds,
+				...builderGroupMatchIds,
+				...builderLegMatchIds,
+			]),
 		) as string[];
-
 
 		const titleById = await getFixtureTitlesByIds(c.env, sportEventIds);
 
 		const selections = rawSelections.map((s) => {
-			const title = s.match_id ? titleById.get(s.match_id) : undefined;
+			const matchId = s.match_id;
+			const title = matchId ? titleById.get(matchId) : undefined;
+			
 			return {
-				matchId: s.match_id ?? null,
-				match: title ?? (s.match_id ?? "Unknown match"),
+				matchId: matchId ?? null,
+				match: title ?? matchId ?? "Unknown match",
 				marketId: s.market_id ?? null,
 				oddId: s.odd_id ?? null,
 				odds: s.odd_ratio ?? null,
@@ -1147,16 +1214,17 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			};
 		});
 
-
-		
 		const betBuilderSelections = rawBetBuilderOdds.map((builder) => {
-			const groupTitle = builder.match_id ? titleById.get(builder.match_id) : undefined;
+			const groupMatchId = builder.match_id;
+			const groupTitle = groupMatchId ? titleById.get(groupMatchId) : undefined;
+			
 			const legs = Array.isArray(builder.odds)
 				? builder.odds.map((o: any) => {
-						const legTitle = o.match_id ? titleById.get(o.match_id) : undefined;
+						const legMatchId = o.match_id;
+						const legTitle = legMatchId ? titleById.get(legMatchId) : undefined;
 						return {
-							matchId: o.match_id ?? null,
-							match: legTitle ?? (o.match_id ?? "Unknown match"),
+							matchId: legMatchId ?? null,
+							match: legTitle ?? legMatchId ?? "Unknown match",
 							marketId: o.market_id ?? null,
 							oddId: o.odd_id ?? null,
 							odds: o.odd_ratio ?? null,
@@ -1164,9 +1232,10 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 						};
 					})
 				: [];
+			
 			return {
-				matchId: builder.match_id ?? null,
-				match: groupTitle ?? (builder.match_id ?? "Unknown match"),
+				matchId: groupMatchId ?? null,
+				match: groupTitle ?? groupMatchId ?? "Unknown match",
 				ratio: builder.ratio ?? null,
 				status: builder.status ?? null,
 				legs,
@@ -1187,13 +1256,17 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 				betType: bet.betType,
 				outcome: mapSbOutcome(bet.status, bet.settleType),
 				stake: formatAmount(bet.stake),
-				potentialWin: potentialWin != null ? formatAmount(Math.round(potentialWin)) : null,
+				potentialWin:
+					potentialWin != null ? formatAmount(Math.round(potentialWin)) : null,
 				actualPayout: actualPayout != null ? formatAmount(actualPayout) : null,
 				profit: profit != null ? formatAmount(profit) : null,
 				totalOdds: bet.totalOdds,
 				cashedOut: wasCashedOut,
 				createdAt: formatDate(bet.createdAt),
-				settledAt: bet.status !== "created" && bet.status !== "accepted" ? formatDate(bet.updatedAt) : null,
+				settledAt:
+					bet.status !== "created" && bet.status !== "accepted"
+						? formatDate(bet.updatedAt)
+						: null,
 				player: {
 					id: bet.userId,
 					name: bet.playerName,
@@ -1201,16 +1274,17 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					image: bet.playerImage,
 					mobileNumber: bet.playerMobileNumber,
 					verified: bet.playerVerificationStatus === "verified",
-					balanceBefore: balanceBefore != null ? formatAmount(balanceBefore) : null,
-					balanceAfter: balanceAfter != null ? formatAmount(balanceAfter) : null,
+					balanceBefore:
+						balanceBefore != null ? formatAmount(balanceBefore) : null,
+					balanceAfter:
+						balanceAfter != null ? formatAmount(balanceAfter) : null,
 				},
 				selections,
-				betBuilderSelections
+				betBuilderSelections,
 			},
 		});
 	}
 
-	
 	const casinoSources: Array<{
 		table: any;
 		idCol: any;
@@ -1342,8 +1416,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			let stakeAmount = row.betAmount;
 
 			if (isWin && source.roundIdCol && row.roundId) {
-				const betType =
-					source.provider === "Slotegrator" ? "bet" : "BET";
+				const betType = source.provider === "Slotegrator" ? "bet" : "BET";
 				const [priorBet] = await db
 					.select({ amount: source.amountCol })
 					.from(source.table)
@@ -1398,9 +1471,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 								? formatAmount(row.balanceBefore)
 								: null,
 						balanceAfter:
-							row.balanceAfter != null
-								? formatAmount(row.balanceAfter)
-								: null,
+							row.balanceAfter != null ? formatAmount(row.balanceAfter) : null,
 					},
 					provider: source.provider,
 					gameName,
@@ -1411,7 +1482,10 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		}
 	}
 
-	return c.json({ success: false, error: "Ticket not found", details: null }, 404);
+	return c.json(
+		{ success: false, error: "Ticket not found", details: null },
+		404,
+	);
 });
 
 export default adminTicketsRoute;

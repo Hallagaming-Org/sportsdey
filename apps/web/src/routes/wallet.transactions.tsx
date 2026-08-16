@@ -3,10 +3,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { ChevronDown, MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import z from "zod";
-import {
-	type ReceiptDetail,
-	TransactionReceipt,
-} from "@/components/transaction-receipt";
+import { TransactionReceipt } from "@/components/transaction-receipt";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequestFull } from "@/lib/api";
@@ -15,6 +12,8 @@ import { formatAmount } from "@/lib/utils";
 import {
 	formatTransactionDate,
 	getTransactionDetails,
+	getTransactionTypeLabel,
+	getWalletReceiptDetails,
 	groupTransactionsByMonth,
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
@@ -39,107 +38,6 @@ const statusBadgeStyles = {
 	pending: "bg-[#FFF9E6] text-[#B58E2A]",
 	failed: "bg-[#FCE8E6] text-[#C5221F]",
 };
-
-function truncateId(id: string): string {
-	if (id.length <= 16) return id;
-	return `${id.slice(0, 8)}...${id.slice(-4)}`;
-}
-
-function getReceiptDetails(tx: WalletTransaction): ReceiptDetail[] {
-	const { iconType } = getTransactionDetails(tx);
-	const meta = tx.metadata as Record<string, string | undefined> | null;
-	const details: ReceiptDetail[] = [];
-
-	if (iconType === "transfer") {
-		const transferType = meta?.transferType;
-		if (transferType === "outgoing") {
-			details.push({
-				label: "Recipient Name",
-				value: meta?.recipientName || "N/A",
-			});
-			details.push({
-				label: "Recipient Wallet ID",
-				value: truncateId(String(meta?.recipientWalletId || "N/A")),
-			});
-		} else if (transferType === "incoming") {
-			details.push({
-				label: "Sender Name",
-				value: meta?.senderName || "N/A",
-			});
-			details.push({
-				label: "Sender Wallet ID",
-				value: truncateId(String(meta?.senderWalletId || "N/A")),
-			});
-		}
-		details.push({
-			label: "Amount",
-			value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-		});
-		details.push({ label: "Fee", value: "₦0" });
-		details.push({
-			label: "Date",
-			value: formatTransactionDate(tx.createdAt),
-		});
-		details.push({ label: "Transaction Type", value: "Transfer" });
-	} else if (
-		iconType === "mtn" ||
-		iconType === "airtel" ||
-		iconType === "electricity"
-	) {
-		details.push({
-			label: "To",
-			value: tx.metadata?.customerId
-				? `${tx.metadata.customerId} (${tx.metadata.billerName})`
-				: "Utility Bill",
-		});
-		details.push({
-			label: "Amount",
-			value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-		});
-		details.push({ label: "Fee", value: "₦0" });
-		details.push({
-			label: "Description",
-			value: tx.metadata?.service
-				? `${tx.metadata.service} Purchase`
-				: "Bill Payment",
-		});
-		details.push({
-			label: "Date",
-			value: formatTransactionDate(tx.createdAt),
-		});
-		details.push({ label: "Transaction Type", value: "Bills" });
-	} else if (iconType === "deposit") {
-		details.push({ label: "Transaction Type", value: "Credit (Deposit)" });
-		details.push({
-			label: "Amount",
-			value: `₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-		});
-		details.push({ label: "Fee", value: "₦0" });
-		details.push({
-			label: "Date",
-			value: formatTransactionDate(tx.createdAt),
-		});
-	} else {
-		details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
-		details.push({
-			label: "Amount",
-			value: `- ₦${Math.abs(tx.amount || 0).toLocaleString()}`,
-		});
-		details.push({ label: "Fee", value: "₦0" });
-		details.push({
-			label: "Date",
-			value: formatTransactionDate(tx.createdAt),
-		});
-	}
-
-	const txId = tx.reference || tx.id;
-	details.push({
-		label: "Transaction ID",
-		value: truncateId(txId),
-		copyable: true,
-	});
-	return details;
-}
 
 const searchSchema = z.object({
 	month: z.string().optional(),
@@ -362,7 +260,8 @@ function WalletTransactionsPage() {
 						</div>
 						<div className="overflow-hidden rounded-[24px] border border-[#1C1C1E] bg-[#04100B]">
 							{group.transactions.map((transaction, index) => {
-								const { title, iconType, statusText, statusColor } =
+								const typeLabel = getTransactionTypeLabel(transaction);
+								const { iconType, statusText, statusColor } =
 									getTransactionDetails(transaction);
 								const amount = transaction.amount ?? 0;
 								const isCredit = amount >= 0;
@@ -463,18 +362,25 @@ function WalletTransactionsPage() {
 
 			{selectedTx && (
 				<TransactionReceipt
-					details={getReceiptDetails(selectedTx)}
+					title="Transaction Details"
+					details={getWalletReceiptDetails(selectedTx)}
 					statusTitle={
-						selectedTx.status.toLowerCase() === "success"
+						["success", "completed", "successful"].includes(
+							selectedTx.status.toLowerCase(),
+						)
 							? "Successful"
 							: selectedTx.status.toLowerCase() === "pending"
 								? "Pending"
 								: "Failed"
 					}
 					statusMessage={
-						selectedTx.status.toLowerCase() === "success"
+						["success", "completed", "successful"].includes(
+							selectedTx.status.toLowerCase(),
+						)
 							? "Transaction has been completed."
-							: "Transaction processing."
+							: selectedTx.status.toLowerCase() === "pending"
+								? "Transaction is still processing."
+								: "Transaction failed."
 					}
 					onBack={() => setSelectedTx(null)}
 				/>

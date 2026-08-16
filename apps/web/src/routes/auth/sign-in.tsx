@@ -1,15 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Phone } from "lucide-react";
+
 import { useState } from "react";
+import z from "zod";
 import { signIn } from "@/lib/auth/client";
+import { Phone } from "lucide-react";
 import { buildPublicUrl } from "@/lib/public-url";
 
+const signInSearchSchema = z.object({
+	returnTo: z.string().optional().catch(""),
+	mode: z.enum(["login", "signup"]).optional().catch("login"),
+});
+
 export const Route = createFileRoute("/auth/sign-in")({
-	validateSearch: (search: Record<string, unknown>): { returnTo?: string } => {
-		return {
-			returnTo: search.returnTo as string | undefined,
-		};
-	},
+	validateSearch: signInSearchSchema,
 	component: SignInPage,
 });
 
@@ -32,10 +35,15 @@ export default function SignInPage() {
 		setIsLoading(true);
 		setError("");
 		try {
-			await signIn.social({
+			const result = await signIn.social({
 				provider,
 				callbackURL,
 			});
+			if (result?.error) {
+				setError(
+					result.error.message || `Failed to sign in with ${provider}`,
+				);
+			}
 		} catch (err) {
 			setError("Failed to sign in with " + provider);
 		} finally {
@@ -62,7 +70,12 @@ export default function SignInPage() {
 				<div className="space-y-3">
 					<button
 						type="button"
-						onClick={() => navigate({ to: "/auth/phone-sign-in" })}
+						onClick={() =>
+							navigate({
+								to: "/auth/phone-sign-in",
+								search: { mode: "login", returnTo },
+							})
+						}
 						className="flex w-full cursor-pointer items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50"
 					>
 						<Phone className="h-5 w-5 text-gray-700" />
@@ -98,7 +111,7 @@ export default function SignInPage() {
 						</span>
 					</button>
 
-					{/*<button
+					<button
 						onClick={() => handleSocialSignIn("apple")}
 						disabled={isLoading}
 						className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white p-3 transition-colors hover:bg-gray-50 disabled:opacity-50"
@@ -122,7 +135,7 @@ export default function SignInPage() {
 						<span className="font-medium text-gray-700">
 							Continue with Facebook
 						</span>
-					</button>*/}
+					</button>
 				</div>
 
 				<p className="mt-6 text-center font-inter text-sm text-gray-400">

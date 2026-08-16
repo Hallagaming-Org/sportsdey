@@ -8,7 +8,20 @@ import * as schema from "@/db/schema";
 import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	isDefaultPhoneUserName,
+	isPhonePlaceholderEmail,
+} from "@/utils/phone-user";
 import type { CloudflareBindings } from "../types";
+
+const PROFILE_CHANGE_CONTACT_EMAIL = "support@sportsdey.com";
+const PROFILE_EDIT_LOCKED_MESSAGE = `You've already updated your profile. Contact admin at ${PROFILE_CHANGE_CONTACT_EMAIL} if you need any further changes.`;
+
+function isOnboardingProfile(user: { name: string; email: string }): boolean {
+	return (
+		isPhonePlaceholderEmail(user.email) || isDefaultPhoneUserName(user.name)
+	);
+}
 
 function toIsoTimestamp(value: Date | string | number): string {
 	if (value instanceof Date) return value.toISOString();
@@ -19,6 +32,7 @@ const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 	"sportsbook",
 	"thndr games",
 	"lagos rush",
+	"halla",
 	"lucky games",
 	"hashcodex",
 	"slotegrator games",
@@ -26,37 +40,41 @@ const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
+const emptyToUndefined = (value: unknown) => {
+	if (value === "" || value === null || value === undefined) return undefined;
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
+	if (typeof value !== "string") return undefined;
+	return value;
+};
+
 const UpdateUserSchema = z
 	.object({
 		name: z.string().min(1).openapi({
 			description: "User's full name",
 			example: "John Doe",
 		}),
-		email: z.string().email().optional().openapi({
+		email: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "User's email address",
 			example: "john@example.com",
 		}),
-		image: z.string().url().optional().openapi({
+		image: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "Profile image URL",
 			example: "https://cdn.example.com/avatar.jpg",
 		}),
-		country: z.string().optional().openapi({
+		country: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "User's country",
 			example: "Nigeria",
 		}),
-		mobileNumber: z.preprocess(
-			(value) => (value === "" || value === null ? undefined : value),
-			z
-				.string()
-				.regex(
-					/^(0|\+?234)[789][01]\d{8}$/,
-					"Invalid Nigerian phone number format",
-				)
-				.optional(),
-		).openapi({
+		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description:
 				"User's mobile number. Omit or leave empty to keep the existing number.",
 			example: "08012345678",
+		}),
+		accountEdit: z.boolean().optional().openapi({
+			description:
+				"True when the save comes from the player Account page. Only those saves use the one-edit limit.",
 		}),
 	})
 	.openapi("UpdateUser");
@@ -96,6 +114,13 @@ const SelfUserResponseSchema = z
 			.string()
 			.optional()
 			.openapi({ description: "Verification status" }),
+		canEditProfile: z
+			.boolean()
+			.optional()
+			.openapi({
+				description:
+					"Whether the player may still make their one self-serve profile edit",
+			}),
 	})
 	.openapi("SelfUserResponse");
 
@@ -123,14 +148,6 @@ const AdminErrorSchema = z
 
 const GetAllUsersQuerySchema = z
 	.object({
-		page: z
-			.string()
-			.optional()
-			.openapi({ description: "Page number (default: 1)", example: "1" }),
-		limit: z.string().optional().openapi({
-			description: "Items per page (default: 10, max: 100)",
-			example: "10",
-		}),
 		sort: z
 			.enum(["asc", "desc"])
 			.optional()
@@ -166,6 +183,8 @@ const GetAllUsersQuerySchema = z
 				"Filter users registered on or before this date (ISO format: YYYY-MM-DD)",
 			example: "2025-01-31",
 		}),
+		page: z.string().optional(),
+		limit: z.string().optional(),
 	})
 	.openapi("GetAllUsersQuery");
 
@@ -193,10 +212,8 @@ const GetAllUsersResponseSchema = z
 				users: z.array(UserListItemSchema).openapi({ description: "Users" }),
 				total: z.number().openapi({ description: "Total number of users" }),
 				page: z.number().openapi({ description: "Current page" }),
-				limit: z.number().openapi({ description: "Items per page" }),
-				totalPages: z
-					.number()
-					.openapi({ description: "Total number of pages" }),
+				limit: z.number().openapi({ description: "Items in this response" }),
+				totalPages: z.number().openapi({ description: "Total number of pages" }),
 			})
 			.openapi({ description: "Response data" }),
 	})
@@ -286,6 +303,14 @@ const updateUserRoute = createRoute({
 				},
 			},
 		},
+		403: {
+			description: "Profile edit already used",
+			content: {
+				"application/json": {
+					schema: UpdateUserErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -336,6 +361,7 @@ userRoute.openapi(getUserRoute, async (c) => {
 				createdAt: toIsoTimestamp(existingUser.createdAt),
 				updatedAt: toIsoTimestamp(existingUser.updatedAt),
 				verificationStatus: existingUser.verificationStatus,
+				canEditProfile: existingUser.profileSelfEditedAt == null,
 			},
 		},
 		200,
@@ -355,7 +381,8 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const { name, email, image, country, mobileNumber } = c.req.valid("json");
+	const { name, email, image, country, mobileNumber, accountEdit } =
+		c.req.valid("json");
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingUser] = await db
@@ -375,7 +402,38 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const nextEmail = email?.trim().toLowerCase();
+	const rawEmail = email?.trim().toLowerCase();
+	const nextEmail =
+		rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+			? rawEmail
+			: undefined;
+	const nextCountry =
+		country !== undefined ? (country.trim() ? country.trim() : null) : undefined;
+	const nextMobile =
+		mobileNumber !== undefined && mobileNumber.trim() !== ""
+			? mobileNumber.trim()
+			: undefined;
+	const identityChanged =
+		name.trim() !== existingUser.name.trim() ||
+		Boolean(nextEmail && nextEmail !== existingUser.email.toLowerCase()) ||
+		(nextCountry !== undefined &&
+			nextCountry !== (existingUser.country ?? null)) ||
+		(nextMobile !== undefined &&
+			nextMobile !== (existingUser.mobileNumber ?? null));
+	const countsTowardOneEdit =
+		accountEdit === true && !isOnboardingProfile(existingUser);
+
+	if (identityChanged && existingUser.profileSelfEditedAt && countsTowardOneEdit) {
+		return c.json(
+			{
+				success: false as const,
+				error: PROFILE_EDIT_LOCKED_MESSAGE,
+				details: null,
+			},
+			403,
+		);
+	}
+
 	const updates: {
 		name: string;
 		country?: string | null;
@@ -383,19 +441,28 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		email?: string;
 		emailVerified?: boolean;
 		image?: string | null;
+		profileSelfEditedAt?: Date;
 	} = {
 		name,
 	};
 
 	// Partial update: never wipe country/mobile when the client omits them.
-	if (country !== undefined) {
-		updates.country = country.trim() ? country.trim() : null;
+	if (nextCountry !== undefined) {
+		updates.country = nextCountry;
 	}
-	if (mobileNumber !== undefined && mobileNumber.trim() !== "") {
-		updates.mobileNumber = mobileNumber.trim();
+	if (nextMobile !== undefined) {
+		updates.mobileNumber = nextMobile;
 	}
 	if (image !== undefined) {
 		updates.image = image.trim() ? image.trim() : null;
+	}
+
+	if (
+		identityChanged &&
+		!existingUser.profileSelfEditedAt &&
+		countsTowardOneEdit
+	) {
+		updates.profileSelfEditedAt = new Date();
 	}
 
 	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
@@ -467,6 +534,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 				suspended: updatedUser.suspended,
 				createdAt: toIsoTimestamp(updatedUser.createdAt),
 				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
+				canEditProfile: updatedUser.profileSelfEditedAt == null,
 			},
 		},
 		200,
@@ -479,7 +547,7 @@ const getAllUsersRoute = createRoute({
 	tags: ["User"],
 	summary: "Get all users (admin only)",
 	description:
-		"Retrieve all users with pagination, sorting, search, and filtering options (admin only)",
+		"Paginated user list for the admin back office. Use GET /user/list-all for the full unpaginated set.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: GetAllUsersQuerySchema,
@@ -518,7 +586,9 @@ const getAllUsersRoute = createRoute({
 	},
 });
 
-userRoute.openapi(getAllUsersRoute, async (c) => {
+async function requireUserListAdmin(c: Parameters<
+	Parameters<typeof userRoute.openapi>[1]
+>[0]) {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -566,15 +636,15 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		);
 	}
 
+	return null;
+}
+
+async function loadFilteredAdminUsers(c: Parameters<
+	Parameters<typeof userRoute.openapi>[1]
+>[0]) {
 	const db = drizzle(c.env.DB, { schema });
 
-	const page = Math.max(1, Number.parseInt(c.req.query("page") || "1", 10));
-	const limit = Math.min(
-		100,
-		Math.max(1, Number.parseInt(c.req.query("limit") || "10", 10)),
-	);
 	const sort = c.req.query("sort") === "desc" ? "desc" : "asc";
-	const offset = (page - 1) * limit;
 	const tab = c.req.query("tab") as "all" | "recent" | "pending" | undefined;
 	const status = c.req.query("status") as
 		| "all"
@@ -625,7 +695,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 			: asc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
-	// filtering, sorting and pagination in-memory
+	// filtering and sorting in-memory
 	const rawUsers = await baseQuery.orderBy(orderByClause);
 
 	const users = rawUsers.map((u) => ({
@@ -635,7 +705,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		wallet: (u.wallet ?? 0) / 100,
 		status: u.status,
 		suspended: u.suspended,
-		registeredDate: u.registeredDate,
+		registeredDate: toIsoTimestamp(u.registeredDate),
 		registeredIpAddress: u.registeredIpAddress ?? null,
 	}));
 
@@ -658,22 +728,100 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		return true;
 	});
 
-	const total = filtered.length;
-	const totalPages = Math.ceil(total / limit);
+	return filtered;
+}
 
-	// paginate results in memory
-	const offsetIndex = offset;
-	const paginated = filtered.slice(offsetIndex, offsetIndex + limit);
+userRoute.openapi(getAllUsersRoute, async (c) => {
+	const denied = await requireUserListAdmin(c);
+	if (denied) return denied;
+
+	const filtered = await loadFilteredAdminUsers(c);
+	const total = filtered.length;
+	const page = Math.max(1, Number.parseInt(c.req.query("page") || "1", 10) || 1);
+	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+	const paged = filtered.slice((page - 1) * limit, page * limit);
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				users: paginated,
+				users: paged,
 				total,
 				page,
 				limit,
 				totalPages,
+			},
+		},
+		200,
+	);
+});
+
+const getAllUsersUnpaginatedRoute = createRoute({
+	method: "get",
+	path: "/list-all",
+	tags: ["User"],
+	summary: "Get every user (admin only, unpaginated)",
+	description:
+		"New endpoint: full user list in one response. Does not change GET /user/all, which stays paginated.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: GetAllUsersQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Users retrieved successfully",
+			content: {
+				"application/json": {
+					schema: GetAllUsersResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+	},
+});
+
+userRoute.openapi(getAllUsersUnpaginatedRoute, async (c) => {
+	const denied = await requireUserListAdmin(c);
+	if (denied) return denied;
+
+	const filtered = await loadFilteredAdminUsers(c);
+	const total = filtered.length;
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				users: filtered,
+				total,
+				page: 1,
+				limit: total,
+				totalPages: 1,
 			},
 		},
 		200,
@@ -1098,6 +1246,311 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 		200,
 	);
 });
+
+/** Admin back office echoes the GET profile object (nulls + extra keys). */
+const AdminUpdateUserSchema = z
+	.object({
+		name: z.preprocess(emptyToUndefined, z.string().optional()),
+		fullName: z.preprocess(emptyToUndefined, z.string().optional()),
+		email: z.preprocess(emptyToUndefined, z.string().optional()),
+		image: z.preprocess(emptyToUndefined, z.string().optional()),
+		country: z.preprocess(emptyToUndefined, z.string().optional()),
+		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()),
+		phone: z.preprocess(emptyToUndefined, z.string().optional()),
+		mobile: z.preprocess(emptyToUndefined, z.string().optional()),
+	})
+	.passthrough();
+
+const adminUpdateUserResponses = {
+	200: {
+		description: "User profile updated successfully",
+		content: {
+			"application/json": {
+				schema: UpdateUserResponseSchema,
+			},
+		},
+	},
+	400: {
+		description: "Invalid request",
+		content: {
+			"application/json": {
+				schema: UpdateUserErrorSchema,
+			},
+		},
+	},
+	401: {
+		description: "Unauthorized - admin not authenticated",
+		content: {
+			"application/json": {
+				schema: AdminErrorSchema,
+			},
+		},
+	},
+	403: {
+		description: "Forbidden - admin only",
+		content: {
+			"application/json": {
+				schema: AdminErrorSchema,
+			},
+		},
+	},
+	404: {
+		description: "User not found",
+		content: {
+			"application/json": {
+				schema: AdminErrorSchema,
+			},
+		},
+	},
+} as const;
+
+const updateUserByIdRoute = createRoute({
+	method: "patch",
+	path: "/{userId}",
+	tags: ["User"],
+	summary: "Update user profile by id (admin only)",
+	description:
+		"Admin update for a player profile. Same fields as PATCH /user/{userId}/profile. This is the path the back office calls.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: AdminUpdateUserSchema,
+				},
+			},
+		},
+	},
+	responses: adminUpdateUserResponses,
+});
+
+const updateUserProfileRoute = createRoute({
+	method: "patch",
+	path: "/{userId}/profile",
+	tags: ["User"],
+	summary: "Update user profile (admin only)",
+	description:
+		"Update any player's profile fields (name, email, country, mobile number, image). Writes the same user row the player Account page reads, so existing and new accounts both reflect the change immediately.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: AdminUpdateUserSchema,
+				},
+			},
+		},
+	},
+	responses: adminUpdateUserResponses,
+});
+
+async function handleAdminUpdateUserProfile(c: Parameters<
+	Parameters<typeof userRoute.openapi>[1]
+>[0]) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin only",
+				details: null,
+			},
+			403,
+		);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+				details: null,
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+				details: null,
+			},
+			403,
+		);
+	}
+
+	const userId = c.req.param("userId");
+	if (!userId) {
+		return c.json(
+			{
+				success: false as const,
+				error: "User ID is required",
+				details: null,
+			},
+			400,
+		);
+	}
+
+	const body = c.req.valid("json");
+	const name = body.name ?? body.fullName;
+	const email = body.email;
+	const image = body.image;
+	const country = body.country;
+	const mobileNumber = body.mobileNumber ?? body.phone ?? body.mobile;
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select()
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!existingUser) {
+		return c.json(
+			{
+				success: false as const,
+				error: "User not found",
+				details: null,
+			},
+			404,
+		);
+	}
+
+	const rawEmail = email?.trim().toLowerCase();
+	const nextEmail =
+		rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+			? rawEmail
+			: undefined;
+	const updates: {
+		name?: string;
+		country?: string | null;
+		mobileNumber?: string | null;
+		email?: string;
+		emailVerified?: boolean;
+		image?: string | null;
+	} = {};
+
+	if (name !== undefined) {
+		updates.name = name;
+	}
+
+	if (country !== undefined) {
+		updates.country = country.trim() ? country.trim() : null;
+	}
+	if (mobileNumber !== undefined && mobileNumber.trim() !== "") {
+		updates.mobileNumber = mobileNumber.trim();
+	}
+	if (image !== undefined) {
+		updates.image = image.trim() ? image.trim() : null;
+	}
+
+	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
+		const [emailTaken] = await db
+			.select({ id: schema.user.id })
+			.from(schema.user)
+			.where(eq(schema.user.email, nextEmail))
+			.limit(1);
+
+		if (emailTaken && emailTaken.id !== existingUser.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Email already in use",
+					details: null,
+				},
+				400,
+			);
+		}
+
+		updates.email = nextEmail;
+		updates.emailVerified = false;
+	}
+
+	const updatedUser = (
+		Object.keys(updates).length === 0
+			? existingUser
+			: (
+					await db
+						.update(schema.user)
+						.set(updates)
+						.where(eq(schema.user.id, userId))
+						.returning()
+				)[0]
+	);
+
+	if (!updatedUser) {
+		return c.json(
+			{
+				success: false as const,
+				error: "User not found",
+				details: null,
+			},
+			404,
+		);
+	}
+
+	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
+	const firstName = nameParts[0] || "";
+	const lastName = nameParts.slice(1).join(" ") || "";
+
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: updatedUser.id,
+			email: updatedUser.email ?? "",
+			firstName,
+			lastName,
+			phone: updatedUser.mobileNumber ?? undefined,
+		},
+		c.executionCtx,
+	);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				id: updatedUser.id,
+				name: updatedUser.name,
+				email: updatedUser.email,
+				emailVerified: updatedUser.emailVerified,
+				image: updatedUser.image,
+				country: updatedUser.country,
+				mobileNumber: updatedUser.mobileNumber,
+				suspended: updatedUser.suspended,
+				createdAt: toIsoTimestamp(updatedUser.createdAt),
+				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
+				canEditProfile: updatedUser.profileSelfEditedAt == null,
+			},
+		},
+		200,
+	);
+}
+
+userRoute.openapi(updateUserByIdRoute, handleAdminUpdateUserProfile);
+userRoute.openapi(updateUserProfileRoute, handleAdminUpdateUserProfile);
 
 const ToggleSuspendedResponseSchema = z.object({
 	success: z.literal(true),

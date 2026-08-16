@@ -174,4 +174,67 @@ describe("scorpio callback payload schema", () => {
 		});
 		assert.equal(parsed.success, false);
 	});
+
+	it("coerces string providerId and amount from Scorpio NGN callbacks", () => {
+		const parsed = ScorpioCallbackRequestSchema.safeParse({
+			command: "cancel",
+			transactionId: "SPTRX18",
+			referenceId: "SPTRX17",
+			playerId: "a7f73560-77fe-4de2-9cda-49de12539c79",
+			roundId: "690963047103974309",
+			providerId: "2",
+			providerName: "",
+			gameCode: "vswaysdogs",
+			gameName: "The Dog House",
+			currency: "NGN",
+			amount: "10.5",
+			timestamp: "1700000000000",
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.command, "cancel");
+		assert.equal(parsed.data.providerId, 2);
+		assert.equal(parsed.data.amount, 10.5);
+		assert.equal(parsed.data.timestamp, 1_700_000_000_000);
+	});
+
+	it("accepts Scorpio NGN cancel JSON without command or timestamp", () => {
+		const parsed = ScorpioCallbackRequestSchema.safeParse({
+			transactionId: "SPTRX18",
+			playerId: "a7f73560-77fe-4de2-9cda-49de12539c79",
+			roundId: "690963047103974309",
+			providerId: "2",
+			providerName: "EGT Digital",
+			gameCode: "TNBCSlot",
+			gameName: "10 Burning Clover",
+			currency: "NGN",
+			amount: 80,
+			referenceId: "SPTRX17",
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.command, "cancel");
+		assert.equal(parsed.data.providerId, 2);
+		assert.equal(parsed.data.amount, 80);
+	});
+
+	it("accepts Scorpio NGN bet JSON without command or timestamp", () => {
+		const parsed = ScorpioCallbackRequestSchema.safeParse({
+			transactionId: "SPTRX17",
+			playerId: "a7f73560-77fe-4de2-9cda-49de12539c79",
+			roundId: "690963047103974309",
+			providerId: "2",
+			providerName: "EGT Digital",
+			gameCode: "TNBCSlot",
+			gameName: "10 Burning Clover",
+			currency: "NGN",
+			amount: 80,
+			isCall: false,
+			isRoundFinished: true,
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.command, "bet");
+		assert.equal(parsed.data.providerId, 2);
+	});
 });
