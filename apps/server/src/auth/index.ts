@@ -155,6 +155,11 @@ export const createAuth = (env: CloudflareBindings) => {
 					fieldName: "mobile_number",
 					returned: true,
 				},
+				dob: {
+					type: "string",
+					required: false,
+					returned: true,
+				},
 				verificationStatus: {
 					type: "string",
 					required: false,

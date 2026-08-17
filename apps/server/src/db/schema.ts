@@ -34,6 +34,7 @@ export const user = sqliteTable("user", {
 	profileSelfEditedAt: integer("profile_self_edited_at", {
 		mode: "timestamp_ms",
 	}),
+	dob: text("dob"),
 });
 
 export const session = sqliteTable(

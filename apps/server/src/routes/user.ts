@@ -2,12 +2,14 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gt, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import { parseDobInput } from "@/utils/dob";
 import {
 	isDefaultPhoneUserName,
 	isPhonePlaceholderEmail,
@@ -72,6 +74,10 @@ const UpdateUserSchema = z
 				"User's mobile number. Omit or leave empty to keep the existing number.",
 			example: "08012345678",
 		}),
+		dob: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
+			description: "Date of birth (YYYY-MM-DD or DD/MM/YYYY)",
+			example: "1998-04-12",
+		}),
 		accountEdit: z.boolean().optional().openapi({
 			description:
 				"True when the save comes from the player Account page. Only those saves use the one-edit limit.",
@@ -107,6 +113,11 @@ const SelfUserResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "User's mobile number" }),
+		dob: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "Date of birth (YYYY-MM-DD)" }),
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
@@ -357,6 +368,7 @@ userRoute.openapi(getUserRoute, async (c) => {
 				image: existingUser.image,
 				country: existingUser.country,
 				mobileNumber: existingUser.mobileNumber,
+				dob: existingUser.dob ?? null,
 				suspended: existingUser.suspended,
 				createdAt: toIsoTimestamp(existingUser.createdAt),
 				updatedAt: toIsoTimestamp(existingUser.updatedAt),
@@ -381,8 +393,19 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const { name, email, image, country, mobileNumber, accountEdit } =
+	const { name, email, image, country, mobileNumber, dob, accountEdit } =
 		c.req.valid("json");
+	const parsedDob = parseDobInput(dob);
+	if (!parsedDob.ok) {
+		return c.json(
+			{
+				success: false as const,
+				error: parsedDob.error,
+				details: null,
+			},
+			400,
+		);
+	}
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingUser] = await db
@@ -413,13 +436,16 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		mobileNumber !== undefined && mobileNumber.trim() !== ""
 			? mobileNumber.trim()
 			: undefined;
+	const nextDob =
+		parsedDob.value === undefined ? undefined : parsedDob.value;
 	const identityChanged =
 		name.trim() !== existingUser.name.trim() ||
 		Boolean(nextEmail && nextEmail !== existingUser.email.toLowerCase()) ||
 		(nextCountry !== undefined &&
 			nextCountry !== (existingUser.country ?? null)) ||
 		(nextMobile !== undefined &&
-			nextMobile !== (existingUser.mobileNumber ?? null));
+			nextMobile !== (existingUser.mobileNumber ?? null)) ||
+		(nextDob !== undefined && nextDob !== (existingUser.dob ?? null));
 	const countsTowardOneEdit =
 		accountEdit === true && !isOnboardingProfile(existingUser);
 
@@ -438,6 +464,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		name: string;
 		country?: string | null;
 		mobileNumber?: string | null;
+		dob?: string | null;
 		email?: string;
 		emailVerified?: boolean;
 		image?: string | null;
@@ -452,6 +479,9 @@ userRoute.openapi(updateUserRoute, async (c) => {
 	}
 	if (nextMobile !== undefined) {
 		updates.mobileNumber = nextMobile;
+	}
+	if (nextDob !== undefined) {
+		updates.dob = nextDob;
 	}
 	if (image !== undefined) {
 		updates.image = image.trim() ? image.trim() : null;
@@ -531,6 +561,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 				image: updatedUser.image,
 				country: updatedUser.country,
 				mobileNumber: updatedUser.mobileNumber,
+				dob: updatedUser.dob ?? null,
 				suspended: updatedUser.suspended,
 				createdAt: toIsoTimestamp(updatedUser.createdAt),
 				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
@@ -1012,6 +1043,10 @@ const UserProfileResponseSchema = z
 			.nullable()
 			.openapi({ description: "User's mobile number" }),
 		country: z.string().nullable().openapi({ description: "User's country" }),
+		dob: z
+			.string()
+			.nullable()
+			.openapi({ description: "Date of birth (YYYY-MM-DD)" }),
 		verificationStatus: z
 			.string()
 			.openapi({ description: "Verification status" }),
@@ -1164,6 +1199,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 			image: schema.user.image,
 			mobileNumber: schema.user.mobileNumber,
 			country: schema.user.country,
+			dob: schema.user.dob,
 			verificationStatus: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
 			createdAt: schema.user.createdAt,
@@ -1233,6 +1269,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 				image: existingUser.image,
 				mobileNumber: existingUser.mobileNumber,
 				country: existingUser.country,
+				dob: existingUser.dob ?? null,
 				verificationStatus: existingUser.verificationStatus,
 				suspended: existingUser.suspended,
 				createdAt: toWAT(existingUser.createdAt),
@@ -1258,8 +1295,20 @@ const AdminUpdateUserSchema = z
 		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()),
 		phone: z.preprocess(emptyToUndefined, z.string().optional()),
 		mobile: z.preprocess(emptyToUndefined, z.string().optional()),
+		dob: z.preprocess(emptyToUndefined, z.string().optional()),
+		dateOfBirth: z.preprocess(emptyToUndefined, z.string().optional()),
 	})
 	.passthrough();
+
+type AdminUpdateUserBody = z.infer<typeof AdminUpdateUserSchema>;
+type AdminUpdateUserContext = Context<
+	{ Bindings: CloudflareBindings },
+	string,
+	{
+		in: { json: AdminUpdateUserBody };
+		out: { json: AdminUpdateUserBody };
+	}
+>;
 
 const adminUpdateUserResponses = {
 	200: {
@@ -1350,9 +1399,7 @@ const updateUserProfileRoute = createRoute({
 	responses: adminUpdateUserResponses,
 });
 
-async function handleAdminUpdateUserProfile(c: Parameters<
-	Parameters<typeof userRoute.openapi>[1]
->[0]) {
+async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -1420,6 +1467,17 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 	const image = body.image;
 	const country = body.country;
 	const mobileNumber = body.mobileNumber ?? body.phone ?? body.mobile;
+	const parsedDob = parseDobInput(body.dob ?? body.dateOfBirth);
+	if (!parsedDob.ok) {
+		return c.json(
+			{
+				success: false as const,
+				error: parsedDob.error,
+				details: null,
+			},
+			400,
+		);
+	}
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingUser] = await db
@@ -1448,6 +1506,7 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 		name?: string;
 		country?: string | null;
 		mobileNumber?: string | null;
+		dob?: string | null;
 		email?: string;
 		emailVerified?: boolean;
 		image?: string | null;
@@ -1465,6 +1524,9 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 	}
 	if (image !== undefined) {
 		updates.image = image.trim() ? image.trim() : null;
+	}
+	if (parsedDob.value !== undefined) {
+		updates.dob = parsedDob.value;
 	}
 
 	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
@@ -1539,6 +1601,7 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 				image: updatedUser.image,
 				country: updatedUser.country,
 				mobileNumber: updatedUser.mobileNumber,
+				dob: updatedUser.dob ?? null,
 				suspended: updatedUser.suspended,
 				createdAt: toIsoTimestamp(updatedUser.createdAt),
 				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
