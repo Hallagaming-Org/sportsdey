@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { termsData } from "../data/terms";
 
@@ -6,35 +6,7 @@ export const Route = createFileRoute("/terms")({
 	component: TermsPage,
 });
 
-const sections = [
-	{ id: "introduction", title: "INTRODUCTION AND CONTRACTING PARTIES" },
-	{ id: "availability", title: "AVAILABILITY OF THE WEBSITE AND SERVICES" },
-	{ id: "amendments", title: "AMENDMENTS TO THE TERMS OF USE" },
-	{ id: "registration", title: "REGISTRATION AND ACCOUNT MANAGEMENT" },
-	{ id: "deposits", title: "DEPOSITS AND WITHDRAWALS" },
-	{ id: "placing-bets", title: "PLACING BETS" },
-	{ id: "bonuses", title: "BONUSES / PROMOTIONS & REWARDS" },
-	{ id: "responsible-gaming", title: "RESPONSIBLE GAMING" },
-	{ id: "errors", title: "ERRORS AND OMISSIONS" },
-	{ id: "no-warranty", title: "NO WARRANTY" },
-	{ id: "limitations", title: "LIMITATIONS OF LIABILITY" },
-	{ id: "intellectual-property", title: "INTELLECTUAL PROPERTY RIGHTS" },
-	{ id: "complaints", title: "COMPLAINTS AND CLAIMS" },
-	{ id: "waiver", title: "WAIVER" },
-	{ id: "severability", title: "SEVERABILITY" },
-	{ id: "assignment", title: "ASSIGNMENT AND TRANSFER" },
-	{ id: "relationship", title: "RELATIONSHIP AND THIRD PARTY RIGHTS" },
-	{ id: "applicable-law", title: "APPLICABLE LAW AND PLACE OF JURISDICTION" },
-	{ id: "entire-agreement", title: "ENTIRE AGREEMENT" },
-];
-
-const toc = sections.map((s, i) => ({ ...s, number: i + 1 }));
-
 function TermsPage() {
-	const scrollToTop = () => {
-		window.scrollTo({ top: 0, behavior: "smooth" });
-	};
-
 	return (
 		<div className="flex min-h-screen flex-col items-center bg-[#000606] px-4 text-white">
 			<div className="flex w-full max-w-4xl flex-col items-center">

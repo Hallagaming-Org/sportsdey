@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useEffect } from "react";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -16,12 +15,12 @@ import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
+import { ScrollToTop } from "@/components/scroll-to-top";
 import Sidebar from "@/components/sidebar";
 import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
 
 import { cn } from "@/lib/utils";
@@ -84,15 +83,6 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
-	const { data: session } = useSession();
-
-	useEffect(() => {
-		window.scrollTo(0, 0);
-		const mains = document.querySelectorAll("main");
-		mains.forEach((main) => {
-			main.scrollTo(0, 0);
-		});
-	}, [location.pathname]);
 
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
@@ -206,15 +196,14 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
-									{isGameExitRoute ? (
-										<Outlet />
-									) : isAuthRoute ? (
+									<ScrollToTop />
+									{isAuthRoute ? (
 										<div className="flex h-svh flex-col overflow-clip">
 											<header className="shrink-0">
 												<Header />
 											</header>
 
-											<main className="no-scrollbar flex-1 overflow-y-auto">
+											<main id="app-main-content" className="no-scrollbar flex-1 overflow-y-auto">
 												<Outlet />
 											</main>
 										</div>
@@ -225,7 +214,13 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 												{!isGameRoute && <Socials />}
 											</header>
 
-											<main className={cn("no-scrollbar flex-1 overflow-y-auto", isGameRoute && "flex flex-col")}>
+											<main
+												id="app-main-content"
+												className={cn(
+													"no-scrollbar flex-1 overflow-y-auto",
+													isGameRoute && "flex flex-col",
+												)}
+											>
 												<div
 													className={cn(
 														isGameRoute ? "" : "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",

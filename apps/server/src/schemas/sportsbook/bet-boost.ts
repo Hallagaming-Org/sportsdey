@@ -4,6 +4,26 @@ import { BetConditionSchema } from "./bet";
 export const SportSchema = z.enum(["Football", "Basketball", "Tennis"]);
 export type Sport = z.infer<typeof SportSchema>;
 
+const BetBoostStrategyParamsSchema = z
+	.object({
+		multiplier: z.string().optional(),
+		min_selections: z.number().optional(),
+		selections_per_step: z.number().optional(),
+		multiplier_per_step: z.string().optional(),
+		max_multiplier: z.string().optional(),
+		min_marge_ratio: z.string().optional(),
+		max_marge_ratio: z.string().optional(),
+	})
+	.passthrough();
+
+const BetBoostCalculationStrategySchema = z.object({
+	type: z.enum(["static", "steps", "margin"]),
+	strategy: z.object({
+		conditions: z.array(z.any()).optional(),
+		params: BetBoostStrategyParamsSchema.optional(),
+	}),
+});
+
 export const BetBoostCreateSchema = z.object({
 	boostName: z.string(),
 	description: z.string(),

@@ -110,6 +110,16 @@ export default function DesktopFooter() {
 									FAQs
 								</Link>
 							</li>
+							<li>
+								<a
+									href="https://wa.link/25tnk8"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									Become a Partner
+								</a>
+							</li>
 						</ul>
 					</div>
 
