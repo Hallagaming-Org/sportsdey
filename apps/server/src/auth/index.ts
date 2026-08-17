@@ -128,7 +128,14 @@ export const createAuth = (env: CloudflareBindings) => {
 	return betterAuth({
 		basePath: "/auth",
 		database: drizzleAdapter(db, { provider: "sqlite" }),
-		emailAndPassword: { enabled: true },
+		emailAndPassword: {
+			enabled: true,
+			sendResetPassword: async ({ user, url }) => {
+				console.info(
+					`[auth] Password reset requested for ${user.email}: ${url}`,
+				);
+			},
+		},
 		socialProviders: {
 			google: {
 				clientId: env.GOOGLE_CLIENT_ID || "",

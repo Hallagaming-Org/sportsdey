@@ -139,6 +139,16 @@ export default function SignInPage() {
 				</div>
 
 				<p className="mt-6 text-center text-gray-500 text-sm">
+					<Link
+						to="/auth/forgot-password"
+						search={{ returnTo }}
+						className="font-medium text-blue-600 hover:text-blue-700"
+					>
+						Forgot password?
+					</Link>
+				</p>
+
+				<p className="mt-4 text-center text-gray-500 text-sm">
 					Don&apos;t have an account?{" "}
 					<Link
 						to="/auth/sign-up"
