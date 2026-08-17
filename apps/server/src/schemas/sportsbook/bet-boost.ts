@@ -39,27 +39,6 @@ export const BetBoostCreateSchema = z.object({
 	maximumWin: z.number().optional(),
 });
 
-/** Params shared across Databet calculation strategies (static / steps / margin). */
-const BetBoostStrategyParamsSchema = z
-	.object({
-		multiplier: z.string().optional(),
-		min_selections: z.number().optional(),
-		selections_per_step: z.number().optional(),
-		multiplier_per_step: z.string().optional(),
-		max_multiplier: z.string().optional(),
-		min_marge_ratio: z.string().optional(),
-		max_marge_ratio: z.string().optional(),
-	})
-	.passthrough();
-
-const BetBoostCalculationStrategySchema = z.object({
-	type: z.enum(["static", "steps", "margin"]),
-	strategy: z.object({
-		conditions: z.array(z.any()).optional(),
-		params: BetBoostStrategyParamsSchema.optional(),
-	}),
-});
-
 export const AccumulatorPresetSchema = z.object({
 	sport: z.enum(["football", "basketball", "tennis"]),
 	selections: z.number().int().min(2).max(50),
