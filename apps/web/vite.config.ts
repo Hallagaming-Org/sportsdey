@@ -19,6 +19,8 @@ const WEB_AUTH_PAGE_PATHS = new Set([
 	"/auth/otp",
 	"/auth/phone-sign-in",
 	"/auth/complete-profile",
+	"/auth/forgot-password",
+	"/auth/reset-password",
 ]);
 
 function shouldProxyAuthToApi(requestUrl: string | undefined): boolean {
