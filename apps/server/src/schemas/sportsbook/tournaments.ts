@@ -15,6 +15,16 @@ export const TournamentQuerySchema = z
 					"Sport id to fetch tournaments for. Repeat the param for multiple sports.",
 				example: "football",
 			}),
+		name: z
+			.string()
+			.trim()
+			.min(1)
+			.max(100)
+			.optional()
+			.openapi({
+				description: "Tournament name to search for",
+				example: "Premier League",
+			}),
 		offset: z.coerce
 			.number()
 			.int()

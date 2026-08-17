@@ -4495,7 +4495,7 @@ sportsbookRoute.openapi(sportsbookTournamentsRoute, async (c) => {
 
 	const query = c.req.valid("query");
 	const sports = Array.isArray(query.sport) ? query.sport : [query.sport];
-	const { offset, limit } = query;
+	const { offset, limit, name } = query;
 
 	try {
 		const fetchSport = async (
@@ -4507,7 +4507,7 @@ sportsbookRoute.openapi(sportsbookTournamentsRoute, async (c) => {
 			const response = await databetFetch(c.env, "/v2/tournaments/by-filters", {
 				method: "POST",
 				headers: { "Api-Locale": "en" },
-				body: { sport: sportId, limit, offset },
+				body: { sport: sportId, limit, offset, ...(name ? { name } : {}) },
 			});
 
 			if (!response.ok) {

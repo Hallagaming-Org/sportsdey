@@ -2,7 +2,6 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { createAuth, createHashCookie, getAuthCookiePolicy } from "./auth";
 import {
 	CORS_ALLOW_HEADERS,
@@ -106,14 +105,14 @@ app.use("*", async (c, next) => {
 		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
 
 		if (allowedOrigins.has(origin)) {
-			return c.text("", 204 as ContentfulStatusCode, {
+			return c.body(null, 204, {
 				"Access-Control-Allow-Origin": origin,
 				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
 				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
 				"Access-Control-Allow-Credentials": "true",
 			});
 		}
-		return c.text("", 204 as ContentfulStatusCode);
+		return c.body(null, 204);
 	}
 	await next();
 });
