@@ -77,10 +77,12 @@ function CompleteProfilePage() {
 			const patchBody: {
 				name: string;
 				email: string;
+				dob: string;
 				mobileNumber?: string;
 			} = {
 				name: fullName.trim(),
 				email: email.trim(),
+				dob: dob.trim(),
 			};
 			const phoneToPersist = (sessionUser?.mobileNumber || phone || "").trim();
 			if (phoneToPersist) {
