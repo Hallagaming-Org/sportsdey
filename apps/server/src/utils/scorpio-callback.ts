@@ -609,6 +609,11 @@ export async function processScorpioCallback(
 		console.log("scorpio callback handler error", {
 			command,
 			error: error instanceof Error ? error.message : "unknown",
+			cause:
+				error instanceof Error && error.cause instanceof Error
+					? error.cause.message
+					: undefined,
+			stack: error instanceof Error ? error.stack : undefined,
 		});
 		return scorpioCallbackResponse(db, playerId, "ERR_UNKNOWN");
 	}

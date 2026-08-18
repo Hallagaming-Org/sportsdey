@@ -987,6 +987,12 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 		normalizeScorpioCallbackBody(body),
 	);
 	if (!parsed.success) {
+		const fieldTypes = Object.fromEntries(
+			Object.entries(body).map(([key, value]) => [
+				key,
+				value === null ? "null" : Array.isArray(value) ? "array" : typeof value,
+			]),
+		);
 		console.log("scorpio callback rejected", {
 			timestamp: new Date().toISOString(),
 			endpoint: "POST /scorpio/callback",
@@ -997,6 +1003,7 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			responseStatus: 200,
 			statusCode: "ERR_UNKNOWN",
 			reason: "validation_error",
+			fieldTypes,
 			issues: parsed.error.issues.map((issue) => ({
 				path: issue.path.join("."),
 				code: issue.code,
@@ -1004,6 +1011,19 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			})),
 		});
 		const db = drizzle(c.env.DB, { schema });
+		const normalized = normalizeScorpioCallbackBody(body) as Record<
+			string,
+			unknown
+		>;
+		const knownCommand = String(normalized.command ?? command ?? "");
+		if (["balance", "bet", "win", "cancel"].includes(knownCommand)) {
+			const result = await processScorpioCallback(db, normalized);
+			console.log("scorpio callback processed after validation fallback", {
+				command: knownCommand,
+				statusCode: result.statusCode,
+			});
+			return c.json(result, 200);
+		}
 		const rawPlayerId =
 			typeof body.playerId === "string" || typeof body.playerId === "number"
 				? String(body.playerId)
