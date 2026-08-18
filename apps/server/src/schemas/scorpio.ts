@@ -136,6 +136,22 @@ export const ScorpioSuccessDataSchema = z
 /** Scorpio NGN payloads send some numeric fields as strings (e.g. providerId: "2"). */
 const scorpioNumber = z.coerce.number();
 
+const scorpioPlayerId = z.preprocess(
+	(value) => (value == null ? value : String(value).trim()),
+	z.string().min(1),
+);
+
+/** 0/1 and "true"/"false" appear on real Scorpio callbacks. z.coerce.boolean() treats "false" as true. */
+const scorpioBoolean = z.preprocess((value) => {
+	if (value === true || value === 1 || value === "1" || value === "true") {
+		return true;
+	}
+	if (value === false || value === 0 || value === "0" || value === "false") {
+		return false;
+	}
+	return value;
+}, z.boolean());
+
 /**
  * Scorpio logs omit `command` from JSON (it's a separate column) and often omit
  * `timestamp` on bet/cancel. Infer those before schema parse.
@@ -143,8 +159,13 @@ const scorpioNumber = z.coerce.number();
 export function normalizeScorpioCallbackBody(raw: unknown): unknown {
 	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
 	const body = { ...(raw as Record<string, unknown>) };
+
+	if (typeof body.command === "string") {
+		body.command = body.command.trim().toLowerCase();
+	}
+
 	if (typeof body.command !== "string" || body.command.length === 0) {
-		if (body.referenceId != null && body.transactionId != null) {
+		if (body.referenceId != null) {
 			body.command = "cancel";
 		} else if (
 			body.transactionId != null &&
@@ -157,6 +178,28 @@ export function normalizeScorpioCallbackBody(raw: unknown): unknown {
 			body.command = "balance";
 		}
 	}
+
+	// Cancel docs require both ids; live payloads sometimes send only one.
+	if (body.command === "cancel") {
+		if (body.referenceId == null && body.transactionId != null) {
+			body.referenceId = body.transactionId;
+			body.transactionId = `${String(body.transactionId)}:cancel`;
+		} else if (body.transactionId == null && body.referenceId != null) {
+			body.transactionId = `${String(body.referenceId)}:cancel`;
+		}
+	}
+
+	if (body.command === "bet" || body.command === "win") {
+		if (body.isCall === undefined) body.isCall = false;
+		if (body.isRoundFinished === undefined) body.isRoundFinished = true;
+	}
+
+	if (body.roundId == null || body.roundId === "") body.roundId = "0";
+	if (body.gameCode == null) body.gameCode = "";
+	if (body.gameName == null) body.gameName = "";
+	if (body.providerName == null) body.providerName = "";
+	if (body.providerId == null) body.providerId = 0;
+
 	if (body.timestamp == null) {
 		body.timestamp = Date.now();
 	}
@@ -166,7 +209,7 @@ export function normalizeScorpioCallbackBody(raw: unknown): unknown {
 export const ScorpioCallbackBalanceSchema = z
 	.object({
 		command: z.literal("balance"),
-		playerId: z.string().min(1),
+		playerId: scorpioPlayerId,
 		currency: z.string().min(1),
 		timestamp: scorpioNumber.optional(),
 	})
@@ -176,16 +219,16 @@ export const ScorpioCallbackBetSchema = z
 	.object({
 		command: z.literal("bet"),
 		transactionId: z.string().min(1),
-		playerId: z.string().min(1),
+		playerId: scorpioPlayerId,
 		roundId: z.string().min(1),
 		providerId: scorpioNumber,
 		providerName: z.string(),
-		gameCode: z.string().min(1),
+		gameCode: z.string(),
 		gameName: z.string(),
 		currency: z.string().min(1),
 		amount: scorpioNumber,
-		isRoundFinished: z.boolean(),
-		isCall: z.boolean(),
+		isRoundFinished: scorpioBoolean.optional().default(true),
+		isCall: scorpioBoolean.optional().default(false),
 		timestamp: scorpioNumber.optional(),
 	})
 	.openapi("ScorpioCallbackBet");
@@ -194,16 +237,16 @@ export const ScorpioCallbackWinSchema = z
 	.object({
 		command: z.literal("win"),
 		transactionId: z.string().min(1),
-		playerId: z.string().min(1),
+		playerId: scorpioPlayerId,
 		roundId: z.string().min(1),
 		providerId: scorpioNumber,
 		providerName: z.string(),
-		gameCode: z.string().min(1),
+		gameCode: z.string(),
 		gameName: z.string(),
 		currency: z.string().min(1),
 		amount: scorpioNumber,
-		isRoundFinished: z.boolean(),
-		isCall: z.boolean(),
+		isRoundFinished: scorpioBoolean.optional().default(true),
+		isCall: scorpioBoolean.optional().default(false),
 		timestamp: scorpioNumber.optional(),
 	})
 	.openapi("ScorpioCallbackWin");
@@ -213,11 +256,11 @@ export const ScorpioCallbackCancelSchema = z
 		command: z.literal("cancel"),
 		transactionId: z.string().min(1),
 		referenceId: z.string().min(1),
-		playerId: z.string().min(1),
+		playerId: scorpioPlayerId,
 		roundId: z.string().min(1),
 		providerId: scorpioNumber,
 		providerName: z.string(),
-		gameCode: z.string().min(1),
+		gameCode: z.string(),
 		gameName: z.string(),
 		currency: z.string().min(1),
 		amount: scorpioNumber,
@@ -244,7 +287,7 @@ export const ScorpioCallbackRawBodySchema = z
 
 export const ScorpioCallbackResponseSchema = z
 	.object({
-		balance: z.number().optional(),
+		balance: z.number(),
 		statusCode: z.string(),
 	})
 	.openapi("ScorpioCallbackResponse");

@@ -5,12 +5,12 @@ import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
+	normalizeScorpioCallbackBody,
 	ScorpioBonusCancelSchema,
 	ScorpioBonusRegisterSchema,
 	ScorpioCallbackRawBodySchema,
 	ScorpioCallbackRequestSchema,
 	ScorpioCallbackResponseSchema,
-	normalizeScorpioCallbackBody,
 	ScorpioErrorResponseSchema,
 	ScorpioIssueIdParamSchema,
 	ScorpioLaunchRequestSchema,
@@ -43,7 +43,10 @@ import {
 	scorpioErrorToHttpStatus,
 	updateOperator,
 } from "@/utils/scorpio";
-import { processScorpioCallback } from "@/utils/scorpio-callback";
+import {
+	processScorpioCallback,
+	scorpioCallbackResponse,
+} from "@/utils/scorpio-callback";
 import {
 	loadScorpioSettings,
 	ScorpioConfigError,
@@ -903,7 +906,10 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			statusCode: "ERR_UNKNOWN",
 			reason: "unsupported_content_type",
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+		return c.json(
+			await scorpioCallbackResponse(null, undefined, "ERR_UNKNOWN"),
+			200,
+		);
 	}
 
 	let body: Record<string, unknown>;
@@ -921,7 +927,10 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			statusCode: "ERR_UNKNOWN",
 			reason: "malformed_json",
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+		return c.json(
+			await scorpioCallbackResponse(null, undefined, "ERR_UNKNOWN"),
+			200,
+		);
 	}
 
 	const queryCommand = c.req.query("command");
@@ -963,7 +972,15 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			reason: error instanceof Error ? error.name : "security_error",
 		});
 
-		return c.json({ statusCode }, 200);
+		const db = drizzle(c.env.DB, { schema });
+		const rawPlayerId =
+			typeof body.playerId === "string" || typeof body.playerId === "number"
+				? String(body.playerId)
+				: undefined;
+		return c.json(
+			await scorpioCallbackResponse(db, rawPlayerId, statusCode),
+			200,
+		);
 	}
 
 	const parsed = ScorpioCallbackRequestSchema.safeParse(
@@ -980,8 +997,21 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			responseStatus: 200,
 			statusCode: "ERR_UNKNOWN",
 			reason: "validation_error",
+			issues: parsed.error.issues.map((issue) => ({
+				path: issue.path.join("."),
+				code: issue.code,
+				message: issue.message,
+			})),
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+		const db = drizzle(c.env.DB, { schema });
+		const rawPlayerId =
+			typeof body.playerId === "string" || typeof body.playerId === "number"
+				? String(body.playerId)
+				: undefined;
+		return c.json(
+			await scorpioCallbackResponse(db, rawPlayerId, "ERR_UNKNOWN"),
+			200,
+		);
 	}
 
 	const db = drizzle(c.env.DB, { schema });
