@@ -313,7 +313,7 @@ describe("scorpio callback payload schema", () => {
 			command: "bet",
 			transactionId: "SPTRX21",
 			playerId: "2c4KYV5MF8JemOoQS4E5ZrFZcV8EEHaC",
-			roundId: "3733875814153",
+			roundId: 3735185698153,
 			providerId: "1",
 			providerName: "Pragmatic Play",
 			gameCode: "vs10dmreels",
@@ -324,6 +324,7 @@ describe("scorpio callback payload schema", () => {
 		assert.equal(bet.success, true);
 		if (!bet.success) return;
 		assert.equal(bet.data.providerId, 1);
+		assert.equal(bet.data.roundId, "3735185698153");
 		assert.equal(bet.data.isCall, false);
 	});
 });

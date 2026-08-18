@@ -141,15 +141,31 @@ const scorpioPlayerId = z.preprocess(
 	z.string().min(1),
 );
 
+const scorpioText = z.preprocess(
+	(value) => (value == null ? value : String(value)),
+	z.string(),
+);
+
+const scorpioTextMin1 = z.preprocess(
+	(value) => (value == null ? value : String(value).trim()),
+	z.string().min(1),
+);
+
 /** 0/1 and "true"/"false" appear on real Scorpio callbacks. z.coerce.boolean() treats "false" as true. */
 const scorpioBoolean = z.preprocess((value) => {
 	if (value === true || value === 1 || value === "1" || value === "true") {
 		return true;
 	}
-	if (value === false || value === 0 || value === "0" || value === "false") {
+	if (
+		value === false ||
+		value === 0 ||
+		value === "0" ||
+		value === "false" ||
+		value == null
+	) {
 		return false;
 	}
-	return value;
+	return false;
 }, z.boolean());
 
 /**
@@ -195,10 +211,18 @@ export function normalizeScorpioCallbackBody(raw: unknown): unknown {
 	}
 
 	if (body.roundId == null || body.roundId === "") body.roundId = "0";
+	else body.roundId = String(body.roundId);
+	if (body.transactionId != null)
+		body.transactionId = String(body.transactionId);
+	if (body.referenceId != null) body.referenceId = String(body.referenceId);
 	if (body.gameCode == null) body.gameCode = "";
+	else body.gameCode = String(body.gameCode);
 	if (body.gameName == null) body.gameName = "";
+	else body.gameName = String(body.gameName);
 	if (body.providerName == null) body.providerName = "";
+	else body.providerName = String(body.providerName);
 	if (body.providerId == null) body.providerId = 0;
+	if (body.currency != null) body.currency = String(body.currency);
 
 	if (body.timestamp == null) {
 		body.timestamp = Date.now();
@@ -210,7 +234,7 @@ export const ScorpioCallbackBalanceSchema = z
 	.object({
 		command: z.literal("balance"),
 		playerId: scorpioPlayerId,
-		currency: z.string().min(1),
+		currency: scorpioTextMin1,
 		timestamp: scorpioNumber.optional(),
 	})
 	.openapi("ScorpioCallbackBalance");
@@ -218,14 +242,14 @@ export const ScorpioCallbackBalanceSchema = z
 export const ScorpioCallbackBetSchema = z
 	.object({
 		command: z.literal("bet"),
-		transactionId: z.string().min(1),
+		transactionId: scorpioTextMin1,
 		playerId: scorpioPlayerId,
-		roundId: z.string().min(1),
+		roundId: scorpioTextMin1,
 		providerId: scorpioNumber,
-		providerName: z.string(),
-		gameCode: z.string(),
-		gameName: z.string(),
-		currency: z.string().min(1),
+		providerName: scorpioText,
+		gameCode: scorpioText,
+		gameName: scorpioText,
+		currency: scorpioTextMin1,
 		amount: scorpioNumber,
 		isRoundFinished: scorpioBoolean.optional().default(true),
 		isCall: scorpioBoolean.optional().default(false),
@@ -236,14 +260,14 @@ export const ScorpioCallbackBetSchema = z
 export const ScorpioCallbackWinSchema = z
 	.object({
 		command: z.literal("win"),
-		transactionId: z.string().min(1),
+		transactionId: scorpioTextMin1,
 		playerId: scorpioPlayerId,
-		roundId: z.string().min(1),
+		roundId: scorpioTextMin1,
 		providerId: scorpioNumber,
-		providerName: z.string(),
-		gameCode: z.string(),
-		gameName: z.string(),
-		currency: z.string().min(1),
+		providerName: scorpioText,
+		gameCode: scorpioText,
+		gameName: scorpioText,
+		currency: scorpioTextMin1,
 		amount: scorpioNumber,
 		isRoundFinished: scorpioBoolean.optional().default(true),
 		isCall: scorpioBoolean.optional().default(false),
@@ -254,15 +278,15 @@ export const ScorpioCallbackWinSchema = z
 export const ScorpioCallbackCancelSchema = z
 	.object({
 		command: z.literal("cancel"),
-		transactionId: z.string().min(1),
-		referenceId: z.string().min(1),
+		transactionId: scorpioTextMin1,
+		referenceId: scorpioTextMin1,
 		playerId: scorpioPlayerId,
-		roundId: z.string().min(1),
+		roundId: scorpioTextMin1,
 		providerId: scorpioNumber,
-		providerName: z.string(),
-		gameCode: z.string(),
-		gameName: z.string(),
-		currency: z.string().min(1),
+		providerName: scorpioText,
+		gameCode: scorpioText,
+		gameName: scorpioText,
+		currency: scorpioTextMin1,
 		amount: scorpioNumber,
 		timestamp: scorpioNumber.optional(),
 	})
