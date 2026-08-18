@@ -30,9 +30,9 @@
 		"gdrive:match": "node --import tsx src/cli/match-game-images.ts",
 		"dropbox:list": "node --import tsx src/cli/list-dropbox-files.ts",
 		"withdrawals:seed": "node --import tsx src/cli/seed-withdrawals.ts",
-		"test": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts src/utils/africastalking.test.ts src/utils/webengage-sms.test.ts src/utils/webengage-dlr.test.ts src/utils/slotegrator-sign.test.ts src/utils/halla-money.test.ts src/utils/dob.test.ts src/schemas/sportsbook/bet-boost.test.ts src/sportsbook/accumulator-bonus.test.ts",
+		"test": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts src/utils/scorpio-callback.smoke.test.ts src/utils/africastalking.test.ts src/utils/webengage-sms.test.ts src/utils/webengage-dlr.test.ts src/utils/slotegrator-sign.test.ts src/utils/halla-money.test.ts src/utils/dob.test.ts src/schemas/sportsbook/bet-boost.test.ts src/sportsbook/accumulator-bonus.test.ts",
 		"test:slotegrator": "node --import tsx --test src/utils/slotegrator-sign.test.ts",
-		"test:scorpio": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts",
+		"test:scorpio": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts src/utils/scorpio-callback.smoke.test.ts",
 		"test:sms": "node --import tsx --test src/utils/africastalking.test.ts src/utils/webengage-sms.test.ts src/utils/webengage-dlr.test.ts",
 		"test:bet-boost": "node --import tsx --test src/schemas/sportsbook/bet-boost.test.ts src/sportsbook/accumulator-bonus.test.ts"
 	},
