@@ -6,7 +6,7 @@ import {
 	useLocation,
 } from "@tanstack/react-router";
 import { Check, Copy, Loader2, X } from "lucide-react";
-import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
 import { Input } from "@/components/ui/input";
@@ -154,8 +154,7 @@ function WalletPage() {
 		return "";
 	};
 
-	const handleDepositSubmit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const handleDepositSubmit = () => {
 		const amount = Number(depositAmount);
 		const error = validateDepositAmount(amount);
 		if (error) {
@@ -262,7 +261,7 @@ function WalletPage() {
 									</button>
 									<button
 										type="button"
-										onClick={() => setBlockedModal("withdraw")}
+										onClick={() => setIsWithdrawModalOpen(true)}
 										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Withdraw
@@ -345,7 +344,7 @@ function WalletPage() {
 				}}
 				amount={depositAmount}
 				onAmountChange={setDepositAmount}
-				onSubmit={()=>handleDepositSubmit}
+				onSubmit={handleDepositSubmit}
 				isPending={depositMutation.isPending}
 				error={depositError}
 				walletBalance={walletData?.balance ?? undefined}
