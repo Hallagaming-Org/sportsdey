@@ -121,6 +121,7 @@ export function mapScorpioGame(
 	const categories = typeCat ? [providerCat, typeCat] : [providerCat];
 
 	const disabled =
+		game.enabled === false ||
 		game.inMaintenance === true ||
 		game.status === 0 ||
 		provider.status === 0;

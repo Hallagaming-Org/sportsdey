@@ -5,12 +5,12 @@ import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
+	normalizeScorpioCallbackBody,
 	ScorpioBonusCancelSchema,
 	ScorpioBonusRegisterSchema,
 	ScorpioCallbackRawBodySchema,
 	ScorpioCallbackRequestSchema,
 	ScorpioCallbackResponseSchema,
-	normalizeScorpioCallbackBody,
 	ScorpioErrorResponseSchema,
 	ScorpioIssueIdParamSchema,
 	ScorpioLaunchRequestSchema,
@@ -43,11 +43,19 @@ import {
 	scorpioErrorToHttpStatus,
 	updateOperator,
 } from "@/utils/scorpio";
-import { processScorpioCallback } from "@/utils/scorpio-callback";
+import {
+	processScorpioCallback,
+	scorpioCallbackResponse,
+} from "@/utils/scorpio-callback";
 import {
 	loadScorpioSettings,
 	ScorpioConfigError,
 } from "@/utils/scorpio-config";
+import {
+	isScorpioGameDisabled,
+	loadDisabledScorpioCodes,
+	overlayScorpioEnabled,
+} from "@/utils/scorpio-game-flags";
 import {
 	assertScorpioCallbackIp,
 	ScorpioIpForbiddenError,
@@ -310,10 +318,28 @@ mountScorpioRoute(launchRoute, async (c: ScorpioContext) => {
 	const db = drizzle(c.env.DB, { schema });
 
 	try {
-		const playerCode = await ensureScorpioPlayer(db, config, user.id);
 		const { providerId, gameCode, language, currency, returnUrl, rtp } =
 			parsed.data;
 
+		let locallyDisabled = false;
+		try {
+			locallyDisabled = await isScorpioGameDisabled(db, providerId, gameCode);
+		} catch (error) {
+			console.error("scorpio disabled-flag lookup failed", error);
+		}
+		if (locallyDisabled) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Game is disabled",
+					code: "GAME_DISABLED",
+					details: null,
+				},
+				404,
+			);
+		}
+
+		const playerCode = await ensureScorpioPlayer(db, config, user.id);
 		const launched = await launchGame(config, {
 			playerExternalId: user.id,
 			providerId,
@@ -479,7 +505,29 @@ mountScorpioRoute(gamesRoute, async (c: ScorpioContext) => {
 	const { providerId } = validRequest<{ providerId: number }>(c, "param");
 	try {
 		const data = await listGames(getScorpioConfig(c.env), providerId);
-		return c.json({ success: true as const, data }, 200);
+		if (!Array.isArray(data)) {
+			return c.json({ success: true as const, data }, 200);
+		}
+
+		let disabledCodes = new Set<string>();
+		try {
+			const db = drizzle(c.env.DB, { schema });
+			disabledCodes = await loadDisabledScorpioCodes(db, providerId);
+		} catch (error) {
+			console.error("scorpio catalog overlay failed", error);
+		}
+
+		return c.json(
+			{
+				success: true as const,
+				data: overlayScorpioEnabled(
+					data as Record<string, unknown>[],
+					providerId,
+					disabledCodes,
+				),
+			},
+			200,
+		);
 	} catch (error) {
 		return respondScorpioError(c, error);
 	}
@@ -903,7 +951,10 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			statusCode: "ERR_UNKNOWN",
 			reason: "unsupported_content_type",
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+		return c.json(
+			await scorpioCallbackResponse(null, undefined, "ERR_UNKNOWN"),
+			200,
+		);
 	}
 
 	let body: Record<string, unknown>;
@@ -921,7 +972,10 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			statusCode: "ERR_UNKNOWN",
 			reason: "malformed_json",
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+		return c.json(
+			await scorpioCallbackResponse(null, undefined, "ERR_UNKNOWN"),
+			200,
+		);
 	}
 
 	const queryCommand = c.req.query("command");
@@ -963,13 +1017,27 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			reason: error instanceof Error ? error.name : "security_error",
 		});
 
-		return c.json({ statusCode }, 200);
+		const db = drizzle(c.env.DB, { schema });
+		const rawPlayerId =
+			typeof body.playerId === "string" || typeof body.playerId === "number"
+				? String(body.playerId)
+				: undefined;
+		return c.json(
+			await scorpioCallbackResponse(db, rawPlayerId, statusCode),
+			200,
+		);
 	}
 
 	const parsed = ScorpioCallbackRequestSchema.safeParse(
 		normalizeScorpioCallbackBody(body),
 	);
 	if (!parsed.success) {
+		const fieldTypes = Object.fromEntries(
+			Object.entries(body).map(([key, value]) => [
+				key,
+				value === null ? "null" : Array.isArray(value) ? "array" : typeof value,
+			]),
+		);
 		console.log("scorpio callback rejected", {
 			timestamp: new Date().toISOString(),
 			endpoint: "POST /scorpio/callback",
@@ -980,8 +1048,35 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 			responseStatus: 200,
 			statusCode: "ERR_UNKNOWN",
 			reason: "validation_error",
+			fieldTypes,
+			issues: parsed.error.issues.map((issue) => ({
+				path: issue.path.join("."),
+				code: issue.code,
+				message: issue.message,
+			})),
 		});
-		return c.json({ statusCode: "ERR_UNKNOWN" }, 200);
+		const db = drizzle(c.env.DB, { schema });
+		const normalized = normalizeScorpioCallbackBody(body) as Record<
+			string,
+			unknown
+		>;
+		const knownCommand = String(normalized.command ?? command ?? "");
+		if (["balance", "bet", "win", "cancel"].includes(knownCommand)) {
+			const result = await processScorpioCallback(db, normalized);
+			console.log("scorpio callback processed after validation fallback", {
+				command: knownCommand,
+				statusCode: result.statusCode,
+			});
+			return c.json(result, 200);
+		}
+		const rawPlayerId =
+			typeof body.playerId === "string" || typeof body.playerId === "number"
+				? String(body.playerId)
+				: undefined;
+		return c.json(
+			await scorpioCallbackResponse(db, rawPlayerId, "ERR_UNKNOWN"),
+			200,
+		);
 	}
 
 	const db = drizzle(c.env.DB, { schema });

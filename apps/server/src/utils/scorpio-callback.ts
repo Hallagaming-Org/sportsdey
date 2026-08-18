@@ -17,9 +17,16 @@ export type ScorpioCallbackStatus =
 	| "ERR_UNKNOWN";
 
 export type ScorpioCallbackResult = {
-	balance?: number;
+	balance: number;
 	statusCode: ScorpioCallbackStatus;
 };
+
+function callbackResult(
+	statusCode: ScorpioCallbackStatus,
+	kobo = 0,
+): ScorpioCallbackResult {
+	return { balance: koboToScorpioBalance(kobo), statusCode };
+}
 
 /** Scorpio amounts are major currency units; wallet stores kobo. */
 export function scorpioAmountToKobo(amount: number): number {
@@ -48,18 +55,36 @@ async function getWalletKobo(db: Db, userId: string): Promise<number> {
 	return wallet?.balance ?? 0;
 }
 
+export async function scorpioCallbackResponse(
+	db: Db | null,
+	playerId: string | undefined,
+	statusCode: ScorpioCallbackStatus,
+): Promise<ScorpioCallbackResult> {
+	if (!db || !playerId) return callbackResult(statusCode);
+	try {
+		const userId = await resolveScorpioUserId(db, playerId);
+		if (!userId) return callbackResult(statusCode);
+		return callbackResult(statusCode, await getWalletKobo(db, userId));
+	} catch {
+		return callbackResult(statusCode);
+	}
+}
+
 async function resolveScorpioUserId(
 	db: Db,
 	playerId: string,
 ): Promise<string | null> {
+	const trimmed = playerId.trim();
+	if (!trimmed) return null;
+
 	const [byUser] = await db
 		.select({ id: schema.user.id })
 		.from(schema.user)
-		.where(eq(schema.user.id, playerId))
+		.where(eq(schema.user.id, trimmed))
 		.limit(1);
 	if (byUser) return byUser.id;
 
-	const asCode = Number(playerId);
+	const asCode = Number(trimmed);
 	if (Number.isInteger(asCode) && asCode > 0) {
 		const [byCode] = await db
 			.select({ userId: schema.scorpioPlayers.userId })
@@ -105,14 +130,11 @@ export async function handleScorpioBalance(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_INVALID_PLAYER_ID" };
+		return callbackResult("ERR_INVALID_PLAYER_ID");
 	}
 
 	const kobo = await getWalletKobo(db, input.playerId);
-	return {
-		balance: koboToScorpioBalance(kobo),
-		statusCode: "OK",
-	};
+	return callbackResult("OK", kobo);
 }
 
 export async function handleScorpioBet(
@@ -129,7 +151,7 @@ export async function handleScorpioBet(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_INVALID_PLAYER_ID" };
+		return callbackResult("ERR_INVALID_PLAYER_ID");
 	}
 
 	if (await findByTransactionId(db, input.transactionId)) {
@@ -145,10 +167,7 @@ export async function handleScorpioBet(
 
 	const oldBalance = wallet?.balance ?? 0;
 	if (!wallet || oldBalance < amountKobo) {
-		return {
-			balance: koboToScorpioBalance(oldBalance),
-			statusCode: "ERR_NOT_ENOUGH_MONEY",
-		};
+		return callbackResult("ERR_NOT_ENOUGH_MONEY", oldBalance);
 	}
 
 	const newBalance = oldBalance - amountKobo;
@@ -245,7 +264,7 @@ export async function handleScorpioWin(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_INVALID_PLAYER_ID" };
+		return callbackResult("ERR_INVALID_PLAYER_ID");
 	}
 
 	if (await findByTransactionId(db, input.transactionId)) {
@@ -367,7 +386,7 @@ export async function handleScorpioCancel(
 ): Promise<ScorpioCallbackResult> {
 	const exists = await ensureUserExists(db, input.playerId);
 	if (!exists) {
-		return { statusCode: "ERR_INVALID_PLAYER_ID" };
+		return callbackResult("ERR_INVALID_PLAYER_ID");
 	}
 
 	if (await findByTransactionId(db, input.transactionId)) {
@@ -482,7 +501,9 @@ export async function handleScorpioCancel(
 						eq(schema.scorpioTransactions.transactionId, input.transactionId),
 					);
 				return {
-					balance: koboToScorpioBalance(await getWalletKobo(db, input.playerId)),
+					balance: koboToScorpioBalance(
+						await getWalletKobo(db, input.playerId),
+					),
 					statusCode: "ERR_NOT_ENOUGH_MONEY",
 				};
 			}
@@ -541,8 +562,7 @@ export async function processScorpioCallback(
 ): Promise<ScorpioCallbackResult> {
 	const command = String(body.command ?? "");
 	const rawPlayerId = String(body.playerId ?? "");
-	const playerId =
-		(await resolveScorpioUserId(db, rawPlayerId)) ?? rawPlayerId;
+	const playerId = (await resolveScorpioUserId(db, rawPlayerId)) ?? rawPlayerId;
 
 	try {
 		switch (command) {
@@ -583,16 +603,18 @@ export async function processScorpioCallback(
 					gameCode: String(body.gameCode),
 				});
 			default:
-				return { statusCode: "ERR_UNKNOWN" };
+				return scorpioCallbackResponse(db, playerId, "ERR_UNKNOWN");
 		}
 	} catch (error) {
 		console.log("scorpio callback handler error", {
 			command,
 			error: error instanceof Error ? error.message : "unknown",
+			cause:
+				error instanceof Error && error.cause instanceof Error
+					? error.cause.message
+					: undefined,
+			stack: error instanceof Error ? error.stack : undefined,
 		});
-		return {
-			balance: undefined,
-			statusCode: "ERR_UNKNOWN",
-		};
+		return scorpioCallbackResponse(db, playerId, "ERR_UNKNOWN");
 	}
 }

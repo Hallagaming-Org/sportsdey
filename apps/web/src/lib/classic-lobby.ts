@@ -221,7 +221,7 @@ export const CLASSIC_KNOWN_GAMES: Record<
 	},
 	"spin_and_win": {
 		subtitle: "sportsdey original",
-		image: "/spin-and-win.png",
+		image: "/spin-and-win-v3.jpg",
 		gradient: "linear-gradient(to bottom, #e91e63, #9c27b0, #673ab7)",
 	},
 };

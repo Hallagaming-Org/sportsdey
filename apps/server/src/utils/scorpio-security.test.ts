@@ -44,10 +44,7 @@ describe("scorpio config", () => {
 			"https://api.example.com/scorpio/callback",
 		);
 		assert.equal(getConfiguredServerIp(settings), "203.0.113.10");
-		assert.deepEqual(getAllowedIps(settings), [
-			"203.0.113.1",
-			"203.0.113.2",
-		]);
+		assert.deepEqual(getAllowedIps(settings), ["203.0.113.1", "203.0.113.2"]);
 		assert.equal(settings.ipRestrictionEnabled, true);
 	});
 
@@ -85,10 +82,7 @@ describe("scorpio config", () => {
 
 describe("scorpio signature", () => {
 	it("accepts a valid callback signature", () => {
-		const signature = computeScorpioSignature(
-			{ ...balanceBody },
-			API_TOKEN,
-		);
+		const signature = computeScorpioSignature({ ...balanceBody }, API_TOKEN);
 		assert.doesNotThrow(() =>
 			verifyScorpioSignature({ ...balanceBody }, signature, API_TOKEN),
 		);
@@ -145,9 +139,7 @@ describe("scorpio IP restriction", () => {
 			() => assertScorpioCallbackIp("198.51.100.9", settings),
 			ScorpioIpForbiddenError,
 		);
-		assert.doesNotThrow(() =>
-			assertScorpioCallbackIp("203.0.113.1", settings),
-		);
+		assert.doesNotThrow(() => assertScorpioCallbackIp("203.0.113.1", settings));
 	});
 });
 
@@ -236,5 +228,103 @@ describe("scorpio callback payload schema", () => {
 		if (!parsed.success) return;
 		assert.equal(parsed.data.command, "bet");
 		assert.equal(parsed.data.providerId, 2);
+	});
+
+	it("accepts a bet without isCall/isRoundFinished and coerces 0/1 flags", () => {
+		const parsed = ScorpioCallbackRequestSchema.safeParse({
+			command: "BET",
+			transactionId: "SPTRX21",
+			playerId: "2c4KYV5MF8JemO0qS4E5ZrfZcV8EEHaC",
+			roundId: "690963047103974309",
+			providerId: 2,
+			providerName: "Pragmatic Play",
+			gameCode: "vs10dmreels",
+			gameName: "Happy Dragon",
+			currency: "NGN",
+			amount: 40,
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.command, "bet");
+		assert.equal(parsed.data.isCall, false);
+		assert.equal(parsed.data.isRoundFinished, true);
+
+		const flagged = ScorpioCallbackRequestSchema.safeParse({
+			command: "bet",
+			transactionId: "SPTRX22",
+			playerId: 1101,
+			roundId: "1",
+			providerId: 2,
+			providerName: "Pragmatic Play",
+			gameCode: "vs10dmreels",
+			gameName: "Happy Dragon",
+			currency: "NGN",
+			amount: 40,
+			isCall: 0,
+			isRoundFinished: 1,
+		});
+		assert.equal(flagged.success, true);
+		if (!flagged.success) return;
+		assert.equal(flagged.data.playerId, "1101");
+		assert.equal(flagged.data.isCall, false);
+		assert.equal(flagged.data.isRoundFinished, true);
+	});
+
+	it("accepts a cancel that only includes referenceId", () => {
+		const parsed = ScorpioCallbackRequestSchema.safeParse({
+			command: "cancel",
+			playerId: "2c4KYV5MF8JemO0qS4E5ZrfZcV8EEHaC",
+			roundId: "690963047103974309",
+			providerId: 2,
+			providerName: "Pragmatic Play",
+			gameCode: "vs10dmreels",
+			gameName: "Happy Dragon",
+			currency: "NGN",
+			amount: 40,
+			referenceId: "SPTRX21",
+		});
+		assert.equal(parsed.success, true);
+		if (!parsed.success) return;
+		assert.equal(parsed.data.command, "cancel");
+		assert.equal(parsed.data.referenceId, "SPTRX21");
+		assert.equal(parsed.data.transactionId, "SPTRX21:cancel");
+	});
+
+	it("accepts the live Scorpio NGN cancel/bet shape from the error log", () => {
+		const cancel = ScorpioCallbackRequestSchema.safeParse({
+			command: "cancel",
+			transactionId: "SPTRX22",
+			playerId: "2c4KYV5MF8JemOoQS4E5ZrFZcV8EEHaC",
+			roundId: "3733875814153",
+			providerId: "1",
+			providerName: "Pragmatic Play",
+			gameCode: "vs10dmreels",
+			gameName: "Happy Dragon",
+			currency: "NGN",
+			amount: 40,
+		});
+		assert.equal(cancel.success, true);
+		if (!cancel.success) return;
+		assert.equal(cancel.data.providerId, 1);
+		assert.equal(cancel.data.referenceId, "SPTRX22");
+		assert.equal(cancel.data.transactionId, "SPTRX22:cancel");
+
+		const bet = ScorpioCallbackRequestSchema.safeParse({
+			command: "bet",
+			transactionId: "SPTRX21",
+			playerId: "2c4KYV5MF8JemOoQS4E5ZrFZcV8EEHaC",
+			roundId: 3735185698153,
+			providerId: "1",
+			providerName: "Pragmatic Play",
+			gameCode: "vs10dmreels",
+			gameName: "Happy Dragon",
+			currency: "NGN",
+			amount: 40,
+		});
+		assert.equal(bet.success, true);
+		if (!bet.success) return;
+		assert.equal(bet.data.providerId, 1);
+		assert.equal(bet.data.roundId, "3735185698153");
+		assert.equal(bet.data.isCall, false);
 	});
 });

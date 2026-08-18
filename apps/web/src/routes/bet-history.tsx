@@ -212,7 +212,10 @@ function BetHistoryPage() {
 	}, []);
 
 	const categories = useMemo(() => {
-		const unique = new Set(baseRows.map((item) => item.type.split(" - ")[0]));
+	const unique = new Set(baseRows.map((item) => {
+		const parts = item.type.split(" - ");
+		return parts[0] || item.type;
+	}));
 		return ["All categories", ...Array.from(unique)];
 	}, [baseRows]);
 

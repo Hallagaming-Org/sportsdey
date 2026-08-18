@@ -1,4 +1,3 @@
-// src/components/deposit-modal.tsx
 import { ChevronLeft, Copy, Info, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
