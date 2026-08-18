@@ -52,6 +52,11 @@ import {
 	ScorpioConfigError,
 } from "@/utils/scorpio-config";
 import {
+	isScorpioGameDisabled,
+	loadDisabledScorpioCodes,
+	overlayScorpioEnabled,
+} from "@/utils/scorpio-game-flags";
+import {
 	assertScorpioCallbackIp,
 	ScorpioIpForbiddenError,
 	ScorpioSignatureError,
@@ -313,10 +318,28 @@ mountScorpioRoute(launchRoute, async (c: ScorpioContext) => {
 	const db = drizzle(c.env.DB, { schema });
 
 	try {
-		const playerCode = await ensureScorpioPlayer(db, config, user.id);
 		const { providerId, gameCode, language, currency, returnUrl, rtp } =
 			parsed.data;
 
+		let locallyDisabled = false;
+		try {
+			locallyDisabled = await isScorpioGameDisabled(db, providerId, gameCode);
+		} catch (error) {
+			console.error("scorpio disabled-flag lookup failed", error);
+		}
+		if (locallyDisabled) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Game is disabled",
+					code: "GAME_DISABLED",
+					details: null,
+				},
+				404,
+			);
+		}
+
+		const playerCode = await ensureScorpioPlayer(db, config, user.id);
 		const launched = await launchGame(config, {
 			playerExternalId: user.id,
 			providerId,
@@ -482,7 +505,29 @@ mountScorpioRoute(gamesRoute, async (c: ScorpioContext) => {
 	const { providerId } = validRequest<{ providerId: number }>(c, "param");
 	try {
 		const data = await listGames(getScorpioConfig(c.env), providerId);
-		return c.json({ success: true as const, data }, 200);
+		if (!Array.isArray(data)) {
+			return c.json({ success: true as const, data }, 200);
+		}
+
+		let disabledCodes = new Set<string>();
+		try {
+			const db = drizzle(c.env.DB, { schema });
+			disabledCodes = await loadDisabledScorpioCodes(db, providerId);
+		} catch (error) {
+			console.error("scorpio catalog overlay failed", error);
+		}
+
+		return c.json(
+			{
+				success: true as const,
+				data: overlayScorpioEnabled(
+					data as Record<string, unknown>[],
+					providerId,
+					disabledCodes,
+				),
+			},
+			200,
+		);
 	} catch (error) {
 		return respondScorpioError(c, error);
 	}
