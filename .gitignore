@@ -66,6 +66,9 @@ docs/ai-engineering-checklist.md
 shaq
 shaq.pub
 
+# Separate GitHub repo — never commit this clone into sportsdey
+apps/sportsdey-admin/
+
 */notes
 .notes
 notes
