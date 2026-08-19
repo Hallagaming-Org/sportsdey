@@ -5,7 +5,7 @@ import {
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { Check, Copy, Loader2, X } from "lucide-react";
+import { Check, Copy, Loader2 } from "lucide-react";
 import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
 import { TransferModal } from "@/components/transfer-modal";
@@ -18,7 +18,6 @@ import { useSession } from "@/lib/auth/client";
 import { formatAmount } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
-import AeroplaneIcon from "@/logos/aeroplane.svg?react";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
@@ -66,7 +65,6 @@ function WalletPage() {
 	const [depositError, setDepositError] = useState("");
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<"withdraw" | null>(null);
 	const [walletIdCopied, setWalletIdCopied] = useState(false);
 	const [billPaymentCategory, setBillPaymentCategory] = useState<{
 		code: string;
@@ -262,7 +260,7 @@ function WalletPage() {
 									</button>
 									<button
 										type="button"
-										onClick={() => setBlockedModal("withdraw")}
+										onClick={() => setIsWithdrawModalOpen(true)}
 										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Withdraw
@@ -363,40 +361,6 @@ function WalletPage() {
 				onUnauthorized={() => setShouldRedirectToSignIn(true)}
 				walletBalance={walletData?.balance ?? 0}
 			/>
-			{blockedModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
-						<div className="flex items-center justify-between">
-							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								Withdraw
-							</h2>
-							<button
-								type="button"
-								onClick={() => setBlockedModal(null)}
-								aria-label="Close"
-								className="cursor-pointer rounded-md px-2 py-1 text-primary text-sm dark:text-white"
-							>
-								<X className="h-4 w-4" />
-							</button>
-						</div>
-						<div className="mt-6 flex justify-center">
-							<AeroplaneIcon className="animate-plane-fly-in h-20 w-20 text-white" />
-						</div>
-						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
-							Pilot mode boss.
-							<br />
-							Withdrawals are currently blocked
-						</p>
-						<button
-							type="button"
-							onClick={() => setBlockedModal(null)}
-							className="mt-6 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white"
-						>
-							Close
-						</button>
-					</div>
-				</div>
-			)}
 			{billPaymentCategory && (
 				<BillPaymentModal
 					isOpen={isBillPaymentOpen}

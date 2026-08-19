@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
+import { canonicalLobbySlug } from "@/lib/lobby-categories";
 import { resolveServerUrl } from "@/lib/server-url";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
 import BlocksLogo from "@/logos/blocks.svg?react";
@@ -305,11 +306,6 @@ export function filterClassicGames(
 						CLASSIC_THUNDR_CODES.includes(g.code),
 					);
 					break;
-				case "crash-games":
-					filtered = allGames.filter((g) =>
-						g.name.toLowerCase().includes("aviator"),
-					);
-					break;
 				case "original":
 					filtered = allGames.filter((g) =>
 						CLASSIC_ORIGINALS_CODES.includes(g.code),
@@ -320,7 +316,9 @@ export function filterClassicGames(
 			}
 		} else {
 			filtered = allGames.filter((g) =>
-				g.categories?.some((c) => c.slug === selectedCategory),
+				g.categories?.some(
+					(c) => canonicalLobbySlug(c.slug) === canonicalLobbySlug(selectedCategory),
+				),
 			);
 		}
 	}
@@ -352,11 +350,6 @@ export function classicCategoryCounts(
 						CLASSIC_THUNDR_CODES.includes(g.code),
 					).length;
 					break;
-				case "crash-games":
-					acc[cat] = allGames.filter((g) =>
-						g.name.toLowerCase().includes("aviator"),
-					).length;
-					break;
 				case "original":
 					acc[cat] = allGames.filter((g) =>
 						CLASSIC_ORIGINALS_CODES.includes(g.code),
@@ -367,7 +360,9 @@ export function classicCategoryCounts(
 			}
 		} else {
 			acc[cat] = allGames.filter((g) =>
-				g.categories?.some((c) => c.slug === cat),
+				g.categories?.some(
+					(c) => canonicalLobbySlug(c.slug) === canonicalLobbySlug(cat),
+				),
 			).length;
 		}
 		return acc;
