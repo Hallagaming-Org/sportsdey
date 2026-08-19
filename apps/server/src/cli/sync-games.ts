@@ -237,7 +237,7 @@ async function getExistingGameIds(): Promise<Set<string>> {
 
 	return new Promise((resolve) => {
 		process.exec(
-			`npx wrangler d1 execute ${dbName} --json --command "SELECT id FROM game" ${remote ? "--remote" : "--local"} --env ${env}`,
+			`npx wrangler d1 execute ${dbName} --json --command "SELECT id FROM game" --remote  --env ${env}`,
 			{ maxBuffer: 64 * 1024 * 1024 },
 			(error, stdout, _stderr) => {
 				if (error) {
@@ -365,7 +365,7 @@ async function main() {
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 			try {
 				await new Promise((resolve, reject) => {
-					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" ${remote ? "--remote" : "--local"} --env ${env}`;
+					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}"  "--remote" --env ${env}`;
 					exec(cmd, { timeout: 180000 }, (error, stdout, _stderr) => {
 						if (error) {
 							reject(error);
