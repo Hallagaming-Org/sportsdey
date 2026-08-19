@@ -152,8 +152,7 @@ function WalletPage() {
 		return "";
 	};
 
-	const handleDepositSubmit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const handleDepositSubmit = () => {
 		const amount = Number(depositAmount);
 		const error = validateDepositAmount(amount);
 		if (error) {
@@ -343,7 +342,7 @@ function WalletPage() {
 				}}
 				amount={depositAmount}
 				onAmountChange={setDepositAmount}
-				onSubmit={()=>handleDepositSubmit}
+				onSubmit={handleDepositSubmit}
 				isPending={depositMutation.isPending}
 				error={depositError}
 				walletBalance={walletData?.balance ?? undefined}

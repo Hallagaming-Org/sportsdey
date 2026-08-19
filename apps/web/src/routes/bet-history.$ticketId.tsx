@@ -21,17 +21,33 @@ type BetSelection = {
 	status: SelectionStatus;
 };
 
+type CasinoSelection = {
+  id: string;
+  type: string;
+  amount: number;
+  status: SelectionStatus;
+  gameName: string;
+  provider?: string;
+  roundId?: string;
+};
+
 type TicketDetail = {
-	ticketId: string;
-	dateTime: string;
-	betType: string;
-	outcome: TicketOutcome;
-	stake: number;
-	totalOdds: number;
-	totalReturn: number | null;
-	potentialCashout: number | null;
-	numberOfBets: number;
-	selections: BetSelection[];
+  ticketId: string;
+  dateTime: string;
+  betType: string;
+  outcome: TicketOutcome;
+  stake: number;
+  totalOdds: number;
+  totalReturn: number | null;
+  potentialCashout: number | null;
+  numberOfBets: number;
+  selections: BetSelection[];
+  isCasino?: boolean;
+  casinoSelections?: CasinoSelection[];
+  gameName?: string;
+  provider?: string;
+  roundId?: string;
+  multiplier?: number;
 };
 
 async function fetchTicketDetail(ticketId: string): Promise<TicketDetail> {
@@ -129,6 +145,70 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 	);
 }
 
+/** Casino Selection Card */
+function CasinoSelectionCard({ selection }: { selection: CasinoSelection }) {
+  const won = selection.status === "won";
+  const lost = selection.status === "lost";
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-2xl border ${
+        won
+          ? "border-[#1F4D2C] bg-[#0A1A0E]"
+          : lost
+            ? "border-[#1C1D1F] bg-[#0A0A0A]"
+            : "border-[#3A3312] bg-[#14120A]"
+      }`}
+    >
+      <div className="flex">
+        <div
+          className={`flex w-8 shrink-0 flex-col items-center gap-2 pt-3 pb-2 ${
+            won ? "bg-[#123018]" : lost ? "bg-[#1A1A1A]" : "bg-[#3A3312]"
+          }`}
+        >
+          {won && <Trophy className="h-4 w-4 text-[#E8A93D]" fill="#E8A93D" />}
+          {!won && <span className="mt-0.5 h-2 w-2 rounded-full bg-[#8C8F8F]" />}
+          <span
+            className={`font-bold text-xs text-center tracking-wide [writing-mode:vertical-rl] ${
+              won ? "text-[#2EFF0C]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
+            }`}
+            style={{ transform: "rotate(360deg)" }}
+          >
+            {statusLabel(selection.status).toUpperCase()}
+          </span>
+        </div>
+
+        <div className="flex-1 px-4 py-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#8C8F8F]">{selection.gameName}</span>
+            <span className="text-[#B5B7B5]">{selection.type}</span>
+          </div>
+
+          <div className="mt-3 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[#8C8F8F]">Amount:</span>
+              <span className="text-white">{formatMoney(selection.amount)}</span>
+            </div>
+            {selection.provider && (
+              <div className="flex justify-between">
+                <span className="text-[#8C8F8F]">Provider:</span>
+                <span className="text-white">{selection.provider}</span>
+              </div>
+            )}
+            {selection.roundId && (
+              <div className="flex justify-between">
+                <span className="text-[#8C8F8F]">Round ID:</span>
+                <span className="text-white text-xs truncate">{selection.roundId}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function TicketDetailsPage() {
 	const navigate = useNavigate();
 	const { ticketId } = useParams({ from: "/bet-history/$ticketId" });
@@ -156,6 +236,7 @@ function TicketDetailsPage() {
 
 	const isWon = ticket.outcome === "won";
 	const isPending = ticket.outcome === "pending";
+	const isCasino = ticket.isCasino || false;
 
 
 	const shortenTicketId = (ticketId: string) => {
@@ -257,57 +338,99 @@ function TicketDetailsPage() {
 							</div>
 						)}
 					</div>
-				</div>
+				</div>                 
 
-				{/* DESKTOP: table view */}
-				<div className="mt-4 hidden overflow-hidden rounded-2xl border border-[#1C1D1F] md:block">
-					<div className="overflow-x-auto">
-						<table className="w-full min-w-[720px] border-collapse text-left">
-							<thead>
-								<tr className="border-[#1C1D1F] border-b text-[#6B6E6C] text-xs uppercase tracking-wide">
-									<th className="px-4 py-3 font-medium">Match</th>
-									<th className="px-4 py-3 font-medium">Market</th>
-									<th className="px-4 py-3 font-medium">Result</th>
-									<th className="px-4 py-3 font-medium">Pick</th>
-									<th className="px-4 py-3 font-medium">Status</th>
-									<th className="px-4 py-3 font-medium" />
-								</tr>
-							</thead>
-							<tbody>
-								{ticket.selections.map((sel, index) => (
-									<tr
-										key={sel.matchId ?? index}
-										className={`border-[#1C1D1F] border-b last:border-none ${
-											isWon ? (index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent") : "bg-transparent"
-										}`}
-									>
-										<td className="px-4 py-3 text-white text-sm">{sel.match}</td>
-										<td className="px-4 py-3 text-white text-sm">{sel.market ?? "—"}</td>
-										<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result ?? "—"}</td>
-										<td className="px-4 py-3 text-white text-sm">{sel.pick ?? "—"}</td>
-										<td className="px-4 py-3">
-											<span
-												className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${statusBadgeClass(sel.status)}`}
-											>
-												{statusLabel(sel.status)}
-											</span>
-										</td>
-										<td className="px-4 py-3 text-[#6B6E6C]">
-											<ChevronRight className="h-4 w-4" />
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</div>
+        {/* DESKTOP: table view for sportsbook */}
+        {!isCasino && ticket.selections && ticket.selections.length > 0 && (
+          <div className="mt-4 hidden overflow-hidden rounded-2xl border border-[#1C1D1F] md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-left">
+                <thead>
+                  <tr className="border-[#1C1D1F] border-b text-[#6B6E6C] text-xs uppercase tracking-wide">
+                    <th className="px-4 py-3 font-medium">Match</th>
+                    <th className="px-4 py-3 font-medium">Market</th>
+                    <th className="px-4 py-3 font-medium">Result</th>
+                    <th className="px-4 py-3 font-medium">Pick</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {ticket.selections.map((sel, index) => (
+                    <tr
+                      key={sel.matchId ?? index}
+                      className={`border-[#1C1D1F] border-b last:border-none ${
+                        isWon ? (index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent") : "bg-transparent"
+                      }`}
+                    >
+                      <td className="px-4 py-3 text-white text-sm">{sel.match}</td>
+                      <td className="px-4 py-3 text-white text-sm">{sel.market ?? "—"}</td>
+                      <td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result ?? "—"}</td>
+                      <td className="px-4 py-3 text-white text-sm">{sel.pick ?? "—"}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${statusBadgeClass(sel.status)}`}
+                        >
+                          {statusLabel(sel.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[#6B6E6C]">
+                        <ChevronRight className="h-4 w-4" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Casino Summary Section */}
+        {isCasino && (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A] p-4">
+            <h3 className="text-white text-sm font-semibold mb-3">Game Details</h3>
+            <div className="space-y-2 text-sm">
+              {ticket.gameName && (
+                <div className="flex justify-between">
+                  <span className="text-[#8C8F8F]">Game</span>
+                  <span className="text-white">{ticket.gameName}</span>
+                </div>
+              )}
+              {ticket.provider && (
+                <div className="flex justify-between">
+                  <span className="text-[#8C8F8F]">Provider</span>
+                  <span className="text-white">{ticket.provider}</span>
+                </div>
+              )}
+              {ticket.roundId && (
+                <div className="flex justify-between">
+                  <span className="text-[#8C8F8F]">Round ID</span>
+                  <span className="text-white text-xs truncate">{ticket.roundId}</span>
+                </div>
+              )}
+              {ticket.multiplier && (
+                <div className="flex justify-between">
+                  <span className="text-[#8C8F8F]">Multiplier</span>
+                  <span className="text-white">{ticket.multiplier.toFixed(2)}x</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
 
 				{/* MOBILE: vertical strip cards */}
-				<div className="mt-4 space-y-3 md:hidden">
-					{ticket.selections.map((sel, index) => (
+					<div className="mt-4 space-y-3 md:hidden">
+					{isCasino && ticket.casinoSelections ? (
+						ticket.casinoSelections.map((sel, index) => (
+						<CasinoSelectionCard key={sel.id ?? index} selection={sel} />
+						))
+					) : (
+						ticket.selections?.map((sel, index) => (
 						<SelectionCard key={sel.matchId ?? index} selection={sel} />
-					))}
-				</div>
+						))
+					)}
+					</div>
 
 				{/* Footer */}
 				<div className="mt-4 divide-y divide-[#1C1D1F] rounded-2xl border border-[#1C1D1F]">

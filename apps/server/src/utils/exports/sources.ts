@@ -10,6 +10,7 @@ import {
 	or,
 	sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { getSanityClient } from "@/lib/sanity";
@@ -189,6 +190,80 @@ async function users(
 				row.lastLoginIp ?? "",
 				formatNaira(row.balance ?? 0),
 				row.suspended ? "Suspended" : row.status,
+			]),
+		},
+	};
+}
+
+async function kyc(
+	env: CloudflareBindings,
+	filters: ExportFilters,
+	offset: number,
+	limit: number,
+): Promise<SourceRows> {
+	const db = drizzle(env.DB, { schema });
+	const search = stringFilter(filters, "search");
+	const status = stringFilter(filters, "status");
+	const fromDate = dateFilter(filters, "fromDate");
+	const toDate = dateFilter(filters, "toDate");
+	const snapshotAt = snapshotDate(filters);
+	const conditions = [];
+	if (status && status !== "all") conditions.push(eq(schema.kyc.status, status));
+	if (search) {
+		const searchPattern = `%${search}%`;
+		conditions.push(
+			or(
+				like(schema.user.name, searchPattern),
+				like(schema.user.email, searchPattern),
+				like(schema.kyc.fullName, searchPattern),
+				like(schema.kyc.identificationType, searchPattern),
+			),
+		);
+	}
+	if (fromDate) conditions.push(gte(schema.kyc.submittedAt, fromDate));
+	if (toDate) conditions.push(lte(schema.kyc.submittedAt, toDate));
+	if (snapshotAt) conditions.push(lte(schema.kyc.submittedAt, snapshotAt));
+	const where = conditions.length ? and(...conditions) : undefined;
+	const frontFile = alias(schema.userFile, "export_kyc_front_file");
+	const backFile = alias(schema.userFile, "export_kyc_back_file");
+	const [{ total = 0 }] = await db
+		.select({ total: count() })
+		.from(schema.kyc)
+		.innerJoin(schema.user, eq(schema.kyc.userId, schema.user.id))
+		.where(where);
+	const rows =
+		limit === 0
+			? []
+			: await db
+					.select({
+						name: schema.user.name,
+						identificationType: schema.kyc.identificationType,
+						submittedAt: schema.kyc.submittedAt,
+						status: schema.kyc.status,
+						frontSize: frontFile.size,
+						backSize: backFile.size,
+						frontMime: frontFile.mimeType,
+						backMime: backFile.mimeType,
+					})
+					.from(schema.kyc)
+					.innerJoin(schema.user, eq(schema.kyc.userId, schema.user.id))
+					.leftJoin(frontFile, eq(schema.kyc.frontDocumentId, frontFile.id))
+					.leftJoin(backFile, eq(schema.kyc.backDocumentId, backFile.id))
+					.where(where)
+					.orderBy(desc(schema.kyc.submittedAt), desc(schema.kyc.id))
+					.limit(limit)
+					.offset(offset);
+	return {
+		total,
+		table: {
+			headers: ["Player Name", "Document Name", "Size", "Date Uploaded", "Document Type", "Status"],
+			rows: rows.map((row) => [
+				row.name,
+				row.identificationType,
+				`${row.frontSize ?? 0} / ${row.backSize ?? 0}`,
+				formatDate(row.submittedAt),
+				[row.frontMime, row.backMime].filter(Boolean).join(" / "),
+				row.status,
 			]),
 		},
 	};
@@ -816,5 +891,7 @@ export function rowsForSource(
 			return ticketHistory(env, filters, offset, limit);
 		case "cms":
 			return cms(env, filters, offset, limit);
+		case "kyc":
+			return kyc(env, filters, offset, limit);
 	}
 }

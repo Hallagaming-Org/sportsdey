@@ -163,17 +163,58 @@ async function fetchGames(
 		env === "production" ? "slotegrator" : "slotegrator-staging";
 
 	const url = `${proxyUrl}/${slotegratorProxyPath}/games/index?filter[is_mobile]=1&${queryString}`;
+	const requestHeaders = {
+		"X-Merchant-Id": merchantId,
+		"X-Timestamp": timestamp,
+		"X-Nonce": nonce,
+		"X-Sign": xSign,
+		"Content-Type": "application/x-www-form-urlencoded",
+		"x-proxy-auth": proxySecret,
+	};
+
+	console.log("Slotegrator sync games request", {
+		params: {
+			page,
+			perPage,
+			queryParams,
+			allParams,
+			queryString,
+			allQueryString,
+		},
+		proxy: {
+			url,
+			method: "GET",
+			headers: {
+				...requestHeaders,
+				"X-Sign": "[REDACTED]",
+				"x-proxy-auth": "[REDACTED]",
+			},
+		},
+	});
 
 	const response = await fetch(url, {
 		method: "GET",
-		headers: {
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": xSign,
-			"Content-Type": "application/x-www-form-urlencoded",
-			"x-proxy-auth": proxySecret,
-		},
+		headers: requestHeaders,
+	});
+
+	const responseText = await response.text();
+	let responseBody: unknown = responseText;
+	if (responseText) {
+		try {
+			responseBody = JSON.parse(responseText);
+		} catch {
+			// Keep non-JSON proxy responses as text for diagnostics.
+		}
+	}
+
+	console.log("Slotegrator sync games proxy result", {
+		url: response.url,
+		upstreamUrl: response.headers.get("x-proxy-upstream-url"),
+		status: response.status,
+		statusText: response.statusText,
+		ok: response.ok,
+		headers: Object.fromEntries(response.headers.entries()),
+		body: responseBody,
 	});
 
 	if (!response.ok) {
@@ -182,7 +223,7 @@ async function fetchGames(
 		);
 	}
 
-	const data = (await response.json()) as GamesApiResponse;
+	const data = responseBody as GamesApiResponse;
 
 	return data;
 }

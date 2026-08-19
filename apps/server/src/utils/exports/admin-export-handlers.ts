@@ -33,6 +33,8 @@ function permissionForSource(source: (typeof exportSources)[number]) {
 			return "post_upload_content" as const;
 		case "admins":
 			return "view_other_admins" as const;
+		case "kyc":
+			return "view_kyc_document" as const;
 	}
 }
 

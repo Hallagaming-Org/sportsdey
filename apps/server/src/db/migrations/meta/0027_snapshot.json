@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "63caa6a9-a3d8-41f1-894c-b54d3a0a56a0",
+  "id": "2b497af0-dd8e-4fc7-90b8-872388754ce7",
   "prevId": "0d9e78d5-0c3e-46ec-98df-07b44e0d26df",
   "tables": {
     "account": {
@@ -2862,6 +2862,20 @@
         },
         "last_login_ip": {
           "name": "last_login_ip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "profile_self_edited_at": {
+          "name": "profile_self_edited_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "dob": {
+          "name": "dob",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

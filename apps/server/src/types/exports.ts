@@ -4,6 +4,7 @@ export const exportSources = [
 	"transactions",
 	"ticket-history",
 	"cms",
+	"kyc",
 ] as const;
 
 export const exportFormats = ["xlsx", "docx", "pdf"] as const;

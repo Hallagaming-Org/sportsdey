@@ -248,16 +248,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			],
 		},
 		{
-			id: "partner",
-			label: "Become a Partner",
-			icon: FaHandshakeAngle,
-			isActive: isItemActive("partner", false),
-			onClick: () => {
-				setActiveOverride("partner");
-				window.open("https://Partners.sportsdey.com", "_blank");
-			},
-		},
-		{
 			id: "news",
 			label: "News",
 			icon: Newspaper,
@@ -267,14 +257,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			),
 			onClick: goToNews,
 		},
-		// {
-		// 	id: "predictions",
-		// 	label: "Predictions Market",
-		// 	icon: PredictionMarket,
-		// 	isActive: false,
-		// 	disabled: true,
-		// 	onClick: () => showComingSoon("Predictions Market"),
-		// },
 		{
 			id: "videos",
 			label: "Videos",
@@ -282,6 +264,15 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive("videos", location.pathname.startsWith("/videos")),
 			onClick: goToVideos,
 		},
+		{
+			id: "predictions",
+			label: "Predictions Market",
+			icon: PredictionMarket,
+			isActive: false,
+			// disabled: true,
+			onClick: () => showComingSoon("Predictions Market"),
+		},
+			
 		{
 			id: "trading",
 			label: "Trading",
@@ -303,6 +294,51 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		// 	disabled: true,
 		// 	onClick: () => showComingSoon("Tournament"),
 		// },
+
+		{
+			id: "missions",
+			label: "Missions",
+			icon: Target,
+			isActive: isItemActive(
+				"missions",
+				location.pathname.startsWith("/missions"),
+			),
+			onClick: () => {
+				setTab("missions");
+				trackWebengageEvent("Category", { Name: "Missions" });
+				navigate({ to: "/missions" as any });
+			},
+		},
+
+		{
+			id: "promotions",
+			label: "Promotions",
+			icon: Gift,
+			isActive: isItemActive(
+				"promotions",
+				location.pathname.startsWith("/promotions"),
+			),
+			onClick: () => {
+				setTab("promotions");
+				trackWebengageEvent("Category", { Name: "Promotions" });
+				navigate({ to: "/promotions" as any });
+			},
+		},
+		
+		{
+			id: "partner",
+			label: "Become a Partner",
+			icon: FaHandshakeAngle,
+			isActive: isItemActive("partner", false),
+			onClick: () => {
+				setActiveOverride("partner");
+				window.open("https://Partners.sportsdey.com", "_blank");
+			},
+		},
+
+
+
+
 		// {
 		// 	id: "lottery",
 		// 	label: "Lottery",
@@ -322,34 +358,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		// 		navigate({ to: "/betting", search: { type: "jackpots" } });
 		// 	},
 		// },
-		{
-			id: "promotions",
-			label: "Promotions",
-			icon: Gift,
-			isActive: isItemActive(
-				"promotions",
-				location.pathname.startsWith("/promotions"),
-			),
-			onClick: () => {
-				setTab("promotions");
-				trackWebengageEvent("Category", { Name: "Promotions" });
-				navigate({ to: "/promotions" as any });
-			},
-		},
-		{
-			id: "missions",
-			label: "Missions",
-			icon: Target,
-			isActive: isItemActive(
-				"missions",
-				location.pathname.startsWith("/missions"),
-			),
-			onClick: () => {
-				setTab("missions");
-				trackWebengageEvent("Category", { Name: "Missions" });
-				navigate({ to: "/missions" as any });
-			},
-		},
+
+
 		// {
 		// 	id: "refer",
 		// 	label: "Refer & Earn",

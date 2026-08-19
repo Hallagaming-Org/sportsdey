@@ -250,7 +250,18 @@ slotegratorRoute.openapi(launchDemoGameRoute, async (c) => {
 
 slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	const user = c.get("user");
+	const incomingHeaders = Object.fromEntries(c.req.raw.headers.entries());
+	const logIncomingHeaders = {
+		...incomingHeaders,
+		authorization: incomingHeaders.authorization ? "[REDACTED]" : undefined,
+		cookie: incomingHeaders.cookie ? "[REDACTED]" : undefined,
+	};
 	if (!user) {
+		console.log("Slotegrator real launch request", {
+			body: null,
+			params: { route: c.req.param(), query: c.req.query() },
+			headers: logIncomingHeaders,
+		});
 		return c.json(
 			{
 				success: false,
@@ -261,8 +272,15 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		);
 	}
 
-	const result = LaunchGameSchema.safeParse(await c.req.json());
+	const requestPayload: unknown = await c.req.json();
+	const result = LaunchGameSchema.safeParse(requestPayload);
 	if (!result.success) {
+		console.log("Slotegrator real launch request validation failed", {
+			body: requestPayload,
+			params: { route: c.req.param(), query: c.req.query() },
+			headers: logIncomingHeaders,
+			validation: result.error.flatten(),
+		});
 		return c.json(
 			{
 				success: false,
@@ -350,22 +368,43 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 
 	const slotegratorProxyPath =
 		c.env.NODE_ENV === "staging" ? "slotegrator-staging" : "slotegrator";
+	const proxyRequestUrl = `${proxyUrl}/${slotegratorProxyPath}/games/init`;
+	const proxyRequestHeaders = {
+		"Content-Type": "application/x-www-form-urlencoded",
+		"X-Merchant-Id": merchantId,
+		"X-Timestamp": timestamp,
+		"X-Nonce": nonce,
+		"X-Sign": computedSign,
+		"X-Proxy-Auth": proxySecret,
+	};
 
-	const response = await fetch(
-		`${proxyUrl}/${slotegratorProxyPath}/games/init`,
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-				"X-Merchant-Id": merchantId,
-				"X-Timestamp": timestamp,
-				"X-Nonce": nonce,
-				"X-Sign": computedSign,
-				"X-Proxy-Auth": proxySecret,
-			},
-			body: new URLSearchParams(requestBody),
+	console.log("Slotegrator real launch request", {
+		body: result.data,
+		params: {
+			route: c.req.param(),
+			query: c.req.query(),
+			requestBody,
+			allParams,
+			queryString,
 		},
-	);
+		headers: logIncomingHeaders,
+		proxy: {
+			url: proxyRequestUrl,
+			method: "POST",
+			body: requestBody,
+			headers: {
+				...proxyRequestHeaders,
+				"X-Sign": "[REDACTED]",
+				"X-Proxy-Auth": "[REDACTED]",
+			},
+		},
+	});
+
+	const response = await fetch(proxyRequestUrl, {
+		method: "POST",
+		headers: proxyRequestHeaders,
+		body: new URLSearchParams(requestBody),
+	});
 
 	let upstreamData: unknown = null;
 	const upstreamText = await response.text();
@@ -376,6 +415,16 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 			upstreamData = upstreamText;
 		}
 	}
+
+	console.log("Slotegrator real launch proxy result", {
+		url: response.url,
+		upstreamUrl: response.headers.get("x-proxy-upstream-url"),
+		status: response.status,
+		statusText: response.statusText,
+		ok: response.ok,
+		headers: Object.fromEntries(response.headers.entries()),
+		body: upstreamData,
+	});
 
 	if (!response.ok) {
 		const mapped = mapSlotegratorUpstreamError(response.status, upstreamData);
