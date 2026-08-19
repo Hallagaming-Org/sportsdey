@@ -16,6 +16,14 @@ export function normalizeName(name: string): string {
 	return name.toLowerCase().trim().replace(/\s+/g, " ");
 }
 
+/** Strip punctuation so "Adrenaline Rush xcrash" matches "Adrenaline Rush: XCrash". */
+export function flexibleName(name: string): string {
+	return normalizeName(name)
+		.replace(/[^a-z0-9]+/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
 export function slugify(name: string): string {
 	return name.toLowerCase().replace(/[\/\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
@@ -45,7 +53,7 @@ export async function executeD1Json<T>(
 	const remoteFlag = options.remote === false ? "--local" : "--remote";
 	return new Promise((resolve, reject) => {
 		const cmd = `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(command)} ${remoteFlag} --env ${env} --json`;
-		exec(cmd, { timeout: 120000 }, (error, stdout) => {
+		exec(cmd, { timeout: 300000 }, (error, stdout) => {
 			if (error) {
 				reject(new Error(`D1 execute failed: ${error.message}`));
 			} else {
@@ -93,12 +101,19 @@ export async function fetchExistingGames(
 	env: string,
 	options: { remote?: boolean } = {},
 ): Promise<{ id: string; name: string }[]> {
-	return executeD1Json<{ id: string; name: string }>(
-		dbName,
-		env,
-		"SELECT id, name FROM game",
-		options,
-	);
+	const pageSize = 1000;
+	const all: { id: string; name: string }[] = [];
+	for (let offset = 0; ; offset += pageSize) {
+		const rows = await executeD1Json<{ id: string; name: string }>(
+			dbName,
+			env,
+			`SELECT id, name FROM game ORDER BY id LIMIT ${pageSize} OFFSET ${offset}`,
+			options,
+		);
+		all.push(...rows);
+		if (rows.length < pageSize) break;
+	}
+	return all;
 }
 
 export function buildCategoryInserts(
@@ -142,21 +157,33 @@ export function matchGames(
 	allCategoryEntries: CategoryEntry[],
 	games: { id: string; name: string }[],
 ): { matched: { gameId: string; categorySlug: string }[]; unmatched: string[] } {
-	const nameToId = new Map<string, string>();
+	const nameToIds = new Map<string, string[]>();
+	const flexibleToIds = new Map<string, string[]>();
+
+	const add = (map: Map<string, string[]>, key: string, id: string) => {
+		if (!key) return;
+		const list = map.get(key) ?? [];
+		if (!list.includes(id)) list.push(id);
+		map.set(key, list);
+	};
+
 	for (const game of games) {
-		const normalized = normalizeName(game.name);
-		if (!nameToId.has(normalized)) {
-			nameToId.set(normalized, game.id);
-		}
+		add(nameToIds, normalizeName(game.name), game.id);
+		add(flexibleToIds, flexibleName(game.name), game.id);
 	}
 
 	const matched: { gameId: string; categorySlug: string }[] = [];
 	const unmatched: string[] = [];
 
 	for (const entry of allCategoryEntries) {
-		const gameId = nameToId.get(entry.gameName);
-		if (gameId) {
-			matched.push({ gameId, categorySlug: entry.categorySlug });
+		const ids =
+			nameToIds.get(entry.gameName) ??
+			flexibleToIds.get(flexibleName(entry.gameName)) ??
+			[];
+		if (ids.length > 0) {
+			for (const gameId of ids) {
+				matched.push({ gameId, categorySlug: entry.categorySlug });
+			}
 		} else {
 			unmatched.push(entry.gameName);
 		}
