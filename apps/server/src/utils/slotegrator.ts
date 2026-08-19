@@ -9,6 +9,7 @@ export type SlotegratorCredentials = {
 	merchantId: string;
 	merchantKey: string;
 	apiUrl: string;
+	proxySecret: string;
 };
 
 export type SlotegratorDemoInitInput = {
@@ -55,7 +56,7 @@ export async function buildSlotegratorSign(
 	}
 	const queryString = params.toString();
 
-	const cryptoMod = await import("crypto");
+	const cryptoMod = await import("node:crypto");
 	return cryptoMod
 		.createHmac("sha1", merchantKey)
 		.update(queryString)
@@ -171,15 +172,23 @@ export function mapSlotegratorUpstreamError(
 function resolveCredentials(env: {
 	SLOTITEGRATION_MERCHANT_ID?: string;
 	SLOTITEGRATION_MERCHANT_KEY?: string;
-	SLOTEGRATOR_API_URL?: string;
+	PROXY_URL?: string;
+	PROXY_SECRET?: string;
+	NODE_ENV?: string;
 }): SlotegratorCredentials {
 	const merchantId = env.SLOTITEGRATION_MERCHANT_ID?.trim() || "";
 	const merchantKey = env.SLOTITEGRATION_MERCHANT_KEY?.trim() || "";
-	const apiUrl = (env.SLOTEGRATOR_API_URL || "").replace(/\/+$/, "");
-	if (!merchantId || !merchantKey || !apiUrl) {
+	const proxyUrl = (env.PROXY_URL || "").replace(/\/+$/, "");
+	const proxySecret = env.PROXY_SECRET?.trim() || "";
+	const proxyPath =
+		(env.NODE_ENV || "").toLowerCase() === "staging"
+			? "slotegrator-staging"
+			: "slotegrator";
+	const apiUrl = `${proxyUrl}/${proxyPath}`;
+	if (!merchantId || !merchantKey || !proxyUrl || !proxySecret) {
 		throw new SlotegratorApiError("Server configuration error", 500);
 	}
-	return { merchantId, merchantKey, apiUrl };
+	return { merchantId, merchantKey, apiUrl, proxySecret };
 }
 
 /**
@@ -189,11 +198,14 @@ export async function fetchSlotegratorGames(
 	env: {
 		SLOTITEGRATION_MERCHANT_ID?: string;
 		SLOTITEGRATION_MERCHANT_KEY?: string;
-		SLOTEGRATOR_API_URL?: string;
+		PROXY_URL?: string;
+		PROXY_SECRET?: string;
+		NODE_ENV?: string;
 	},
 	query: Record<string, string> = {},
 ): Promise<unknown> {
-	const { merchantId, merchantKey, apiUrl } = resolveCredentials(env);
+	const { merchantId, merchantKey, apiUrl, proxySecret } =
+		resolveCredentials(env);
 	const requestParams = { ...query };
 	const { headers } = await createSlotegratorAuthHeaders(
 		merchantId,
@@ -202,7 +214,7 @@ export async function fetchSlotegratorGames(
 	);
 
 	const qs = new URLSearchParams(requestParams).toString();
-	const paths = [`/games`, `/games/index`];
+	const paths = ["/games", "/games/index"];
 	let lastError: SlotegratorApiError | null = null;
 
 	for (const path of paths) {
@@ -211,6 +223,7 @@ export async function fetchSlotegratorGames(
 			method: "GET",
 			headers: {
 				...headers,
+				"X-Proxy-Auth": proxySecret || "",
 				Accept: "application/json",
 				"Content-Type": "application/x-www-form-urlencoded",
 			},
@@ -246,11 +259,14 @@ export async function initSlotegratorDemo(
 	env: {
 		SLOTITEGRATION_MERCHANT_ID?: string;
 		SLOTITEGRATION_MERCHANT_KEY?: string;
-		SLOTEGRATOR_API_URL?: string;
+		PROXY_URL?: string;
+		PROXY_SECRET?: string;
+		NODE_ENV?: string;
 	},
 	input: SlotegratorDemoInitInput,
 ): Promise<{ url: string }> {
-	const { merchantId, merchantKey, apiUrl } = resolveCredentials(env);
+	const { merchantId, merchantKey, apiUrl, proxySecret } =
+		resolveCredentials(env);
 
 	const requestBody: Record<string, string> = {
 		game_uuid: input.game_uuid,
@@ -258,7 +274,8 @@ export async function initSlotegratorDemo(
 	};
 	if (input.device?.trim()) requestBody.device = input.device.trim();
 	if (input.language?.trim()) requestBody.language = input.language.trim();
-	if (input.return_url?.trim()) requestBody.return_url = input.return_url.trim();
+	if (input.return_url?.trim())
+		requestBody.return_url = input.return_url.trim();
 
 	const { headers } = await createSlotegratorAuthHeaders(
 		merchantId,
@@ -270,6 +287,7 @@ export async function initSlotegratorDemo(
 		method: "POST",
 		headers: {
 			...headers,
+			"X-Proxy-Auth": proxySecret || "",
 			Accept: "application/json",
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
@@ -339,7 +357,10 @@ export function resolveSlotegratorReturnUrl(
 	const normalizeStagingReturn = (value: string) => {
 		try {
 			const url = new URL(value);
-			if (url.hostname === "stagingweb.sportsdey.com" && url.pathname === "/games") {
+			if (
+				url.hostname === "stagingweb.sportsdey.com" &&
+				url.pathname === "/games"
+			) {
 				return stagingExit;
 			}
 		} catch {
@@ -410,7 +431,7 @@ export async function verifySlotitegrationSignature(
 		.join("&");
 	console.log("queryString:", queryString);
 
-	const crypto = await import("crypto");
+	const crypto = await import("node:crypto");
 	const computedSign = crypto
 		.createHmac("sha1", merchantKey)
 		.update(queryString)

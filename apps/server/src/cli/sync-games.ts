@@ -69,13 +69,6 @@ for (const arg of args) {
 const envFile = env === "production" ? ".env.production" : ".env.staging";
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
-const slotegratorApiUrl =
-	env === "production"
-		? process.env.SLOTEGRATOR_API_URL ||
-			"https://slotegrator.com/api/index.php/v1"
-		: process.env.SLOTEGRATOR_API_URL ||
-			"https://staging.slotegrator.com/api/index.php/v1";
-
 const rawMerchantKey = process.env.SLOTITEGRATION_MERCHANT_KEY;
 const rawMerchantId = process.env.SLOTITEGRATION_MERCHANT_ID;
 
@@ -101,7 +94,7 @@ if (!proxyUrl || !proxySecret) {
 	process.exit(1);
 }
 
-function escape(value: string | number | null | undefined): string {
+function sqlEscape(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) {
 		return "NULL";
 	}
@@ -300,13 +293,12 @@ async function main() {
 
 	const { exec } = await import("node:child_process");
 	let inserted = 0;
-	let failed = 0;
 	for (let i = 0; i < newGames.length; i += batchSize) {
 		const batch = newGames.slice(i, i + batchSize);
 		const batchValues = batch
 			.map(
 				(game) =>
-					`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${timestamp}, ${timestamp})`,
+					`(${sqlEscape(game.uuid)}, ${sqlEscape(game.name)}, ${sqlEscape(game.uuid)}, ${sqlEscape(game.image)}, 1, ${timestamp}, ${timestamp})`,
 			)
 			.join(",\n");
 		const batchSql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${batchValues};`;
@@ -355,7 +347,6 @@ async function main() {
 				`Batch ${batchNum}/${totalBatches}: ${inserted} games inserted`,
 			);
 		} else {
-			failed++;
 			console.error(`Batch ${batchNum} failed after retries:`, lastErr);
 		}
 	}
