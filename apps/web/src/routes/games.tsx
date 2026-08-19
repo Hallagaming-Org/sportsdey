@@ -33,6 +33,10 @@ import {
 	launchClassicGame,
 } from "@/lib/classic-lobby";
 import {
+	gameMatchesLobbyCategory,
+	overlayScorpioLobbyCategories,
+} from "@/lib/lobby-categories";
+import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
 	type ScorpioLobbyGame,
@@ -64,40 +68,6 @@ function hideBrokenImage(e: SyntheticEvent<HTMLImageElement>) {
 	e.currentTarget.style.display = "none";
 }
 
-/** Map Scorpio titles into live Classic category slugs for one lobby UI. */
-function scorpioClassicCategorySlugs(game: ScorpioLobbyGame): string[] {
-	const haystack = `${game.name} ${game.providerName}`.toLowerCase();
-	const slugs = new Set<string>();
-
-	if (
-		/aviator|crash|jetx|jet x|balloon|high.?flyer|helicopter|mines|plinko/.test(
-			haystack,
-		)
-	) {
-		slugs.add("crash-games");
-	}
-	if (
-		/slot|bonanza|olympus|bass|spin|reel|clover|crown|fortune|wild/.test(
-			haystack,
-		)
-	) {
-		slugs.add("slots");
-	}
-	if (/roulette/.test(haystack)) slugs.add("roulette");
-	if (/bingo/.test(haystack)) slugs.add("bingo");
-	if (/dice|keno/.test(haystack)) slugs.add("dice");
-	if (/blackjack|baccarat|poker|card|solitaire|twenty/.test(haystack)) {
-		slugs.add("tablecardgames");
-	}
-	if (/arcade|blocks/.test(haystack)) slugs.add("arcade");
-	if (/scratch/.test(haystack)) slugs.add("scratch");
-	if (/lottery|lotto/.test(haystack)) slugs.add("lottery");
-	if (/jackpot/.test(haystack)) slugs.add("jackpot");
-
-	if (slugs.size === 0) slugs.add("others");
-	return [...slugs];
-}
-
 function scorpioMatchesCategory(
 	game: ScorpioLobbyGame,
 	category: string,
@@ -105,7 +75,7 @@ function scorpioMatchesCategory(
 	if (category === "popular" || category === "pvp" || category === "original") {
 		return false;
 	}
-	return scorpioClassicCategorySlugs(game).includes(category);
+	return gameMatchesLobbyCategory(game, category);
 }
 
 function mergeLobbyGames(
@@ -193,7 +163,14 @@ function GamesPage() {
 	});
 
 	const classicGames = classicQuery.data ?? [];
-	const scorpioGames = scorpioQuery.data ?? [];
+	const scorpioGames = useMemo(
+		() =>
+			overlayScorpioLobbyCategories(
+				scorpioQuery.data ?? [],
+				classicQuery.data ?? [],
+			),
+		[scorpioQuery.data, classicQuery.data],
+	);
 
 	const allGames = useMemo(
 		() => mergeLobbyGames(classicGames, scorpioGames),

@@ -80,3 +80,8 @@ skills-lock.json/*
 
 # Vendor API docs (local reference only)
 bonus-engine-setup/
+
+# Local casino sheet reconciliation (not for GitHub)
+apps/server/src/cli/apply-unmatched-aliases.ts
+apps/server/src/cli/unmatched-alias-rollback.json
+apps/server/src/cli/unmatched-reconciliation.tsv
