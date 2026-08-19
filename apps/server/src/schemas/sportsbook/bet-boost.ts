@@ -125,6 +125,30 @@ export const BetBoostGetResponseSchema = z.object({
 	data: BetBoostItemSchema,
 });
 
+export const BetBoostCalculationStrategySchema = z.discriminatedUnion("type", [
+	z.object({
+		type: z.literal("static"),
+		strategy: z.object({
+			conditions: z.array(z.unknown()),
+			params: z.object({
+				multiplier: z.string(),
+				min_selections: z.number().int().optional(),
+			}),
+		}),
+	}),
+	z.object({
+		type: z.literal("steps"),
+		strategy: z.object({
+			conditions: z.array(z.unknown()),
+			params: z.object({
+				selections_per_step: z.number().int(),
+				multiplier_per_step: z.string(),
+				max_multiplier: z.string(),
+			}),
+		}),
+	}),
+]);
+
 export const BetBoostUpdateSchema = z.object({
 	player_id: z.string(),
 	boost_id: z.string(),
