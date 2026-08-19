@@ -669,15 +669,6 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		);
 	}
 
-	// trackWebengageEvent(c.env, {
-	// 	userId: user.id,
-	// 	eventName: "deposit_initiated",
-	// 	eventData: {
-	// 		amount,
-	// 		currency: "NGN",
-	// 	},
-	// }, c.executionCtx);
-
 	return c.json(
 		{
 			success: true as const,

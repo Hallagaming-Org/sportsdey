@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { createCashierOrder } from "@/lib/opay/client";
 import { verifyCallbackSignature } from "@/lib/opay/signature";
+import { setWebengageUserAttributes, trackWebengageEvent } from "@/lib/webengage";
 import type { CloudflareBindings } from "../types";
 
 const opayRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -90,7 +91,7 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			},
 		);
 
-		await db.insert(schema.opayTransaction).values({
+		const [opayTxn] = await db.insert(schema.opayTransaction).values({
 			id: `opaytxn_${crypto.randomUUID()}`,
 			userId: user.id,
 			reference,
@@ -98,7 +99,11 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			amount: amountKobo,
 			status: "initiated",
 			cashierUrl: result.cashierUrl,
-		});
+		}).returning({ id: schema.opayTransaction.id });
+
+		if (!opayTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to record deposit transaction" }, 500);
+		}
 
 		return c.json(
 			{
@@ -165,13 +170,25 @@ opayRoute.openapi(callbackRoute, async (c) => {
 		return c.json({ success: true as const }, 200);
 	}
 
-	await db
+	const [updatedTxn] = await db
 		.update(schema.opayTransaction)
 		.set({
 			status: status === "SUCCESS" ? "success" : "failed",
 			rawCallbackPayload: JSON.stringify(payload),
 		})
-		.where(eq(schema.opayTransaction.id, existingTxn.id));
+		.where(eq(schema.opayTransaction.id, existingTxn.id))
+		.returning({ id: schema.opayTransaction.id });
+
+	if (!updatedTxn?.id) {
+		return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
+	}
+
+	const userRecord = await db
+		.select({ email: schema.user.email, name: schema.user.name })
+		.from(schema.user)
+		.where(eq(schema.user.id, existingTxn.userId))
+		.limit(1)
+		.then((rows) => rows[0]);
 
 	if (status === "SUCCESS") {
 		const [walletRow] = await db
@@ -183,7 +200,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 		if (walletRow) {
 			const newBalance = walletRow.balance + existingTxn.amount;
 
-			await db.insert(schema.walletTransaction).values({
+			const [walletTxn] = await db.insert(schema.walletTransaction).values({
 				id: `wtxn_${crypto.randomUUID()}`,
 				userId: existingTxn.userId,
 				amount: existingTxn.amount,
@@ -193,13 +210,69 @@ opayRoute.openapi(callbackRoute, async (c) => {
 				paymentMethod: "opay",
 				balance: newBalance,
 				createdAt: new Date(),
-			});
+			}).returning({ id: schema.walletTransaction.id });
 
-			await db
+			if (!walletTxn?.id) {
+				return c.json({ success: false as const, error: "Failed to record wallet transaction" }, 500);
+			}
+
+			const [updatedWallet] = await db
 				.update(schema.wallet)
 				.set({ balance: newBalance })
-				.where(eq(schema.wallet.id, walletRow.id));
+				.where(eq(schema.wallet.id, walletRow.id))
+				.returning({ id: schema.wallet.id });
+
+			if (!updatedWallet?.id) {
+				return c.json({ success: false as const, error: "Failed to update wallet" }, 500);
+			}
+
+			trackWebengageEvent(
+				c.env,
+				{
+					userId: existingTxn.userId,
+					eventName: "deposit_completed",
+					eventData: {
+						amount: existingTxn.amount / 100,
+						currency: "NGN",
+						payment_method: "opay",
+						transaction_id: reference,
+						type: "credit",
+						wallet_balance_after: newBalance / 100,
+					},
+				},
+				c.executionCtx,
+			);
+
+			setWebengageUserAttributes(
+				c.env,
+				{
+					userId: existingTxn.userId,
+					email: userRecord?.email,
+					firstName: userRecord?.name?.split(" ")[0],
+					lastName: userRecord?.name?.split(" ").slice(1).join(" "),
+					wallet_balance: newBalance / 100,
+				},
+				c.executionCtx,
+			);
 		}
+	} else {
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: existingTxn.userId,
+				eventName: "deposit_failed",
+				eventData: {
+					amount: existingTxn.amount / 100,
+					payment_method: "opay",
+					transaction_id: reference,
+					failure_reason:
+						(payload.message as string | undefined) ||
+						(payload.code as string | undefined) ||
+						"Payment failed",
+				},
+			},
+			c.executionCtx,
+		);
 	}
 
 	return c.json({ success: true as const }, 200);
