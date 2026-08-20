@@ -116,8 +116,11 @@ export function LoyaltyPage() {
 							availablePoints={pointsSummary.totalPoints}
 							isRedeeming={redeemMutation.isPending}
 							listsErrorMessage={listsErrorMessage}
-							onRedeem={async (pointsToRedeem) => {
-								await redeemMutation.mutateAsync({ pointsToRedeem });
+							onRedeem={async ({ pointsToRedeem, campaignId }) => {
+								await redeemMutation.mutateAsync({
+									pointsToRedeem,
+									campaignId,
+								});
 							}}
 						/>
 						<div>
