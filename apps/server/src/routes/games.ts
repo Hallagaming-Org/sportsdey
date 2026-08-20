@@ -6,6 +6,7 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
+import { collapseGamesByCode } from "@/utils/game-catalog";
 import type { CloudflareBindings } from "../types";
 
 const gamesRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -197,6 +198,8 @@ gamesRoute.openapi(
 			mapped.sort((a, b) => b.name.localeCompare(a.name));
 		}
 
+		mapped = collapseGamesByCode(mapped);
+
 		const offset = query.offset ?? 0;
 		const limit = query.limit;
 		if (limit != null) {
@@ -372,23 +375,69 @@ gamesRoute.openapi(
 
 		const db = drizzle(c.env.DB, { schema });
 		const now = new Date();
+		const inserted: (typeof schema.game.$inferSelect)[] = [];
 
-		const gamesToInsert = result.data.map((game) => ({
-			id: crypto.randomUUID(),
-			name: game.name,
-			code: game.code,
-			imageUrl: game.imageUrl ?? null,
-			enabled: game.enabled ?? true,
-			createdAt: now,
-			updatedAt: now,
-		}));
+		for (const game of result.data) {
+			const existingRows = await db
+				.select()
+				.from(schema.game)
+				.where(eq(schema.game.code, game.code));
 
-		const inserted = await db
-			.insert(schema.game)
-			.values(gamesToInsert)
-			.returning();
+			if (existingRows.length > 0) {
+				const updated = await db
+					.update(schema.game)
+					.set({
+						name: game.name,
+						imageUrl: game.imageUrl ?? existingRows[0]?.imageUrl ?? null,
+						enabled: game.enabled ?? existingRows[0]?.enabled ?? true,
+						updatedAt: now,
+					})
+					.where(eq(schema.game.code, game.code))
+					.returning();
+				const row =
+					updated.find((item) => item.id === existingRows[0]?.id) ??
+					updated[0];
+				if (!row) {
+					return c.json(
+						{
+							success: false as const,
+							error: "Failed to create game",
+							details: null,
+						},
+						500,
+					);
+				}
+				inserted.push(row);
+				continue;
+			}
 
-		if (!inserted || inserted.length === 0) {
+			const [created] = await db
+				.insert(schema.game)
+				.values({
+					id: crypto.randomUUID(),
+					name: game.name,
+					code: game.code,
+					imageUrl: game.imageUrl ?? null,
+					enabled: game.enabled ?? true,
+					createdAt: now,
+					updatedAt: now,
+				})
+				.returning();
+
+			if (!created) {
+				return c.json(
+					{
+						success: false as const,
+						error: "Failed to create game",
+						details: null,
+					},
+					500,
+				);
+			}
+			inserted.push(created);
+		}
+
+		if (inserted.length === 0) {
 			return c.json(
 				{
 					success: false as const,
@@ -676,18 +725,21 @@ gamesRoute.openapi(
 			.from(schema.game)
 			.where(eq(schema.game.id, id));
 
-		if (!existing.length) {
+		if (!existing.length || !existing[0]) {
 			return c.json(
 				{ success: false as const, error: "Game not found", details: null },
 				404,
 			);
 		}
 
-		const [updated] = await db
+		const updatedRows = await db
 			.update(schema.game)
 			.set({ enabled: true, updatedAt: new Date() })
-			.where(eq(schema.game.id, id))
+			.where(eq(schema.game.code, existing[0].code))
 			.returning();
+
+		const updated =
+			updatedRows.find((row) => row.id === id) ?? updatedRows[0];
 
 		if (!updated) {
 			return c.json(
@@ -762,7 +814,6 @@ gamesRoute.openapi(
 		}
 
 		const { id } = c.req.valid("param");
-		console.log("id", id);
 
 		const db = drizzle(c.env.DB, { schema });
 		const existing = await db
@@ -770,20 +821,21 @@ gamesRoute.openapi(
 			.from(schema.game)
 			.where(eq(schema.game.id, id));
 
-		console.log("existing", existing);
-
-		if (!existing.length) {
+		if (!existing.length || !existing[0]) {
 			return c.json(
 				{ success: false as const, error: "Game not found", details: null },
 				404,
 			);
 		}
 
-		const [updated] = await db
+		const updatedRows = await db
 			.update(schema.game)
 			.set({ enabled: false, updatedAt: new Date() })
-			.where(eq(schema.game.id, id))
+			.where(eq(schema.game.code, existing[0].code))
 			.returning();
+
+		const updated =
+			updatedRows.find((row) => row.id === id) ?? updatedRows[0];
 
 		if (!updated) {
 			return c.json(

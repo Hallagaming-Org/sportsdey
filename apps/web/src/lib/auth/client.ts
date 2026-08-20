@@ -49,3 +49,30 @@ export async function verifyPhoneOtp(phoneNumber: string, otp: string) {
 		}),
 	});
 }
+
+export async function loginWithPhone(phoneNumber: string, password: string) {
+	return apiRequest<{
+		message: string;
+		expiresAt?: string;
+		user: PhoneOtpUser;
+		isFirstTimeSignIn?: boolean;
+		needsProfileCompletion?: boolean;
+	}>("phone-auth/login", {
+		method: "POST",
+		credentials: "include",
+		body: JSON.stringify({
+			phoneNumber,
+			password,
+		}),
+	});
+}
+
+export async function setPhonePassword(password: string) {
+	return apiRequest<{ message: string }>("phone-auth/set-password", {
+		method: "POST",
+		credentials: "include",
+		body: JSON.stringify({ password }),
+	});
+}
+
+export const PENDING_PHONE_PASSWORD_KEY = "sportsdey.pendingPhonePassword";
