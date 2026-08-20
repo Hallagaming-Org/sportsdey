@@ -63,8 +63,14 @@ for (const arg of args) {
 	}
 }
 
-const envFile = env === "production" ? ".env.production" : ".env.staging";
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+const envFileCandidates = [
+	env === "production" ? ".env.production" : ".env.staging",
+	".env",
+	".dev.vars",
+];
+for (const envFile of envFileCandidates) {
+	dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+}
 
 const slotegratorApiUrl =
 	env === "production"
@@ -173,38 +179,6 @@ async function fetchGames(
 	return data;
 }
 
-async function getExistingGameIds(): Promise<Set<string>> {
-	console.log("Fetching existing game IDs from database...");
-
-	const dbName = env === "production" ? "sportsdey_db" : "staging-db";
-
-	const process = await import("node:child_process");
-
-	return new Promise((resolve) => {
-		process.exec(
-			`npx wrangler d1 execute ${dbName} --command "SELECT id FROM game" --remote --env ${env}`,
-			(error, stdout, stderr) => {
-				if (error) {
-					console.log(
-						"Could not fetch existing games, proceeding without duplicate check",
-					);
-					console.log("Error:", error.message);
-					resolve(new Set());
-					return;
-				}
-
-				const lines = stdout
-					.trim()
-					.split("\n")
-					.filter((line) => line.match(/^[a-f0-9]{32,}$/));
-				const ids = new Set(lines);
-				console.log(`Found ${ids.size} existing games in database`);
-				resolve(ids);
-			},
-		);
-	});
-}
-
 async function main() {
 	console.log(`Syncing games from Slotegrator API (${env} environment)...`);
 	console.log(`API URL: ${slotegratorApiUrl}`);
@@ -242,91 +216,55 @@ async function main() {
 
 	console.log(`\nTotal games fetched: ${allGames.length}`);
 
-	const existingIds = await getExistingGameIds();
-
 	const resolvedJsonPath = jsonPath ?? defaultJsonPath;
-
-	const newGames = allGames.filter(
-		(game) => !existingIds.has(game.uuid) || existingIds.size === 0,
-	);
-
-	console.log(`New games to insert: ${newGames.length}`);
-
-	if (newGames.length === 0 && !categorize) {
-		console.log("\nNo new games to insert.");
-		return;
-	}
-
-	const now = Date.now();
-
-	const values = newGames
-		.map((game) => {
-			const isLiveGame =
-				/\blive\b/i.test(game.type) || /\blive\b/i.test(game.label) ? 1 : 0;
-			return `(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape(String(game.provider_id))}, ${escape(game.provider)}, ${isLiveGame}, ${game.has_freespins ? 1 : 0}, 1, ${now}, ${now})`;
-		})
-		.join(",\n");
-
-	const sql = `INSERT OR IGNORE INTO game (id, name, code, image_url, provider_id, provider_name, is_live_game, free_spin, enabled, created_at, updated_at) VALUES ${values};`;
-
-	const batchSize = 100;
-	const timestamp = Date.now();
 	const usedDbName =
 		dbName || (env === "production" ? "sportsdey_db" : "staging-db");
+	const wranglerEnv = env === "production" ? "production" : "staging";
+	const now = Date.now();
+	const batchSize = 80;
+	const totalBatches = Math.ceil(allGames.length / batchSize);
 
-	const totalBatches = Math.ceil(newGames.length / batchSize);
 	console.log(
-		`\nTotal games: ${newGames.length}, ${totalBatches} batches of ${batchSize}`,
+		`\nUpserting ${allGames.length} games with provider metadata (${totalBatches} batches)`,
 	);
 	console.log(`Running on database: ${usedDbName}`);
 
 	const { exec } = await import("node:child_process");
-	let inserted = 0;
+	let upserted = 0;
 	let failed = 0;
-	for (let i = 0; i < newGames.length; i += batchSize) {
-		const batch = newGames.slice(i, i + batchSize);
-		const batchValues = batch
-			.map(
-				(game) =>
-					`(${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, 1, ${timestamp}, ${timestamp})`,
-			)
-			.join(",\n");
-		const batchSql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${batchValues};`;
+	for (let i = 0; i < allGames.length; i += batchSize) {
+		const batch = allGames.slice(i, i + batchSize);
 		const batchNum = Math.floor(i / batchSize) + 1;
-
-		const tempFile = path.join(
-			os.tmpdir(),
-			`sync-games-${timestamp}-${batchNum}.sql`,
-		);
-		fs.writeFileSync(tempFile, batchSql);
+		const statements = batch.map((game) => {
+			const isLiveGame =
+				/\blive\b/i.test(game.type) || /\blive\b/i.test(game.label) ? 1 : 0;
+			return `INSERT INTO game (id, name, code, image_url, provider_id, provider_name, is_live_game, free_spin, enabled, created_at, updated_at) VALUES (${escape(game.uuid)}, ${escape(game.name)}, ${escape(game.uuid)}, ${escape(game.image)}, ${escape(String(game.provider_id))}, ${escape(game.provider)}, ${isLiveGame}, ${game.has_freespins ? 1 : 0}, 1, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, code = excluded.code, image_url = COALESCE(excluded.image_url, game.image_url), provider_id = excluded.provider_id, provider_name = excluded.provider_name, is_live_game = excluded.is_live_game, free_spin = excluded.free_spin, enabled = 1, updated_at = excluded.updated_at;`;
+		});
+		const tempFile = path.join(os.tmpdir(), `sync-games-${now}-${batchNum}.sql`);
+		fs.writeFileSync(tempFile, `${statements.join("\n")}\n`);
 
 		try {
 			await new Promise((resolve, reject) => {
-				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env staging`;
-				exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
+				const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" --remote --env ${wranglerEnv}`;
+				exec(cmd, { timeout: 180000 }, (error, stdout) => {
 					try {
 						fs.unlinkSync(tempFile);
 					} catch {}
-					if (error) {
-						reject(error);
-					} else {
-						resolve(stdout);
-					}
+					if (error) reject(error);
+					else resolve(stdout);
 				});
 			});
-			inserted += batch.length;
+			upserted += batch.length;
 			console.log(
-				`Batch ${batchNum}/${totalBatches}: ${inserted} games inserted`,
+				`Batch ${batchNum}/${totalBatches}: ${upserted}/${allGames.length} upserted`,
 			);
 		} catch (err) {
-			failed++;
+			failed += 1;
 			console.error(`Batch ${batchNum} failed:`, err);
 		}
 	}
 
-	if (inserted > 0) {
-		console.log(`\nDone! Inserted ${inserted} games.`);
-	}
+	console.log(`\nDone. upserted=${upserted} batches_failed=${failed}`);
 
 	if (categorize) {
 		console.log("\nRunning categorization from JSON...");
