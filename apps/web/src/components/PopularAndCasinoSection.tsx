@@ -21,6 +21,7 @@ import {
 	isSlotegratorLobbyGame,
 	launchClassicGame,
 	pickGamesByOrderedNames,
+	resolveKnownLobbyImage,
 } from "@/lib/classic-lobby";
 import {
 	fetchScorpioLobbyGames,
@@ -604,7 +605,7 @@ function HotCasinoPanel() {
 					const known = !isScorpioHotGame(game)
 						? CLASSIC_KNOWN_GAMES[game.code]
 						: undefined;
-					const image = game.imageUrl || known?.image || null;
+					const image = resolveKnownLobbyImage(game);
 					const Icon = image ? undefined : known?.icon;
 					const dual = supportsDualLaunch(game);
 					return (
