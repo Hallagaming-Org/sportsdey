@@ -71,6 +71,29 @@ export async function upsertBonusEngineLoyaltySnapshot(payload: {
 	});
 }
 
+export async function listBonusEngineMissionProgressForUser(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<
+	Array<{
+		missionId: string;
+		progressPercentage: number;
+		completedAt: Date | null;
+		rewardJson: string | null;
+	}>
+> {
+	const db = createBonusEngineDb(payload.env);
+	const rows = await db.query.bonusEngineMissionProgress.findMany({
+		where: eq(schema.bonusEngineMissionProgress.userId, payload.userId),
+	});
+	return rows.map((row) => ({
+		missionId: row.missionId,
+		progressPercentage: row.progressPercentage,
+		completedAt: row.completedAt ?? null,
+		rewardJson: row.rewardJson ?? null,
+	}));
+}
+
 export async function upsertBonusEngineMissionProgress(payload: {
 	env: CloudflareBindings;
 	userId: string;
@@ -90,10 +113,14 @@ export async function upsertBonusEngineMissionProgress(payload: {
 	});
 
 	if (existing) {
+		const nextPercentage = Math.max(
+			existing.progressPercentage,
+			payload.progressPercentage,
+		);
 		await db
 			.update(schema.bonusEngineMissionProgress)
 			.set({
-				progressPercentage: payload.progressPercentage,
+				progressPercentage: nextPercentage,
 				completedAt: payload.completedAt ?? existing.completedAt,
 				rewardJson: payload.rewardJson ?? existing.rewardJson,
 				updatedAt: new Date(),
