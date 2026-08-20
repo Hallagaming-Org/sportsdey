@@ -51,10 +51,14 @@ export function buildBonusEngineLoyaltyRedeemBody(payload: {
 	projectId: string;
 	userId: string;
 	pointsToRedeem: number;
+	loyaltyId?: string;
 }): BonusEngineLoyaltyRedeemBody {
 	return {
 		...buildBonusEngineLoyaltyScopedBody(payload),
 		[BONUS_ENGINE_BODY_FIELD.POINTS_TO_REDEEM]: payload.pointsToRedeem,
+		...(payload.loyaltyId
+			? { [BONUS_ENGINE_BODY_FIELD.LOYALTY_ID]: payload.loyaltyId }
+			: {}),
 	};
 }
 
@@ -73,12 +77,14 @@ export async function redeemBonusEngineLoyaltyPoints(payload: {
 	env: CloudflareBindings;
 	userId: string;
 	pointsToRedeem: number;
+	loyaltyId?: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineLoyaltyRedeemData>>> {
 	return signedLoyaltyRequest({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.LOYALTY_REDEEM,
 		userId: payload.userId,
 		pointsToRedeem: payload.pointsToRedeem,
+		loyaltyId: payload.loyaltyId,
 	});
 }
 
@@ -126,6 +132,7 @@ async function signedLoyaltyRequest<T>(payload: {
 	path: string;
 	userId: string;
 	pointsToRedeem?: number;
+	loyaltyId?: string;
 }): Promise<BonusEngineApiResult<T>> {
 	const tokenResult = await getBonusEngineAccessToken(payload.env);
 	if (!tokenResult.ok || !tokenResult.data) {
@@ -149,6 +156,7 @@ async function signedLoyaltyRequest<T>(payload: {
 					projectId: config.projectId,
 					userId: payload.userId,
 					pointsToRedeem: payload.pointsToRedeem,
+					...(payload.loyaltyId ? { loyaltyId: payload.loyaltyId } : {}),
 				});
 
 	return bonusEngineRequest<T>({
