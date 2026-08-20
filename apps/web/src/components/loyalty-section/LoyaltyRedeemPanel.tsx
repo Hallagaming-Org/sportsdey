@@ -8,7 +8,10 @@ type LoyaltyRedeemPanelProps = {
 	availablePoints: number;
 	isRedeeming: boolean;
 	listsErrorMessage?: string | null;
-	onRedeem: (pointsToRedeem: number) => Promise<void>;
+	onRedeem: (payload: {
+		pointsToRedeem: number;
+		campaignId: string;
+	}) => Promise<void>;
 };
 
 export function LoyaltyRedeemPanel({
@@ -41,7 +44,10 @@ export function LoyaltyRedeemPanel({
 		}
 		setActiveOfferId(offer.id);
 		try {
-			await onRedeem(offer.pointsCost);
+			await onRedeem({
+				pointsToRedeem: offer.pointsCost,
+				campaignId: offer.campaignId,
+			});
 		} catch (error) {
 			setLocalError(
 				error instanceof ApiError
