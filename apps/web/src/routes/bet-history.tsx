@@ -52,7 +52,7 @@ type TimePeriod = "All time" | "Today" | "Last 7 days" | "Last 30 days";
 
 const STATUS_STYLES: Record<BetStatus, { label: string; className: string }> = {
 	success: {
-		label: "Success",
+		label: "Won",
 		className: "bg-[#17351F] text-[#3DD26A]",
 	},
 	pending: {
@@ -60,7 +60,7 @@ const STATUS_STYLES: Record<BetStatus, { label: string; className: string }> = {
 		className: "bg-[#3A3312] text-[#E8C547]",
 	},
 	failed: {
-		label: "Failed",
+		label: "Lost",
 		className: "bg-[#3A1420] text-[#F0668A]",
 	},
 };
