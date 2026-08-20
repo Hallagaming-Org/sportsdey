@@ -1,3 +1,5 @@
+import { BONUS_ENGINE_SPORTSBOOK_STUB_EVENT_IDS } from "./reference-data.service.constant";
+
 export type SportsbookBetReportIds = {
 	sportId?: string;
 	eventId?: string;
@@ -27,9 +29,13 @@ export function extractSportsbookBetReportIds(
 		sportRaw === undefined || sportRaw === null ? "" : String(sportRaw).trim();
 	const eventId =
 		eventRaw === undefined || eventRaw === null ? "" : String(eventRaw).trim();
+	const liveEventId =
+		eventId && !BONUS_ENGINE_SPORTSBOOK_STUB_EVENT_IDS.has(eventId)
+			? eventId
+			: "";
 
 	return {
 		...(sportId ? { sportId } : {}),
-		...(eventId ? { eventId } : {}),
+		...(liveEventId ? { eventId: liveEventId } : {}),
 	};
 }

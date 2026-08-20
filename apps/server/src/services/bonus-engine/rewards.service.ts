@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../../db/schema";
 import type { CloudflareBindings } from "../../types";
@@ -11,6 +11,13 @@ import {
 export type ParsedMissionCashReward = {
 	amountMajor: number;
 	rewardType: string;
+};
+
+export type MissionRealCashCreditResult = {
+	status: "skipped" | "credited" | "already_credited" | "wallet_missing";
+	credited: boolean;
+	amountKobo: number;
+	reference: string | null;
 };
 
 export function parseMissionRealCashReward(
@@ -46,15 +53,25 @@ export async function creditMissionRealCashReward(payload: {
 	userId: string;
 	missionId: string;
 	reward: unknown;
-}): Promise<{ credited: boolean; amountKobo: number; reference: string | null }> {
+}): Promise<MissionRealCashCreditResult> {
 	const parsed = parseMissionRealCashReward(payload.reward);
 	if (!parsed) {
-		return { credited: false, amountKobo: 0, reference: null };
+		return {
+			status: "skipped",
+			credited: false,
+			amountKobo: 0,
+			reference: null,
+		};
 	}
 
 	const amountKobo = Math.round(parsed.amountMajor * 100);
 	if (amountKobo <= 0) {
-		return { credited: false, amountKobo: 0, reference: null };
+		return {
+			status: "skipped",
+			credited: false,
+			amountKobo: 0,
+			reference: null,
+		};
 	}
 
 	const reference = `${BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX}:${payload.missionId}:${payload.userId}`;
@@ -64,7 +81,12 @@ export async function creditMissionRealCashReward(payload: {
 		where: eq(schema.walletTransaction.reference, reference),
 	});
 	if (existing) {
-		return { credited: false, amountKobo, reference };
+		return {
+			status: "already_credited",
+			credited: false,
+			amountKobo,
+			reference,
+		};
 	}
 
 	const [wallet] = await db
@@ -78,31 +100,56 @@ export async function creditMissionRealCashReward(payload: {
 			userId: payload.userId,
 			missionId: payload.missionId,
 		});
-		return { credited: false, amountKobo, reference };
+		return {
+			status: "wallet_missing",
+			credited: false,
+			amountKobo,
+			reference,
+		};
 	}
 
 	const newBalance = wallet.balance + amountKobo;
-	await db
-		.update(schema.wallet)
-		.set({ balance: newBalance })
-		.where(eq(schema.wallet.userId, payload.userId));
+	try {
+		await db.batch([
+			db.insert(schema.walletTransaction).values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: payload.userId,
+				amount: amountKobo,
+				type: "credit",
+				reference,
+				status: "success",
+				paymentMethod: BONUS_ENGINE_WALLET_PAYMENT_METHOD.MISSION_REAL_CASH,
+				balance: newBalance,
+				metadata: JSON.stringify({
+					source: "bonus_engine",
+					missionId: payload.missionId,
+					rewardType: parsed.rewardType,
+					amountMajor: parsed.amountMajor,
+				}),
+			}),
+			db
+				.update(schema.wallet)
+				.set({
+					balance: sql`${schema.wallet.balance} + ${amountKobo}`,
+				})
+				.where(eq(schema.wallet.userId, payload.userId)),
+		]);
+	} catch (error: unknown) {
+		if (isUniqueConstraintError(error)) {
+			return {
+				status: "already_credited",
+				credited: false,
+				amountKobo,
+				reference,
+			};
+		}
+		throw error;
+	}
 
-	await db.insert(schema.walletTransaction).values({
-		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-		userId: payload.userId,
-		amount: amountKobo,
-		type: "credit",
-		reference,
-		status: "success",
-		paymentMethod: BONUS_ENGINE_WALLET_PAYMENT_METHOD.MISSION_REAL_CASH,
-		balance: newBalance,
-		metadata: JSON.stringify({
-			source: "bonus_engine",
-			missionId: payload.missionId,
-			rewardType: parsed.rewardType,
-			amountMajor: parsed.amountMajor,
-		}),
-	});
+	return { status: "credited", credited: true, amountKobo, reference };
+}
 
-	return { credited: true, amountKobo, reference };
+function isUniqueConstraintError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /unique|constraint/i.test(message);
 }
