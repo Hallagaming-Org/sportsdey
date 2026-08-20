@@ -31,6 +31,7 @@ import {
 	filterClassicGames,
 	isSlotegratorLobbyGame,
 	launchClassicGame,
+	resolveKnownLobbyImage,
 } from "@/lib/classic-lobby";
 import {
 	gameMatchesLobbyCategory,
@@ -427,9 +428,9 @@ function GamesPage() {
 	};
 
 	const getGameDisplay = (game: LobbyGame) => {
+		const image = resolveKnownLobbyImage(game);
 		if (!isScorpioGame(game)) {
 			const known = CLASSIC_KNOWN_GAMES[game.code];
-			const image = game.imageUrl || known?.image || null;
 			return {
 				name: game.name,
 				image,
@@ -440,7 +441,7 @@ function GamesPage() {
 
 		return {
 			name: game.name,
-			image: game.imageUrl || null,
+			image,
 			Icon: undefined as ComponentType<{ className?: string }> | undefined,
 			gradient: DEFAULT_GRADIENT,
 		};
