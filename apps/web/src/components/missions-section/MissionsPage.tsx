@@ -3,19 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
-import {
-	fetchMissionList,
-	MISSIONS_PREVIEW_CARDS,
-	type MissionPeriod,
-} from "@/lib/missions";
-import { MissionsError } from "./MissionsError.tsx";
+import { fetchMissionList, type MissionPeriod } from "@/lib/missions";
+import { MissionsError } from "./MissionsError";
 import { MissionsGridSkeleton } from "./MissionsGridSkeleton";
 import { MissionsHeader } from "./MissionsHeader";
 import { MissionsList } from "./MissionsList";
-import { MissionsPreviewBanner } from "./MissionsPreviewBanner";
 import { MissionsToolbar } from "./MissionsToolbar";
-
-
 
 export function MissionsPage() {
 	const { data: session, isPending: isSessionLoading } = useSession();
@@ -34,40 +27,29 @@ export function MissionsPage() {
 		retry: false,
 	});
 
-
-	const isPreview =
-		isError &&
-		(!(error instanceof ApiError) ||
-			error.isNetworkError ||
-			error.status === undefined ||
-			error.status === 404 ||
-			error.status === 502 ||
-			error.status === 503);
-	const displayMissions = isPreview ? MISSIONS_PREVIEW_CARDS : missions;
-
 	const periodCounts = useMemo(() => {
 		const counts: Record<MissionPeriod, number> = {
-			all: displayMissions.length,
+			all: missions.length,
 			daily: 0,
 			weekly: 0,
 			monthly: 0,
 		};
-		for (const mission of displayMissions) {
+		for (const mission of missions) {
 			counts[mission.period] += 1;
 		}
 		return counts;
-	}, [displayMissions]);
+	}, [missions]);
 
 	const periodMissions = useMemo(
 		() =>
 			activePeriod === "all"
-				? displayMissions
-				: displayMissions.filter((mission) => mission.period === activePeriod),
-		[activePeriod, displayMissions],
+				? missions
+				: missions.filter((mission) => mission.period === activePeriod),
+		[activePeriod, missions],
 	);
 	const completedMissions = useMemo(
-		() => displayMissions.filter((mission) => mission.status === "completed"),
-		[displayMissions],
+		() => missions.filter((mission) => mission.status === "completed"),
+		[missions],
 	);
 
 	const filteredPeriodMissions = useMemo(() => {
@@ -98,8 +80,6 @@ export function MissionsPage() {
 			<div className="rounded-2xl border border-[#F1F2F4] bg-white p-4 shadow-sm sm:p-6 dark:border-[#1B2722] dark:bg-[#1C1D1F]">
 				<MissionsHeader />
 
-				{isPreview ? <MissionsPreviewBanner error={error} /> : null}
-
 				<MissionsToolbar
 					activePeriod={activePeriod}
 					periodCounts={periodCounts}
@@ -111,7 +91,7 @@ export function MissionsPage() {
 
 				{isSessionLoading || isLoading ? (
 					<MissionsGridSkeleton />
-				) : isError && !isPreview ? (
+				) : isError ? (
 					<MissionsError error={error} />
 				) : (
 					<MissionsList

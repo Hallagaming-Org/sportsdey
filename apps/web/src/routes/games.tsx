@@ -47,8 +47,17 @@ import FilerAToZ from "@/logos/FilerAToZ";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
-	validateSearch: (search: Record<string, unknown>): { category?: string } => ({
-		category: (search.category as string) || undefined,
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { category?: string; play?: string } => ({
+		category:
+			typeof search.category === "string" && search.category
+				? search.category
+				: undefined,
+		play:
+			typeof search.play === "string" && search.play.trim()
+				? search.play.trim()
+				: undefined,
 	}),
 });
 
@@ -95,8 +104,7 @@ function mergeLobbyGames(
 
 function GamesPage() {
 	const navigate = useNavigate({ from: "/games" });
-	const { category } = Route.useSearch();
-
+	const { category, play } = Route.useSearch();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
 	const [activeLaunchId, setActiveLaunchId] = useState<string | null>(null);
 	const [showBalanceModal, setShowBalanceModal] = useState(false);
@@ -106,6 +114,7 @@ function GamesPage() {
 	const [sortAsc, setSortAsc] = useState<boolean | null>(null);
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 	const [launchError, setLaunchError] = useState<string | null>(null);
+	const autoPlayHandledRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		setSelectedCategory(category || null);
@@ -409,6 +418,37 @@ function GamesPage() {
 		}
 		void handleGameLaunch(game, "real");
 	};
+
+	useEffect(() => {
+		if (!play || isLoading || allGames.length === 0) return;
+		if (autoPlayHandledRef.current === play) return;
+		autoPlayHandledRef.current = play;
+
+		const needle = play.trim().toLowerCase();
+		const target = allGames.find((game) => {
+			const id = game.id.trim().toLowerCase();
+			const code = game.code.trim().toLowerCase();
+			return id === needle || code === needle;
+		});
+
+		navigate({
+			to: "/games",
+			search: {
+				category: selectedCategory || undefined,
+				play: undefined,
+			},
+			replace: true,
+		});
+
+		if (!target) {
+			setLaunchError(
+				"This mission game is not available in the lobby yet. Pick another title below.",
+			);
+			return;
+		}
+
+		handleCardActivate(target);
+	}, [play, isLoading, allGames, navigate, selectedCategory]);
 
 	const activeLaunchGame = useMemo(
 		() =>

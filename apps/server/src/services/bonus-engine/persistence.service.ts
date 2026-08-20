@@ -10,10 +10,6 @@ function createBonusEngineDb(env: CloudflareBindings): BonusEngineDb {
 	return drizzle(env.DB, { schema });
 }
 
-/**
- * Records a callback event once. Returns whether this delivery is new.
- * Duplicate idempotency keys yield `isNew: false` so handlers can ACK without re-applying.
- */
 export async function recordBonusEngineCallbackEvent(payload: {
 	env: CloudflareBindings;
 	eventType: string;
@@ -45,10 +41,6 @@ export async function recordBonusEngineCallbackEvent(payload: {
 	}
 }
 
-/**
- * Upserts the local loyalty points/level snapshot for a player.
- * Omit `totalPoints` to update only the VIP level (level-up callbacks).
- */
 export async function upsertBonusEngineLoyaltySnapshot(payload: {
 	env: CloudflareBindings;
 	userId: string;
@@ -79,9 +71,29 @@ export async function upsertBonusEngineLoyaltySnapshot(payload: {
 	});
 }
 
-/**
- * Upserts mission progress (and optional completion metadata) for a player.
- */
+export async function listBonusEngineMissionProgressForUser(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<
+	Array<{
+		missionId: string;
+		progressPercentage: number;
+		completedAt: Date | null;
+		rewardJson: string | null;
+	}>
+> {
+	const db = createBonusEngineDb(payload.env);
+	const rows = await db.query.bonusEngineMissionProgress.findMany({
+		where: eq(schema.bonusEngineMissionProgress.userId, payload.userId),
+	});
+	return rows.map((row) => ({
+		missionId: row.missionId,
+		progressPercentage: row.progressPercentage,
+		completedAt: row.completedAt ?? null,
+		rewardJson: row.rewardJson ?? null,
+	}));
+}
+
 export async function upsertBonusEngineMissionProgress(payload: {
 	env: CloudflareBindings;
 	userId: string;
@@ -101,10 +113,14 @@ export async function upsertBonusEngineMissionProgress(payload: {
 	});
 
 	if (existing) {
+		const nextPercentage = Math.max(
+			existing.progressPercentage,
+			payload.progressPercentage,
+		);
 		await db
 			.update(schema.bonusEngineMissionProgress)
 			.set({
-				progressPercentage: payload.progressPercentage,
+				progressPercentage: nextPercentage,
 				completedAt: payload.completedAt ?? existing.completedAt,
 				rewardJson: payload.rewardJson ?? existing.rewardJson,
 				updatedAt: new Date(),
@@ -122,9 +138,6 @@ export async function upsertBonusEngineMissionProgress(payload: {
 	});
 }
 
-/**
- * Loads real (main wallet) and bonus (game wallet) balances in major currency units.
- */
 export async function getBonusEngineWalletBalances(payload: {
 	env: CloudflareBindings;
 	userId: string;
