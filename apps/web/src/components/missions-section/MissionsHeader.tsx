@@ -5,9 +5,6 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 
-/**
- * Missions page title, subtitle, and “How Missions Work” popover.
- */
 export function MissionsHeader() {
 	return (
 		<div className="mb-6 flex items-center gap-14 sm:justify-between sm:gap-4">
