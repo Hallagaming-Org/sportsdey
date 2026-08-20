@@ -14,10 +14,6 @@ type BonusEngineMissionListEnvelope = {
 	data?: BonusEngineMissionListItem[];
 };
 
-/**
- * Lists mission levels and provider game constraints for a player.
- * Progress is driven by `/bet` events on the engine, not a separate progress POST.
- */
 export async function listBonusEngineMissions(payload: {
 	env: CloudflareBindings;
 	userId: string;
