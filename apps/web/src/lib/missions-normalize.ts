@@ -10,7 +10,6 @@ export type MissionCadence = "daily" | "weekly" | "monthly";
 
 export type MissionPeriod = "all" | MissionCadence;
 
-/** Where the CTA should send the player for this mission. */
 export type MissionActionKind =
 	| "sports"
 	| "casino"
@@ -19,7 +18,6 @@ export type MissionActionKind =
 	| "invite"
 	| "generic";
 
-/** Normalized mission card model for the Missions UI. */
 export type MissionCard = {
 	id: string;
 	level: string;
@@ -34,14 +32,14 @@ export type MissionCard = {
 	status: "active" | "completed" | "locked" | "upcoming" | "ended";
 	lockedMessage: string | null;
 	actionLabel: string;
-	/** Path only (no query string) — use `actionSearch` for play deep-links. */
+	
 	actionHref: string;
-	/** Optional TanStack search params (e.g. `{ play: gameUniqueId }`). */
+	
 	actionSearch?: { play?: string };
 	actionKind: MissionActionKind;
-	/** Providers that qualify bets toward this mission (from provider_games). */
+	
 	providers: Array<{ uniqueId: string; name: string }>;
-	/** Specific games under those providers, when Admin configured them. */
+	
 	games: Array<{ uniqueId: string; name: string; providerName: string }>;
 	startAt: string | null;
 	endAt: string | null;
@@ -68,11 +66,6 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DAILY_MAX_MS = 1.5 * MS_PER_DAY;
 const WEEKLY_MAX_MS = 8 * MS_PER_DAY;
 
-/**
- * Maps opaque Bonus Engine mission payloads into a stable UI model.
- * List items are campaign definitions; progress % is not always present until
- * gamification callbacks land — we derive a sensible current/target pair.
- */
 export function normalizeMissionRecord(
 	record: MissionRecord,
 	index = 0,
@@ -170,10 +163,6 @@ export function normalizeMissionRecord(
 	};
 }
 
-/**
- * Higher mission levels stay locked until earlier levels are completed.
- * Matches the design's "Complete N more missions to unlock" state.
- */
 export function applyMissionLevelLocks(cards: MissionCard[]): MissionCard[] {
 	const levelRank = (level: string): number => {
 		const match = level.match(/(\d+)/);
@@ -210,10 +199,6 @@ export function applyMissionLevelLocks(cards: MissionCard[]): MissionCard[] {
 	});
 }
 
-/**
- * Resolves CTA destination from Admin trigger types + configured provider_games.
- * Never keyword-matches casino game titles (e.g. "Football Golden Cup") into Sports.
- */
 export function resolveMissionAction(payload: {
 	triggerTypes: string[];
 	providers: MissionCard["providers"];
@@ -278,11 +263,6 @@ export function resolveMissionAction(payload: {
 	};
 }
 
-/**
- * Parses Bonus Engine `provider_games` into flat provider and game lists.
- * Empty provider/game entries mean "no game filter configured yet" — any bet
- * may still count once Admin fills them in and `/bet` reporting is wired.
- */
 function parseProviderGames(value: unknown): {
 	providers: MissionCard["providers"];
 	games: MissionCard["games"];
@@ -331,10 +311,6 @@ function parseProviderGames(value: unknown): {
 	return { providers, games };
 }
 
-/**
- * Reads Admin `mission_triggers` for CTA classification, progress targets,
- * and rewards (`parameters.rewards` — preferred over legacy `missions_points`).
- */
 function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
 	if (!Array.isArray(value)) {
 		return {

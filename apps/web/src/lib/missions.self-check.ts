@@ -1,8 +1,4 @@
-/**
- * Runnable check for mission CTA routing (no Vitest in the web package).
- * Run from repo root:
- *   node --import ./apps/server/node_modules/tsx/dist/loader.mjs apps/web/src/lib/missions.self-check.ts
- */
+
 import assert from "node:assert/strict";
 import {
 	normalizeMissionRecord,

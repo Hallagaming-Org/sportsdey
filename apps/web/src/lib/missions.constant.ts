@@ -1,9 +1,3 @@
-/**
- * Stable routes and trigger keywords for mission CTA resolution.
- * Destinations come from Bonus Engine `mission_triggers` + `provider_games`,
- * never from guessing on casino game display names.
- */
-
 export const MISSION_ROUTE = {
 	SPORTS: "/sportsbetting",
 	CASINO: "/games",
@@ -22,18 +16,13 @@ export const MISSION_ACTION_LABEL = {
 	LOCKED: "Locked",
 } as const;
 
-/** Query key for deep-linking a mission-configured game on the casino lobby. */
 export const MISSION_PLAY_SEARCH_KEY = "play" as const;
 
-/**
- * Trigger-type substrings from Bonus Engine Admin (matched against
- * `mission_triggers[].type` only — not mission titles or game names).
- */
 export const MISSION_TRIGGER_KEYWORD = {
 	DEPOSIT: /\bdeposit\b/i,
 	INVITE: /\b(refer|invite|friend)\b/i,
 	VIRTUAL: /\bvirtual\b/i,
-	/** Admin sportsbook triggers — includes "Bet on specific …/sport/odd/market/event". */
+	
 	SPORTS:
 		/\b(sportsbook|sporting|sports bet|place bet on sport|bet on specific provider\/game\/sport|\/sport\/odd\/market\/event)\b/i,
 	WAGER_OR_BET: /\b(wager|bet|login)\b/i,

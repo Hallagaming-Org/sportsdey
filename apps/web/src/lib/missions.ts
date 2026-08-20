@@ -17,9 +17,6 @@ export {
 	resolveMissionAction,
 } from "./missions-normalize";
 
-/**
- * Fetches the authenticated player's mission list from SportsDey (`POST /mission/list`).
- */
 export async function fetchMissionList(): Promise<MissionCard[]> {
 	const data = await apiRequest<Record<string, unknown>[]>("mission/list", {
 		method: "POST",
