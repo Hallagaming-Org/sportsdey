@@ -90,4 +90,9 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	PROJECT_ID: "project_id",
 	USER_ID: "user_id",
 	POINTS_TO_REDEEM: "points_to_redeem",
+	LOYALTY_ID: "loyalty_id",
 } as const;
+
+export const BONUS_ENGINE_REPORT_RETRY_ATTEMPTS = 3;
+
+export const BONUS_ENGINE_REPORT_RETRY_DELAYS_MS = [200, 800] as const;

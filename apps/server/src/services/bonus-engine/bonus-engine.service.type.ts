@@ -48,6 +48,7 @@ export type BonusEngineLoyaltyProjectBody = {
 
 export type BonusEngineLoyaltyRedeemBody = BonusEngineLoyaltyScopedBody & {
 	points_to_redeem: number;
+	loyalty_id?: string;
 };
 
 export type BonusEngineLoyaltyCampaignItem = Record<string, unknown>;

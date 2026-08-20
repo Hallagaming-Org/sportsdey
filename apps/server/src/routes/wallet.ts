@@ -10,6 +10,7 @@ import {
 import {
 	BONUS_ENGINE_DEFAULT_CURRENCY,
 	reportBonusEngineDeposit,
+	runBonusEngineBackground,
 } from "@/services/bonus-engine";
 import {
 	CallbackQuerySchema,
@@ -997,42 +998,43 @@ walletRoute.openapi(callbackRoute, async (c) => {
 						},
 						c.executionCtx,
 					);
-
-					if (transaction.type === "credit") {
-						const depositAmountMajor =
-							(tx.amount ?? transaction.amount) / 100;
-						const depositReport = reportBonusEngineDeposit({
-							env: c.env,
-							deposit: {
-								userId: transaction.userId,
-								amount: depositAmountMajor,
-								transactionId: reference,
-								currency: BONUS_ENGINE_DEFAULT_CURRENCY,
-							},
-						})
-							.then((result) => {
-								if (!result.ok) {
-									console.error("Bonus Engine deposit report failed", {
-										transactionId: reference,
-										userId: transaction.userId,
-										status: result.status,
-										error: result.error,
-									});
-								}
-							})
-							.catch((error: unknown) => {
-								console.error("Bonus Engine deposit report error", {
-									transactionId: reference,
-									userId: transaction.userId,
-									error,
-								});
-							});
-
-						if (typeof c.executionCtx?.waitUntil === "function") {
-							c.executionCtx.waitUntil(depositReport);
-						}
-					}
 				}
+			}
+
+			if (
+				status === "success" &&
+				transaction?.type === "credit"
+			) {
+				const depositAmountMajor =
+					(tx.amount ?? transaction.amount) / 100;
+				const depositReport = reportBonusEngineDeposit({
+					env: c.env,
+					deposit: {
+						userId: transaction.userId,
+						amount: depositAmountMajor,
+						transactionId: reference,
+						currency: BONUS_ENGINE_DEFAULT_CURRENCY,
+					},
+				})
+					.then((result) => {
+						if (!result.ok) {
+							console.error("Bonus Engine deposit report failed", {
+								transactionId: reference,
+								userId: transaction.userId,
+								status: result.status,
+								error: result.error,
+							});
+						}
+					})
+					.catch((error: unknown) => {
+						console.error("Bonus Engine deposit report error", {
+							transactionId: reference,
+							userId: transaction.userId,
+							error,
+						});
+					});
+
+				await runBonusEngineBackground(c.executionCtx, depositReport);
 			}
 		}
 	}

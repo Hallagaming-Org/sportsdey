@@ -25,7 +25,7 @@ type CallbackContext = {
 		header: (name: string) => string | undefined;
 	};
 	env: CloudflareBindings;
-	json: (body: Record<string, unknown>, status?: 200 | 400 | 413) => Response;
+	json: (body: Record<string, unknown>, status?: 200 | 400 | 413 | 502) => Response;
 };
 
 async function readAndVerifyCallbackBody(
@@ -85,7 +85,12 @@ function asString(value: unknown): string {
 }
 
 function asNumber(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string" && value.trim()) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	return 0;
 }
 
 callbackRoute.post(
@@ -226,23 +231,8 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 		typeof body.reward === "object" && body.reward !== null
 			? body.reward
 			: null;
-	const recorded = await recordBonusEngineCallbackEvent({
-		env: c.env,
-		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.MISSION_COMPLETE,
-		idempotencySeed: `${missionId}:${playerId}`,
-		bodyJson: verified.bodyString,
-	});
 
-	if (recorded.isNew && playerId && missionId) {
-		await upsertBonusEngineMissionProgress({
-			env: c.env,
-			userId: playerId,
-			missionId,
-			progressPercentage: 100,
-			completedAt: new Date(),
-			rewardJson: reward ? JSON.stringify(reward) : null,
-		});
-
+	if (playerId && missionId) {
 		try {
 			const cashCredit = await creditMissionRealCashReward({
 				env: c.env,
@@ -250,6 +240,16 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 				missionId,
 				reward,
 			});
+			if (cashCredit.status === "wallet_missing") {
+				console.error("Mission Real Cash credit blocked — wallet missing", {
+					userId: playerId,
+					missionId,
+				});
+				return c.json(
+					{ status: 502, message: "WALLET_MISSING" },
+					502,
+				);
+			}
 			if (cashCredit.credited) {
 				console.info("Mission Real Cash credited", {
 					userId: playerId,
@@ -264,8 +264,25 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 				missionId,
 				error,
 			});
+			return c.json({ status: 502, message: "CREDIT_FAILED" }, 502);
 		}
+
+		await upsertBonusEngineMissionProgress({
+			env: c.env,
+			userId: playerId,
+			missionId,
+			progressPercentage: 100,
+			completedAt: new Date(),
+			rewardJson: reward ? JSON.stringify(reward) : null,
+		});
 	}
+
+	const recorded = await recordBonusEngineCallbackEvent({
+		env: c.env,
+		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.MISSION_COMPLETE,
+		idempotencySeed: `${missionId}:${playerId}`,
+		bodyJson: verified.bodyString,
+	});
 
 	return c.json(
 		{

@@ -28,6 +28,10 @@ export const LoyaltyRedeemRequestSchema = z
 				"Loyalty points to redeem (forwarded as Bonus Engine `points_to_redeem`)",
 			example: 500,
 		}),
+		loyalty_id: z.string().min(1).optional().openapi({
+			description:
+				"Active campaign `_id` from `POST /loyalty/lists` (forwarded as Bonus Engine `loyalty_id` when present)",
+		}),
 	})
 	.openapi("LoyaltyRedeemRequest");
 

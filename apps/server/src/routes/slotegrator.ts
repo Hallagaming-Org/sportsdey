@@ -6,6 +6,7 @@ import {
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_PRODUCT_TYPE,
 	reportBonusEngineBet,
+	runBonusEngineBackground,
 } from "@/services/bonus-engine";
 import { verifySlotitegrationSignature } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -558,9 +559,7 @@ slotegratorRoute.post("/", async (c) => {
 			});
 		});
 
-		if (typeof c.executionCtx?.waitUntil === "function") {
-			c.executionCtx.waitUntil(reportPromise);
-		}
+		await runBonusEngineBackground(c.executionCtx, reportPromise);
 
 		return c.json({ balance, transaction_id: txId }, 200);
 	}

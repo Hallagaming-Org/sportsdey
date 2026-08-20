@@ -27,6 +27,7 @@ import {
 	BONUS_ENGINE_PRODUCT_TYPE,
 	extractSportsbookBetReportIds,
 	reportBonusEngineBet,
+	runBonusEngineBackground,
 } from "@/services/bonus-engine";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -886,9 +887,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				});
 			});
 
-		if (typeof c.executionCtx?.waitUntil === "function") {
-			c.executionCtx.waitUntil(reportPromise);
-		}
+		await runBonusEngineBackground(c.executionCtx, reportPromise);
 	}
 
 	return c.body(null, 204);
