@@ -73,3 +73,7 @@ export const BONUS_ENGINE_SPORTSBOOK_CATALOG = {
 		{ EventId: 5001, EventName: "Real Madrid vs Bayern Munich", MarketId: 1, MarketName: "Match Result" },
 	],
 } as const;
+
+export const BONUS_ENGINE_SPORTSBOOK_STUB_EVENT_IDS = new Set(
+	BONUS_ENGINE_SPORTSBOOK_CATALOG.events.map((event) => String(event.EventId)),
+);

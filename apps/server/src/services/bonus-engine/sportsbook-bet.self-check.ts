@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { extractSportsbookBetReportIds } from "./sportsbook-bet.service.ts";
+import { extractSportsbookBetReportIds } from "./sportsbook-bet.service";
 
 const live = extractSportsbookBetReportIds([
 	{ match_id: "987654", meta: { sport_id: 1 } },
