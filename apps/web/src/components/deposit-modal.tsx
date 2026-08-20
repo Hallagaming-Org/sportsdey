@@ -12,6 +12,7 @@ import VisaIcon from "@/logos/visa.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
 type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
+export type DepositProvider = "paystack" | "opay";
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
 
@@ -46,7 +47,7 @@ interface DepositModalProps {
 	onClose: () => void;
 	amount: string;
 	onAmountChange: (value: string) => void;
-	onSubmit: () => void;
+	onSubmit: (provider: DepositProvider) => void;
 	isPending: boolean;
 	error: string;
 	walletBalance?: number;
@@ -99,7 +100,24 @@ export function DepositModal({
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
-		onSubmit();
+		if (activeMethod === "bank_transfer" || activeMethod === "crypto") {
+			return;
+		}
+
+		if (activeMethod === "card") {
+			onSubmit("paystack");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "opay") {
+			onSubmit("opay");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "paystack") {
+			onSubmit("paystack");
+			return;
+		}
 	};
 
 	const handleCopyAccountNumber = () => {
@@ -395,11 +413,11 @@ export function DepositModal({
 
 								<button
 									type="submit"
-									disabled={isPending}
+									disabled={isPending || selectedBank === "kuda"}
 									className="justify-center  mt-6 w-full  cursor-pointer rounded-lg bg-accent py-4 font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
 								>
 									{isPending
-										? "Processing..." 
+										? "Processing..."
 										: activeMethod === "direct_banking" && selectedBankName
 											? `Deposit via "${selectedBankName}"`
 											: "Top up now"}

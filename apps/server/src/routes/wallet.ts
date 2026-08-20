@@ -621,21 +621,7 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		currentBalance = existingWallet.balance;
 	}
 
-	const callbackUrl = `${c.env.SERVER_URL}/wallet/callback`;
-	const paystackResult = await initializeTransaction(
-		c.env.PAYSTACK_SECRET_KEY,
-		amount,
-		user.email,
-		{
-			userId: user.id,
-			type: "wallet_funding",
-		},
-		callbackUrl,
-		c.env.PROXY_URL,
-		c.env.PROXY_SECRET,
-	);
-	console.log("paystackResult", paystackResult);
-
+	const reference = `paystack_${crypto.randomUUID()}`;
 	const [creditTxn] = await db
 		.insert(schema.walletTransaction)
 		.values({
@@ -643,14 +629,14 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			userId: user.id,
 			amount: amount * 100,
 			type: "credit",
-			reference: paystackResult.reference,
+			reference,
 			status: "pending",
 			paymentMethod: "card",
 			balance: currentBalance,
 			createdAt: new Date(),
 			metadata: JSON.stringify({
 				source: "card",
-				paystackReference: paystackResult.reference,
+				paystackReference: reference,
 				ipAddress,
 				device,
 				location,
@@ -667,6 +653,45 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			{ success: false, error: "Failed to record deposit transaction" },
 			500,
 		);
+	}
+
+	let paystackResult: Awaited<ReturnType<typeof initializeTransaction>>;
+	try {
+		paystackResult = await initializeTransaction(
+			c.env.PAYSTACK_SECRET_KEY,
+			amount,
+			user.email,
+			{
+				userId: user.id,
+				type: "wallet_funding",
+			},
+			`${c.env.SERVER_URL}/wallet/callback`,
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
+			reference,
+		);
+	} catch (error) {
+		const [updatedTxn] = await db
+			.update(schema.walletTransaction)
+			.set({ status: "failed" })
+			.where(eq(schema.walletTransaction.id, transactionId))
+			.returning({ id: schema.walletTransaction.id });
+		if (!updatedTxn?.id) {
+			return c.json({ success: false, error: "Failed to update deposit transaction" }, 500);
+		}
+		console.error("Paystack initiate failed:", error);
+		return c.json({ success: false, error: "Failed to initialize deposit" }, 400);
+	}
+
+	if (paystackResult.reference !== reference) {
+		const [updatedTxn] = await db
+			.update(schema.walletTransaction)
+			.set({ reference: paystackResult.reference })
+			.where(eq(schema.walletTransaction.id, transactionId))
+			.returning({ id: schema.walletTransaction.id });
+		if (!updatedTxn?.id) {
+			return c.json({ success: false, error: "Failed to update deposit reference" }, 500);
+		}
 	}
 
 	return c.json(

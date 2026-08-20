@@ -72,6 +72,18 @@ opayRoute.openapi(initiateRoute, async (c) => {
 	const amountKobo = Math.round(parsed.data.amount * 100);
 
 	try {
+		const [opayTxn] = await db.insert(schema.opayTransaction).values({
+			id: `opaytxn_${crypto.randomUUID()}`,
+			userId: user.id,
+			reference,
+			amount: amountKobo,
+			status: "initiated",
+		}).returning({ id: schema.opayTransaction.id });
+
+		if (!opayTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to record deposit transaction" }, 500);
+		}
+
 		const result = await createCashierOrder(
 			{
 				env: c.env.NODE_ENV === "production" ? "production" : "sandbox",
@@ -91,18 +103,14 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			},
 		);
 
-		const [opayTxn] = await db.insert(schema.opayTransaction).values({
-			id: `opaytxn_${crypto.randomUUID()}`,
-			userId: user.id,
-			reference,
-			orderNo: result.orderNo,
-			amount: amountKobo,
-			status: "initiated",
-			cashierUrl: result.cashierUrl,
-		}).returning({ id: schema.opayTransaction.id });
+		const [updatedTxn] = await db
+			.update(schema.opayTransaction)
+			.set({ orderNo: result.orderNo, cashierUrl: result.cashierUrl })
+			.where(eq(schema.opayTransaction.id, opayTxn.id))
+			.returning({ id: schema.opayTransaction.id });
 
-		if (!opayTxn?.id) {
-			return c.json({ success: false as const, error: "Failed to record deposit transaction" }, 500);
+		if (!updatedTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
 		}
 
 		return c.json(
@@ -113,7 +121,14 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			200,
 		);
 	} catch (err) {
-		
+		const [updatedTxn] = await db
+			.update(schema.opayTransaction)
+			.set({ status: "failed" })
+			.where(eq(schema.opayTransaction.reference, reference))
+			.returning({ id: schema.opayTransaction.id });
+		if (!updatedTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
+		}
 		console.error("OPay initiate failed:", err instanceof Error ? err.message : err);
 		return c.json({ success: false as const, error: "Failed to initiate deposit" }, 500);
 	}

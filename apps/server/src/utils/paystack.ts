@@ -32,6 +32,7 @@ export async function initializeTransaction(
 	callbackUrl?: string,
 	proxyUrl?: string,
 	proxySecret?: string,
+	reference?: string,
 ): Promise<InitializeTransactionResponse> {
 	const headers: Record<string, string> = proxyUrl
 		? {
@@ -44,7 +45,11 @@ export async function initializeTransaction(
 				"Content-Type": "application/json",
 			};
 	console.log("headers", headers);
-	const response = await fetch(`${proxyUrl}/paystack/transaction/initialize`, {
+	const baseUrl = proxyUrl || "https://api.paystack.co";
+	const endpoint = proxyUrl
+		? "/paystack/transaction/initialize"
+		: "/transaction/initialize";
+	const response = await fetch(`${baseUrl}${endpoint}`, {
 		method: "POST",
 		headers,
 		body: JSON.stringify({
@@ -53,6 +58,7 @@ export async function initializeTransaction(
 			currency: "NGN",
 			metadata,
 			callback_url: callbackUrl,
+			reference,
 		}),
 	});
 	const responseText = await response.text();
@@ -112,7 +118,7 @@ export async function verifyWebhookSignature(
 	payload: string,
 	signature: string,
 ): Promise<boolean> {
-	const crypto = await import("crypto");
+	const crypto = await import("node:crypto");
 	const hash = crypto
 		.createHmac("sha512", secretKey)
 		.update(payload)
