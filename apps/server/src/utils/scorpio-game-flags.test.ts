@@ -23,4 +23,26 @@ describe("scorpio game flags", () => {
 		assert.equal(overlaid[0]?.enabled, false);
 		assert.equal(overlaid[1]?.enabled, true);
 	});
+
+	it("keeps provider-disabled games off even without a local overlay row", () => {
+		const overlaid = overlayScorpioEnabled(
+			[
+				{
+					gameID: "vs20olympgate",
+					gameName: "Gates of Olympus",
+					enabled: false,
+				},
+				{
+					gameID: "vs20starlight",
+					gameName: "Starlight Princess",
+					inMaintenance: true,
+				},
+			],
+			1,
+			new Set(),
+		);
+
+		assert.equal(overlaid[0]?.enabled, false);
+		assert.equal(overlaid[1]?.enabled, false);
+	});
 });

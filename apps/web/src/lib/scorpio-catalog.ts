@@ -16,6 +16,7 @@ export type ScorpioRemoteGame = {
 	gameType?: number;
 	inMaintenance?: boolean;
 	status?: number;
+	enabled?: boolean;
 };
 
 export type ScorpioCategory = {
