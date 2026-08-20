@@ -57,6 +57,7 @@ export type { CasinoCatalogSyncResult } from "./catalog-sync.service";
 export {
 	reportBonusEngineBet,
 	reportBonusEngineDeposit,
+	runBonusEngineBackground,
 } from "./events.service";
 export {
 	creditMissionRealCashReward,
@@ -72,9 +73,10 @@ export {
 	getBonusEngineLoyaltyPoints,
 	redeemBonusEngineLoyaltyPoints,
 } from "./loyalty.service";
-export { listBonusEngineMissions } from "./mission.service";
+export { listBonusEngineMissions, mergeMissionListWithLocalProgress } from "./mission.service";
 export {
 	getBonusEngineWalletBalances,
+	listBonusEngineMissionProgressForUser,
 	recordBonusEngineCallbackEvent,
 	upsertBonusEngineLoyaltySnapshot,
 	upsertBonusEngineMissionProgress,
