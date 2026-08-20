@@ -9,10 +9,6 @@ import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
 import { getBonusEngineWalletBalances } from "./persistence.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
-/**
- * Syncs a SportsDey player into Bonus Engine via merchant-attested `/login`.
- * New users are created; existing users receive balance updates.
- */
 export async function loginBonusEnginePlayer(payload: {
 	env: CloudflareBindings;
 	player: BonusEngineLoginInput;
@@ -49,11 +45,6 @@ export async function loginBonusEnginePlayer(payload: {
 	});
 }
 
-/**
- * Fire-safe Bonus Engine `/login` sync for real app sign-in (email/OAuth/phone).
- * Never throws — login UX must not fail if Bonus Engine is down or unconfigured.
- * Lets Bonus Engine attribute consecutive-login mission progress from merchant logins.
- */
 export async function syncBonusEnginePlayerOnAppLogin(payload: {
 	env: CloudflareBindings;
 	userId: string;

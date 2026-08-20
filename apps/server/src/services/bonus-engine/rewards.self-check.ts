@@ -1,7 +1,3 @@
-/**
- * Runnable check for Real Cash reward parsing.
- * Run: `node --import tsx src/services/bonus-engine/rewards.self-check.ts`
- */
 import assert from "node:assert/strict";
 import { parseMissionRealCashReward } from "./rewards.service.ts";
 

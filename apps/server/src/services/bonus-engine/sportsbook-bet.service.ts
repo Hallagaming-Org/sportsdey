@@ -1,17 +1,8 @@
-/**
- * Helpers for mapping Data.Bet sportsbook bet payloads into Bonus Engine
- * `POST /bet` fields (product_type=sportsbook).
- */
-
 export type SportsbookBetReportIds = {
 	sportId?: string;
 	eventId?: string;
 };
 
-/**
- * Pulls sport / event identifiers from the first selection on a placed/accepted bet.
- * Used as Bonus Engine `provider_id` (sport) and `game_id` (event/match).
- */
 export function extractSportsbookBetReportIds(
 	betOdds: unknown,
 ): SportsbookBetReportIds {

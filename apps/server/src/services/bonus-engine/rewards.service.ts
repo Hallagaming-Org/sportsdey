@@ -13,10 +13,6 @@ export type ParsedMissionCashReward = {
 	rewardType: string;
 };
 
-/**
- * Reads a mission-complete `reward` object (or first entry of a rewards array)
- * and returns a Real Cash amount in major currency units when present.
- */
 export function parseMissionRealCashReward(
 	reward: unknown,
 ): ParsedMissionCashReward | null {
@@ -45,12 +41,6 @@ export function parseMissionRealCashReward(
 	return null;
 }
 
-/**
- * Credits the player's main wallet for a Real Cash mission reward.
- * Idempotent via wallet_transaction.reference (`be_mission_reward:{mission}:{player}`).
- * No-ops for non–Real Cash rewards. Throws only for unexpected DB failures after
- * the caller has already confirmed this is a first-delivery callback.
- */
 export async function creditMissionRealCashReward(payload: {
 	env: CloudflareBindings;
 	userId: string;
