@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
+	Award,
 	ChevronDown,
 	Gamepad2,
 	Gift,
@@ -333,7 +334,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				trackWebengageEvent("Category", { Name: "Missions" });
 				navigate({ to: "/missions" as any });
 			},
-		},
+		},	
 		// {
 		// 	id: "refer",
 		// 	label: "Refer & Earn",

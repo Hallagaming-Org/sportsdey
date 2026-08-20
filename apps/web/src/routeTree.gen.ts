@@ -40,6 +40,7 @@ import { Route as PromotionsIndexRouteImport } from './routes/promotions.index'
 import { Route as NotificationsIndexRouteImport } from './routes/notifications.index'
 import { Route as NewsIndexRouteImport } from './routes/news.index'
 import { Route as MissionsIndexRouteImport } from './routes/missions.index'
+import { Route as LoyaltyIndexRouteImport } from './routes/loyalty.index'
 import { Route as KycIndexRouteImport } from './routes/kyc.index'
 import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
 import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
@@ -223,6 +224,11 @@ const NewsIndexRoute = NewsIndexRouteImport.update({
 const MissionsIndexRoute = MissionsIndexRouteImport.update({
   id: '/missions/',
   path: '/missions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoyaltyIndexRoute = LoyaltyIndexRouteImport.update({
+  id: '/loyalty/',
+  path: '/loyalty/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KycIndexRoute = KycIndexRouteImport.update({
@@ -424,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/basketball/': typeof BasketballIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
+  '/loyalty/': typeof LoyaltyIndexRoute
   '/missions/': typeof MissionsIndexRoute
   '/news/': typeof NewsIndexRoute
   '/notifications/': typeof NotificationsIndexRoute
@@ -478,6 +485,7 @@ export interface FileRoutesByTo {
   '/basketball': typeof BasketballIndexRoute
   '/boxing': typeof BoxingIndexRoute
   '/kyc': typeof KycIndexRoute
+  '/loyalty': typeof LoyaltyIndexRoute
   '/missions': typeof MissionsIndexRoute
   '/news': typeof NewsIndexRoute
   '/notifications': typeof NotificationsIndexRoute
@@ -541,6 +549,7 @@ export interface FileRoutesById {
   '/basketball/': typeof BasketballIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
+  '/loyalty/': typeof LoyaltyIndexRoute
   '/missions/': typeof MissionsIndexRoute
   '/news/': typeof NewsIndexRoute
   '/notifications/': typeof NotificationsIndexRoute
@@ -605,6 +614,7 @@ export interface FileRouteTypes {
     | '/basketball/'
     | '/boxing/'
     | '/kyc/'
+    | '/loyalty/'
     | '/missions/'
     | '/news/'
     | '/notifications/'
@@ -659,6 +669,7 @@ export interface FileRouteTypes {
     | '/basketball'
     | '/boxing'
     | '/kyc'
+    | '/loyalty'
     | '/missions'
     | '/news'
     | '/notifications'
@@ -721,6 +732,7 @@ export interface FileRouteTypes {
     | '/basketball/'
     | '/boxing/'
     | '/kyc/'
+    | '/loyalty/'
     | '/missions/'
     | '/news/'
     | '/notifications/'
@@ -772,6 +784,7 @@ export interface RootRouteChildren {
   IndexMatchesRoute: typeof IndexMatchesRoute
   PlayGameNameRoute: typeof PlayGameNameRoute
   PromotionsIdRoute: typeof PromotionsIdRoute
+  LoyaltyIndexRoute: typeof LoyaltyIndexRoute
   MissionsIndexRoute: typeof MissionsIndexRoute
   PromotionsIndexRoute: typeof PromotionsIndexRoute
   IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute
@@ -994,6 +1007,13 @@ declare module '@tanstack/react-router' {
       path: '/missions'
       fullPath: '/missions/'
       preLoaderRoute: typeof MissionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loyalty/': {
+      id: '/loyalty/'
+      path: '/loyalty'
+      fullPath: '/loyalty/'
+      preLoaderRoute: typeof LoyaltyIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/kyc/': {
@@ -1380,6 +1400,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexMatchesRoute: IndexMatchesRoute,
   PlayGameNameRoute: PlayGameNameRoute,
   PromotionsIdRoute: PromotionsIdRoute,
+  LoyaltyIndexRoute: LoyaltyIndexRoute,
   MissionsIndexRoute: MissionsIndexRoute,
   PromotionsIndexRoute: PromotionsIndexRoute,
   IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,
