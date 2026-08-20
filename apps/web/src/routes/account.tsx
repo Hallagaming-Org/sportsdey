@@ -3,6 +3,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Camera, Edit, Loader2, User } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { DobPicker } from "@/components/dob-picker";
 import { Input } from "@/components/ui/input";
 import { syncAffnookRegistrationReferral } from "@/lib/affnook";
 import { apiRequest, apiUploadFile } from "@/lib/api";
@@ -477,16 +478,14 @@ function AccountPage() {
 									>
 										Date of birth:
 									</label>
-									<Input
+									<DobPicker
 										id={inputIds.dob}
-										type="text"
 										value={formState.dob}
-										onChange={(event) =>
-											updateField("dob", event.target.value)
-										}
+										onChange={(next) => updateField("dob", next)}
 										disabled={!isEditing}
-										placeholder="DD/MM/YYYY"
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										placeholder="Select date of birth"
+										className="flex-1"
+										triggerClassName="h-[42px] rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-sm shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 
