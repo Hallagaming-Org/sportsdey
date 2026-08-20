@@ -139,6 +139,8 @@ function MobileBetCard({
 	const isPending = bet.status === "pending";
 
 	const visibleSelections = bet.selections?.slice(0, 3) ?? [];
+	const hasSelections = visibleSelections.length > 0;
+	
 	const remainingCount =
 		bet.totalSelections !== undefined
 			? Math.max(0, bet.totalSelections - visibleSelections.length)
@@ -176,12 +178,12 @@ function MobileBetCard({
 				</div>
 
 				<div className="mt-3 space-y-1.5">
-					{visibleSelections.length > 0 ? (
+{					hasSelections ? (
 						visibleSelections.map((sel, i) => (
 							<div key={i} className="flex items-center justify-between text-sm">
-								<span className="text-white justify-between gap-8">
-									<span>{sel.home} </span>
-									<span className="text-[#6B6E6C] mr-12 ml-12">vs</span>
+								<span className="flex items-center gap-2 text-white">
+									<span>{sel.home}</span>
+									<span className="text-[#6B6E6C] text-xs">vs</span>
 									<span>{sel.away}</span>
 								</span>
 								<span className="text-[#8C8F8F] text-xs">({sel.market})</span>
@@ -190,7 +192,8 @@ function MobileBetCard({
 					) : (
 						<div className="text-[#B5B7B5] text-sm">{bet.type}</div>
 					)}
-					{remainingCount > 0 && (
+					
+					{hasSelections && remainingCount > 0 && (
 						<div className="text-[#5A5D5B] text-xs">
 							And {remainingCount} other selection...
 						</div>
