@@ -8,6 +8,14 @@ type MissionCardProps = {
 	mission: MissionCardModel;
 };
 
+const missionPath = (href: string): string => {
+	return href.split("#")[0] ?? href;
+};
+
+const missionHash = (href: string): string | undefined => {
+	return href.split("#")[1] ?? undefined;
+};
+
 export function MissionCard({ mission }: MissionCardProps) {
 	const isLocked = mission.status === "locked";
 	const isCompleted = mission.status === "completed";
@@ -78,7 +86,8 @@ export function MissionCard({ mission }: MissionCardProps) {
 					</button>
 				) : (
 					<Link
-						to={mission.actionHref}
+						to={missionPath(mission.actionHref)}
+						hash={missionHash(mission.actionHref)}
 						search={mission.actionSearch}
 						className="mt-auto flex h-11 w-full items-center justify-center rounded-xl bg-accent font-bold text-sm text-[#040C01] transition-colors hover:bg-[#158f03] hover:text-white"
 					>
@@ -89,3 +98,4 @@ export function MissionCard({ mission }: MissionCardProps) {
 		</article>
 	);
 }
+
