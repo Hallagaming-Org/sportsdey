@@ -28,10 +28,6 @@ type CallbackContext = {
 	json: (body: Record<string, unknown>, status?: 200 | 400 | 413) => Response;
 };
 
-/**
- * Verifies the inbound RSA signature over the raw body before any mutation.
- * Docs require HTTP 413 on invalid signatures.
- */
 async function readAndVerifyCallbackBody(
 	c: CallbackContext,
 ): Promise<{ ok: true; bodyString: string } | { ok: false; response: Response }> {

@@ -35,6 +35,23 @@ export type BonusEngineLoginInput = {
 	deviceType?: string;
 };
 
+export type BonusEngineLoyaltyScopedBody = {
+	client_id: string;
+	project_id: string;
+	user_id: string;
+};
+
+export type BonusEngineLoyaltyProjectBody = {
+	client_id: string;
+	project_id: string;
+};
+
+export type BonusEngineLoyaltyRedeemBody = BonusEngineLoyaltyScopedBody & {
+	points_to_redeem: number;
+};
+
+export type BonusEngineLoyaltyCampaignItem = Record<string, unknown>;
+
 export type BonusEngineLoyaltyPointsData = {
 	player_id?: string;
 	total_points?: number;

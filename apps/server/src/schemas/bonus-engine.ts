@@ -24,7 +24,8 @@ export const LoyaltyPointsSuccessSchema = z
 export const LoyaltyRedeemRequestSchema = z
 	.object({
 		points_to_redeem: z.number().positive().openapi({
-			description: "Loyalty points to redeem",
+			description:
+				"Loyalty points to redeem (forwarded as Bonus Engine `points_to_redeem`)",
 			example: 500,
 		}),
 	})
@@ -45,13 +46,34 @@ export const LoyaltyRedeemSuccessSchema = z
 	})
 	.openapi("LoyaltyRedeemSuccess");
 
+export const LoyaltyHistoryItemSchema = z
+	.object({
+		player_id: z.string().optional(),
+		points_earned: z.number().optional(),
+		points_redeemed: z.number().optional(),
+		points_balance: z.number().optional(),
+		transaction_type: z.string().optional(),
+		reason: z.string().optional(),
+		transaction_date: z.string().optional(),
+	})
+	.passthrough()
+	.openapi("LoyaltyHistoryItem");
+
 export const LoyaltyHistorySuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.array(LoyaltyHistoryItemSchema),
+		message: z.string().optional(),
+	})
+	.openapi("LoyaltyHistorySuccess");
+
+export const LoyaltyListsSuccessSchema = z
 	.object({
 		success: z.literal(true),
 		data: z.array(z.record(z.string(), z.unknown())),
 		message: z.string().optional(),
 	})
-	.openapi("LoyaltyHistorySuccess");
+	.openapi("LoyaltyListsSuccess");
 
 export const MissionListSuccessSchema = z
 	.object({

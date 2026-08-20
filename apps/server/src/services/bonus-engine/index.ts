@@ -1,4 +1,5 @@
 export {
+	BONUS_ENGINE_BODY_FIELD,
 	BONUS_ENGINE_CALLBACK_PATH,
 	BONUS_ENGINE_DEFAULT_CURRENCY,
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
@@ -14,9 +15,13 @@ export {
 export type {
 	BonusEngineApiResult,
 	BonusEngineLoginInput,
+	BonusEngineLoyaltyCampaignItem,
 	BonusEngineLoyaltyHistoryItem,
 	BonusEngineLoyaltyPointsData,
+	BonusEngineLoyaltyProjectBody,
+	BonusEngineLoyaltyRedeemBody,
 	BonusEngineLoyaltyRedeemData,
+	BonusEngineLoyaltyScopedBody,
 	BonusEngineMissionCompletePayload,
 	BonusEngineMissionListItem,
 	BonusEngineMissionProgressPayload,
@@ -47,6 +52,8 @@ export {
 	listBonusEngineSportEvents,
 	listBonusEngineSports,
 } from "./reference-data.service";
+export { syncCasinoCatalogFromSlotegrator } from "./catalog-sync.service";
+export type { CasinoCatalogSyncResult } from "./catalog-sync.service";
 export {
 	reportBonusEngineBet,
 	reportBonusEngineDeposit,
@@ -57,7 +64,11 @@ export {
 } from "./rewards.service";
 export { extractSportsbookBetReportIds } from "./sportsbook-bet.service";
 export {
+	buildBonusEngineLoyaltyProjectBody,
+	buildBonusEngineLoyaltyRedeemBody,
+	buildBonusEngineLoyaltyScopedBody,
 	getBonusEngineLoyaltyHistory,
+	getBonusEngineLoyaltyLists,
 	getBonusEngineLoyaltyPoints,
 	redeemBonusEngineLoyaltyPoints,
 } from "./loyalty.service";
