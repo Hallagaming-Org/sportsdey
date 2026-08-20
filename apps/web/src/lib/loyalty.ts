@@ -23,6 +23,7 @@ export {
 	buildDisplayTiersFromCampaignLevels,
 	buildLoyaltyHowItWorksSteps,
 	buildLoyaltyRedeemOffers,
+	isLoyaltyCampaignLive,
 	normalizeLoyaltyCampaign,
 	normalizeLoyaltyHistoryItem,
 	normalizeLoyaltyPoints,
@@ -42,11 +43,15 @@ export async function fetchLoyaltyPoints(): Promise<LoyaltyPointsSummary> {
 
 export async function redeemLoyaltyPoints(payload: {
 	pointsToRedeem: number;
+	campaignId?: string;
 }): Promise<LoyaltyRedeemResult> {
 	const data = await apiRequest<Record<string, unknown>>(LOYALTY_ROUTE.REDEEM, {
 		method: "POST",
 		credentials: "include",
-		body: JSON.stringify({ points_to_redeem: payload.pointsToRedeem }),
+		body: JSON.stringify({
+			points_to_redeem: payload.pointsToRedeem,
+			...(payload.campaignId ? { loyalty_id: payload.campaignId } : {}),
+		}),
 	});
 	return normalizeLoyaltyRedeem(data);
 }

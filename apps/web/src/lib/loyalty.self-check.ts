@@ -23,7 +23,7 @@ assert.ok(summary.progressPercent > 0 && summary.progressPercent < 100);
 
 assert.equal(
 	resolveTier({ loyaltyLevel: "diamond", totalPoints: 0 }).id,
-	"diamond",
+	"iron",
 );
 
 const earned = normalizeLoyaltyHistoryItem(
@@ -106,12 +106,40 @@ assert.equal(stripTiers[1]?.minPoints, 5000);
 assert.ok(stripTiers[0]?.iconSrc.includes("iron"));
 assert.ok(stripTiers[1]?.iconSrc.includes("bronze"));
 
-const primary = pickPrimaryCampaignLevels([pilots]);
+const primaryUpcoming = pickPrimaryCampaignLevels([pilots]);
+assert.equal(primaryUpcoming.length, 0);
+
+const pilotsActive = normalizeLoyaltyCampaign(
+	{
+		_id: "6a842eae5d0289444d77db74",
+		name: "Sportsdey Pilots",
+		loyalty_status: "ACTIVE",
+		start_date_time: "2026-01-01T00:00:00.000Z",
+		end_date_time: "2026-12-31T00:00:00.000Z",
+		levels_criteria: [
+			{ level: "Early Flyers", level_points: 1000, _id: "a" },
+			{ level: "Senior Men", level_points: 5000, _id: "b" },
+		],
+	},
+	0,
+);
+const primary = pickPrimaryCampaignLevels([pilotsActive]);
 assert.equal(primary.length, 2);
+
+const belowFirst = applyCampaignLevelsToPointsSummary({
+	summary: normalizeLoyaltyPoints({
+		player_id: "u1",
+		total_points: 500,
+		loyalty_level: "Iron",
+	}),
+	levels: pilotsActive.levels,
+});
+assert.equal(belowFirst.currentTier.minPoints, 0);
+assert.equal(belowFirst.nextTier?.label, "Early Flyers");
 
 const campaignSummary = applyCampaignLevelsToPointsSummary({
 	summary,
-	levels: pilots.levels,
+	levels: pilotsActive.levels,
 });
 assert.equal(campaignSummary.currentTier.label, "Senior Men");
 assert.equal(campaignSummary.nextTier, null);
@@ -129,15 +157,18 @@ const pilotsFull = normalizeLoyaltyCampaign(
 		redeem_levels_value: 1000,
 		point_value_type: "percentage",
 		point_value: 5,
-		levels_criteria: pilots.levels.map((level) => ({
+		start_date_time: "2026-01-01T00:00:00.000Z",
+		end_date_time: "2026-12-31T00:00:00.000Z",
+		levels_criteria: pilotsActive.levels.map((level) => ({
 			level: level.level,
 			level_points: level.levelPoints,
 			_id: level.id,
 		})),
-		loyalty_status: "UPCOMING",
+		loyalty_status: "ACTIVE",
 	},
 	0,
 );
+assert.equal(buildLoyaltyRedeemOffers([pilots]).length, 0);
 const offers = buildLoyaltyRedeemOffers([pilotsFull]);
 assert.equal(offers.length, 1);
 assert.equal(offers[0]?.categoryLabel, "Cash Bonus");

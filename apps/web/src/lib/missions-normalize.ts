@@ -1,5 +1,6 @@
 import {
 	MISSION_ACTION_LABEL,
+	MISSION_PLACEHOLDER_UNIQUE_IDS,
 	MISSION_PLAY_SEARCH_KEY,
 	MISSION_REWARD_TYPE,
 	MISSION_ROUTE,
@@ -210,7 +211,7 @@ export function resolveMissionAction(payload: {
 		return {
 			kind: "invite",
 			label: MISSION_ACTION_LABEL.INVITE,
-			href: MISSION_ROUTE.ACCOUNT,
+			href: MISSION_ROUTE.INVITE,
 		};
 	}
 	if (MISSION_TRIGGER_KEYWORD.DEPOSIT.test(triggerHaystack)) {
@@ -245,10 +246,21 @@ export function resolveMissionAction(payload: {
 		};
 	}
 
+	const realProviders = payload.providers.filter(
+		(provider) => !isPlaceholderUniqueId(provider.uniqueId),
+	);
 	if (
-		payload.providers.length > 0 ||
-		MISSION_TRIGGER_KEYWORD.WAGER_OR_BET.test(triggerHaystack)
+		MISSION_TRIGGER_KEYWORD.WAGER_OR_BET.test(triggerHaystack) &&
+		realProviders.length === 0
 	) {
+		return {
+			kind: "sports",
+			label: MISSION_ACTION_LABEL.SPORTS,
+			href: MISSION_ROUTE.SPORTS,
+		};
+	}
+
+	if (realProviders.length > 0) {
 		return {
 			kind: "casino",
 			label: MISSION_ACTION_LABEL.CASINO,
@@ -373,7 +385,17 @@ function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
 function firstPlayableGame(
 	games: MissionCard["games"],
 ): MissionCard["games"][number] | null {
-	return games.find((game) => Boolean(game.uniqueId)) ?? null;
+	return (
+		games.find(
+			(game) =>
+				Boolean(game.uniqueId) && !isPlaceholderUniqueId(game.uniqueId),
+		) ?? null
+	);
+}
+
+function isPlaceholderUniqueId(value: string): boolean {
+	const normalized = value.trim().toLowerCase();
+	return !normalized || MISSION_PLACEHOLDER_UNIQUE_IDS.has(normalized);
 }
 
 function sumMissionPoints(value: unknown): number {

@@ -28,41 +28,66 @@ export type LoyaltyTierDefinition = LoyaltyDisplayTier & {
 	id: LoyaltyTierId;
 };
 
+const ironIcon = new URL(
+	"../logos/loyalty-icons/iron.svg",
+	import.meta.url,
+).href;
+const bronzeIcon = new URL(
+	"../logos/loyalty-icons/bronze.svg",
+	import.meta.url,
+).href;
+const silverIcon = new URL(
+	"../logos/loyalty-icons/silver.svg",
+	import.meta.url,
+).href;
+const goldIcon = new URL(
+	"../logos/loyalty-icons/gold.svg",
+	import.meta.url,
+).href;
+const platinumIcon = new URL(
+	"../logos/loyalty-icons/platinum.svg",
+	import.meta.url,
+).href;
+const diamondIcon = new URL(
+	"../logos/loyalty-icons/diamond.svg",
+	import.meta.url,
+).href;
+
 export const LOYALTY_TIERS: readonly LoyaltyTierDefinition[] = [
 	{
 		id: LOYALTY_TIER_ID.IRON,
 		label: "Iron",
 		minPoints: 0,
-		iconSrc: "/public/loyalty-icons/iron.svg",
+		iconSrc: ironIcon,
 	},
 	{
 		id: LOYALTY_TIER_ID.BRONZE,
 		label: "Bronze",
 		minPoints: 1_000,
-		iconSrc: "/public/loyalty-icons/bronze.svg",
+		iconSrc: bronzeIcon,
 	},
 	{
 		id: LOYALTY_TIER_ID.SILVER,
 		label: "Silver",
 		minPoints: 3_000,
-		iconSrc: "/public/loyalty-icons/silver.svg",
+		iconSrc: silverIcon,
 	},
 	{
 		id: LOYALTY_TIER_ID.GOLD,
 		label: "Gold",
 		minPoints: 10_000,
-		iconSrc: "/public/loyalty-icons/gold.svg",
+		iconSrc: goldIcon,
 	},
 	{
 		id: LOYALTY_TIER_ID.PLATINUM,
 		label: "Platinum",
 		minPoints: 25_000,
-		iconSrc: "/public/loyalty-icons/platinum.svg",
+		iconSrc: platinumIcon,
 	},
 	{
 		id: LOYALTY_TIER_ID.DIAMOND,
 		label: "Diamond",
 		minPoints: 50_000,
-		iconSrc: "/public/loyalty-icons/diamond.svg",
+		iconSrc: diamondIcon,
 	},
 ] as const;

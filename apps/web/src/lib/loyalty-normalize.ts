@@ -1,4 +1,5 @@
 import {
+	LOYALTY_TIER_ID,
 	LOYALTY_TIERS,
 	type LoyaltyDisplayTier,
 	type LoyaltyTierDefinition,
@@ -100,13 +101,11 @@ export function applyCampaignLevelsToPointsSummary(payload: {
 export function pickPrimaryCampaignLevels(
 	campaigns: LoyaltyCampaignCard[],
 ): LoyaltyCampaignLevel[] {
-	const withLevels = campaigns.filter((campaign) => campaign.levels.length > 0);
-	if (withLevels.length === 0) return [];
-	const active = withLevels.find((campaign) => {
-		const status = campaign.loyaltyStatus.trim().toUpperCase();
-		return status === "ACTIVE" || status === "LIVE";
-	});
-	return (active ?? withLevels[0])?.levels ?? [];
+	const live = campaigns.filter(
+		(campaign) =>
+			isLoyaltyCampaignLive(campaign) && campaign.levels.length > 0,
+	);
+	return live[0]?.levels ?? [];
 }
 
 export function buildDisplayTiersFromCampaignLevels(
@@ -134,6 +133,7 @@ export function buildLoyaltyRedeemOffers(
 ): LoyaltyRedeemOffer[] {
 	const offers: LoyaltyRedeemOffer[] = [];
 	for (const campaign of campaigns) {
+		if (!isLoyaltyCampaignLive(campaign)) continue;
 		if (campaign.redeemLevelsValue <= 0) continue;
 		const earnByLabel = formatEarnByLabel(campaign.pointAccumulateBy);
 		const earnRateLabel = formatEarnRateLabel({
@@ -286,12 +286,24 @@ export function buildLoyaltyHowItWorksSteps(
 function pickPrimaryLoyaltyCampaign(
 	campaigns: LoyaltyCampaignCard[],
 ): LoyaltyCampaignCard | null {
-	if (campaigns.length === 0) return null;
-	const active = campaigns.find((campaign) => {
-		const status = campaign.loyaltyStatus.trim().toUpperCase();
-		return status === "ACTIVE" || status === "LIVE";
-	});
-	return active ?? campaigns[0] ?? null;
+	return campaigns.find((campaign) => isLoyaltyCampaignLive(campaign)) ?? null;
+}
+
+export function isLoyaltyCampaignLive(
+	campaign: LoyaltyCampaignCard,
+	nowMs = Date.now(),
+): boolean {
+	const status = campaign.loyaltyStatus.trim().toUpperCase();
+	if (status !== "ACTIVE" && status !== "LIVE") return false;
+	if (campaign.startsAt) {
+		const start = Date.parse(campaign.startsAt);
+		if (Number.isFinite(start) && start > nowMs) return false;
+	}
+	if (campaign.endsAt) {
+		const end = Date.parse(campaign.endsAt);
+		if (Number.isFinite(end) && end < nowMs) return false;
+	}
+	return true;
 }
 
 function formatRedeemCategoryLabel(type: string): string {
@@ -454,9 +466,11 @@ function buildLoyaltyPointsSummary(payload: {
 	});
 	const currentIndex = tiers.findIndex((tier) => tier.id === currentTier.id);
 	const nextTier =
-		currentIndex >= 0 && currentIndex < tiers.length - 1
-			? (tiers[currentIndex + 1] ?? null)
-			: null;
+		currentIndex >= 0
+			? currentIndex < tiers.length - 1
+				? (tiers[currentIndex + 1] ?? null)
+				: null
+			: (tiers[0] ?? null);
 
 	const bandStart = currentTier.minPoints;
 	const bandEnd = nextTier?.minPoints ?? currentTier.minPoints;
@@ -508,18 +522,32 @@ function resolveTierAgainstLadder(payload: {
 		return LOYALTY_TIERS[0]!;
 	}
 
-	const normalized = payload.loyaltyLevel.trim().toLowerCase();
-	const byName = tiers.find(
-		(tier) =>
-			tier.id.toLowerCase() === normalized ||
-			tier.label.toLowerCase() === normalized,
-	);
-	if (byName) return byName;
+	const first = tiers[0]!;
+	if (payload.totalPoints < first.minPoints) {
+		return {
+			id: LOYALTY_TIER_ID.IRON,
+			label: payload.loyaltyLevel.trim() || first.label,
+			minPoints: 0,
+			iconSrc: LOYALTY_TIERS[0]!.iconSrc,
+		};
+	}
 
-	let matched = tiers[0]!;
+	let matched = first;
 	for (const tier of tiers) {
 		if (payload.totalPoints >= tier.minPoints) matched = tier;
 	}
+
+	const normalized = payload.loyaltyLevel.trim().toLowerCase();
+	if (normalized) {
+		const byName = tiers.find(
+			(tier) =>
+				(tier.id.toLowerCase() === normalized ||
+					tier.label.toLowerCase() === normalized) &&
+				payload.totalPoints >= tier.minPoints,
+		);
+		if (byName) return byName;
+	}
+
 	return matched;
 }
 

@@ -87,4 +87,27 @@ const depositOnly = resolveMissionAction({
 assert.equal(depositOnly.kind, "deposit");
 assert.equal(depositOnly.href, "/wallet");
 
+const sportsWager = resolveMissionAction({
+	triggerTypes: ["Wager X and Get X"],
+	providers: [],
+	games: [],
+});
+assert.equal(sportsWager.kind, "sports");
+assert.equal(sportsWager.href, "/sportsbetting");
+
+const placeholderWager = resolveMissionAction({
+	triggerTypes: ["Bet X and Get X"],
+	providers: [{ uniqueId: "provider_id", name: "provider_name" }],
+	games: [{ uniqueId: "game_id", name: "Game", providerName: "provider_name" }],
+});
+assert.equal(placeholderWager.kind, "sports");
+
+const invite = resolveMissionAction({
+	triggerTypes: ["Refer a friend"],
+	providers: [],
+	games: [],
+});
+assert.equal(invite.kind, "invite");
+assert.equal(invite.href, "/account#account-referral-id");
+
 console.log("missions.self-check: ok");
