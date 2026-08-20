@@ -7,13 +7,9 @@ import { defineConfig } from "vite";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-// Must match apps/server `wrangler dev --port=3000`.
-// Local web uses VITE_SERVER_URL=http://localhost:3001 so API calls stay same-origin
-// and hit these proxies. `/games` and `/loyalty` are both SPA pages and API prefixes —
-// bypass document navigations so Vite serves the page.
+
 const LOCAL_API_TARGET = "http://localhost:3000";
 
-/** TanStack pages under /auth — must not be proxied to the API worker. */
 const WEB_AUTH_PAGE_PATHS = new Set([
 	"/auth/callback",
 	"/auth/sign-in",
@@ -67,14 +63,13 @@ function proxyLoyaltyApiToLocalApi() {
 			if (path === "/loyalty" || path === "/loyalty/") {
 				return req.url;
 			}
+			if (!path.startsWith("/loyalty/")) {
+				return req.url;
+			}
 		},
 	};
 }
 
-/**
- * Proxies `GET /games` JSON (and other /games API methods) to the worker,
- * but leaves lobby navigations (`/games`, `/games?play=…`) to TanStack.
- */
 function proxyGamesApiToLocalApi() {
 	return {
 		...proxyToLocalApi(),
