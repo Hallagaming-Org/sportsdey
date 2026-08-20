@@ -197,7 +197,7 @@ export const CLASSIC_KNOWN_GAMES: Record<
 	},
 	LAGOSRUSH: {
 		subtitle: "fulfilling games",
-		image: "/lagos-rush.png",
+		image: "/lagos-rush-v2.png",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
 	HALLABOMB: {
@@ -226,6 +226,24 @@ export const CLASSIC_KNOWN_GAMES: Record<
 		gradient: "linear-gradient(to bottom, #e91e63, #9c27b0, #673ab7)",
 	},
 };
+
+const KNOWN_GAME_BY_NAME: Record<string, string> = {
+	"lagos rush": "LAGOSRUSH",
+};
+
+/** Prefer our static art over provider/API thumbnails (match code or title). */
+export function resolveKnownLobbyImage(game: {
+	code: string;
+	name: string;
+	imageUrl?: string | null;
+}): string | null {
+	const byCode = CLASSIC_KNOWN_GAMES[game.code]?.image;
+	if (byCode) return byCode;
+	const alias = KNOWN_GAME_BY_NAME[game.name.toLowerCase().trim()];
+	const byName = alias ? CLASSIC_KNOWN_GAMES[alias]?.image : undefined;
+	if (byName) return byName;
+	return game.imageUrl ?? null;
+}
 
 const SPORTSDEY_CRASH_URL =
 	"https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino";
