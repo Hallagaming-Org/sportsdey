@@ -9,8 +9,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 // Must match apps/server `wrangler dev --port=3000`.
 // Local web uses VITE_SERVER_URL=http://localhost:3001 so API calls stay same-origin
-// and hit these proxies. `/games` is both the lobby page and the games API — bypass
-// browser document navigations (Accept: text/html) so Vite serves the page.
+// and hit these proxies. `/games` and `/loyalty` are both SPA pages and API prefixes —
+// bypass document navigations so Vite serves the page.
 const LOCAL_API_TARGET = "http://localhost:3000";
 
 /** TanStack pages under /auth — must not be proxied to the API worker. */
@@ -53,6 +53,18 @@ function proxyMissionApiToLocalApi() {
 		bypass(req: IncomingMessage) {
 			const path = (req.url ?? "").split("?")[0] ?? "";
 			if (path === "/missions" || path.startsWith("/missions/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
+function proxyLoyaltyApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/loyalty" || path === "/loyalty/") {
 				return req.url;
 			}
 		},
@@ -107,7 +119,7 @@ export default defineConfig({
 			"/casino": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
-			"/loyalty": proxyToLocalApi(),
+			"/loyalty": proxyLoyaltyApiToLocalApi(),
 			"/mission": proxyMissionApiToLocalApi(),
 			"/games": proxyGamesApiToLocalApi(),
 			"/bonus-engine": proxyToLocalApi(),
