@@ -173,6 +173,7 @@ loyaltyRoute.openapi(redeemRoute, async (c) => {
 		env: c.env,
 		userId: user.id,
 		pointsToRedeem: body.points_to_redeem,
+		loyaltyId: body.loyalty_id,
 	});
 	if (!result.ok) {
 		return c.json(

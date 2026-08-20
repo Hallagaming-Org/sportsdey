@@ -30,12 +30,14 @@ const redeem = buildBonusEngineLoyaltyRedeemBody({
 	projectId: "main",
 	userId: "hari114",
 	pointsToRedeem: 500,
+	loyaltyId: "camp-1",
 });
 assert.deepEqual(redeem, {
 	client_id: "shiv",
 	project_id: "main",
 	user_id: "hari114",
 	points_to_redeem: 500,
+	loyalty_id: "camp-1",
 });
 
 console.log("bonus-engine loyalty.self-check: ok");
