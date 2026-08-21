@@ -7,6 +7,7 @@ import {
 	CasinoLaunchActions,
 	CasinoLaunchSheet,
 } from "@/components/casino-launch-actions";
+import { CasinoLobbyArt } from "@/components/casino-lobby-art";
 import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +25,10 @@ import {
 	resolveKnownLobbyImage,
 } from "@/lib/classic-lobby";
 import {
+	excludeScorpioStoredGames,
+	parseScorpioStoredCode,
+} from "@/lib/lobby-games";
+import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
 	type ScorpioLobbyGame,
@@ -36,7 +41,8 @@ import {
 } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_GRADIENT = "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
+const DEFAULT_GRADIENT =
+	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 const HOT_CASINO_LIMIT = 30;
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
@@ -171,7 +177,9 @@ export default function PopularAndCasinoSection() {
 			} catch (err) {
 				if (cancelled) return;
 				const message =
-					err instanceof Error ? err.message : "Failed to load popular matches.";
+					err instanceof Error
+						? err.message
+						: "Failed to load popular matches.";
 				setWidgetError(message);
 				setWidgetReady(true);
 			}
@@ -416,7 +424,9 @@ function HotCasinoPanel() {
 	};
 
 	const hotGames = useMemo(() => {
-		const classic: HotLobbyGame[] = (classicQuery.data ?? [])
+		const classic: HotLobbyGame[] = excludeScorpioStoredGames(
+			classicQuery.data ?? [],
+		)
 			.filter((game) => game.enabled)
 			.map((game) => ({
 				...game,
@@ -462,7 +472,10 @@ function HotCasinoPanel() {
 
 	const handleGameLaunch = useCallback(
 		async (game: HotLobbyGame, mode: ClassicLaunchMode = "real") => {
-			const needsAuth = isScorpioHotGame(game) || mode === "real";
+			const needsAuth =
+				isScorpioHotGame(game) ||
+				parseScorpioStoredCode(game.code) != null ||
+				mode === "real";
 			if (needsAuth && !session?.user) {
 				goSignIn();
 				return;
@@ -480,8 +493,18 @@ function HotCasinoPanel() {
 					});
 					gameUrl = launch.url;
 				} else {
-					gameUrl = await launchClassicGame(game, { mode });
-					if (!gameUrl) return;
+					const stored = parseScorpioStoredCode(game.code);
+					if (stored) {
+						const launch = await launchScorpioGame({
+							providerId: stored.providerId,
+							gameCode: stored.gameCode,
+							returnUrl: `${window.location.origin}/games`,
+						});
+						gameUrl = launch.url;
+					} else {
+						gameUrl = await launchClassicGame(game, { mode });
+						if (!gameUrl) return;
+					}
 				}
 
 				navigate({
@@ -506,14 +529,15 @@ function HotCasinoPanel() {
 					setShowBalanceModal(true);
 					return;
 				}
-				const friendly =
-					/demo url|does not support demo|demo mode/i.test(message)
-						? "Demo is not available for this game. Try Play Now."
-						: /immediate_exit|could not start|closed the session|zero limits/i.test(
-									message,
-							  )
-							? "This game is not playable yet on our Slotegrator contract. Try another title."
-							: message;
+				const friendly = /demo url|does not support demo|demo mode/i.test(
+					message,
+				)
+					? "Demo is not available for this game. Try Play Now."
+					: /immediate_exit|could not start|closed the session|zero limits/i.test(
+								message,
+							)
+						? "This game is not playable yet on our Slotegrator contract. Try another title."
+						: message;
 				toast.error(friendly);
 			} finally {
 				setLoadingId(null);
@@ -588,9 +612,7 @@ function HotCasinoPanel() {
 			<CasinoLaunchSheet
 				open={Boolean(activeLaunchGame)}
 				gameName={activeLaunchGame?.name ?? ""}
-				loading={Boolean(
-					activeLaunchGame && loadingId === activeLaunchGame.id,
-				)}
+				loading={Boolean(activeLaunchGame && loadingId === activeLaunchGame.id)}
 				onClose={() => setActiveLaunchId(null)}
 				onDemo={() => {
 					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "demo");
@@ -635,20 +657,13 @@ function HotCasinoPanel() {
 									<Loader2 className="h-6 w-6 animate-spin text-white" />
 								</div>
 							)}
-							{image ? (
-								<img
-									src={image}
-									alt={game.name}
-									loading="lazy"
-									className="absolute inset-0 h-full w-full object-cover transition-opacity"
-									style={{ opacity: isLoadingThis ? 0.35 : 1 }}
-									onError={(e) => {
-										e.currentTarget.style.display = "none";
-									}}
-								/>
-							) : Icon ? (
-								<Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-2" />
-							) : null}
+							<CasinoLobbyArt
+								src={image}
+								name={game.name}
+								icon={Icon}
+								dimmed={isLoadingThis}
+								compact
+							/>
 							{dual && (
 								<CasinoLaunchActions
 									compact
