@@ -6,6 +6,7 @@ import {
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
 } from "@/services/bonus-engine/bonus-engine.service.constant";
 import {
+	creditMissionRealCashReward,
 	getBonusEngineConfig,
 	getBonusEngineWalletBalances,
 	isBonusEngineCallbackVerifyConfigured,
@@ -24,13 +25,9 @@ type CallbackContext = {
 		header: (name: string) => string | undefined;
 	};
 	env: CloudflareBindings;
-	json: (body: Record<string, unknown>, status?: 200 | 400 | 413) => Response;
+	json: (body: Record<string, unknown>, status?: 200 | 400 | 413 | 502) => Response;
 };
 
-/**
- * Verifies the inbound RSA signature over the raw body before any mutation.
- * Docs require HTTP 413 on invalid signatures.
- */
 async function readAndVerifyCallbackBody(
 	c: CallbackContext,
 ): Promise<{ ok: true; bodyString: string } | { ok: false; response: Response }> {
@@ -88,7 +85,12 @@ function asString(value: unknown): string {
 }
 
 function asNumber(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+	if (typeof value === "number" && Number.isFinite(value)) return value;
+	if (typeof value === "string" && value.trim()) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	return 0;
 }
 
 callbackRoute.post(
@@ -229,14 +231,42 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 		typeof body.reward === "object" && body.reward !== null
 			? body.reward
 			: null;
-	const recorded = await recordBonusEngineCallbackEvent({
-		env: c.env,
-		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.MISSION_COMPLETE,
-		idempotencySeed: `${missionId}:${playerId}`,
-		bodyJson: verified.bodyString,
-	});
 
-	if (recorded.isNew && playerId && missionId) {
+	if (playerId && missionId) {
+		try {
+			const cashCredit = await creditMissionRealCashReward({
+				env: c.env,
+				userId: playerId,
+				missionId,
+				reward,
+			});
+			if (cashCredit.status === "wallet_missing") {
+				console.error("Mission Real Cash credit blocked — wallet missing", {
+					userId: playerId,
+					missionId,
+				});
+				return c.json(
+					{ status: 502, message: "WALLET_MISSING" },
+					502,
+				);
+			}
+			if (cashCredit.credited) {
+				console.info("Mission Real Cash credited", {
+					userId: playerId,
+					missionId,
+					amountKobo: cashCredit.amountKobo,
+					reference: cashCredit.reference,
+				});
+			}
+		} catch (error: unknown) {
+			console.error("Mission Real Cash credit failed", {
+				userId: playerId,
+				missionId,
+				error,
+			});
+			return c.json({ status: 502, message: "CREDIT_FAILED" }, 502);
+		}
+
 		await upsertBonusEngineMissionProgress({
 			env: c.env,
 			userId: playerId,
@@ -246,6 +276,13 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 			rewardJson: reward ? JSON.stringify(reward) : null,
 		});
 	}
+
+	const recorded = await recordBonusEngineCallbackEvent({
+		env: c.env,
+		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.MISSION_COMPLETE,
+		idempotencySeed: `${missionId}:${playerId}`,
+		bodyJson: verified.bodyString,
+	});
 
 	return c.json(
 		{

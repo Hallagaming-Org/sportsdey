@@ -5,13 +5,10 @@ import type {
 	BonusEngineLoginInput,
 } from "./bonus-engine.service.type";
 import { bonusEngineRequest } from "./client";
-import { getBonusEngineConfig } from "./config";
+import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
+import { getBonusEngineWalletBalances } from "./persistence.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
-/**
- * Syncs a SportsDey player into Bonus Engine via merchant-attested `/login`.
- * New users are created; existing users receive balance updates.
- */
 export async function loginBonusEnginePlayer(payload: {
 	env: CloudflareBindings;
 	player: BonusEngineLoginInput;
@@ -46,4 +43,40 @@ export async function loginBonusEnginePlayer(payload: {
 			device_type: player.deviceType ?? "desktop",
 		},
 	});
+}
+
+export async function syncBonusEnginePlayerOnAppLogin(payload: {
+	env: CloudflareBindings;
+	userId: string;
+	username: string;
+}): Promise<void> {
+	if (!isBonusEngineConfigured(payload.env)) return;
+
+	try {
+		const balances = await getBonusEngineWalletBalances({
+			env: payload.env,
+			userId: payload.userId,
+		});
+		const result = await loginBonusEnginePlayer({
+			env: payload.env,
+			player: {
+				userId: payload.userId,
+				username: payload.username,
+				realWalletBalance: balances.realWalletBalance,
+				bonusWalletBalance: balances.bonusWalletBalance,
+			},
+		});
+		if (!result.ok) {
+			console.error("Bonus Engine app-login sync failed", {
+				userId: payload.userId,
+				status: result.status,
+				error: result.error,
+			});
+		}
+	} catch (error: unknown) {
+		console.error("Bonus Engine app-login sync error", {
+			userId: payload.userId,
+			error,
+		});
+	}
 }

@@ -13,9 +13,6 @@ type MissionsToolbarProps = {
 	onTimerQueryChange: (value: string) => void;
 };
 
-/**
- * Period filter tabs and mission search field for the Missions page.
- */
 export function MissionsToolbar({
 	activePeriod,
 	periodCounts,

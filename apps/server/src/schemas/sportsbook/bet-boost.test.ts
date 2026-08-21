@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
 	AccumulatorProgramGrantSchema,
 	BetBoostCreateSchema,
+	BetBoostUpdateSchema,
 } from "./bet-boost";
 
 const createBody = {
@@ -54,5 +55,26 @@ describe("AccumulatorProgramGrantSchema", () => {
 		assert.equal(parsed.success, true);
 		if (!parsed.success) return;
 		assert.equal(parsed.data.currency, "NGN");
+	});
+});
+
+describe("BetBoostUpdateSchema", () => {
+	it("accepts a DataBet calculation strategy", () => {
+		const parsed = BetBoostUpdateSchema.safeParse({
+			player_id: "test-player-uuid",
+			boost_id: "test-boost-id",
+			calculation_strategy: {
+				type: "steps",
+				strategy: {
+					conditions: [],
+					params: {
+						selections_per_step: 1,
+						multiplier_per_step: "0.1",
+						max_multiplier: "1.5",
+					},
+				},
+			},
+		});
+		assert.equal(parsed.success, true);
 	});
 });

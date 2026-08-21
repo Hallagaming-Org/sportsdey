@@ -5,10 +5,8 @@ import {
 } from "@/schemas/bonus-engine";
 import {
 	extractBonusEngineMessage,
-	getBonusEngineWalletBalances,
 	isBonusEngineConfigured,
 	listBonusEngineMissions,
-	loginBonusEnginePlayer,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -65,29 +63,6 @@ missionRoute.openapi(listRoute, async (c) => {
 				error: "Bonus Engine is not configured",
 			},
 			503,
-		);
-	}
-
-	const balances = await getBonusEngineWalletBalances({
-		env: c.env,
-		userId: user.id,
-	});
-	const sync = await loginBonusEnginePlayer({
-		env: c.env,
-		player: {
-			userId: user.id,
-			username: user.name || user.email || user.id,
-			realWalletBalance: balances.realWalletBalance,
-			bonusWalletBalance: balances.bonusWalletBalance,
-		},
-	});
-	if (!sync.ok) {
-		return c.json(
-			{
-				success: false as const,
-				error: sync.error ?? "Failed to sync player with Bonus Engine",
-			},
-			mapUpstreamStatus(sync.status),
 		);
 	}
 

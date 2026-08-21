@@ -161,6 +161,10 @@ function WalletPage() {
 		}
 
 		setDepositError("");
+		trackWebengageEvent("deposit_initiated", {
+			amount,
+			currency: "NGN",
+		});
 		depositMutation.mutate(amount);
 	};
 

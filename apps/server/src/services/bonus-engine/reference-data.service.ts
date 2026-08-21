@@ -1,8 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { createDb } from "../../db";
 import * as schema from "../../db/schema";
 import type { CloudflareBindings } from "../../types";
-import { BONUS_ENGINE_FALLBACK_CASINO_PROVIDER } from "./bonus-engine.service.constant";
 import { BONUS_ENGINE_SPORTSBOOK_CATALOG } from "./reference-data.service.constant";
 import type {
 	BonusEngineChampionshipItem,
@@ -15,8 +14,9 @@ import type {
 } from "./reference-data.service.type";
 
 /**
- * Lists distinct casino game providers for Bonus Engine Admin dropdowns.
- * Falls back to a single Casino provider when games lack provider metadata.
+ * Lists distinct casino providers for Bonus Engine Admin dropdowns.
+ * Only returns rows with real Slotegrator `provider_id` + `provider_name`.
+ * Returns [] when the catalog has not been synced yet (never invents placeholders).
  */
 export async function listBonusEngineGameProviders(
 	env: CloudflareBindings,
@@ -47,23 +47,14 @@ export async function listBonusEngineGameProviders(
 		});
 	}
 
-	if (providers.size === 0) {
-		return [
-			{
-				name: BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.name,
-				unique_id: BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.uniqueId,
-				is_live_game: BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.isLiveGame,
-			},
-		];
-	}
-
 	return [...providers.values()].sort((left, right) =>
 		left.name.localeCompare(right.name),
 	);
 }
 
 /**
- * Lists casino games, optionally filtered by provider unique id.
+ * Lists casino games that have real provider metadata, optionally filtered
+ * by Slotegrator provider id (`gameProvider` query = provider `unique_id`).
  */
 export async function listBonusEngineGames(payload: {
 	env: CloudflareBindings;
@@ -85,28 +76,25 @@ export async function listBonusEngineGames(payload: {
 						eq(schema.game.enabled, true),
 						eq(schema.game.providerId, providerFilter),
 					)
-				: eq(schema.game.enabled, true),
+				: and(
+						eq(schema.game.enabled, true),
+						isNotNull(schema.game.providerId),
+						ne(schema.game.providerId, ""),
+					),
 		);
 
-	const fallbackId = BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.uniqueId;
-
-	if (providerFilter === fallbackId) {
-		return rows
-			.filter((row) => !row.providerId?.trim())
-			.map((row) => ({
-				provider_unique_id: fallbackId,
+	return rows.flatMap((row) => {
+		const providerId = row.providerId?.trim();
+		if (!providerId) return [];
+		return [
+			{
+				provider_unique_id: providerId,
 				name: row.name,
 				unique_id: row.id,
 				free_spin: row.freeSpin ? 1 : 0,
-			}));
-	}
-
-	return rows.map((row) => ({
-		provider_unique_id: row.providerId?.trim() || fallbackId,
-		name: row.name,
-		unique_id: row.id,
-		free_spin: row.freeSpin ? 1 : 0,
-	}));
+			},
+		];
+	});
 }
 
 /** Returns sportsbook sports for Admin dropdowns. */

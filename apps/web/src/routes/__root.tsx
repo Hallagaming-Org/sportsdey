@@ -138,6 +138,8 @@ function RootDocument() {
 		"/promotions/$id",
 		"/missions",
 		"/missions/",
+		"/loyalty",
+		"/loyalty/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);
