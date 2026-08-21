@@ -52,7 +52,7 @@ const ACTION_BY_KIND: Record<
 > = {
 	sports: { label: "Go to Sports", href: "/sportsbetting" },
 	casino: { label: "Go to Casino", href: "/games" },
-	virtuals: { label: "Go to Virtuals", href: "/games" },
+	virtuals: { label: "Go to Virtuals", href: "/games?category=virtuals" },
 	deposit: { label: "Deposit Now", href: "/wallet" },
 	invite: { label: "Invite Now", href: "/account" },
 	generic: { label: "Play Now", href: "/games" },

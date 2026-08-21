@@ -42,10 +42,31 @@ export const CLASSIC_CATEGORIES = [
 	"dice",
 	"jackpot",
 	"lottery",
+	"virtuals",
 	"others",
 	"roulette",
 	"scratch",
 ] as const;
+
+export const CLASSIC_CATEGORY_LABELS: Record<string, string> = {
+	popular: "Popular",
+	crash: "Crash",
+	instant: "Instant",
+	original: "Original",
+	pvp: "PvP",
+	slots: "Slots",
+	tablecardgames: "Table/Card Games",
+	arcade: "Arcade",
+	classic: "Classic",
+	bingo: "Bingo",
+	dice: "Dice",
+	jackpot: "Jackpot",
+	lottery: "Lottery",
+	virtuals: "Virtuals",
+	others: "Others",
+	roulette: "Roulette",
+	scratch: "Scratch",
+};
 
 export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	popular: "🔥",
@@ -61,6 +82,7 @@ export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	dice: "🎲",
 	jackpot: "💰",
 	lottery: "🎟️",
+	virtuals: "⚽",
 	others: "🧩",
 	roulette: "🎡",
 	scratch: "🎫",
@@ -136,7 +158,23 @@ const HALLA_LAUNCH_PATHS: Record<string, string> = {
 	HALLAMETRONITE: "/halla/metronite/launcher",
 };
 
-export const CLASSIC_SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
+/** Virtual sports titles (Slotegrator) — shown on the Virtuals tab even if D1 still tags them as Others. */
+export const VIRTUALS_GAME_NAMES = [
+	"Virtual football pro",
+	"Virtual soccer",
+	"Virtual champions",
+	"Spin greyhounds",
+	"Spin horses",
+	"Spin cricket",
+	"Instant soccer",
+] as const;
+
+export const CLASSIC_SPECIAL_CATEGORIES = [
+	"popular",
+	"pvp",
+	"original",
+	"virtuals",
+];
 
 export const CLASSIC_KNOWN_GAMES: Record<
 	string,
@@ -332,6 +370,12 @@ export function filterClassicGames(
 						CLASSIC_ORIGINALS_CODES.includes(g.code),
 					);
 					break;
+				case "virtuals":
+					filtered = pickGamesByOrderedNames(
+						allGames,
+						VIRTUALS_GAME_NAMES,
+					);
+					break;
 				default:
 					break;
 			}
@@ -375,6 +419,12 @@ export function classicCategoryCounts(
 				case "original":
 					acc[cat] = allGames.filter((g) =>
 						CLASSIC_ORIGINALS_CODES.includes(g.code),
+					).length;
+					break;
+				case "virtuals":
+					acc[cat] = pickGamesByOrderedNames(
+						allGames,
+						VIRTUALS_GAME_NAMES,
 					).length;
 					break;
 				default:
