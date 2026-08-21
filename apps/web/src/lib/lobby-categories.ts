@@ -16,18 +16,25 @@ export function normalizeGameName(name: string): string {
 	return name.toLowerCase().trim().replace(/\s+/g, " ");
 }
 
-/** Map DB / JSON slugs onto Casino tab slugs. */
+/**
+ * Compact slug (lowercase, no _/-) → Casino tab slug.
+ * Add aliases here when the same lobby type is stored under several labels.
+ */
+const LOBBY_SLUG_ALIASES: Record<string, string> = {
+	crash: "crash",
+	crashgame: "crash",
+	crashgames: "crash",
+	jackpotslot: "slots",
+	lotto: "lottery",
+	tablecardgames: "tablecardgames",
+	tableandcardgames: "tablecardgames",
+	tablegames: "tablecardgames",
+};
+
+/** Map DB / JSON / aggregator slugs onto Casino tab slugs. */
 export function canonicalLobbySlug(slug: string): string {
 	const compact = slug.toLowerCase().replace(/[_-]/g, "");
-	if (compact === "crashgames") return "crash-games";
-	if (
-		compact === "tablecardgames" ||
-		compact === "tableandcardgames" ||
-		compact === "tablegames"
-	) {
-		return "tablecardgames";
-	}
-	return slug.toLowerCase();
+	return LOBBY_SLUG_ALIASES[compact] ?? slug.toLowerCase();
 }
 
 function mergeCategories(

@@ -4,7 +4,6 @@ import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
 import {
 	type ComponentType,
-	type SyntheticEvent,
 	useEffect,
 	useMemo,
 	useRef,
@@ -14,6 +13,7 @@ import {
 	CasinoLaunchActions,
 	CasinoLaunchSheet,
 } from "@/components/casino-launch-actions";
+import { CasinoLobbyArt } from "@/components/casino-lobby-art";
 import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
@@ -25,8 +25,8 @@ import {
 	CLASSIC_PRIORITY_GAMES,
 	CLASSIC_THUNDR_CODES,
 	type ClassicLaunchMode,
-	classicCategoryCounts,
 	type ClassicLobbyGame,
+	classicCategoryCounts,
 	fetchClassicLobbyGames,
 	filterClassicGames,
 	isSlotegratorLobbyGame,
@@ -34,9 +34,15 @@ import {
 	resolveKnownLobbyImage,
 } from "@/lib/classic-lobby";
 import {
+	canonicalLobbySlug,
 	gameMatchesLobbyCategory,
 	overlayScorpioLobbyCategories,
 } from "@/lib/lobby-categories";
+import {
+	excludeScorpioStoredGames,
+	mergeLobbyGames,
+	parseScorpioStoredCode,
+} from "@/lib/lobby-games";
 import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
@@ -65,10 +71,6 @@ function isScorpioGame(game: LobbyGame): game is ScorpioLobbyGame {
 	return "provider" in game && game.provider === "scorpio";
 }
 
-function hideBrokenImage(e: SyntheticEvent<HTMLImageElement>) {
-	e.currentTarget.style.display = "none";
-}
-
 function scorpioMatchesCategory(
 	game: ScorpioLobbyGame,
 	category: string,
@@ -77,20 +79,6 @@ function scorpioMatchesCategory(
 		return false;
 	}
 	return gameMatchesLobbyCategory(game, category);
-}
-
-function mergeLobbyGames(
-	classic: ClassicLobbyGame[],
-	scorpio: ScorpioLobbyGame[],
-): LobbyGame[] {
-	const classicCodes = new Set(
-		classic.map((g) => g.code.trim().toLowerCase()).filter(Boolean),
-	);
-	const scorpioOnly = scorpio.filter((g) => {
-		const code = g.code.trim().toLowerCase();
-		return code && !classicCodes.has(code);
-	});
-	return [...classic, ...scorpioOnly];
 }
 
 function GamesPage() {
@@ -209,7 +197,9 @@ function GamesPage() {
 	);
 
 	const categoryCounts = useMemo(() => {
-		const counts = classicCategoryCounts(classicGames);
+		const counts = classicCategoryCounts(
+			excludeScorpioStoredGames(classicGames),
+		);
 		for (const slug of CLASSIC_CATEGORIES) {
 			if (slug === "popular" || slug === "pvp" || slug === "original") {
 				continue;
@@ -235,8 +225,8 @@ function GamesPage() {
 				scorpioMatchesCategory(g, selectedCategory),
 			);
 		}
-	if (search) {
-		const q = search.toLowerCase();
+		if (search) {
+			const q = search.toLowerCase();
 			scorpioFiltered = scorpioFiltered.filter((g) => {
 				const inName = g.name.toLowerCase().includes(q);
 				const inProvider = g.providerName.toLowerCase().includes(q);
@@ -262,13 +252,13 @@ function GamesPage() {
 	const sortedGames = useMemo(() => {
 		const list = [...filteredGames];
 		list.sort((a, b) => {
-		const aAviator = a.name.toLowerCase().includes("aviator");
-		const bAviator = b.name.toLowerCase().includes("aviator");
-		if (aAviator && !bAviator) return -1;
-		if (!aAviator && bAviator) return 1;
+			const aAviator = a.name.toLowerCase().includes("aviator");
+			const bAviator = b.name.toLowerCase().includes("aviator");
+			if (aAviator && !bAviator) return -1;
+			if (!aAviator && bAviator) return 1;
 
-		if (sortAsc === true) return a.name.localeCompare(b.name);
-		if (sortAsc === false) return b.name.localeCompare(a.name);
+			if (sortAsc === true) return a.name.localeCompare(b.name);
+			if (sortAsc === false) return b.name.localeCompare(a.name);
 
 			const aPriority = CLASSIC_PRIORITY_GAMES.indexOf(
 				a.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
@@ -276,9 +266,9 @@ function GamesPage() {
 			const bPriority = CLASSIC_PRIORITY_GAMES.indexOf(
 				b.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
 			);
-		if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
-		if (aPriority !== -1) return -1;
-		if (bPriority !== -1) return 1;
+			if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
+			if (aPriority !== -1) return -1;
+			if (bPriority !== -1) return 1;
 
 			// Classic (Slotegrator) before Scorpio when otherwise equal
 			const aScorpio = isScorpioGame(a);
@@ -286,8 +276,8 @@ function GamesPage() {
 			if (!aScorpio && bScorpio) return -1;
 			if (aScorpio && !bScorpio) return 1;
 
-		return a.name.localeCompare(b.name);
-	});
+			return a.name.localeCompare(b.name);
+		});
 		return list;
 	}, [filteredGames, sortAsc]);
 
@@ -332,7 +322,10 @@ function GamesPage() {
 		game: LobbyGame,
 		mode: ClassicLaunchMode = "real",
 	) => {
-		const needsAuth = isScorpioGame(game) || mode === "real";
+		const needsAuth =
+			isScorpioGame(game) ||
+			parseScorpioStoredCode(game.code) != null ||
+			mode === "real";
 		if (needsAuth && !session?.user) {
 			goSignIn();
 			return;
@@ -352,8 +345,18 @@ function GamesPage() {
 				});
 				gameUrl = launch.url;
 			} else {
-				gameUrl = await launchClassicGame(game, { mode });
-				if (!gameUrl) return;
+				const stored = parseScorpioStoredCode(game.code);
+				if (stored) {
+					const launch = await launchScorpioGame({
+						providerId: stored.providerId,
+						gameCode: stored.gameCode,
+						returnUrl: `${window.location.origin}/games`,
+					});
+					gameUrl = launch.url;
+				} else {
+					gameUrl = await launchClassicGame(game, { mode });
+					if (!gameUrl) return;
+				}
 			}
 
 			navigate({
@@ -388,14 +391,13 @@ function GamesPage() {
 				setShowBalanceModal(true);
 				return;
 			}
-			const friendly =
-				/demo url|does not support demo|demo mode/i.test(message)
-					? "Demo is not available for this game. Try Play Now."
-					: /immediate_exit|could not start|closed the session|zero limits/i.test(
-								message,
-						  )
-						? "This game is not playable yet on our Slotegrator contract. Try another title or provider."
-						: message;
+			const friendly = /demo url|does not support demo|demo mode/i.test(message)
+				? "Demo is not available for this game. Try Play Now."
+				: /immediate_exit|could not start|closed the session|zero limits/i.test(
+							message,
+						)
+					? "This game is not playable yet on our Slotegrator contract. Try another title or provider."
+					: message;
 			setLaunchError(friendly);
 		} finally {
 			setLoadingGame(null);
@@ -450,10 +452,10 @@ function GamesPage() {
 	if (isLoading) {
 		return (
 			<div className="min-h-screen dark:bg-[#121212]">
-				<div className="container mx-auto relative px-4 pb-8">
+				<div className="container relative mx-auto px-4 pb-8">
 					<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
 						<Skeleton className="mb-6 h-8 w-40 bg-gray-200 dark:bg-[#1B2722]" />
-						<div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+						<div className="scrollbar-hide flex gap-3 overflow-x-auto pb-2">
 							{Array.from({ length: 8 }).map((_, i) => (
 								<Skeleton
 									key={i}
@@ -508,9 +510,9 @@ function GamesPage() {
 			<CasinoLaunchSheet
 				open={Boolean(activeLaunchGame)}
 				gameName={activeLaunchGame?.name ?? ""}
-				loading={
-					Boolean(activeLaunchGame && loadingGame === activeLaunchGame.id)
-				}
+				loading={Boolean(
+					activeLaunchGame && loadingGame === activeLaunchGame.id,
+				)}
 				onClose={() => setActiveLaunchId(null)}
 				onDemo={() => {
 					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "demo");
@@ -519,7 +521,7 @@ function GamesPage() {
 					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "real");
 				}}
 			/>
-			<div className="container mx-auto relative px-4 pb-8">
+			<div className="container relative mx-auto px-4 pb-8">
 				<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
 					<div className="mb-4 flex flex-col justify-between gap-4 md:flex-row md:items-center">
 						<h1 className="font-bold text-2xl text-gray-900 dark:text-white">
@@ -559,12 +561,12 @@ function GamesPage() {
 					</div>
 
 					{launchError && (
-						<p className="mb-3 text-sm text-red-400">{launchError}</p>
+						<p className="mb-3 text-red-400 text-sm">{launchError}</p>
 					)}
 
 					{(classicQuery.isError || scorpioQuery.isError) &&
 						allGames.length > 0 && (
-							<p className="mb-3 text-sm text-amber-400">
+							<p className="mb-3 text-amber-400 text-sm">
 								{classicQuery.isError && scorpioQuery.isError
 									? null
 									: classicQuery.isError
@@ -581,7 +583,7 @@ function GamesPage() {
 									search: (prev) => ({ ...prev, category: undefined }),
 								})
 							}
-							className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors ${
+							className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm transition-colors ${
 								selectedCategory === null
 									? "border-[#1BAA04] bg-[#1BAA04] text-white"
 									: "border-[#1B2722] text-gray-300"
@@ -598,38 +600,43 @@ function GamesPage() {
 								{allGamesVisible.length.toLocaleString()}
 							</span>
 						</button>
-						{categoryTabs.map((cat) => (
+						{categoryTabs.map((cat) => {
+							const isActive =
+								selectedCategory != null &&
+								canonicalLobbySlug(selectedCategory) ===
+									canonicalLobbySlug(cat.slug);
+							return (
 								<button
-								type="button"
-								key={cat.slug}
+									type="button"
+									key={cat.slug}
 									onClick={() =>
 										navigate({
 											search: (prev) => ({
 												...prev,
-											category:
-												selectedCategory === cat.slug ? undefined : cat.slug,
+												category: isActive ? undefined : cat.slug,
 											}),
 										})
 									}
-								className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-medium text-white capitalize transition-colors ${
-									selectedCategory === cat.slug
+									className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm text-white capitalize transition-colors ${
+										isActive
 											? "border-[#1BAA04] bg-[#1BAA04]"
-										: "border-[#1B2722] text-gray-300"
-								}`}
-							>
-								{cat.emoji ? <span>{cat.emoji}</span> : null}
-								<span className="capitalize">{cat.name}</span>
+											: "border-[#1B2722] text-gray-300"
+									}`}
+								>
+									{cat.emoji ? <span>{cat.emoji}</span> : null}
+									<span className="capitalize">{cat.name}</span>
 									<span
-									className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
-										selectedCategory === cat.slug
+										className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
+											isActive
 												? "bg-[#040C01] text-white"
 												: "bg-[#1B2722] text-gray-300"
 										}`}
 									>
-									{categoryCounts[cat.slug]?.toLocaleString() ?? 0}
+										{categoryCounts[cat.slug]?.toLocaleString() ?? 0}
 									</span>
 								</button>
-						))}
+							);
+						})}
 					</div>
 				</div>
 
@@ -648,7 +655,7 @@ function GamesPage() {
 									variants={containerVariants}
 									initial="hidden"
 									animate="show"
-									className="flex snap-x snap-mandatory gap-2 overflow-x-auto scrollbar-hide"
+									className="scrollbar-hide flex snap-x snap-mandatory gap-2 overflow-x-auto"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
@@ -677,20 +684,13 @@ function GamesPage() {
 														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
 												)}
-												{display.image ? (
-													<img
-														src={display.image}
-														alt={display.name}
-														loading="lazy"
-														className="absolute inset-0 h-full w-full object-cover"
-														style={{
-															opacity: loadingGame === game.id ? 0.35 : 1,
-														}}
-														onError={hideBrokenImage}
-													/>
-												) : display.Icon ? (
-													<display.Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-2" />
-												) : null}
+												<CasinoLobbyArt
+													src={display.image}
+													name={display.name}
+													icon={display.Icon}
+													dimmed={loadingGame === game.id}
+													compact
+												/>
 												{dual && (
 													<CasinoLaunchActions
 														compact
@@ -736,20 +736,12 @@ function GamesPage() {
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
 										)}
-										{display.image ? (
-											<img
-												src={display.image}
-												alt={display.name}
-												loading="lazy"
-												className="absolute inset-0 h-full w-full object-cover"
-												style={{
-													opacity: loadingGame === game.id ? 0.35 : 1,
-												}}
-												onError={hideBrokenImage}
-											/>
-										) : display.Icon ? (
-											<display.Icon className="pointer-events-none absolute inset-0 z-0 m-auto h-[72%] w-[72%] p-3" />
-										) : null}
+										<CasinoLobbyArt
+											src={display.image}
+											name={display.name}
+											icon={display.Icon}
+											dimmed={loadingGame === game.id}
+										/>
 										{dual && (
 											<CasinoLaunchActions
 												active={activeLaunchId === game.id}
