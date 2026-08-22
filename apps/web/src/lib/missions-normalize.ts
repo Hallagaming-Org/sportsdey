@@ -36,7 +36,7 @@ export type MissionCard = {
 	
 	actionHref: string;
 	
-	actionSearch?: { play?: string };
+	actionSearch?: { play?: string; category?: string };
 	actionKind: MissionActionKind;
 	
 	providers: Array<{ uniqueId: string; name: string }>;
@@ -60,7 +60,7 @@ type ResolvedMissionAction = {
 	kind: MissionActionKind;
 	label: string;
 	href: string;
-	search?: { play?: string };
+	search?: { play?: string; category?: string };
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -226,6 +226,7 @@ export function resolveMissionAction(payload: {
 			kind: "virtuals",
 			label: MISSION_ACTION_LABEL.VIRTUALS,
 			href: MISSION_ROUTE.CASINO,
+			search: { category: "virtuals" },
 		};
 	}
 	if (MISSION_TRIGGER_KEYWORD.SPORTS.test(triggerHaystack)) {
