@@ -3,7 +3,7 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
-import { authClient } from "@/lib/auth/client";
+import { authClient, setPhonePassword } from "@/lib/auth/client";
 
 const resetPasswordSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -89,7 +89,7 @@ function ResetPasswordPage() {
 					return;
 				}
 			} else {
-				await new Promise((resolve) => setTimeout(resolve, 800));
+				await setPhonePassword(newPassword);
 			}
 			toast.success("Password updated successfully! Please log in.");
 			navigate({

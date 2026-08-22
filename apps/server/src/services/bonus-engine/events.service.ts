@@ -1,5 +1,10 @@
+import type { ExecutionContext } from "hono";
 import type { CloudflareBindings } from "../../types";
-import { BONUS_ENGINE_PATH } from "./bonus-engine.service.constant";
+import {
+	BONUS_ENGINE_PATH,
+	BONUS_ENGINE_REPORT_RETRY_ATTEMPTS,
+	BONUS_ENGINE_REPORT_RETRY_DELAYS_MS,
+} from "./bonus-engine.service.constant";
 import type {
 	BonusEngineApiResult,
 	BonusEngineReportBetInput,
@@ -9,11 +14,34 @@ import { bonusEngineRequest } from "./client";
 import { getBonusEngineConfig } from "./config";
 import { getBonusEngineAccessToken } from "./token.service";
 
-/**
- * Reports a deposit event to Bonus Engine (feeds loyalty earning rules).
- * Not wired to wallet routes yet — exported for a later integration hook.
- */
+export async function runBonusEngineBackground(
+	executionCtx: ExecutionContext | undefined,
+	work: Promise<unknown>,
+): Promise<void> {
+	if (typeof executionCtx?.waitUntil === "function") {
+		executionCtx.waitUntil(work);
+		return;
+	}
+	await work;
+}
+
 export async function reportBonusEngineDeposit(payload: {
+	env: CloudflareBindings;
+	deposit: BonusEngineReportDepositInput;
+}): Promise<BonusEngineApiResult<unknown>> {
+	return withBonusEngineReportRetries(() =>
+		sendBonusEngineDeposit(payload),
+	);
+}
+
+export async function reportBonusEngineBet(payload: {
+	env: CloudflareBindings;
+	bet: BonusEngineReportBetInput;
+}): Promise<BonusEngineApiResult<unknown>> {
+	return withBonusEngineReportRetries(() => sendBonusEngineBet(payload));
+}
+
+async function sendBonusEngineDeposit(payload: {
 	env: CloudflareBindings;
 	deposit: BonusEngineReportDepositInput;
 }): Promise<BonusEngineApiResult<unknown>> {
@@ -44,11 +72,7 @@ export async function reportBonusEngineDeposit(payload: {
 	});
 }
 
-/**
- * Reports a bet event to Bonus Engine (feeds missions and loyalty accrual).
- * Not wired to casino/sportsbook routes yet — exported for a later integration hook.
- */
-export async function reportBonusEngineBet(payload: {
+async function sendBonusEngineBet(payload: {
 	env: CloudflareBindings;
 	bet: BonusEngineReportBetInput;
 }): Promise<BonusEngineApiResult<unknown>> {
@@ -79,5 +103,34 @@ export async function reportBonusEngineBet(payload: {
 			provider_id: bet.providerId,
 			game_id: bet.gameId,
 		},
+	});
+}
+
+async function withBonusEngineReportRetries(
+	send: () => Promise<BonusEngineApiResult<unknown>>,
+): Promise<BonusEngineApiResult<unknown>> {
+	let last: BonusEngineApiResult<unknown> | undefined;
+	for (let attempt = 0; attempt < BONUS_ENGINE_REPORT_RETRY_ATTEMPTS; attempt++) {
+		last = await send();
+		if (last.ok) return last;
+		const isRetryable =
+			last.status === 429 || last.status >= 500 || last.status === 0;
+		if (!isRetryable) return last;
+		const delayMs = BONUS_ENGINE_REPORT_RETRY_DELAYS_MS[attempt];
+		if (delayMs === undefined) break;
+		await sleep(delayMs);
+	}
+	return (
+		last ?? {
+			ok: false,
+			status: 502,
+			error: "Bonus Engine report failed",
+		}
+	);
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
 	});
 }

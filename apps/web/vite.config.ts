@@ -8,7 +8,6 @@ import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 // Must match apps/server `wrangler dev --port=3000`.
-// Do NOT proxy "/games" — that path is the TanStack lobby page; the API is reached via VITE_SERVER_URL.
 const LOCAL_API_TARGET = "http://localhost:3000";
 
 /** TanStack pages under /auth — must not be proxied to the API worker. */
@@ -86,6 +85,40 @@ function proxyMissionApiToLocalApi() {
 	};
 }
 
+function proxyLoyaltyApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/loyalty" || path === "/loyalty/") {
+				return req.url;
+			}
+			if (!path.startsWith("/loyalty/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
+/**
+ * Proxies `GET /games` JSON (and other /games API methods) to the worker,
+ * but leaves lobby navigations (`/games`, `/games?play=…`) to TanStack.
+ */
+function proxyGamesApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path !== "/games" && !path.startsWith("/games/")) {
+				return;
+			}
+			if (isDocumentNavigation(req)) {
+				return req.url;
+			}
+		},
+	};
+}
+
 export default defineConfig(({ command, mode }) => {
 	const env = loadEnv(mode, process.cwd(), "VITE_");
 	if (command === "build" && mode === "staging") {
@@ -100,49 +133,50 @@ export default defineConfig(({ command, mode }) => {
 	}
 
 	return {
-	plugins: [
-		cloudflare({ viteEnvironment: { name: "ssr" } }),
-		tsconfigPaths(),
-		tailwindcss(),
-		tanstackStart(),
-		viteReact(),
-		svgr(),
-	],
-	server: {
-		headers: {
-			// credentialless allows cross-origin casino thumbnails (Scorpio CDNs)
-			// without CORP headers, while keeping COOP for isolation.
-			"Cross-Origin-Opener-Policy": "same-origin",
-			"Cross-Origin-Embedder-Policy": "credentialless",
+		plugins: [
+			cloudflare({ viteEnvironment: { name: "ssr" } }),
+			tsconfigPaths(),
+			tailwindcss(),
+			tanstackStart(),
+			viteReact(),
+			svgr(),
+		],
+		server: {
+			headers: {
+				// credentialless allows cross-origin casino thumbnails (Scorpio CDNs)
+				// without CORP headers, while keeping COOP for isolation.
+				"Cross-Origin-Opener-Policy": "same-origin",
+				"Cross-Origin-Embedder-Policy": "credentialless",
+			},
+			proxy: {
+				"/auth": proxyAuthToLocalApi(),
+				"/phone-auth": proxyToLocalApi(),
+				"/user": proxyToLocalApi(),
+				"/wallet": proxyWalletToLocalApi(),
+				"/cms": proxyToLocalApi(),
+				"/football": proxyToLocalApi(),
+				"/basketball": proxyToLocalApi(),
+				"/tennis": proxyToLocalApi(),
+				"/news": proxyToLocalApi(),
+				"/notifications": proxyToLocalApi(),
+				"/files": proxyToLocalApi(),
+				"/affnook": proxyToLocalApi(),
+				"/sportsbook": proxyToLocalApi(),
+				"/tcds": proxyToLocalApi(),
+				"/casino": proxyToLocalApi(),
+				"/slotegrator": proxyToLocalApi(),
+				"/scorpio": proxyToLocalApi(),
+				"/lagos-rush": proxyToLocalApi(),
+				"/halla": proxyToLocalApi(),
+				"/thndr": proxyToLocalApi(),
+				"/kyc": proxyToLocalApi(),
+				"/bills": proxyToLocalApi(),
+				"/loyalty": proxyLoyaltyApiToLocalApi(),
+				"/mission": proxyMissionApiToLocalApi(),
+				"/games": proxyGamesApiToLocalApi(),
+				"/bonus-engine": proxyToLocalApi(),
+				"/gamification": proxyToLocalApi(),
+			},
 		},
-		proxy: {
-			"/auth": proxyAuthToLocalApi(),
-			"/phone-auth": proxyToLocalApi(),
-			"/user": proxyToLocalApi(),
-			"/wallet": proxyWalletToLocalApi(),
-			"/cms": proxyToLocalApi(),
-			"/football": proxyToLocalApi(),
-			"/basketball": proxyToLocalApi(),
-			"/tennis": proxyToLocalApi(),
-			"/news": proxyToLocalApi(),
-			"/notifications": proxyToLocalApi(),
-			"/files": proxyToLocalApi(),
-			"/affnook": proxyToLocalApi(),
-			"/sportsbook": proxyToLocalApi(),
-			"/tcds": proxyToLocalApi(),
-			"/casino": proxyToLocalApi(),
-			"/slotegrator": proxyToLocalApi(),
-			"/scorpio": proxyToLocalApi(),
-			"/lagos-rush": proxyToLocalApi(),
-			"/halla": proxyToLocalApi(),
-			"/thndr": proxyToLocalApi(),
-			"/kyc": proxyToLocalApi(),
-			"/bills": proxyToLocalApi(),
-			"/loyalty": proxyToLocalApi(),
-			"/mission": proxyMissionApiToLocalApi(),
-			"/bonus-engine": proxyToLocalApi(),
-			"/gamification": proxyToLocalApi(),
-		},
-	},
 	};
 });

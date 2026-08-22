@@ -37,6 +37,13 @@ import {
 	TournamentsResponseSchema,
 } from "@/schemas/sportsbook";
 import {
+	BONUS_ENGINE_DEFAULT_CURRENCY,
+	BONUS_ENGINE_PRODUCT_TYPE,
+	extractSportsbookBetReportIds,
+	reportBonusEngineBet,
+	runBonusEngineBackground,
+} from "@/services/bonus-engine";
+import {
 	ACCUMULATOR_MAX_MULTIPLIER,
 	ACCUMULATOR_MAX_SELECTIONS,
 	ACCUMULATOR_MIN_SELECTIONS,
@@ -1167,6 +1174,45 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
+
+	const stakeMajor =
+		typeof bet.stake === "number" && Number.isFinite(bet.stake)
+			? bet.stake / 100
+			: Number.parseFloat(result.data.bet_stake);
+	if (Number.isFinite(stakeMajor) && stakeMajor > 0) {
+		const reportIds = extractSportsbookBetReportIds(selections);
+		const reportPromise = reportBonusEngineBet({
+			env: c.env,
+			bet: {
+				userId: bet.userId,
+				betId: result.data.bet_id,
+				amount: stakeMajor,
+				productType: BONUS_ENGINE_PRODUCT_TYPE.SPORTSBOOK,
+				currency: BONUS_ENGINE_DEFAULT_CURRENCY,
+				...(reportIds.sportId ? { providerId: reportIds.sportId } : {}),
+				...(reportIds.eventId ? { gameId: reportIds.eventId } : {}),
+			},
+		})
+			.then((reportResult) => {
+				if (!reportResult.ok) {
+					console.error("Bonus Engine sportsbook bet report failed", {
+						betId: result.data.bet_id,
+						userId: bet.userId,
+						status: reportResult.status,
+						error: reportResult.error,
+					});
+				}
+			})
+			.catch((error: unknown) => {
+				console.error("Bonus Engine sportsbook bet report error", {
+					betId: result.data.bet_id,
+					userId: bet.userId,
+					error,
+				});
+			});
+
+		await runBonusEngineBackground(c.executionCtx, reportPromise);
+	}
 
 	return c.body(null, 204);
 });

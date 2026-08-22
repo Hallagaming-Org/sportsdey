@@ -1,4 +1,7 @@
 import { ApiError, apiRequest } from "@/lib/api";
+import { resolveScorpioGameImage } from "@/lib/scorpio-image";
+
+export { resolveScorpioGameImage };
 
 export type ScorpioProvider = {
 	providerId: number;
@@ -16,6 +19,7 @@ export type ScorpioRemoteGame = {
 	gameType?: number;
 	inMaintenance?: boolean;
 	status?: number;
+	enabled?: boolean;
 };
 
 export type ScorpioCategory = {
@@ -47,7 +51,9 @@ function providerSlug(providerId: number, providerName: string): string {
 	return base || `provider-${providerId}`;
 }
 
-function gameTypeCategory(gameType: number | undefined): ScorpioCategory | null {
+function gameTypeCategory(
+	gameType: number | undefined,
+): ScorpioCategory | null {
 	if (gameType === undefined || gameType === null || Number.isNaN(gameType)) {
 		return null;
 	}
@@ -65,51 +71,12 @@ function resolveGameCode(game: ScorpioRemoteGame): string | null {
 	return code || null;
 }
 
-/** Normalize Scorpio thumbnail: plain URL string or nested provider image map. */
-function resolveGameImage(gameImage: ScorpioRemoteGame["gameImage"]): string | null {
-	if (typeof gameImage === "string") {
-		const trimmed = gameImage.trim();
-		return trimmed || null;
-	}
-	if (!gameImage || typeof gameImage !== "object") return null;
-
-	const img = gameImage as {
-		mobile?: {
-			squareTile?: string;
-			icon?: { small?: string; medium?: string };
-			verticalTile?: { small?: string; large?: string };
-		};
-		desktop?: {
-			landscapeTile?: string;
-			gameCover?: string;
-			banner?: { small?: string; medium?: string };
-		};
-	};
-	const candidates = [
-		img.mobile?.squareTile,
-		img.mobile?.icon?.medium,
-		img.mobile?.icon?.small,
-		img.desktop?.landscapeTile,
-		img.desktop?.gameCover,
-		img.desktop?.banner?.medium,
-		img.desktop?.banner?.small,
-		img.mobile?.verticalTile?.small,
-	];
-	for (const candidate of candidates) {
-		if (typeof candidate === "string" && candidate.trim()) {
-			return candidate.trim();
-		}
-	}
-	return null;
-}
-
 export function mapScorpioGame(
 	game: ScorpioRemoteGame,
 	provider: ScorpioProvider,
 ): ScorpioLobbyGame | null {
 	const code = resolveGameCode(game);
-	const name =
-		typeof game.gameName === "string" ? game.gameName.trim() : null;
+	const name = typeof game.gameName === "string" ? game.gameName.trim() : null;
 	if (!code || !name) return null;
 
 	const providerCat: ScorpioCategory = {
@@ -130,7 +97,7 @@ export function mapScorpioGame(
 		id: `scorpio:${provider.providerId}:${code}`,
 		name,
 		code,
-		imageUrl: resolveGameImage(game.gameImage),
+		imageUrl: resolveScorpioGameImage(game.gameImage),
 		categories,
 		enabled: !disabled,
 		createdAt: 0,

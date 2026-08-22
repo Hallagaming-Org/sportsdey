@@ -8,9 +8,6 @@ import type { BonusEngineApiResult } from "./bonus-engine.service.type";
 import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
 import { signBonusEngineBody } from "./crypto";
 
-/**
- * Extracts a human-readable message from Bonus Engine JSON error bodies.
- */
 export function extractBonusEngineMessage(
 	parsed: unknown,
 	fallback: string,
@@ -34,11 +31,6 @@ export function extractBonusEngineMessage(
 	return fallback;
 }
 
-/**
- * Sends a signed JSON POST to Bonus Engine.
- * Serializes the body once, signs those exact bytes, and sends the same string.
- * Optionally attaches a JWT `Token` header for feature routes.
- */
 export async function bonusEngineRequest<T = unknown>(payload: {
 	env: CloudflareBindings;
 	path: string;

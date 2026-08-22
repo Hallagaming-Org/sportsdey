@@ -1,6 +1,4 @@
-/**
- * Formats a mission end time for the search placeholder (e.g. "Ends Jul 30, 6:00 PM").
- */
+
 export function formatShortDate(value: string): string {
 	return new Date(value).toLocaleString("en-US", {
 		month: "short",
@@ -10,9 +8,6 @@ export function formatShortDate(value: string): string {
 	});
 }
 
-/**
- * Formats a completion timestamp for the completed-missions list.
- */
 export function formatCompletedAt(value: string): string {
 	return new Date(value).toLocaleString("en-US", {
 		month: "short",

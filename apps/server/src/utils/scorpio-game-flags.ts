@@ -58,9 +58,14 @@ export function overlayScorpioEnabled<T extends Record<string, unknown>>(
 	return games.map((game) => {
 		const id = resolveRemoteGameId(game);
 		const code = id ? scorpioGameCode(providerId, id) : "";
+		const remoteDisabled =
+			game.enabled === false ||
+			game.inMaintenance === true ||
+			game.status === 0;
+		const locallyDisabled = Boolean(code && disabledCodes.has(code));
 		return {
 			...game,
-			enabled: code ? !disabledCodes.has(code) : true,
+			enabled: !locallyDisabled && !remoteDisabled,
 		};
 	});
 }

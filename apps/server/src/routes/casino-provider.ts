@@ -20,6 +20,18 @@ import type { CloudflareBindings } from "../types";
 
 const casinoProviderRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
+function isUniqueConstraintError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		message.includes("UNIQUE constraint failed") ||
+		(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
+	);
+}
+
+function rollbackLedgerTxId(originalProviderTxId: string): string {
+	return `rollback_${originalProviderTxId}`;
+}
+
 const authRoute = createRoute({
 	method: "post",
 	path: "/auth",
@@ -736,6 +748,32 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		game,
 	} = result.data;
 
+	const rollbackTxId = rollbackLedgerTxId(rollback_provider_tx_id);
+
+	const [existingRollback] = await db
+		.select()
+		.from(schema.gameTransactions)
+		.where(eq(schema.gameTransactions.providerTxId, rollbackTxId))
+		.limit(1);
+
+	if (existingRollback) {
+		return c.json(
+			{
+				code: 200,
+				data: {
+					user_id,
+					provider,
+					provider_tx_id: rollback_provider_tx_id,
+					old_balance: (existingRollback.balanceBefore ?? 0) * 10,
+					new_balance: (existingRollback.balanceAfter ?? 0) * 10,
+					operator_tx_id: existingRollback.id,
+					currency: "NGN",
+				},
+			},
+			200,
+		);
+	}
+
 	const [existingTx] = await db
 		.select()
 		.from(schema.gameTransactions)
@@ -802,15 +840,70 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	const adjustment = existingTx.type === "BET" ? amountKobo : -amountKobo;
 	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
+	if (existingTx.type !== "BET" && (!wallet || balanceKobo < amountKobo)) {
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	}
+
+	try {
+		await db.insert(schema.gameTransactions).values({
+			id: operatorTxId,
+			userId: user_id,
+			providerTxId: rollbackTxId,
+			type: "ROLLBACK",
+			amount: amountKobo,
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: oldBalanceKobo + adjustment,
+			sessionToken: session_token,
+			game,
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			const [raced] = await db
+				.select()
+				.from(schema.gameTransactions)
+				.where(eq(schema.gameTransactions.providerTxId, rollbackTxId))
+				.limit(1);
+			if (raced) {
+				return c.json(
+					{
+						code: 200,
+						data: {
+							user_id,
+							provider,
+							provider_tx_id: rollback_provider_tx_id,
+							old_balance: (raced.balanceBefore ?? 0) * 10,
+							new_balance: (raced.balanceAfter ?? 0) * 10,
+							operator_tx_id: raced.id,
+							currency: "NGN",
+						},
+					},
+					200,
+				);
+			}
+		}
+		throw error;
+	}
+
 	const updatedWallet =
 		existingTx.type === "BET"
 			? await creditWallet(db, user_id, amountKobo)
 			: await debitWallet(db, user_id, amountKobo);
 
 	if (!updatedWallet) {
+		await db
+			.delete(schema.gameTransactions)
+			.where(eq(schema.gameTransactions.providerTxId, rollbackTxId));
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
 	const newBalanceKobo = updatedWallet.balance;
+
+	await db
+		.update(schema.gameTransactions)
+		.set({
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
+		})
+		.where(eq(schema.gameTransactions.providerTxId, rollbackTxId));
 
 	const [walletTxn] = await db
 		.insert(schema.walletTransaction)
@@ -826,7 +919,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 			metadata: JSON.stringify({
 				game,
 				sessionToken: session_token,
-				providerTxId: provider_tx_id,
+				providerTxId: rollback_provider_tx_id,
 				action: "rollback",
 			}),
 		})
@@ -835,28 +928,6 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	if (!walletTxn?.id) {
 		return c.json(
 			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [rollbackTxn] = await db
-		.insert(schema.gameTransactions)
-		.values({
-			id: operatorTxId,
-			userId: user_id,
-			providerTxId: `rollback_${rollback_provider_tx_id}`,
-			type: "ROLLBACK",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			sessionToken: session_token,
-			game,
-		})
-		.returning();
-
-	if (!rollbackTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record rollback transaction" },
 			500,
 		);
 	}

@@ -1,16 +1,27 @@
 export {
+	BONUS_ENGINE_BODY_FIELD,
 	BONUS_ENGINE_CALLBACK_PATH,
+	BONUS_ENGINE_DEFAULT_CURRENCY,
+	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
+	BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX,
 	BONUS_ENGINE_PATH,
+	BONUS_ENGINE_PRODUCT_TYPE,
 	BONUS_ENGINE_REFERENCE_DATA_PATH,
+	BONUS_ENGINE_REWARD_TYPE,
+	BONUS_ENGINE_WALLET_PAYMENT_METHOD,
 	BONUS_ENGINE_HEADER,
 } from "./bonus-engine.service.constant";
 export type {
 	BonusEngineApiResult,
 	BonusEngineLoginInput,
+	BonusEngineLoyaltyCampaignItem,
 	BonusEngineLoyaltyHistoryItem,
 	BonusEngineLoyaltyPointsData,
+	BonusEngineLoyaltyProjectBody,
+	BonusEngineLoyaltyRedeemBody,
 	BonusEngineLoyaltyRedeemData,
+	BonusEngineLoyaltyScopedBody,
 	BonusEngineMissionCompletePayload,
 	BonusEngineMissionListItem,
 	BonusEngineMissionProgressPayload,
@@ -41,21 +52,34 @@ export {
 	listBonusEngineSportEvents,
 	listBonusEngineSports,
 } from "./reference-data.service";
+export { syncCasinoCatalogFromSlotegrator } from "./catalog-sync.service";
+export type { CasinoCatalogSyncResult } from "./catalog-sync.service";
 export {
 	reportBonusEngineBet,
 	reportBonusEngineDeposit,
+	runBonusEngineBackground,
 } from "./events.service";
 export {
+	creditMissionRealCashReward,
+	parseMissionRealCashReward,
+} from "./rewards.service";
+export { extractSportsbookBetReportIds } from "./sportsbook-bet.service";
+export {
+	buildBonusEngineLoyaltyProjectBody,
+	buildBonusEngineLoyaltyRedeemBody,
+	buildBonusEngineLoyaltyScopedBody,
 	getBonusEngineLoyaltyHistory,
+	getBonusEngineLoyaltyLists,
 	getBonusEngineLoyaltyPoints,
 	redeemBonusEngineLoyaltyPoints,
 } from "./loyalty.service";
-export { listBonusEngineMissions } from "./mission.service";
+export { listBonusEngineMissions, mergeMissionListWithLocalProgress } from "./mission.service";
 export {
 	getBonusEngineWalletBalances,
+	listBonusEngineMissionProgressForUser,
 	recordBonusEngineCallbackEvent,
 	upsertBonusEngineLoyaltySnapshot,
 	upsertBonusEngineMissionProgress,
 } from "./persistence.service";
-export { loginBonusEnginePlayer } from "./player.service";
+export { loginBonusEnginePlayer, syncBonusEnginePlayerOnAppLogin } from "./player.service";
 export { getBonusEngineAccessToken } from "./token.service";

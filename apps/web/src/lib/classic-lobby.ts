@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
 import { canonicalLobbySlug } from "@/lib/lobby-categories";
+import { isScorpioStoredCode } from "@/lib/lobby-games";
 import { resolveServerUrl } from "@/lib/server-url";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
 import BlocksLogo from "@/logos/blocks.svg?react";
@@ -29,7 +30,8 @@ export type ClassicLobbyGame = {
 
 export const CLASSIC_CATEGORIES = [
 	"popular",
-	"crash-games",
+	"crash",
+	"instant",
 	"original",
 	"pvp",
 	"slots",
@@ -47,7 +49,8 @@ export const CLASSIC_CATEGORIES = [
 
 export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	popular: "🔥",
-	"crash-games": "🚀",
+	crash: "🚀",
+	instant: "⚡",
 	original: "🎯",
 	pvp: "⚔️",
 	slots: "🎰",
@@ -220,7 +223,7 @@ export const CLASSIC_KNOWN_GAMES: Record<
 		image: "/sportsdey-crash.jpeg",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
-	"spin_and_win": {
+	spin_and_win: {
 		subtitle: "sportsdey original",
 		image: "/spin-and-win-v3.jpg",
 		gradient: "linear-gradient(to bottom, #e91e63, #9c27b0, #673ab7)",
@@ -335,7 +338,8 @@ export function filterClassicGames(
 		} else {
 			filtered = allGames.filter((g) =>
 				g.categories?.some(
-					(c) => canonicalLobbySlug(c.slug) === canonicalLobbySlug(selectedCategory),
+					(c) =>
+						canonicalLobbySlug(c.slug) === canonicalLobbySlug(selectedCategory),
 				),
 			);
 		}
@@ -395,6 +399,7 @@ type LaunchResponse = {
 
 /** Slotegrator catalog games (uuid codes) — support Try Demo + Play Now. */
 export function isSlotegratorLobbyGame(game: Pick<ClassicLobbyGame, "code">) {
+	if (isScorpioStoredCode(game.code)) return false;
 	return game.code !== "sportsdey-crash" && !CLASSIC_KNOWN_GAMES[game.code];
 }
 
@@ -411,6 +416,10 @@ export async function launchClassicGame(
 	game: ClassicLobbyGame,
 	options?: { mode?: ClassicLaunchMode },
 ): Promise<string | null> {
+	if (isScorpioStoredCode(game.code)) {
+		throw new Error("Game not found");
+	}
+
 	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
 		window.open(SPORTSDEY_CRASH_URL, "_blank");
 		return null;
@@ -439,8 +448,7 @@ export async function launchClassicGame(
 		}
 	} else {
 		const mode = options?.mode ?? "demo";
-		path =
-			mode === "real" ? "/slotegrator/launch" : "/slotegrator/launch-demo";
+		path = mode === "real" ? "/slotegrator/launch" : "/slotegrator/launch-demo";
 		body = {
 			game_uuid: game.code,
 			// Bare exit page — avoids nesting the full casino lobby in the game iframe

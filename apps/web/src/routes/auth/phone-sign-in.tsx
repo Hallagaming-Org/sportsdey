@@ -1,6 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { requestPhoneOtp } from "@/lib/auth/client";
+import {
+  authClient,
+  loginWithPhone,
+  PENDING_PHONE_PASSWORD_KEY,
+  requestPhoneOtp,
+} from "@/lib/auth/client";
+import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
+import { loginWebengageUser } from "@/lib/webengage";
 import { Lock, Eye, EyeOff } from "lucide-react";
 import z from "zod";
 
@@ -65,19 +72,54 @@ function PhoneSignInPage() {
     setIsLoading(true);
 
     try {
-      await requestPhoneOtp(phone);
-      navigate({
-        to: "/auth/otp",
-        search: {
-          phone,
-          referralCode: isSignUp ? referralCode.trim() || undefined : undefined,
-        },
-      });
+      if (isSignUp) {
+        sessionStorage.setItem(PENDING_PHONE_PASSWORD_KEY, password);
+        await requestPhoneOtp(phone);
+        navigate({
+          to: "/auth/otp",
+          search: {
+            phone,
+            flow: "signup",
+            referralCode: referralCode.trim() || undefined,
+          },
+        });
+        return;
+      }
+
+      const data = await loginWithPhone(phone, password);
+      const session = await authClient.getSession();
+      if (!session?.data?.session) {
+        throw new Error(
+          "Sign-in succeeded but session was not established. Please try again.",
+        );
+      }
+      authClient.$store.notify("$sessionSignal");
+      loginWebengageUser(data.user.id);
+
+      if (
+        needsPhoneProfileCompletion({
+          ...data.user,
+          isFirstTimeSignIn: data.isFirstTimeSignIn,
+          needsProfileCompletion: data.needsProfileCompletion,
+        })
+      ) {
+        navigate({
+          to: "/auth/complete-profile",
+          search: {
+            phone,
+          },
+        });
+        return;
+      }
+
+      navigate({ to: "/", search: { league: "sports", sports: "football" } });
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to log in. Please try again.",
+          : isSignUp
+            ? "Failed to send OTP. Please try again."
+            : "Failed to log in. Please try again.",
       );
     } finally {
       setIsLoading(false);
@@ -96,9 +138,15 @@ function PhoneSignInPage() {
           <h1 className="font-bold text-[32px] text-[#0a0f0d] leading-tight">
             {isSignUp ? "Sign up to your account" : "Log in to your account"}
           </h1>
-          <p className="mt-2 text-[#0a0f0d] text-base font-medium">
-            It's quick, easy, and enjoyable.
-          </p>
+          {isSignUp ? (
+            <p className="mt-2 font-medium text-[#6f7471] text-sm">
+              Step 1 of 3
+            </p>
+          ) : (
+            <p className="mt-2 text-[#0a0f0d] text-base font-medium">
+              It's quick, easy, and enjoyable.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-4">
@@ -209,7 +257,13 @@ function PhoneSignInPage() {
           disabled={!canContinue || isLoading}
           className="mt-8 w-full rounded-2xl bg-[#17b000] py-[18px] font-semibold text-lg text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60 hover:opacity-90"
         >
-          {isLoading ? "Sending OTP..." : "Continue"}
+          {isLoading
+            ? isSignUp
+              ? "Sending OTP..."
+              : "Logging in..."
+            : isSignUp
+              ? "Continue"
+              : "Log in"}
         </button>
 
         <div className="mt-8 flex items-center">
