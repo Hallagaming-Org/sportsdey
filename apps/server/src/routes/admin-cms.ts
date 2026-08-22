@@ -3,6 +3,10 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
 import type { CloudflareBindings } from "../types";
 
@@ -50,9 +54,8 @@ const CreateCmsContentSchema = z.object({
 	authorName: z.string().min(1).openapi({ description: "Author full name" }),
 });
 
-const UpdateCmsContentSchema = CreateCmsContentSchema.partial().openapi(
-	"UpdateCmsContent",
-);
+const UpdateCmsContentSchema =
+	CreateCmsContentSchema.partial().openapi("UpdateCmsContent");
 
 const CmsContentResponseSchema = z.object({
 	_id: z.string(),
@@ -315,11 +318,10 @@ cmsRoute.openapi(
 			}
 		}
 
-		const { fromDate: fromBoundary, toDate: toBoundary } =
-			parseQueryDateRange({
-				fromDate,
-				toDate,
-			}) as { fromDate?: number; toDate?: number };
+		const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
+			fromDate,
+			toDate,
+		}) as { fromDate?: number; toDate?: number };
 
 		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
@@ -407,9 +409,7 @@ cmsRoute.openapi(
 			200: {
 				content: {
 					"application/json": {
-						schema: successResponseSchema(
-							CmsContentResponseSchema.array(),
-						),
+						schema: successResponseSchema(CmsContentResponseSchema.array()),
 					},
 				},
 				description: "Successfully retrieved content",
@@ -466,11 +466,10 @@ cmsRoute.openapi(
 		}
 
 		const { search, type, sortBy, fromDate, toDate } = c.req.valid("query");
-		const { fromDate: fromBoundary, toDate: toBoundary } =
-			parseQueryDateRange({
-				fromDate,
-				toDate,
-			}) as { fromDate?: number; toDate?: number };
+		const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
+			fromDate,
+			toDate,
+		}) as { fromDate?: number; toDate?: number };
 		const client = getSanityClient(c.env);
 
 		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
@@ -502,10 +501,7 @@ cmsRoute.openapi(
 			"author": author->{_id, name, image}
 		}`;
 
-		const allContent = await client.fetch<Array<SanityContent>>(
-			query,
-			params,
-		);
+		const allContent = await client.fetch<Array<SanityContent>>(query, params);
 
 		const filteredContent = allContent.filter((item) => {
 			const publishedAt = new Date(item.publishedAt);
@@ -779,10 +775,7 @@ cmsRoute.openapi(
 			  }
 			| undefined;
 		if (bannerImage) {
-			const base64Data = bannerImage.replace(
-				/^data:image\/\w+;base64,/,
-				"",
-			);
+			const base64Data = bannerImage.replace(/^data:image\/\w+;base64,/, "");
 			const buffer = Buffer.from(base64Data, "base64");
 			const asset = await client.assets.upload("image", buffer, {
 				filename: `${slugify(title)}.jpg`,
@@ -843,6 +836,11 @@ cmsRoute.openapi(
 		}
 
 		const createdDoc = await client.create(doc);
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.uploadContent,
+		);
 
 		return c.json(
 			{
@@ -995,8 +993,7 @@ cmsRoute.openapi(
 					details: [
 						{
 							field: "body",
-							message:
-								"Provide at least one field to update the CMS content",
+							message: "Provide at least one field to update the CMS content",
 							code: "invalid_body",
 						},
 					],
@@ -1155,6 +1152,11 @@ cmsRoute.openapi(
 		}
 
 		await patchRequest.commit();
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.updateContent,
+		);
 
 		return c.json(
 			{
@@ -1302,6 +1304,11 @@ cmsRoute.openapi(
 		}
 
 		await client.delete(id);
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.deleteContent,
+		);
 
 		return c.json(
 			{

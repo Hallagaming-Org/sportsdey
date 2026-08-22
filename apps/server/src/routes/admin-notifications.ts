@@ -5,9 +5,15 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
-const adminNotificationsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+const adminNotificationsRoute = new OpenAPIHono<{
+	Bindings: CloudflareBindings;
+}>();
 
 const NotificationSchema = z.object({
 	id: z.string(),
@@ -24,8 +30,7 @@ const getNotificationsRoute = createRoute({
 	path: "/notifications",
 	tags: ["Admin - Notifications"],
 	summary: "Get admin notifications",
-	description:
-		"Retrieve notifications for the authenticated admin (paginated)",
+	description: "Retrieve notifications for the authenticated admin (paginated)",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: z.object({
@@ -71,9 +76,7 @@ const getUnreadCountRoute = createRoute({
 			description: "Unread count retrieved",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({ count: z.number() }),
-					),
+					schema: successResponseSchema(z.object({ count: z.number() })),
 				},
 			},
 		},
@@ -89,7 +92,8 @@ const getNotificationCountRoute = createRoute({
 	path: "/notifications/count",
 	tags: ["Admin - Notifications"],
 	summary: "Get total and unread notification count",
-	description: "Get the total count and unread count of notifications for the admin",
+	description:
+		"Get the total count and unread count of notifications for the admin",
 	security: [{ BearerAuth: [] }],
 	responses: {
 		200: {
@@ -129,9 +133,7 @@ const markReadRoute = createRoute({
 			description: "Marked as read",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({ success: z.literal(true) }),
-					),
+					schema: successResponseSchema(z.object({ success: z.literal(true) })),
 				},
 			},
 		},
@@ -289,16 +291,18 @@ adminNotificationsRoute.openapi(markReadRoute, async (c) => {
 		.limit(1);
 
 	if (!notification) {
-		return c.json(
-			{ success: false, error: "Notification not found" },
-			404,
-		);
+		return c.json({ success: false, error: "Notification not found" }, 404);
 	}
 
 	await db
 		.update(schema.adminNotification)
 		.set({ isRead: true })
 		.where(eq(schema.adminNotification.id, id));
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.markNotificationRead,
+	);
 
 	return c.json({ success: true, data: { success: true as const } });
 });

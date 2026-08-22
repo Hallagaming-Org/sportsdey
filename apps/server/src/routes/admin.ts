@@ -26,6 +26,10 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -151,11 +155,10 @@ const ResetAdminPasswordSchema = z.object({
 		description: "Admin email address",
 		example: "admin@sportsdey.com",
 	}),
-	name: z
-		.string()
-		.min(1)
-		.optional()
-		.openapi({ description: "Admin full name (optional)", example: "John Doe" }),
+	name: z.string().min(1).optional().openapi({
+		description: "Admin full name (optional)",
+		example: "John Doe",
+	}),
 	role: z
 		.enum(["super_admin", "admin", "csr-admin"])
 		.openapi({ description: "Admin role" }),
@@ -189,7 +192,10 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
-	page: z.string().optional().openapi({ description: "Page number (default 1)" }),
+	page: z
+		.string()
+		.optional()
+		.openapi({ description: "Page number (default 1)" }),
 	limit: z
 		.string()
 		.optional()
@@ -904,7 +910,17 @@ adminRoute.openapi(changePasswordRoute, async (c) => {
 	}
 
 	const passwordHash = await hashPassword(newPassword);
-	await updateAdminById(c.env, session.adminId, { passwordHash });
+	const updated = await updateAdminById(c.env, session.adminId, {
+		passwordHash,
+	});
+	if (!updated) {
+		return c.json({ success: false, error: "Failed to change password" }, 500);
+	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.changePassword,
+	);
 
 	return c.json({
 		success: true,
@@ -1057,6 +1073,11 @@ adminRoute.openapi(updateMeRoute, async (c) => {
 	if (!updatedAdmin) {
 		return c.json({ success: false, error: "Failed to update profile" }, 500);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updateAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1154,6 +1175,11 @@ adminRoute.openapi(updateProfilePictureRoute, async (c) => {
 			500,
 		);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updateAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1251,6 +1277,11 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 	const adminResult = await createAdmin(c.env, { email, password, name, role });
 
 	const admin = await getAdminById(c.env, adminResult.id);
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.createAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1284,6 +1315,11 @@ adminRoute.openapi(deleteAdminRoute, async (c) => {
 	}
 
 	await deleteAdmin(c.env, id);
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.deleteAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1351,6 +1387,7 @@ adminRoute.openapi(forceLogoutAdminRoute, async (c) => {
 	}
 
 	const deleted = await deleteAllAdminSessions(c.env, id);
+	await recordActivityForSession(c.env, session.adminId, "Forced logout admin");
 
 	return c.json({
 		success: true,
@@ -1507,7 +1544,10 @@ const handleGetWalletTransactions = async (
 	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
 	const limit = unpaginated
 		? Math.min(MAX_UNPAGINATED_ROWS, total)
-		: Math.min(100, Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10));
+		: Math.min(
+				100,
+				Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+			);
 	const pageRows = unpaginated
 		? filtered.slice(0, MAX_UNPAGINATED_ROWS)
 		: filtered.slice((page - 1) * limit, page * limit);
@@ -1859,6 +1899,11 @@ adminRoute.openapi(updateAdminPermissionsRoute, async (c) => {
 	}
 
 	await updateAdminPermissions(c.env, id, result.data.permissions);
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updateAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1878,7 +1923,10 @@ adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
 	const session = await validateAdminSession(c.env, token);
 	if (!session || !requirePermission(session, "reset_password")) {
 		return c.json(
-			{ success: false, error: "Forbidden - reset_password permission required" },
+			{
+				success: false,
+				error: "Forbidden - reset_password permission required",
+			},
 			403,
 		);
 	}
@@ -1900,17 +1948,11 @@ adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
 	}
 
 	if (name !== undefined && existing.name !== name) {
-		return c.json(
-			{ success: false, error: "Admin name does not match" },
-			400,
-		);
+		return c.json({ success: false, error: "Admin name does not match" }, 400);
 	}
 
 	if (existing.role !== role) {
-		return c.json(
-			{ success: false, error: "Admin role does not match" },
-			400,
-		);
+		return c.json({ success: false, error: "Admin role does not match" }, 400);
 	}
 
 	const passwordHash = await hashPassword(password);
@@ -1920,11 +1962,13 @@ adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
 	});
 
 	if (!updated) {
-		return c.json(
-			{ success: false, error: "Failed to update admin" },
-			500,
-		);
+		return c.json({ success: false, error: "Failed to update admin" }, 500);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.changePassword,
+	);
 
 	return c.json({
 		success: true,
