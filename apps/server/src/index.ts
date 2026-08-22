@@ -126,19 +126,19 @@ app.use("*", async (c, next) => {
 });
 
 app.use(logger());
-app.use(
-	"/*",
-	cors({
-		origin: (origin, c) => {
-			if (!origin) return "";
-			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
-			return allowedOrigins.has(origin) ? origin : "";
-		},
-		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
-		allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
-		credentials: true,
-	}),
-);
+// app.use(
+// 	"/*",
+// 	cors({
+// 		origin: (origin, c) => {
+// 			if (!origin) return "";
+// 			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
+// 			return allowedOrigins.has(origin) ? origin : "";
+// 		},
+// 		allowMethods: CORS_ALLOW_METHODS,
+// 		allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
+// 		credentials: true,
+// 	}),
+// );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
 	const auth = getAuth(c.env);
