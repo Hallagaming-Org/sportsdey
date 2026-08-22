@@ -21,6 +21,7 @@ import { useSession } from "@/lib/auth/client";
 import {
 	CLASSIC_CATEGORIES,
 	CLASSIC_CATEGORY_EMOJIS,
+	CLASSIC_CATEGORY_LABELS,
 	CLASSIC_KNOWN_GAMES,
 	CLASSIC_PRIORITY_GAMES,
 	CLASSIC_THUNDR_CODES,
@@ -84,7 +85,12 @@ function scorpioMatchesCategory(
 	game: ScorpioLobbyGame,
 	category: string,
 ): boolean {
-	if (category === "popular" || category === "pvp" || category === "original") {
+	if (
+		category === "popular" ||
+		category === "pvp" ||
+		category === "original" ||
+		category === "virtuals"
+	) {
 		return false;
 	}
 	return gameMatchesLobbyCategory(game, category);
@@ -199,7 +205,7 @@ function GamesPage() {
 		() =>
 			CLASSIC_CATEGORIES.map((slug) => ({
 				slug,
-				name: slug.replace(/-/g, " "),
+				name: CLASSIC_CATEGORY_LABELS[slug] ?? slug.replace(/-/g, " "),
 				emoji: CLASSIC_CATEGORY_EMOJIS[slug],
 			})),
 		[],
@@ -210,7 +216,12 @@ function GamesPage() {
 			excludeScorpioStoredGames(classicGames),
 		);
 		for (const slug of CLASSIC_CATEGORIES) {
-			if (slug === "popular" || slug === "pvp" || slug === "original") {
+			if (
+				slug === "popular" ||
+				slug === "pvp" ||
+				slug === "original" ||
+				slug === "virtuals"
+			) {
 				continue;
 			}
 			const scorpioCount = scorpioGames.filter((g) =>
@@ -657,14 +668,14 @@ function GamesPage() {
 											}),
 										})
 									}
-									className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm text-white capitalize transition-colors ${
+									className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm text-white transition-colors ${
 										isActive
 											? "border-[#1BAA04] bg-[#1BAA04]"
 											: "border-[#1B2722] text-gray-300"
 									}`}
 								>
 									{cat.emoji ? <span>{cat.emoji}</span> : null}
-									<span className="capitalize">{cat.name}</span>
+									<span>{cat.name}</span>
 									<span
 										className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
 											isActive
