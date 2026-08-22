@@ -107,38 +107,38 @@ app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
 		"Enter the session token from /auth/sign-in/email or /auth/sign-in/oauth",
 });
 
-app.use("*", async (c, next) => {
-	if (c.req.method === "OPTIONS") {
-		const origin = c.req.header("origin") || "";
-		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
+// app.use("*", async (c, next) => {
+// 	if (c.req.method === "OPTIONS") {
+// 		const origin = c.req.header("origin") || "";
+// 		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
 
-		if (allowedOrigins.has(origin)) {
-			return c.body(null, 204, {
-				"Access-Control-Allow-Origin": origin,
-				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
-				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
-				"Access-Control-Allow-Credentials": "true",
-			});
-		}
-		return c.body(null, 204);
-	}
-	await next();
-});
+// 		if (allowedOrigins.has(origin)) {
+// 			return c.body(null, 204, {
+// 				"Access-Control-Allow-Origin": origin,
+// 				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
+// 				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
+// 				"Access-Control-Allow-Credentials": "true",
+// 			});
+// 		}
+// 		return c.body(null, 204);
+// 	}
+// 	await next();
+// });
 
 app.use(logger());
-// app.use(
-// 	"/*",
-// 	cors({
-// 		origin: (origin, c) => {
-// 			if (!origin) return "";
-// 			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
-// 			return allowedOrigins.has(origin) ? origin : "";
-// 		},
-// 		allowMethods: CORS_ALLOW_METHODS,
-// 		allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
-// 		credentials: true,
-// 	}),
-// );
+app.use(
+	"/*",
+	cors({
+		origin: (origin, c) => {
+			if (!origin) return "";
+			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
+			return allowedOrigins.has(origin) ? origin : "";
+		},
+		allowMethods: CORS_ALLOW_METHODS,
+		allowHeaders: CORS_ALLOW_HEADERS,
+		credentials: true,
+	}),
+);
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
 	const auth = getAuth(c.env);
