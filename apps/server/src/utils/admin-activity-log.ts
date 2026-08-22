@@ -72,6 +72,12 @@ export const adminActivityActions = {
 	createPromotion: "Created promotion",
 	updatePromotion: "Updated promotion",
 	deletePromotion: "Deleted promotion",
+	createUser: "Created user",
+	updateUser: "Updated user",
+	suspendUser: "Suspended user",
+	reactivateUser: "Reactivated user",
+	manualCredit: "Credited user wallet",
+	manualDebit: "Debited user wallet",
 } as const;
 
 export async function recordActivityForSession(

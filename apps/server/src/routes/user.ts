@@ -9,6 +9,10 @@ import * as schema from "@/db/schema";
 import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import { parseDobInput } from "@/utils/dob";
 import {
 	isDefaultPhoneUserName,
@@ -69,11 +73,13 @@ const UpdateUserSchema = z
 			description: "User's country",
 			example: "Nigeria",
 		}),
-		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
-			description:
-				"User's mobile number. Omit or leave empty to keep the existing number.",
-			example: "08012345678",
-		}),
+		mobileNumber: z
+			.preprocess(emptyToUndefined, z.string().optional())
+			.openapi({
+				description:
+					"User's mobile number. Omit or leave empty to keep the existing number.",
+				example: "08012345678",
+			}),
 		dob: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "Date of birth (YYYY-MM-DD or DD/MM/YYYY)",
 			example: "1998-04-12",
@@ -125,13 +131,10 @@ const SelfUserResponseSchema = z
 			.string()
 			.optional()
 			.openapi({ description: "Verification status" }),
-		canEditProfile: z
-			.boolean()
-			.optional()
-			.openapi({
-				description:
-					"Whether the player may still make their one self-serve profile edit",
-			}),
+		canEditProfile: z.boolean().optional().openapi({
+			description:
+				"Whether the player may still make their one self-serve profile edit",
+		}),
 	})
 	.openapi("SelfUserResponse");
 
@@ -224,7 +227,9 @@ const GetAllUsersResponseSchema = z
 				total: z.number().openapi({ description: "Total number of users" }),
 				page: z.number().openapi({ description: "Current page" }),
 				limit: z.number().openapi({ description: "Items in this response" }),
-				totalPages: z.number().openapi({ description: "Total number of pages" }),
+				totalPages: z
+					.number()
+					.openapi({ description: "Total number of pages" }),
 			})
 			.openapi({ description: "Response data" }),
 	})
@@ -431,13 +436,16 @@ userRoute.openapi(updateUserRoute, async (c) => {
 			? rawEmail
 			: undefined;
 	const nextCountry =
-		country !== undefined ? (country.trim() ? country.trim() : null) : undefined;
+		country !== undefined
+			? country.trim()
+				? country.trim()
+				: null
+			: undefined;
 	const nextMobile =
 		mobileNumber !== undefined && mobileNumber.trim() !== ""
 			? mobileNumber.trim()
 			: undefined;
-	const nextDob =
-		parsedDob.value === undefined ? undefined : parsedDob.value;
+	const nextDob = parsedDob.value === undefined ? undefined : parsedDob.value;
 	const identityChanged =
 		name.trim() !== existingUser.name.trim() ||
 		Boolean(nextEmail && nextEmail !== existingUser.email.toLowerCase()) ||
@@ -449,7 +457,11 @@ userRoute.openapi(updateUserRoute, async (c) => {
 	const countsTowardOneEdit =
 		accountEdit === true && !isOnboardingProfile(existingUser);
 
-	if (identityChanged && existingUser.profileSelfEditedAt && countsTowardOneEdit) {
+	if (
+		identityChanged &&
+		existingUser.profileSelfEditedAt &&
+		countsTowardOneEdit
+	) {
 		return c.json(
 			{
 				success: false as const,
@@ -617,9 +629,9 @@ const getAllUsersRoute = createRoute({
 	},
 });
 
-async function requireUserListAdmin(c: Parameters<
-	Parameters<typeof userRoute.openapi>[1]
->[0]) {
+async function requireUserListAdmin(
+	c: Parameters<Parameters<typeof userRoute.openapi>[1]>[0],
+) {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -670,9 +682,9 @@ async function requireUserListAdmin(c: Parameters<
 	return null;
 }
 
-async function loadFilteredAdminUsers(c: Parameters<
-	Parameters<typeof userRoute.openapi>[1]
->[0]) {
+async function loadFilteredAdminUsers(
+	c: Parameters<Parameters<typeof userRoute.openapi>[1]>[0],
+) {
 	const db = drizzle(c.env.DB, { schema });
 
 	const sort = c.req.query("sort") === "desc" ? "desc" : "asc";
@@ -768,7 +780,10 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 
 	const filtered = await loadFilteredAdminUsers(c);
 	const total = filtered.length;
-	const page = Math.max(1, Number.parseInt(c.req.query("page") || "1", 10) || 1);
+	const page = Math.max(
+		1,
+		Number.parseInt(c.req.query("page") || "1", 10) || 1,
+	);
 	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
 	const limit = Math.min(
 		100,
@@ -1008,6 +1023,12 @@ userRoute.openapi(
 				400,
 			);
 		}
+
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.createUser,
+		);
 
 		return c.json(
 			{
@@ -1551,7 +1572,7 @@ async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
 		updates.emailVerified = false;
 	}
 
-	const updatedUser = (
+	const updatedUser =
 		Object.keys(updates).length === 0
 			? existingUser
 			: (
@@ -1560,8 +1581,7 @@ async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
 						.set(updates)
 						.where(eq(schema.user.id, userId))
 						.returning()
-				)[0]
-	);
+				)[0];
 
 	if (!updatedUser) {
 		return c.json(
@@ -1571,6 +1591,14 @@ async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
 				details: null,
 			},
 			404,
+		);
+	}
+
+	if (Object.keys(updates).length > 0) {
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.updateUser,
 		);
 	}
 
@@ -1759,6 +1787,14 @@ userRoute.openapi(
 		if (!updatedUser) {
 			return c.json({ success: false as const, error: "User not found" }, 404);
 		}
+
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			updatedUser.suspended
+				? adminActivityActions.suspendUser
+				: adminActivityActions.reactivateUser,
+		);
 
 		return c.json(
 			{
@@ -2223,22 +2259,40 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
-	await db.insert(schema.walletTransaction).values({
-		id: txnId,
-		userId,
-		amount: amountInKobo,
-		type: body.type,
-		reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-		status: "success",
-		paymentMethod: "manual",
-		balance: committedBalance,
-		metadata: JSON.stringify({
-			reason: body.reason,
-			processedBy: session.adminId,
-			description: `Manual ${body.type} - ${body.reason}`,
-		}),
-		createdAt: new Date(),
-	});
+	const [transaction] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: txnId,
+			userId,
+			amount: amountInKobo,
+			type: body.type,
+			reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			status: "success",
+			paymentMethod: "manual",
+			balance: committedBalance,
+			metadata: JSON.stringify({
+				reason: body.reason,
+				processedBy: session.adminId,
+				description: `Manual ${body.type} - ${body.reason}`,
+			}),
+			createdAt: new Date(),
+		})
+		.returning({ id: schema.walletTransaction.id });
+
+	if (!transaction?.id) {
+		return c.json(
+			{ success: false as const, error: "Failed to record transaction" },
+			500,
+		);
+	}
+
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		body.type === "credit"
+			? adminActivityActions.manualCredit
+			: adminActivityActions.manualDebit,
+	);
 
 	return c.json(
 		{
