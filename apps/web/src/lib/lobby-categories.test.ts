@@ -18,6 +18,8 @@ describe("lobby categories", () => {
 		assert.equal(canonicalLobbySlug("jackpot"), "jackpot");
 		assert.equal(canonicalLobbySlug("lotto"), "lottery");
 		assert.equal(canonicalLobbySlug("lottery"), "lottery");
+		assert.equal(canonicalLobbySlug("virtuals"), "virtuals");
+		assert.equal(canonicalLobbySlug("virtual-sports"), "virtuals");
 		assert.equal(canonicalLobbySlug("table_card_games"), "tablecardgames");
 		assert.equal(canonicalLobbySlug("tablecardgames"), "tablecardgames");
 	});
