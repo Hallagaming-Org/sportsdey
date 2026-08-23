@@ -3,14 +3,16 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
-import * as schema from "@/db/schema";
 import { creditWallet } from "@/db/atomic-wallet";
-import {
-	trackWebengageEvent,
-} from "@/lib/webengage";
+import * as schema from "@/db/schema";
+import { trackWebengageEvent } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import { createTransferRecipient, initiateTransfer } from "@/utils/paystack";
 import type { CloudflareBindings } from "../types";
 
@@ -300,7 +302,10 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		)
 		.returning({ id: schema.walletTransaction.id });
 	if (!claimed) {
-		return c.json({ success: false, error: "Transaction is already being processed" }, 409);
+		return c.json(
+			{ success: false, error: "Transaction is already being processed" },
+			409,
+		);
 	}
 
 	let meta: Record<string, unknown> = {};
@@ -374,7 +379,11 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
-
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.approveWithdrawal,
+	);
 
 	return c.json({
 		success: true,
@@ -441,7 +450,10 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 		)
 		.returning({ id: schema.walletTransaction.id });
 	if (!claimed) {
-		return c.json({ success: false, error: "Transaction is already being processed" }, 409);
+		return c.json(
+			{ success: false, error: "Transaction is already being processed" },
+			409,
+		);
 	}
 
 	let existingMeta: Record<string, unknown> = {};
@@ -487,6 +499,11 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 		title: "Withdrawal Rejected",
 		message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been rejected. Reason: ${reason}`,
 	});
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.rejectWithdrawal,
+	);
 
 	return c.json({
 		success: true,

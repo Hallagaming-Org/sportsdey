@@ -12,13 +12,8 @@ import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 } from "./constants/session";
-import {
-	deleteExpiredExports,
-	processExportMessage,
-	requeueStaleChunks,
-} from "./utils/exports/service";
-import type { ExportQueueMessage } from "./types/exports";
 import adminRoute from "./routes/admin";
+import adminActivityRoute from "./routes/admin-activity";
 import adminCmsRoute from "./routes/admin-cms";
 import adminExportsRoute from "./routes/admin-exports";
 import adminLogNotesRoute from "./routes/admin-log-notes";
@@ -32,6 +27,12 @@ import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
 import type { CloudflareBindings } from "./types";
+import type { ExportQueueMessage } from "./types/exports";
+import {
+	deleteExpiredExports,
+	processExportMessage,
+	requeueStaleChunks,
+} from "./utils/exports/service";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -48,7 +49,7 @@ app.onError((err, c) => {
 	);
 });
 
-let authCache: ReturnType<typeof createAuth> | null = null;
+const authCache: ReturnType<typeof createAuth> | null = null;
 
 function getAuth(env: CloudflareBindings) {
 	return createAuth(env);
@@ -134,7 +135,7 @@ app.use(
 			return allowedOrigins.has(origin) ? origin : "";
 		},
 		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
-			allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
+		allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
 		credentials: true,
 	}),
 );
@@ -198,7 +199,8 @@ app.use("*", async (c, next) => {
 		path.startsWith("/admin") ||
 		path.startsWith("/bonus-engine/callback/") ||
 		path.startsWith("/gamification/callback/") ||
-		path.startsWith("/bem/api/BonusEngine/")
+		path.startsWith("/bem/api/BonusEngine/") ||
+		path.startsWith("/opay/callback")
 	) {
 		return next();
 	}
@@ -221,6 +223,7 @@ app.route("/admin", adminTicketOverviewRoute);
 app.route("/admin", adminPromotionsRoute);
 app.route("/admin", adminLogNotesRoute);
 app.route("/admin", adminNotificationsRoute);
+app.route("/admin", adminActivityRoute);
 app.route("/admin", adminOverviewRoute);
 app.route("/cms", adminCmsRoute);
 app.route("/cms", cmsRoute);

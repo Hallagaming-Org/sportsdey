@@ -1,16 +1,23 @@
-import { z } from "@hono/zod-openapi";
+import type { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
-import { CreateExportSchema, JobResponseSchema } from "@/schemas/admin-exports";
+import {
+	CreateExportSchema,
+	type JobResponseSchema,
+} from "@/schemas/admin-exports";
 import type { CloudflareBindings } from "@/types";
+import type { exportFormats, exportSources } from "@/types/exports";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import {
 	createExportJob,
 	exportBucket,
 	getOwnedExportJob,
 	retryExportJob,
 } from "./service";
-import { exportFormats, exportSources } from "@/types/exports";
 import { createZipStream } from "./writer";
 
 type AdminExportContext = Context<{ Bindings: CloudflareBindings }>;
@@ -68,6 +75,11 @@ export async function createAdminExport(c: AdminExportContext) {
 			...body.data,
 			requestedBy: session.adminId,
 		});
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.exportFile,
+		);
 		return c.json({ success: true, data: job }, 202);
 	} catch (error) {
 		console.error("Failed to create export job", error);

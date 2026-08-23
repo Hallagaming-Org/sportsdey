@@ -26,6 +26,10 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { adminPermissions, permissionLabels } from "@/permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -151,11 +155,10 @@ const ResetAdminPasswordSchema = z.object({
 		description: "Admin email address",
 		example: "admin@sportsdey.com",
 	}),
-	name: z
-		.string()
-		.min(1)
-		.optional()
-		.openapi({ description: "Admin full name (optional)", example: "John Doe" }),
+	name: z.string().min(1).optional().openapi({
+		description: "Admin full name (optional)",
+		example: "John Doe",
+	}),
 	role: z
 		.enum(["super_admin", "admin", "csr-admin"])
 		.openapi({ description: "Admin role" }),
@@ -189,7 +192,10 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
-	page: z.string().optional().openapi({ description: "Page number (default 1)" }),
+	page: z
+		.string()
+		.optional()
+		.openapi({ description: "Page number (default 1)" }),
 	limit: z
 		.string()
 		.optional()
@@ -904,7 +910,17 @@ adminRoute.openapi(changePasswordRoute, async (c) => {
 	}
 
 	const passwordHash = await hashPassword(newPassword);
-	await updateAdminById(c.env, session.adminId, { passwordHash });
+	const updated = await updateAdminById(c.env, session.adminId, {
+		passwordHash,
+	});
+	if (!updated) {
+		return c.json({ success: false, error: "Failed to change password" }, 500);
+	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.changePassword,
+	);
 
 	return c.json({
 		success: true,
@@ -1057,6 +1073,11 @@ adminRoute.openapi(updateMeRoute, async (c) => {
 	if (!updatedAdmin) {
 		return c.json({ success: false, error: "Failed to update profile" }, 500);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updateAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1154,6 +1175,11 @@ adminRoute.openapi(updateProfilePictureRoute, async (c) => {
 			500,
 		);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updateAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1251,6 +1277,11 @@ adminRoute.openapi(createAdminRoute, async (c) => {
 	const adminResult = await createAdmin(c.env, { email, password, name, role });
 
 	const admin = await getAdminById(c.env, adminResult.id);
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.createAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1284,6 +1315,11 @@ adminRoute.openapi(deleteAdminRoute, async (c) => {
 	}
 
 	await deleteAdmin(c.env, id);
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.deleteAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1351,6 +1387,7 @@ adminRoute.openapi(forceLogoutAdminRoute, async (c) => {
 	}
 
 	const deleted = await deleteAllAdminSessions(c.env, id);
+	await recordActivityForSession(c.env, session.adminId, "Forced logout admin");
 
 	return c.json({
 		success: true,
@@ -1462,107 +1499,24 @@ const handleGetWalletTransactions = async (
 	const unpaginated =
 		c.req.path.endsWith("/wallet-transactions/all") ||
 		c.req.path.endsWith("/wallet-transactions/all/");
-
-	const walletSelect = {
-		id: schema.walletTransaction.id,
-		userId: schema.walletTransaction.userId,
-		amount: schema.walletTransaction.amount,
-		type: schema.walletTransaction.type,
-		reference: schema.walletTransaction.reference,
-		status: schema.walletTransaction.status,
-		paymentMethod: schema.walletTransaction.paymentMethod,
-		recipientWalletId: schema.walletTransaction.recipientWalletId,
-		recipientName: schema.walletTransaction.recipientName,
-		balance: schema.walletTransaction.balance,
-		metadata: schema.walletTransaction.metadata,
-		createdAt: schema.walletTransaction.createdAt,
-		userEmail: schema.user.email,
-	};
-
-	let pageRows: Array<{
-		id: string;
-		userId: string;
-		amount: number;
-		type: string;
-		reference: string | null;
-		status: string;
-		paymentMethod: string;
-		recipientWalletId: string | null;
-		recipientName: string | null;
-		balance: number | null;
-		metadata: string | null;
-		createdAt: Date;
-		userEmail: string | null;
-	}>;
-	let total: number;
-	let page: number;
-	let limit: number;
-	let totalPages: number;
-
-	if (unpaginated) {
-		// Joe's /all contract: same fetch + in-memory date/exclude filter, cap 10k.
-		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-		const transactions = await db
-			.select(walletSelect)
-			.from(schema.walletTransaction)
-			.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
-			.where(whereClause)
-			.orderBy(desc(schema.walletTransaction.createdAt));
-
-		const filtered = transactions.filter((tx) => {
-			if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
-			if (!fromDateBoundary && !toDateBoundary) return true;
-			const ts = new Date(tx.createdAt).getTime();
-			if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
-			if (toDateBoundary && ts > toDateBoundary.getTime()) return false;
-			return true;
-		});
-
-		total = filtered.length;
-		page = 1;
-		limit = Math.min(MAX_UNPAGINATED_ROWS, total);
-		pageRows = filtered.slice(0, MAX_UNPAGINATED_ROWS);
-		totalPages = 1;
-	} else {
-		if (fromDateBoundary) {
-			conditions.push(
-				gte(schema.walletTransaction.createdAt, fromDateBoundary),
+	const total = filtered.length;
+	const page = Math.max(
+		1,
+		Number.parseInt(c.req.query("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+	const limit = unpaginated
+		? Math.min(MAX_UNPAGINATED_ROWS, total)
+		: Math.min(
+				100,
+				Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
 			);
-		}
-		if (toDateBoundary) {
-			conditions.push(lte(schema.walletTransaction.createdAt, toDateBoundary));
-		}
-		conditions.push(
-			notInArray(schema.walletTransaction.paymentMethod, excludedPaymentMethods),
-		);
-
-		const whereClause = and(...conditions);
-		page = Math.max(
-			1,
-			Number.parseInt(c.req.query("page") || "1", 10) || 1,
-		);
-		const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
-		limit = Math.min(
-			100,
-			Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
-		);
-
-		const [countRow] = await db
-			.select({ total: count() })
-			.from(schema.walletTransaction)
-			.where(whereClause);
-		total = Number(countRow?.total ?? 0);
-		totalPages = Math.max(1, Math.ceil(total / limit) || 1);
-
-		pageRows = await db
-			.select(walletSelect)
-			.from(schema.walletTransaction)
-			.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
-			.where(whereClause)
-			.orderBy(desc(schema.walletTransaction.createdAt))
-			.limit(limit)
-			.offset((page - 1) * limit);
-	}
+	const pageRows = unpaginated
+		? filtered.slice(0, MAX_UNPAGINATED_ROWS)
+		: filtered.slice((page - 1) * limit, page * limit);
+	const totalPages = unpaginated
+		? 1
+		: Math.max(1, Math.ceil(total / limit) || 1);
 
 	const formattedTransactions = pageRows.map((tx) => {
 		let txType: "deposit" | "withdrawal" | "payment";
@@ -1908,6 +1862,11 @@ adminRoute.openapi(updateAdminPermissionsRoute, async (c) => {
 	}
 
 	await updateAdminPermissions(c.env, id, result.data.permissions);
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updateAdmin,
+	);
 
 	return c.json({
 		success: true,
@@ -1927,7 +1886,10 @@ adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
 	const session = await validateAdminSession(c.env, token);
 	if (!session || !requirePermission(session, "reset_password")) {
 		return c.json(
-			{ success: false, error: "Forbidden - reset_password permission required" },
+			{
+				success: false,
+				error: "Forbidden - reset_password permission required",
+			},
 			403,
 		);
 	}
@@ -1949,17 +1911,11 @@ adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
 	}
 
 	if (name !== undefined && existing.name !== name) {
-		return c.json(
-			{ success: false, error: "Admin name does not match" },
-			400,
-		);
+		return c.json({ success: false, error: "Admin name does not match" }, 400);
 	}
 
 	if (existing.role !== role) {
-		return c.json(
-			{ success: false, error: "Admin role does not match" },
-			400,
-		);
+		return c.json({ success: false, error: "Admin role does not match" }, 400);
 	}
 
 	const passwordHash = await hashPassword(password);
@@ -1969,11 +1925,13 @@ adminRoute.openapi(resetAdminPasswordRoute, async (c) => {
 	});
 
 	if (!updated) {
-		return c.json(
-			{ success: false, error: "Failed to update admin" },
-			500,
-		);
+		return c.json({ success: false, error: "Failed to update admin" }, 500);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.changePassword,
+	);
 
 	return c.json({
 		success: true,

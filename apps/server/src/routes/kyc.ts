@@ -5,9 +5,13 @@ import { alias } from "drizzle-orm/sqlite-core";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
+import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { toWAT } from "@/utils";
-import { setWebengageUserAttributes } from "@/lib/webengage";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
 type R2Bucket = CloudflareBindings["PRODUCTION_BUCKET"];
@@ -196,16 +200,16 @@ const submitKycRoute = createRoute({
 					schema: z.object({
 						fullName: z.string().min(2).max(100),
 						identificationType: IdentificationTypeEnum,
-				frontDocument: z.instanceof(File).openapi({
-					type: "string",
-					format: "binary",
-					description: "Front document file",
-				}),
-				backDocument: z.instanceof(File).openapi({
-					type: "string",
-					format: "binary",
-					description: "Back document file",
-				}),
+						frontDocument: z.instanceof(File).openapi({
+							type: "string",
+							format: "binary",
+							description: "Front document file",
+						}),
+						backDocument: z.instanceof(File).openapi({
+							type: "string",
+							format: "binary",
+							description: "Back document file",
+						}),
 					}),
 				},
 			},
@@ -907,7 +911,8 @@ const approveKycRoute = createRoute({
 	path: "/{kycId}/approve",
 	tags: ["KYC"],
 	summary: "Approve KYC (Admin)",
-	description: "Approve a KYC application. Super admin or admin with kyc_approve permission required.",
+	description:
+		"Approve a KYC application. Super admin or admin with kyc_approve permission required.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: z.object({
@@ -985,13 +990,25 @@ kycRoute.openapi(approveKycRoute, async (c) => {
 		.update(schema.user)
 		.set({ verificationStatus: "approved" })
 		.where(eq(schema.user.id, kycRecord.userId));
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.approveDocument,
+	);
 
-	setWebengageUserAttributes(c.env, {
-		userId: kycRecord.userId,
-		kyc_status: true,
-	}, c.executionCtx);
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: kycRecord.userId,
+			kyc_status: true,
+		},
+		c.executionCtx,
+	);
 
-	return c.json({ success: true, data: { message: "KYC approved successfully" } }, 200);
+	return c.json(
+		{ success: true, data: { message: "KYC approved successfully" } },
+		200,
+	);
 });
 
 const rejectKycRoute = createRoute({
@@ -999,7 +1016,8 @@ const rejectKycRoute = createRoute({
 	path: "/{kycId}/reject",
 	tags: ["KYC"],
 	summary: "Reject KYC (Admin)",
-	description: "Reject a KYC application with a reason. Super admin or admin with kyc_approve permission required.",
+	description:
+		"Reject a KYC application with a reason. Super admin or admin with kyc_approve permission required.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: z.object({
@@ -1009,7 +1027,10 @@ const rejectKycRoute = createRoute({
 			content: {
 				"application/json": {
 					schema: z.object({
-						reason: z.string().min(1).openapi({ description: "Reason for rejection" }),
+						reason: z
+							.string()
+							.min(1)
+							.openapi({ description: "Reason for rejection" }),
 					}),
 				},
 			},
@@ -1087,11 +1108,20 @@ kycRoute.openapi(rejectKycRoute, async (c) => {
 		.update(schema.user)
 		.set({ verificationStatus: "rejected" })
 		.where(eq(schema.user.id, kycRecord.userId));
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.rejectDocument,
+	);
 
-	setWebengageUserAttributes(c.env, {
-		userId: kycRecord.userId,
-		kyc_status: false,
-	}, c.executionCtx);
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: kycRecord.userId,
+			kyc_status: false,
+		},
+		c.executionCtx,
+	);
 
 	return c.json({ success: true, data: { message: "KYC rejected" } }, 200);
 });
@@ -1101,11 +1131,14 @@ const reviewKycRoute = createRoute({
 	path: "/{kycId}/review",
 	tags: ["KYC"],
 	summary: "Mark KYC as in review (Admin)",
-	description: "Mark a KYC application as in review/pending_review. Super admin or admin with kyc_approve permission required.",
+	description:
+		"Mark a KYC application as in review/pending_review. Super admin or admin with kyc_approve permission required.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: z.object({
-			kycId: z.string().openapi({ description: "The KYC ID to mark as in review" }),
+			kycId: z
+				.string()
+				.openapi({ description: "The KYC ID to mark as in review" }),
 		}),
 	},
 	responses: {
@@ -1179,6 +1212,11 @@ kycRoute.openapi(reviewKycRoute, async (c) => {
 		.update(schema.user)
 		.set({ verificationStatus: "pending_review" })
 		.where(eq(schema.user.id, kycRecord.userId));
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		"Marked document for review",
+	);
 
 	return c.json(
 		{ success: true, data: { message: "KYC marked as in review" } },

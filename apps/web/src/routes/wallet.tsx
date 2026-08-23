@@ -6,25 +6,27 @@ import {
 	useLocation,
 } from "@tanstack/react-router";
 import { Check, Copy, Loader2 } from "lucide-react";
-import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
+import {
+	DepositModal,
+	type DepositProvider,
+} from "@/components/deposit-modal";
 import { TransferModal } from "@/components/transfer-modal";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WalletRecentTransactions } from "@/components/wallet-recent-transactions";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { OpenfortWalletScope } from "@/lib/openfort/scope";
 import { formatAmount } from "@/lib/utils";
-import { trackWebengageEvent } from "@/lib/webengage";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
+import { trackWebengageEvent } from "@/lib/webengage";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
-import { DepositModal } from "@/components/deposit-modal";
-import { OpenfortWalletScope } from "@/lib/openfort/scope";
 
 const OpenfortCryptoWallet = lazy(() =>
 	import("@/components/openfort-crypto-wallet").then((mod) => ({
@@ -50,6 +52,11 @@ type WalletResponse = {
 
 type FundWalletResponse = {
 	authorizationUrl: string;
+	reference: string;
+};
+
+type OpayDepositResponse = {
+	cashierUrl: string;
 	reference: string;
 };
 
@@ -103,14 +110,17 @@ function WalletPage() {
 			refetchOnWindowFocus: true,
 		});
 	const depositMutation = useMutation({
-		mutationFn: (amount: number) =>
-			apiRequest<FundWalletResponse>("wallet/fund", {
-				method: "POST",
-				credentials: "include",
-				body: JSON.stringify({ amount }),
-			}),
+		mutationFn: ({ amount, provider }: { amount: number; provider: DepositProvider }) =>
+			apiRequest<FundWalletResponse | OpayDepositResponse>(
+				provider === "opay" ? "opay/initiate" : "wallet/fund",
+				{
+					method: "POST",
+					credentials: "include",
+					body: JSON.stringify({ amount }),
+				},
+			),
 		onSuccess: (data) => {
-			window.location.href = data.authorizationUrl;
+			window.location.href = "authorizationUrl" in data ? data.authorizationUrl : data.cashierUrl;
 			setIsDepositModalOpen(false);
 			setDepositAmount("");
 			setDepositError("");
@@ -152,7 +162,7 @@ function WalletPage() {
 		return "";
 	};
 
-	const handleDepositSubmit = () => {
+	const handleDepositSubmit = (provider: DepositProvider) => {
 		const amount = Number(depositAmount);
 		const error = validateDepositAmount(amount);
 		if (error) {
@@ -165,7 +175,7 @@ function WalletPage() {
 			amount,
 			currency: "NGN",
 		});
-		depositMutation.mutate(amount);
+		depositMutation.mutate({ amount, provider });
 	};
 
 	return (

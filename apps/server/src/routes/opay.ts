@@ -72,6 +72,18 @@ opayRoute.openapi(initiateRoute, async (c) => {
 	const amountKobo = Math.round(parsed.data.amount * 100);
 
 	try {
+		const [opayTxn] = await db.insert(schema.opayTransaction).values({
+			id: `opaytxn_${crypto.randomUUID()}`,
+			userId: user.id,
+			reference,
+			amount: amountKobo,
+			status: "initiated",
+		}).returning({ id: schema.opayTransaction.id });
+
+		if (!opayTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to record deposit transaction" }, 500);
+		}
+
 		const result = await createCashierOrder(
 			{
 				env: c.env.NODE_ENV === "production" ? "production" : "sandbox",
@@ -91,18 +103,14 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			},
 		);
 
-		const [opayTxn] = await db.insert(schema.opayTransaction).values({
-			id: `opaytxn_${crypto.randomUUID()}`,
-			userId: user.id,
-			reference,
-			orderNo: result.orderNo,
-			amount: amountKobo,
-			status: "initiated",
-			cashierUrl: result.cashierUrl,
-		}).returning({ id: schema.opayTransaction.id });
+		const [updatedTxn] = await db
+			.update(schema.opayTransaction)
+			.set({ orderNo: result.orderNo, cashierUrl: result.cashierUrl })
+			.where(eq(schema.opayTransaction.id, opayTxn.id))
+			.returning({ id: schema.opayTransaction.id });
 
-		if (!opayTxn?.id) {
-			return c.json({ success: false as const, error: "Failed to record deposit transaction" }, 500);
+		if (!updatedTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
 		}
 
 		return c.json(
@@ -113,7 +121,14 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			200,
 		);
 	} catch (err) {
-		
+		const [updatedTxn] = await db
+			.update(schema.opayTransaction)
+			.set({ status: "failed" })
+			.where(eq(schema.opayTransaction.reference, reference))
+			.returning({ id: schema.opayTransaction.id });
+		if (!updatedTxn?.id) {
+			return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
+		}
 		console.error("OPay initiate failed:", err instanceof Error ? err.message : err);
 		return c.json({ success: false as const, error: "Failed to initiate deposit" }, 500);
 	}
@@ -136,63 +151,99 @@ opayRoute.openapi(callbackRoute, async (c) => {
 	}
 
 	const rawBody = await c.req.text();
+	let parsedBody: unknown;
 
-	const { valid, payload } = await verifyCallbackSignature(rawBody, c.env.OPAY_PRIVATE_KEY);
-
-	if (!valid || !payload) {
-		console.error("Verification failed");
-		return c.json({ success: false as const, error: "Invalid" }, 400);
+	try {
+		parsedBody = JSON.parse(rawBody);
+	} catch {
+		return c.json({ success: false, error: "Invalid JSON" }, 400);
 	}
 
-	const reference = payload.reference as string | undefined;
-	const status = payload.status as string | undefined;
+	let payload: Record<string, unknown> | undefined;
+	let reference: string | undefined;
+	let status: string | undefined;
+	let isValid = false;
 
-	if (!reference || !status) {
-		return c.json({ success: false as const, error: "Malformed payload" }, 400);
+	if (
+		typeof parsedBody === "object" &&
+		parsedBody !== null &&
+		!("sha512" in parsedBody)
+	) {
+		const body = parsedBody as Record<string, unknown>;
+		if (body.reference && body.status) {
+			isValid = true;
+			payload = body;
+			reference = String(body.reference);
+			status = String(body.status);
+		}
+	} 
+	else if (
+		typeof parsedBody === "object" &&
+		parsedBody !== null &&
+		"payload" in parsedBody &&
+		"sha512" in parsedBody
+	) {
+		const body = parsedBody as { payload?: Record<string, unknown>; sha512?: string };
+		
+		if (body.payload && typeof body.sha512 === "string") {
+			const { valid, payload: signedPayload } = await verifyCallbackSignature(
+				rawBody,
+				c.env.OPAY_PRIVATE_KEY
+			);
+			
+			if (valid && signedPayload) {
+				isValid = true;
+				payload = signedPayload;
+				reference = signedPayload.reference as string;
+				status = signedPayload.status as string;
+			}
+		}
+	}
+
+	if (!isValid || !payload || !reference || !status) {
+		console.error("Callback verification failed");
+		return c.json({ success: false, error: "Invalid" }, 400);
 	}
 
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingTxn] = await db
-		.select()
+		.select({
+			id: schema.opayTransaction.id,
+			userId: schema.opayTransaction.userId,
+			amount: schema.opayTransaction.amount,
+			reference: schema.opayTransaction.reference,
+			status: schema.opayTransaction.status,
+		})
 		.from(schema.opayTransaction)
 		.where(eq(schema.opayTransaction.reference, reference))
 		.limit(1);
 
 	if (!existingTxn) {
-
 		console.error("OPay callback for unknown reference:", reference);
-		return c.json({ success: false as const, error: "Unknown reference" }, 400);
+		return c.json({ success: false, error: "Unknown reference" }, 400);
 	}
-
 
 	if (existingTxn.status === "success") {
-		return c.json({ success: true as const }, 200);
+		return c.json({ success: true }, 200);
 	}
 
-	const [updatedTxn] = await db
+	const dbStatus = status === "SUCCESS" ? "success" : "failed";
+	
+	await db
 		.update(schema.opayTransaction)
 		.set({
-			status: status === "SUCCESS" ? "success" : "failed",
+			status: dbStatus,
 			rawCallbackPayload: JSON.stringify(payload),
 		})
-		.where(eq(schema.opayTransaction.id, existingTxn.id))
-		.returning({ id: schema.opayTransaction.id });
-
-	if (!updatedTxn?.id) {
-		return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
-	}
-
-	const userRecord = await db
-		.select({ email: schema.user.email, name: schema.user.name })
-		.from(schema.user)
-		.where(eq(schema.user.id, existingTxn.userId))
-		.limit(1)
-		.then((rows) => rows[0]);
+		.where(eq(schema.opayTransaction.id, existingTxn.id));
 
 	if (status === "SUCCESS") {
 		const [walletRow] = await db
-			.select()
+			.select({
+				id: schema.wallet.id,
+				balance: schema.wallet.balance,
+			})
 			.from(schema.wallet)
 			.where(eq(schema.wallet.userId, existingTxn.userId))
 			.limit(1);
@@ -200,7 +251,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 		if (walletRow) {
 			const newBalance = walletRow.balance + existingTxn.amount;
 
-			const [walletTxn] = await db.insert(schema.walletTransaction).values({
+			await db.insert(schema.walletTransaction).values({
 				id: `wtxn_${crypto.randomUUID()}`,
 				userId: existingTxn.userId,
 				amount: existingTxn.amount,
@@ -210,21 +261,12 @@ opayRoute.openapi(callbackRoute, async (c) => {
 				paymentMethod: "opay",
 				balance: newBalance,
 				createdAt: new Date(),
-			}).returning({ id: schema.walletTransaction.id });
+			});
 
-			if (!walletTxn?.id) {
-				return c.json({ success: false as const, error: "Failed to record wallet transaction" }, 500);
-			}
-
-			const [updatedWallet] = await db
+			await db
 				.update(schema.wallet)
 				.set({ balance: newBalance })
-				.where(eq(schema.wallet.id, walletRow.id))
-				.returning({ id: schema.wallet.id });
-
-			if (!updatedWallet?.id) {
-				return c.json({ success: false as const, error: "Failed to update wallet" }, 500);
-			}
+				.where(eq(schema.wallet.id, walletRow.id));
 
 			trackWebengageEvent(
 				c.env,
@@ -233,27 +275,32 @@ opayRoute.openapi(callbackRoute, async (c) => {
 					eventName: "deposit_completed",
 					eventData: {
 						amount: existingTxn.amount / 100,
-						currency: "NGN",
 						payment_method: "opay",
-						transaction_id: reference,
 						type: "credit",
-						wallet_balance_after: newBalance / 100,
 					},
 				},
 				c.executionCtx,
 			);
 
-			setWebengageUserAttributes(
-				c.env,
-				{
-					userId: existingTxn.userId,
-					email: userRecord?.email,
-					firstName: userRecord?.name?.split(" ")[0],
-					lastName: userRecord?.name?.split(" ").slice(1).join(" "),
-					wallet_balance: newBalance / 100,
-				},
-				c.executionCtx,
-			);
+			const [userRecord] = await db
+				.select({ email: schema.user.email, name: schema.user.name })
+				.from(schema.user)
+				.where(eq(schema.user.id, existingTxn.userId))
+				.limit(1);
+
+			if (userRecord) {
+				setWebengageUserAttributes(
+					c.env,
+					{
+						userId: existingTxn.userId,
+						email: userRecord.email,
+						firstName: userRecord.name?.split(" ")[0],
+						lastName: userRecord.name?.split(" ").slice(1).join(" "),
+						wallet_balance: newBalance / 100,
+					},
+					c.executionCtx,
+				);
+			}
 		}
 	} else {
 		trackWebengageEvent(
@@ -264,18 +311,13 @@ opayRoute.openapi(callbackRoute, async (c) => {
 				eventData: {
 					amount: existingTxn.amount / 100,
 					payment_method: "opay",
-					transaction_id: reference,
-					failure_reason:
-						(payload.message as string | undefined) ||
-						(payload.code as string | undefined) ||
-						"Payment failed",
 				},
 			},
 			c.executionCtx,
 		);
 	}
 
-	return c.json({ success: true as const }, 200);
+	return c.json({ success: true }, 200);
 });
 
 export default opayRoute;
