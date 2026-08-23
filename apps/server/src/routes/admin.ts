@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, gte, inArray, like, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, like, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
 	clearSessionCookie,
@@ -1450,34 +1450,6 @@ const handleGetWalletTransactions = async (
 		);
 	}
 
-	// Move date filtering out of DB layer; we'll apply from/to filtering
-	// in-memory after fetching matching transactions.
-
-	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-	// fetch all matching transactions (without date constraints) and apply
-	// date filtering in-memory
-	const transactions = await db
-		.select({
-			id: schema.walletTransaction.id,
-			userId: schema.walletTransaction.userId,
-			amount: schema.walletTransaction.amount,
-			type: schema.walletTransaction.type,
-			reference: schema.walletTransaction.reference,
-			status: schema.walletTransaction.status,
-			paymentMethod: schema.walletTransaction.paymentMethod,
-			recipientWalletId: schema.walletTransaction.recipientWalletId,
-			recipientName: schema.walletTransaction.recipientName,
-			balance: schema.walletTransaction.balance,
-			metadata: schema.walletTransaction.metadata,
-			createdAt: schema.walletTransaction.createdAt,
-			userEmail: schema.user.email,
-		})
-		.from(schema.walletTransaction)
-		.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
-		.where(whereClause)
-		.orderBy(desc(schema.walletTransaction.createdAt));
-
 	const excludedPaymentMethods = [
 		"slotegrator games",
 		"lucky games",
@@ -1487,33 +1459,110 @@ const handleGetWalletTransactions = async (
 		"sportsbook",
 	];
 
-	const filtered = transactions.filter((tx) => {
-		if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
-		if (!fromDateBoundary && !toDateBoundary) return true;
-		const ts = new Date(tx.createdAt).getTime();
-		if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
-		if (toDateBoundary && ts > toDateBoundary.getTime()) return false;
-		return true;
-	});
-
 	const unpaginated =
 		c.req.path.endsWith("/wallet-transactions/all") ||
 		c.req.path.endsWith("/wallet-transactions/all/");
-	const total = filtered.length;
-	const page = Math.max(
-		1,
-		Number.parseInt(c.req.query("page") || "1", 10) || 1,
-	);
-	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
-	const limit = unpaginated
-		? Math.min(MAX_UNPAGINATED_ROWS, total)
-		: Math.min(100, Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10));
-	const pageRows = unpaginated
-		? filtered.slice(0, MAX_UNPAGINATED_ROWS)
-		: filtered.slice((page - 1) * limit, page * limit);
-	const totalPages = unpaginated
-		? 1
-		: Math.max(1, Math.ceil(total / limit) || 1);
+
+	const walletSelect = {
+		id: schema.walletTransaction.id,
+		userId: schema.walletTransaction.userId,
+		amount: schema.walletTransaction.amount,
+		type: schema.walletTransaction.type,
+		reference: schema.walletTransaction.reference,
+		status: schema.walletTransaction.status,
+		paymentMethod: schema.walletTransaction.paymentMethod,
+		recipientWalletId: schema.walletTransaction.recipientWalletId,
+		recipientName: schema.walletTransaction.recipientName,
+		balance: schema.walletTransaction.balance,
+		metadata: schema.walletTransaction.metadata,
+		createdAt: schema.walletTransaction.createdAt,
+		userEmail: schema.user.email,
+	};
+
+	let pageRows: Array<{
+		id: string;
+		userId: string;
+		amount: number;
+		type: string;
+		reference: string | null;
+		status: string;
+		paymentMethod: string;
+		recipientWalletId: string | null;
+		recipientName: string | null;
+		balance: number | null;
+		metadata: string | null;
+		createdAt: Date;
+		userEmail: string | null;
+	}>;
+	let total: number;
+	let page: number;
+	let limit: number;
+	let totalPages: number;
+
+	if (unpaginated) {
+		// Joe's /all contract: same fetch + in-memory date/exclude filter, cap 10k.
+		const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+		const transactions = await db
+			.select(walletSelect)
+			.from(schema.walletTransaction)
+			.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
+			.where(whereClause)
+			.orderBy(desc(schema.walletTransaction.createdAt));
+
+		const filtered = transactions.filter((tx) => {
+			if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
+			if (!fromDateBoundary && !toDateBoundary) return true;
+			const ts = new Date(tx.createdAt).getTime();
+			if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
+			if (toDateBoundary && ts > toDateBoundary.getTime()) return false;
+			return true;
+		});
+
+		total = filtered.length;
+		page = 1;
+		limit = Math.min(MAX_UNPAGINATED_ROWS, total);
+		pageRows = filtered.slice(0, MAX_UNPAGINATED_ROWS);
+		totalPages = 1;
+	} else {
+		if (fromDateBoundary) {
+			conditions.push(
+				gte(schema.walletTransaction.createdAt, fromDateBoundary),
+			);
+		}
+		if (toDateBoundary) {
+			conditions.push(lte(schema.walletTransaction.createdAt, toDateBoundary));
+		}
+		conditions.push(
+			notInArray(schema.walletTransaction.paymentMethod, excludedPaymentMethods),
+		);
+
+		const whereClause = and(...conditions);
+		page = Math.max(
+			1,
+			Number.parseInt(c.req.query("page") || "1", 10) || 1,
+		);
+		const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+		limit = Math.min(
+			100,
+			Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+		);
+
+		const [countRow] = await db
+			.select({ total: count() })
+			.from(schema.walletTransaction)
+			.where(whereClause);
+		total = Number(countRow?.total ?? 0);
+		totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+
+		pageRows = await db
+			.select(walletSelect)
+			.from(schema.walletTransaction)
+			.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
+			.where(whereClause)
+			.orderBy(desc(schema.walletTransaction.createdAt))
+			.limit(limit)
+			.offset((page - 1) * limit);
+	}
 
 	const formattedTransactions = pageRows.map((tx) => {
 		let txType: "deposit" | "withdrawal" | "payment";
