@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, inArray, like, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, like, lt, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -371,7 +371,20 @@ const handleGetTicketsList = async (
 	const toDate = url.searchParams.get("toDate") || undefined;
 	const search = url.searchParams.get("search") || undefined;
 
-	const perSourceLimit = MAX_UNPAGINATED_ROWS;
+	const unpaginated =
+		c.req.path.endsWith("/tickets/all") || c.req.path.endsWith("/tickets/all/");
+	const page = Math.max(
+		1,
+		Number.parseInt(url.searchParams.get("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(url.searchParams.get("limit") || "10", 10);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const perSourceLimit = unpaginated
+		? MAX_UNPAGINATED_ROWS
+		: Math.min(MAX_UNPAGINATED_ROWS, page * limit);
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -399,6 +412,7 @@ const handleGetTicketsList = async (
 		provider: string | null;
 		gameCode: string | null;
 	}> = [];
+	let listTotal = 0;
 
 	if (type === "all" || type === "sportsbook") {
 		const sbConditions: any[] = [];
@@ -412,55 +426,146 @@ const handleGetTicketsList = async (
 			);
 		}
 
-		const sbResults = await db
-			.select({
-				id: schema.sportsbookBet.id,
-				userId: schema.sportsbookBet.userId,
-				playerName: schema.user.name,
-				betAmount: schema.sportsbookBet.stake,
-				totalOdds: schema.sportsbookBet.totalOdds,
-				settleAmount: schema.sportsbookBet.settleAmount,
-				outcome: schema.sportsbookBet.status,
-				settleType: schema.sportsbookBet.settleType,
-				createdAt: schema.sportsbookBet.createdAt,
-				balanceBefore: schema.sportsbookBetEvent.balanceBefore,
-				balanceAfter: schema.sportsbookBetEvent.balanceAfter,
-			})
-			.from(schema.sportsbookBet)
-			.innerJoin(schema.user, eq(schema.sportsbookBet.userId, schema.user.id))
-			.leftJoin(
-				schema.sportsbookBetEvent,
-				eq(schema.sportsbookBet.id, schema.sportsbookBetEvent.betId),
-			)
-			.where(sbConditions.length > 0 ? and(...sbConditions) : undefined)
-			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(perSourceLimit);
+		if (!unpaginated) {
+			if (fromBoundary) {
+				sbConditions.push(gte(schema.sportsbookBet.createdAt, fromBoundary));
+			}
+			if (toBoundary) {
+				sbConditions.push(lte(schema.sportsbookBet.createdAt, toBoundary));
+			}
+		}
 
-		const processedBetIds = new Set<string>();
-		for (const r of sbResults) {
-			if (processedBetIds.has(r.id)) continue;
-			processedBetIds.add(r.id);
+		const sbWhere =
+			sbConditions.length > 0 ? and(...sbConditions) : undefined;
 
-			const ts = r.createdAt.getTime();
-			if (fromBoundary && ts < fromBoundary.getTime()) continue;
-			if (toBoundary && ts > toBoundary.getTime()) continue;
+		if (unpaginated) {
+			const sbResults = await db
+				.select({
+					id: schema.sportsbookBet.id,
+					userId: schema.sportsbookBet.userId,
+					playerName: schema.user.name,
+					betAmount: schema.sportsbookBet.stake,
+					totalOdds: schema.sportsbookBet.totalOdds,
+					settleAmount: schema.sportsbookBet.settleAmount,
+					outcome: schema.sportsbookBet.status,
+					settleType: schema.sportsbookBet.settleType,
+					createdAt: schema.sportsbookBet.createdAt,
+					balanceBefore: schema.sportsbookBetEvent.balanceBefore,
+					balanceAfter: schema.sportsbookBetEvent.balanceAfter,
+				})
+				.from(schema.sportsbookBet)
+				.innerJoin(schema.user, eq(schema.sportsbookBet.userId, schema.user.id))
+				.leftJoin(
+					schema.sportsbookBetEvent,
+					eq(schema.sportsbookBet.id, schema.sportsbookBetEvent.betId),
+				)
+				.where(sbWhere)
+				.orderBy(desc(schema.sportsbookBet.createdAt))
+				.limit(perSourceLimit);
 
-			allTickets.push({
-				id: r.id,
-				userId: r.userId,
-				playerName: r.playerName,
-				betAmount: r.betAmount,
-				totalOdds: r.totalOdds,
-				payout: r.settleAmount,
-				gameType: "Sportsbook",
-				outcome: mapSbOutcome(r.outcome, r.settleType),
-				createdAt: r.createdAt,
-				balanceBefore: r.balanceBefore,
-				balanceAfter: r.balanceAfter,
-				roundId: null,
-				provider: null,
-				gameCode: null,
-			});
+			const processedBetIds = new Set<string>();
+			for (const r of sbResults) {
+				if (processedBetIds.has(r.id)) continue;
+				processedBetIds.add(r.id);
+
+				const ts = r.createdAt.getTime();
+				if (fromBoundary && ts < fromBoundary.getTime()) continue;
+				if (toBoundary && ts > toBoundary.getTime()) continue;
+
+				allTickets.push({
+					id: r.id,
+					userId: r.userId,
+					playerName: r.playerName,
+					betAmount: r.betAmount,
+					totalOdds: r.totalOdds,
+					payout: r.settleAmount,
+					gameType: "Sportsbook",
+					outcome: mapSbOutcome(r.outcome, r.settleType),
+					createdAt: r.createdAt,
+					balanceBefore: r.balanceBefore,
+					balanceAfter: r.balanceAfter,
+					roundId: null,
+					provider: null,
+					gameCode: null,
+				});
+			}
+		} else {
+			const [sbCountRow, sbResults] = await Promise.all([
+				db
+					.select({ total: count() })
+					.from(schema.sportsbookBet)
+					.innerJoin(
+						schema.user,
+						eq(schema.sportsbookBet.userId, schema.user.id),
+					)
+					.where(sbWhere)
+					.then((rows) => rows[0]),
+				db
+					.select({
+						id: schema.sportsbookBet.id,
+						userId: schema.sportsbookBet.userId,
+						playerName: schema.user.name,
+						betAmount: schema.sportsbookBet.stake,
+						totalOdds: schema.sportsbookBet.totalOdds,
+						settleAmount: schema.sportsbookBet.settleAmount,
+						outcome: schema.sportsbookBet.status,
+						settleType: schema.sportsbookBet.settleType,
+						createdAt: schema.sportsbookBet.createdAt,
+					})
+					.from(schema.sportsbookBet)
+					.innerJoin(
+						schema.user,
+						eq(schema.sportsbookBet.userId, schema.user.id),
+					)
+					.where(sbWhere)
+					.orderBy(desc(schema.sportsbookBet.createdAt))
+					.limit(perSourceLimit),
+			]);
+			listTotal += Number(sbCountRow?.total ?? 0);
+
+			const betIds = sbResults.map((r) => r.id);
+			const eventByBetId = new Map<
+				string,
+				{ balanceBefore: number | null; balanceAfter: number | null }
+			>();
+			if (betIds.length > 0) {
+				const eventRows = await db
+					.select({
+						betId: schema.sportsbookBetEvent.betId,
+						balanceBefore: schema.sportsbookBetEvent.balanceBefore,
+						balanceAfter: schema.sportsbookBetEvent.balanceAfter,
+					})
+					.from(schema.sportsbookBetEvent)
+					.where(inArray(schema.sportsbookBetEvent.betId, betIds));
+				for (const event of eventRows) {
+					if (!eventByBetId.has(event.betId)) {
+						eventByBetId.set(event.betId, {
+							balanceBefore: event.balanceBefore,
+							balanceAfter: event.balanceAfter,
+						});
+					}
+				}
+			}
+
+			for (const r of sbResults) {
+				const event = eventByBetId.get(r.id);
+				allTickets.push({
+					id: r.id,
+					userId: r.userId,
+					playerName: r.playerName,
+					betAmount: r.betAmount,
+					totalOdds: r.totalOdds,
+					payout: r.settleAmount,
+					gameType: "Sportsbook",
+					outcome: mapSbOutcome(r.outcome, r.settleType),
+					createdAt: r.createdAt,
+					balanceBefore: event?.balanceBefore ?? null,
+					balanceAfter: event?.balanceAfter ?? null,
+					roundId: null,
+					provider: null,
+					gameCode: null,
+				});
+			}
 		}
 	}
 
@@ -563,6 +668,18 @@ const handleGetTicketsList = async (
 				);
 			}
 
+			if (!unpaginated) {
+				if (fromBoundary) {
+					casConditions.push(gte(source.createdAtCol, fromBoundary));
+				}
+				if (toBoundary) {
+					casConditions.push(lte(source.createdAtCol, toBoundary));
+				}
+			}
+
+			const casWhere =
+				casConditions.length > 0 ? and(...casConditions) : undefined;
+
 			const selectCols: any = {
 				id: source.idCol,
 				userId: source.userIdCol,
@@ -584,14 +701,25 @@ const handleGetTicketsList = async (
 				.select(selectCols)
 				.from(source.table)
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
-				.where(casConditions.length > 0 ? and(...casConditions) : undefined)
+				.where(casWhere)
 				.orderBy(desc(source.createdAtCol))
 				.limit(perSourceLimit);
 
+			if (!unpaginated) {
+				const [casCountRow] = await db
+					.select({ total: count() })
+					.from(source.table)
+					.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
+					.where(casWhere);
+				listTotal += Number(casCountRow?.total ?? 0);
+			}
+
 			for (const r of results) {
-				const ts = r.createdAt.getTime();
-				if (fromBoundary && ts < fromBoundary.getTime()) continue;
-				if (toBoundary && ts > toBoundary.getTime()) continue;
+				if (unpaginated) {
+					const ts = r.createdAt.getTime();
+					if (fromBoundary && ts < fromBoundary.getTime()) continue;
+					if (toBoundary && ts > toBoundary.getTime()) continue;
+				}
 
 				allTickets.push({
 					id: r.id,
@@ -615,14 +743,16 @@ const handleGetTicketsList = async (
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
+	const rowsForNames = unpaginated
+		? allTickets.slice(0, MAX_UNPAGINATED_ROWS)
+		: allTickets.slice((page - 1) * limit, page * limit);
 
 	// Resolve game names with chunked IN queries — one query per 100 unique
 	// codes instead of one per row.
 	const gameNameByCode = new Map<string, string | null>();
 	const uniqueGameCodes = [
 		...new Set(
-			capped
+			rowsForNames
 				.map((t) => t.gameCode)
 				.filter((code): code is string => Boolean(code)),
 		),
@@ -639,7 +769,7 @@ const handleGetTicketsList = async (
 		}
 	}
 
-	const ticketsWithNames = capped.map((t) => {
+	const ticketsWithNames = rowsForNames.map((t) => {
 		const gameName = t.gameCode
 			? (gameNameByCode.get(t.gameCode) ?? null)
 			: null;
@@ -669,11 +799,25 @@ const handleGetTicketsList = async (
 		};
 	});
 
-	const unpaginated =
-		c.req.path.endsWith("/tickets/all") || c.req.path.endsWith("/tickets/all/");
+	if (unpaginated) {
+		return c.json({
+			success: true,
+			data: paginateTicketRows(ticketsWithNames, url, true),
+		});
+	}
+
+	const totalPages = Math.max(1, Math.ceil(listTotal / limit) || 1);
 	return c.json({
 		success: true,
-		data: paginateTicketRows(ticketsWithNames, url, unpaginated),
+		data: {
+			tickets: ticketsWithNames,
+			pagination: {
+				page,
+				limit,
+				total: listTotal,
+				totalPages,
+			},
+		},
 	});
 };
 
