@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, gte, inArray, like, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, like, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
 	clearSessionCookie,
@@ -1487,34 +1487,6 @@ const handleGetWalletTransactions = async (
 		);
 	}
 
-	// Move date filtering out of DB layer; we'll apply from/to filtering
-	// in-memory after fetching matching transactions.
-
-	const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-	// fetch all matching transactions (without date constraints) and apply
-	// date filtering in-memory
-	const transactions = await db
-		.select({
-			id: schema.walletTransaction.id,
-			userId: schema.walletTransaction.userId,
-			amount: schema.walletTransaction.amount,
-			type: schema.walletTransaction.type,
-			reference: schema.walletTransaction.reference,
-			status: schema.walletTransaction.status,
-			paymentMethod: schema.walletTransaction.paymentMethod,
-			recipientWalletId: schema.walletTransaction.recipientWalletId,
-			recipientName: schema.walletTransaction.recipientName,
-			balance: schema.walletTransaction.balance,
-			metadata: schema.walletTransaction.metadata,
-			createdAt: schema.walletTransaction.createdAt,
-			userEmail: schema.user.email,
-		})
-		.from(schema.walletTransaction)
-		.leftJoin(schema.user, eq(schema.walletTransaction.userId, schema.user.id))
-		.where(whereClause)
-		.orderBy(desc(schema.walletTransaction.createdAt));
-
 	const excludedPaymentMethods = [
 		"slotegrator games",
 		"lucky games",
@@ -1523,15 +1495,6 @@ const handleGetWalletTransactions = async (
 		"thndr games",
 		"sportsbook",
 	];
-
-	const filtered = transactions.filter((tx) => {
-		if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
-		if (!fromDateBoundary && !toDateBoundary) return true;
-		const ts = new Date(tx.createdAt).getTime();
-		if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
-		if (toDateBoundary && ts > toDateBoundary.getTime()) return false;
-		return true;
-	});
 
 	const unpaginated =
 		c.req.path.endsWith("/wallet-transactions/all") ||

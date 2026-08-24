@@ -265,14 +265,18 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToVideos,
 		},
 		{
-			id: "predictions",
-			label: "Predictions Market",
-			icon: PredictionMarket,
-			isActive: false,
-			// disabled: true,
-			onClick: () => showComingSoon("Predictions Market"),
-		},
-			
+			id: "prediction",
+			label: "Prediction Market",
+			icon: Trading,
+			isActive: isItemActive("prediction", false),
+			onClick: () => {
+				setActiveOverride("prediction");
+				window.open(
+					"https://prediction.sportsdey.com/",
+					"_blank",
+				);
+			},
+		},	
 		{
 			id: "trading",
 			label: "Trading",
