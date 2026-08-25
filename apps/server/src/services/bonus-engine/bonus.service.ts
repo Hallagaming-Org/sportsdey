@@ -14,7 +14,7 @@ import type {
 	BonusEngineUserBonusActionBody,
 	BonusEngineUserBonusItem,
 } from "./bonus-engine.service.type";
-import { bonusEngineRequest } from "./client";
+import { bonusEngineRequest, isBonusEngineJsonNotFound } from "./client";
 import { getBonusEngineConfig } from "./config";
 import { getBonusEngineWalletBalances, listBonusEngineUserBonusSnapshots } from "./persistence.service";
 import { creditBonusActivation } from "./rewards.service";
@@ -244,7 +244,7 @@ export async function listBonusEngineUserBonuses(payload: {
 		userId: payload.userId,
 	});
 
-	if (!result.ok && result.status !== 404) return result;
+	if (!result.ok && !isBonusEngineJsonNotFound(result)) return result;
 
 	const bonuses = result.ok ? asRecordArray(result.data?.data) : [];
 	const merged = mergeUserBonusesWithLocalSnapshots({ bonuses, snapshots });
