@@ -10,6 +10,7 @@ import {
 	UserRound,
 	Wallet,
 	Medal,
+	TicketPercent,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
@@ -28,7 +29,8 @@ const userMenuItems: UserMenuItem[] = [
 	{ label: "Wallet", icon: Wallet, path: "/wallet" },
 	{ label: "KYC Documents", icon: FileText, path: "/kyc" },
 	{ label: "Bet history", icon: Clock3, path: "/bet-history" },  
-	{ label: "Loyalty points", icon: Medal, path: "/loyalty" },  
+	{ label: "Loyalty points", icon: Medal, path: "/loyalty" },
+	{ label: "Bonuses", icon: TicketPercent, path: "/bonuses" },  
 	// { label: "Engage", icon: Star },	
 	// { label: "Settings", icon: Settings },
 ];
