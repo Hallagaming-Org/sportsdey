@@ -18,6 +18,7 @@ type BetSelection = {
 	market: string | null;
 	result: string | null;
 	pick: string | null;
+	odds: string | null;
 	status: SelectionStatus;
 };
 
@@ -129,6 +130,10 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 						<div className="flex justify-between">
 							<span className="text-[#8C8F8F]">Pick:</span>
 							<span className="text-white">{selection.pick ?? "—"}</span>
+						</div>
+						<div className="flex justify-between">
+							<span className="text-[#8C8F8F]">Odds:</span>
+							<span className="text-white">{selection.odds ?? "—"}</span>
 						</div>
 					</div>
 
@@ -351,6 +356,7 @@ function TicketDetailsPage() {
                     <th className="px-4 py-3 font-medium">Market</th>
                     <th className="px-4 py-3 font-medium">Result</th>
                     <th className="px-4 py-3 font-medium">Pick</th>
+                    <th className="px-4 py-3 font-medium">Odds</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                     <th className="px-4 py-3 font-medium" />
                   </tr>
@@ -367,6 +373,7 @@ function TicketDetailsPage() {
                       <td className="px-4 py-3 text-white text-sm">{sel.market ?? "—"}</td>
                       <td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result ?? "—"}</td>
                       <td className="px-4 py-3 text-white text-sm">{sel.pick ?? "—"}</td>
+                      <td className="px-4 py-3 text-white text-sm">{sel.odds ?? "—"}</td>
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${statusBadgeClass(sel.status)}`}
