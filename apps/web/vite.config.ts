@@ -55,6 +55,18 @@ function proxyMissionApiToLocalApi() {
 	};
 }
 
+function proxyBonusApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/bonuses" || path.startsWith("/bonuses/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
 function proxyLoyaltyApiToLocalApi() {
 	return {
 		...proxyToLocalApi(),
@@ -116,6 +128,7 @@ export default defineConfig({
 			"/bills": proxyToLocalApi(),
 			"/loyalty": proxyLoyaltyApiToLocalApi(),
 			"/mission": proxyMissionApiToLocalApi(),
+			"/bonus": proxyBonusApiToLocalApi(),
 			"/games": proxyGamesApiToLocalApi(),
 			"/bonus-engine": proxyToLocalApi(),
 			"/gamification": proxyToLocalApi(),
