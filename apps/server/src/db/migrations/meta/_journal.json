@@ -176,6 +176,13 @@
       "when": 1785800000000,
       "tag": "0028_bonus_engine_game_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1787660000000,
+      "tag": "0029_bonus_engine_user_bonus",
+      "breakpoints": true
     }
   ]
 }

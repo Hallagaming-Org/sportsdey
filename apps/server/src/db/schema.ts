@@ -800,4 +800,26 @@ export const bonusEngineMissionProgress = sqliteTable(
 	],
 );
 
+
+export const bonusEngineUserBonus = sqliteTable(
+	"bonus_engine_user_bonus",
+	{
+		userId: text("user_id").notNull(),
+		bonusId: text("bonus_id").notNull(),
+		status: text("status").notNull().default(""),
+		payloadJson: text("payload_json").notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			name: "bonus_engine_user_bonus_pk",
+			columns: [table.userId, table.bonusId],
+		}),
+		index("bonus_engine_user_bonus_user_idx").on(table.userId),
+	],
+);
+
 export * from "./schema/admin";
