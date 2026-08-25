@@ -97,6 +97,9 @@ export const BONUS_ENGINE_CALLBACK_MESSAGE = {
 	INVALID_JSON: "Invalid JSON body",
 } as const;
 
+export const BONUS_ENGINE_UPSTREAM_ROUTE_MISSING =
+	"Bonus Engine route not found. Check BONUS_ENGINE_BASE_URL.";
+
 export const BONUS_ENGINE_CONTENT_TYPE_JSON = "application/json";
 
 export const BONUS_ENGINE_INVALID_SIGNATURE_STATUS = 413;
