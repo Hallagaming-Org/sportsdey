@@ -152,7 +152,7 @@ export default function DesktopFooter() {
 									rel="noopener noreferrer"
 									className="text-[#A0A0A0] transition-colors hover:text-white block"
 								>
-									Tournament
+									Tournaments
 								</a>
 							</li>
 
