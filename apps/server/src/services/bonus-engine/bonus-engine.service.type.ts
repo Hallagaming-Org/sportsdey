@@ -78,6 +78,27 @@ export type BonusEngineLoyaltyHistoryItem = {
 
 export type BonusEngineMissionListItem = Record<string, unknown>;
 
+export type BonusEngineBonusCampaignItem = Record<string, unknown>;
+
+export type BonusEngineUserBonusItem = Record<string, unknown>;
+
+export type BonusEngineListCampaignsBody = {
+	client_id: string;
+	project_id: string;
+	user_id: string;
+	bonus_type?: string;
+};
+
+export type BonusEngineUserBonusActionBody = BonusEngineLoyaltyScopedBody & {
+	userbonus_id: string;
+};
+
+export type BonusEngineBonusWalletData = {
+	user_id?: string;
+	real_wallet_balance?: number;
+	bonus_wallet_balance?: number;
+};
+
 export type BonusEngineReportDepositInput = {
 	userId: string;
 	amount: number;
