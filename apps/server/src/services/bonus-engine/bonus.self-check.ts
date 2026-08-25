@@ -11,6 +11,7 @@ import {
 	resolveBonusStatusWalletDeltas,
 	shouldCreditAllocatedBonus,
 } from "./bonus.service.ts";
+import { isBonusEngineJsonNotFound } from "./client.ts";
 
 assert.deepEqual(
 	buildBonusEnginePlayerScopedBody({
@@ -176,6 +177,23 @@ assert.equal(merged.find((row) => row._id === "a")?.status, "EXPIRED");
 assert.equal(
 	merged.find((row) => row._id === "b")?.campaign_code,
 	"BONUSLOGIN",
+);
+
+assert.equal(
+	isBonusEngineJsonNotFound({
+		ok: false,
+		status: 404,
+		error: "No campaigns found",
+	}),
+	true,
+);
+assert.equal(
+	isBonusEngineJsonNotFound({
+		ok: false,
+		status: 404,
+		error: "<!DOCTYPE html>\nCannot POST /api/list_active_campaign",
+	}),
+	false,
 );
 
 console.log("bonus-engine bonus.self-check: ok");
