@@ -16,6 +16,7 @@ export {
 	BONUS_ENGINE_USER_ACTION,
 	BONUS_ENGINE_WALLET_PAYMENT_METHOD,
 	BONUS_ENGINE_HEADER,
+	BONUS_ENGINE_UPSTREAM_ROUTE_MISSING,
 } from "./bonus-engine.service.constant";
 export type {
 	BonusEngineApiResult,
@@ -46,7 +47,7 @@ export {
 	isBonusEngineCallbackVerifyConfigured,
 	isBonusEngineConfigured,
 } from "./config";
-export { extractBonusEngineMessage } from "./client";
+export { extractBonusEngineMessage, isBonusEngineJsonNotFound } from "./client";
 export {
 	hashBonusEngineIdempotencyKey,
 	signBonusEngineBody,
