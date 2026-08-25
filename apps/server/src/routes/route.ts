@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import affnookRoute from "./affnook";
 import basketballRoute from "./basketball";
+import bonusRoute from "./bonus";
 import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
 import bonusEngineReferenceDataRoute from "./bonus-engine-reference-data";
 import casinoRoute from "./casino";
@@ -51,6 +52,7 @@ routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
 routes.route("/loyalty", loyaltyRoute);
 routes.route("/mission", missionRoute);
+routes.route("/bonus", bonusRoute);
 routes.route(
 	"/bem/api/BonusEngine/bonus-engine",
 	bonusEngineReferenceDataRoute,
