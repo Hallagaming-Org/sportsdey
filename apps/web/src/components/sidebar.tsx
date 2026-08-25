@@ -6,8 +6,6 @@ import {
 	Home,
 	Newspaper,
 	Target,
-	TicketPercent,
-	Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -328,21 +326,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
 			},
-		},
-		{
-			id: "bonuses",
-			label: "Bonuses",
-			icon: TicketPercent,
-			isActive: isItemActive(
-				"bonuses",
-				location.pathname.startsWith("/bonuses"),
-			),
-			onClick: () => {
-				setTab("bonuses");
-				trackWebengageEvent("Category", { Name: "Bonuses" });
-				navigate({ to: "/bonuses" as any });
-			},
-		},
+		},	
 		{
 			id: "partner",
 			label: "Become a Partner",
