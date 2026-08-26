@@ -1,23 +1,26 @@
 import {
+	type Address,
 	createPublicClient,
 	formatEther,
 	formatUnits,
-	http,
-	parseAbiItem,
-	type Address,
 	type Hash,
+	http,
 	type PublicClient,
+	parseAbiItem,
 } from "viem";
-import { polygonAmoy } from "viem/chains";
 import {
+	OPENFORT_CHAIN,
 	OPENFORT_CHAIN_LABEL,
 	OPENFORT_EVM_CHAIN_ID,
-	POLYGON_AMOY_USDC,
-	USDC_DECIMALS,
+	OPENFORT_NATIVE_SYMBOL,
+	OPENFORT_STABLECOIN_ADDRESS,
+	OPENFORT_STABLECOIN_DECIMALS,
+	OPENFORT_STABLECOIN_SYMBOL,
+	OPENFORT_VIEM_CHAIN,
 } from "@/lib/openfort/config";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
 
-export type CryptoAssetSymbol = "POL" | "USDC";
+export type CryptoAssetSymbol = string;
 
 export type CryptoIncomingTransfer = {
 	id: string;
@@ -34,26 +37,23 @@ const TRANSFER_EVENT = parseAbiItem(
 	"event Transfer(address indexed from, address indexed to, uint256 value)",
 );
 
-/** Prefer a dedicated Amoy RPC that allows getLogs; override via env if needed. */
-const AMOY_HISTORY_RPC =
-	(import.meta.env.VITE_POLYGON_AMOY_RPC as string | undefined) ||
-	"https://polygon-amoy.gateway.tenderly.co";
-
-const USDC_LOOKBACK_BLOCKS = 80_000n; // ~2 days on Amoy
-const USDC_CHUNK = 5_000n;
-/** Native POL has no Transfer logs — only scan a short window; older POL stays in cache. */
-const POL_LOOKBACK_BLOCKS = 400n;
-const POL_CONCURRENCY = 20;
+const STABLECOIN_LOOKBACK_BLOCKS = 80_000n;
+const STABLECOIN_CHUNK = 5_000n;
+/** Native token has no Transfer logs — only scan a short window; older native stays in cache. */
+const NATIVE_LOOKBACK_BLOCKS = 400n;
+const NATIVE_CONCURRENCY = 20;
 const CACHE_PREFIX = "sportsdey:crypto-incoming:";
 
 let historyClient: PublicClient | null = null;
+let historyClientChainId: number | null = null;
 
 function getHistoryClient(): PublicClient {
-	if (!historyClient) {
+	if (!historyClient || historyClientChainId !== OPENFORT_EVM_CHAIN_ID) {
 		historyClient = createPublicClient({
-			chain: polygonAmoy,
-			transport: http(AMOY_HISTORY_RPC, { timeout: 30_000 }),
+			chain: OPENFORT_VIEM_CHAIN,
+			transport: http(OPENFORT_CHAIN.rpcUrl, { timeout: 30_000 }),
 		});
+		historyClientChainId = OPENFORT_EVM_CHAIN_ID;
 	}
 	return historyClient;
 }
@@ -86,7 +86,10 @@ function writeCache(address: Address, transfers: CryptoIncomingTransfer[]) {
 			...t,
 			blockNumber: t.blockNumber.toString(),
 		}));
-		window.localStorage.setItem(cacheKey(address), JSON.stringify(serializable));
+		window.localStorage.setItem(
+			cacheKey(address),
+			JSON.stringify(serializable),
+		);
 	} catch {
 		/* ignore quota */
 	}
@@ -118,19 +121,23 @@ async function blockTimestamp(
 	return iso;
 }
 
-async function fetchIncomingUsdc(
+async function fetchIncomingStablecoin(
 	client: PublicClient,
 	address: Address,
 ): Promise<CryptoIncomingTransfer[]> {
 	const latest = await client.getBlockNumber();
-	const start = latest > USDC_LOOKBACK_BLOCKS ? latest - USDC_LOOKBACK_BLOCKS : 0n;
+	const start =
+		latest > STABLECOIN_LOOKBACK_BLOCKS
+			? latest - STABLECOIN_LOOKBACK_BLOCKS
+			: 0n;
 	const tsCache = new Map<string, string>();
 	const out: CryptoIncomingTransfer[] = [];
 
-	for (let from = start; from <= latest; from += USDC_CHUNK + 1n) {
-		const toBlock = from + USDC_CHUNK > latest ? latest : from + USDC_CHUNK;
+	for (let from = start; from <= latest; from += STABLECOIN_CHUNK + 1n) {
+		const toBlock =
+			from + STABLECOIN_CHUNK > latest ? latest : from + STABLECOIN_CHUNK;
 		const logs = await client.getLogs({
-			address: POLYGON_AMOY_USDC,
+			address: OPENFORT_STABLECOIN_ADDRESS,
 			event: TRANSFER_EVENT,
 			args: { to: address },
 			fromBlock: from,
@@ -138,18 +145,24 @@ async function fetchIncomingUsdc(
 		});
 
 		for (const log of logs) {
-			if (log.args.value === undefined || !log.args.from || !log.transactionHash) {
+			if (
+				log.args.value === undefined ||
+				!log.args.from ||
+				!log.transactionHash
+			) {
 				continue;
 			}
-			const human = Number(formatUnits(log.args.value, USDC_DECIMALS));
+			const human = Number(
+				formatUnits(log.args.value, OPENFORT_STABLECOIN_DECIMALS),
+			);
 			if (!Number.isFinite(human) || human <= 0) continue;
 			const createdAt = await blockTimestamp(client, log.blockNumber, tsCache);
 			out.push({
 				id: `${log.transactionHash}-${log.logIndex}`,
 				txHash: log.transactionHash,
-				asset: "USDC",
+				asset: OPENFORT_STABLECOIN_SYMBOL,
 				amount: human,
-				amountLabel: `${human.toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC`,
+				amountLabel: `${human.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${OPENFORT_STABLECOIN_SYMBOL}`,
 				from: log.args.from,
 				createdAt,
 				blockNumber: log.blockNumber,
@@ -160,20 +173,21 @@ async function fetchIncomingUsdc(
 	return out;
 }
 
-async function fetchIncomingPol(
+async function fetchIncomingNative(
 	client: PublicClient,
 	address: Address,
 ): Promise<CryptoIncomingTransfer[]> {
 	const latest = await client.getBlockNumber();
-	const start = latest > POL_LOOKBACK_BLOCKS ? latest - POL_LOOKBACK_BLOCKS : 0n;
+	const start =
+		latest > NATIVE_LOOKBACK_BLOCKS ? latest - NATIVE_LOOKBACK_BLOCKS : 0n;
 	const target = address.toLowerCase();
 	const out: CryptoIncomingTransfer[] = [];
 
 	const blockNumbers: bigint[] = [];
 	for (let n = start; n <= latest; n++) blockNumbers.push(n);
 
-	for (let i = 0; i < blockNumbers.length; i += POL_CONCURRENCY) {
-		const slice = blockNumbers.slice(i, i + POL_CONCURRENCY);
+	for (let i = 0; i < blockNumbers.length; i += NATIVE_CONCURRENCY) {
+		const slice = blockNumbers.slice(i, i + NATIVE_CONCURRENCY);
 		const blocks = await Promise.all(
 			slice.map((blockNumber) =>
 				client.getBlock({ blockNumber, includeTransactions: true }),
@@ -194,9 +208,9 @@ async function fetchIncomingPol(
 				out.push({
 					id: `${tx.hash}-native`,
 					txHash: tx.hash,
-					asset: "POL",
+					asset: OPENFORT_NATIVE_SYMBOL,
 					amount: human,
-					amountLabel: `${human.toLocaleString(undefined, { maximumFractionDigits: 6 })} POL`,
+					amountLabel: `${human.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${OPENFORT_NATIVE_SYMBOL}`,
 					from: tx.from,
 					createdAt,
 					blockNumber: block.number,
@@ -215,23 +229,28 @@ export async function fetchIncomingCryptoTransfers(
 	const cached = readCache(address);
 
 	try {
-		const [usdc, pol] = await Promise.all([
-			fetchIncomingUsdc(client, address).catch((err) => {
-				console.warn("[crypto-incoming] USDC history fetch failed", err);
+		const [stablecoin, native] = await Promise.all([
+			fetchIncomingStablecoin(client, address).catch((err) => {
+				console.warn(
+					`[crypto-incoming] ${OPENFORT_STABLECOIN_SYMBOL} history fetch failed`,
+					err,
+				);
 				return [] as CryptoIncomingTransfer[];
 			}),
-			fetchIncomingPol(client, address).catch((err) => {
-				console.warn("[crypto-incoming] POL history fetch failed", err);
+			fetchIncomingNative(client, address).catch((err) => {
+				console.warn(
+					`[crypto-incoming] ${OPENFORT_NATIVE_SYMBOL} history fetch failed`,
+					err,
+				);
 				return [] as CryptoIncomingTransfer[];
 			}),
 		]);
 
-		// If both chain fetches failed, keep serving cached rows instead of wiping the list.
-		if (usdc.length === 0 && pol.length === 0 && cached.length > 0) {
+		if (stablecoin.length === 0 && native.length === 0 && cached.length > 0) {
 			return cached;
 		}
 
-		const merged = mergeTransfers(cached, usdc, pol);
+		const merged = mergeTransfers(cached, stablecoin, native);
 		writeCache(address, merged);
 		return merged;
 	} catch (err) {
@@ -258,7 +277,7 @@ export function cryptoTransferToWalletTx(
 			from: transfer.from,
 			txHash: transfer.txHash,
 			amountLabel: transfer.amountLabel,
-			explorerUrl: `https://amoy.polygonscan.com/tx/${transfer.txHash}`,
+			explorerUrl: `${OPENFORT_CHAIN.explorerTxBaseUrl}/${transfer.txHash}`,
 		},
 		createdAt: transfer.createdAt,
 	};
