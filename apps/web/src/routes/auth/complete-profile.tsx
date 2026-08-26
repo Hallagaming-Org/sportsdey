@@ -131,7 +131,6 @@ function CompleteProfilePage() {
 				"First Name": firstName,
 				"Last Name": lastName,
 				Mobile: userMobile,
-				Country: "",
 				"Reference Id": pendingReferral,
 			});
 

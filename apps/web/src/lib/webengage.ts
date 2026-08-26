@@ -25,6 +25,60 @@ export function logoutWebengageUser() {
 	Webengage()?.user.logout();
 }
 
+export function trackWebengageLoginInitiated(type: string) {
+	trackWebengageEvent("User Login Initiated", { Type: type });
+}
+
+export function webengagePageReferrer(): string {
+	if (typeof document === "undefined") return "";
+	return document.referrer || "";
+}
+
+export function toWebengageTimestamp(
+	value: string | Date | null | undefined,
+): Date | undefined {
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime()) ? undefined : value;
+	}
+	if (!value || typeof value !== "string") return undefined;
+	const parsed = new Date(value);
+	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+export function compactWebengageAttrs(
+	attributes: Record<string, unknown>,
+): Record<string, unknown> {
+	const compact: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(attributes)) {
+		if (value === "" || value === undefined || value === null) continue;
+		compact[key] = value;
+	}
+	return compact;
+}
+
+export function matchWebengageAttrs(input: {
+	match_id: string;
+	sport: string;
+	league?: string;
+	teams: string;
+	timings?: string | Date | null;
+	match_status?: string;
+	match_score?: string;
+	match_time?: string;
+}) {
+	return {
+		match_id: input.match_id,
+		sport: input.sport,
+		league: input.league,
+		teams: input.teams,
+		timings: toWebengageTimestamp(input.timings),
+		match_status: input.match_status,
+		match_score: input.match_score,
+		match_time: input.match_time,
+		referrer: webengagePageReferrer(),
+	};
+}
+
 export function setWebengageUserAttribute(attribute: string, value: unknown) {
 	Webengage()?.user.setAttribute(attribute, value);
 }
@@ -41,5 +95,8 @@ export function trackWebengageEvent(
 	eventName: string,
 	attributes?: Record<string, unknown>,
 ) {
-	Webengage()?.track(eventName, attributes);
+	Webengage()?.track(
+		eventName,
+		attributes ? compactWebengageAttrs(attributes) : undefined,
+	);
 }

@@ -11,7 +11,7 @@ import { TopScorers } from "@/components/top-scorers";
 import { useFootballMatchInfo } from "@/hooks/use-footmatch-info";
 import { useFavorites } from "@/hooks/useFavorites";
 import { apiRequest } from "@/lib/api";
-import { trackWebengageEvent } from "@/lib/webengage";
+import { matchWebengageAttrs, trackWebengageEvent } from "@/lib/webengage";
 import DetailsImageCard from "@/shared/DetailsImageCard";
 import ImportantUpdate from "@/shared/ImportantUpdate";
 import type {
@@ -74,17 +74,19 @@ function RouteComponent() {
 	useEffect(() => {
 		if (gameInfo && !matchTrackedRef.current) {
 			matchTrackedRef.current = true;
-			trackWebengageEvent("Match viewed", {
-				match_id: gameId,
-				sport: "football",
-				league: gameInfo.competition?.name || "",
-				teams: `${gameInfo.competitors?.home?.name || ""} vs ${gameInfo.competitors?.away?.name || ""}`,
-				timings: gameInfo.match_info?.date_time || "",
-				match_status: matchStatus || "",
-				match_score: `${gameInfo.competitors?.home?.score || ""} - ${gameInfo.competitors?.away?.score || ""}`,
-				match_time: gameInfo.clock || "",
-				referrer: "",
-			});
+			trackWebengageEvent(
+				"Match viewed",
+				matchWebengageAttrs({
+					match_id: gameId,
+					sport: "football",
+					league: gameInfo.competition?.name || "",
+					teams: `${gameInfo.competitors?.home?.name || ""} vs ${gameInfo.competitors?.away?.name || ""}`,
+					timings: gameInfo.match_info?.date_time || "",
+					match_status: matchStatus || "",
+					match_score: `${gameInfo.competitors?.home?.score || ""} - ${gameInfo.competitors?.away?.score || ""}`,
+					match_time: gameInfo.clock || "",
+				}),
+			);
 		}
 	}, [gameInfo, gameId, matchStatus]);
 

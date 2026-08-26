@@ -10,6 +10,7 @@ import {
 } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
+import { asEventNumber } from "@/utils/webengage-event";
 import { requirePermission } from "@/middleware/admin-permissions";
 import {
 	AccumulatorBonusTableResponseSchema,
@@ -823,11 +824,12 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				bet_type:
 					BET_TYPE_LABELS[result.data.bet_type ? result.data.bet_type : 1] ??
 					String(result.data.bet_type),
-				stake_amount: result.data.bet_stake,
-				odds_total: result.data.total_odds_value,
+				stake_amount: asEventNumber(result.data.bet_stake),
+				odds_total: asEventNumber(result.data.total_odds_value),
 				potential_payout:
 					potentialPayout !== null ? potentialPayout / 100 : null,
 				odds: JSON.stringify(result.data.bet_odds),
+				wallet_id: wallet.id,
 			},
 		},
 		c.executionCtx,
@@ -1802,9 +1804,9 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 			eventName: "bet_settled",
 			eventData: {
 				bet_id: result.data.bet_id,
-				payout_amount: result.data.settle_amount,
+				payout_amount: settleAmount / 100,
 				outcome: settleTypeLabel,
-				net_pnl: Number.parseFloat(result.data.settle_amount) * 100 - bet.stake,
+				net_pnl: (settleAmount - bet.stake) / 100,
 				sport: selectionSport(settleFirstOdds),
 				league: selectionLeague(settleFirstOdds),
 			},
@@ -2343,11 +2345,12 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 			eventName: "bet_cashout_requested",
 			eventData: {
 				bet_id: result.data.bet_id,
-				cashout_value: result.data.refund_amount,
-				original_stake: bet.stake,
-				refund_amount: result.data.refund_amount,
-				cashout_rate: bet.stake - Number.parseFloat(result.data.refund_amount),
-				original_potential_payout: result.data.amount,
+				cashout_value: asEventNumber(result.data.refund_amount),
+				original_stake: bet.stake / 100,
+				refund_amount: asEventNumber(result.data.refund_amount),
+				cashout_rate:
+					bet.stake / 100 - (asEventNumber(result.data.refund_amount) ?? 0),
+				original_potential_payout: asEventNumber(result.data.amount),
 			},
 		},
 		c.executionCtx,

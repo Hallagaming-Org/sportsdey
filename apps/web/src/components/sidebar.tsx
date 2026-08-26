@@ -213,7 +213,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},
 		{
 			id: "p2p",
-			label: "PvP",
+			label: "Esports",
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
@@ -329,7 +329,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},	
 		{
 			id: "partner",
-			label: "Become a Partner",
+			label: "Become an affiliate",
 			icon: FaHandshakeAngle,
 			isActive: isItemActive("partner", false),
 			onClick: () => {

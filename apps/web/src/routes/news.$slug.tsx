@@ -124,14 +124,13 @@ function RouteComponent() {
 			setComments((prev) => [newComment, ...prev]);
 			setCommentText("");
 			setCommentError("");
-			const newsData = news as Record<string, unknown>;
 			trackWebengageEvent("News article commented", {
 				article_id: newsId,
-				article_category: (newsData.category as string) || "",
+				article_category: news?.category,
 				author: news?.author?.name || "",
 				"image url": news?.image?.hero || "",
 				Comment: newComment.message || commentText,
-				Time: new Date().toISOString(),
+				Time: new Date(),
 			});
 		},
 		onError: (err: unknown) => {
@@ -142,10 +141,9 @@ function RouteComponent() {
 	});
 	useEffect(() => {
 		if (news) {
-			const newsData = news as Record<string, unknown>;
 			trackWebengageEvent("News article read", {
 				article_id: news._id || "",
-				article_category: (newsData.category as string) || "",
+				article_category: news.category,
 				author: news.author?.name || "",
 				"image url": news.image?.hero || "",
 			});
