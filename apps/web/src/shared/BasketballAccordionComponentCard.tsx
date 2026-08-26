@@ -425,6 +425,7 @@ const SportAccordionCard: React.FC<BasketballAccordionComponentCardProps> = ({
 			id: match.id,
 			team1: match.team1 || "",
 			team2: match.team2 || "",
+			date: match.date || match.start_time,
 			time: match.time,
 			sport: sport,
 			tournament: league,

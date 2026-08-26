@@ -3,6 +3,7 @@ import { Phone } from "lucide-react";
 import { useState } from "react";
 import { signIn } from "@/lib/auth/client";
 import { buildPublicUrl } from "@/lib/public-url";
+import { trackWebengageLoginInitiated } from "@/lib/webengage";
 import z from "zod";
 
 const signUpSearchSchema = z.object({
@@ -33,6 +34,7 @@ export default function SignUpPage() {
 	) => {
 		setIsLoading(true);
 		setError("");
+		trackWebengageLoginInitiated(provider);
 		try {
 			const result = await signIn.social({
 				provider,

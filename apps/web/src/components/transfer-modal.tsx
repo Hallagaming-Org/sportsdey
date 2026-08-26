@@ -42,9 +42,10 @@ export function TransferModal({
 			setTransferSuccess(
 				`₦${formatAmount(data.amount)} transferred to ${data.recipientName}`,
 			);
-			trackWebengageEvent("transfer_funds initated", {
+			trackWebengageEvent("transfer_funds_completed", {
 				"wallet id": recipientWalletId.trim(),
 				amount: data.amount,
+				transaction_id: data.transactionId,
 			});
 			setTimeout(() => {
 				handleClose();
@@ -91,6 +92,10 @@ export function TransferModal({
 		}
 
 		setTransferError("");
+		trackWebengageEvent("transfer_funds initiated", {
+			"wallet id": recipientWalletId.trim(),
+			amount,
+		});
 		transferMutation.mutate({
 			recipientWalletId: recipientWalletId.trim(),
 			amount,

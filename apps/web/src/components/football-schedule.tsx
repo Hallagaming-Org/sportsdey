@@ -247,6 +247,8 @@ const FootballSchedule = ({ banners }: FootballScheduleProps) => {
 															team1: match.competitors.home.name,
 															team2: match.competitors.away.name,
 															sport: "football",
+															date: match.start_time,
+															tournament: competition.competition.name,
 														})
 													}
 													id={match.id}

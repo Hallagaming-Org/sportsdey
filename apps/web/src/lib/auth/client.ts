@@ -1,6 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 import { apiRequest } from "@/lib/api";
 import { resolveServerUrl } from "@/lib/server-url";
+import { logoutWebengageUser } from "@/lib/webengage";
 
 export const authClient = createAuthClient({
 	baseURL: resolveServerUrl(),
@@ -15,6 +16,7 @@ export const { signIn, signUp, useSession, getSession, changeEmail } = authClien
 export async function signOut(
 	...args: Parameters<typeof authClient.signOut>
 ) {
+	logoutWebengageUser();
 	return authClient.signOut(...args);
 }
 
