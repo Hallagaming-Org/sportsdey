@@ -32,7 +32,13 @@
 		"production": {
 			"name": "prod-web",
 			"vars": {
-				"ENV": "production"
+				"ENV": "production",
+				"VITE_SERVER_URL": "https://api.sportsdey.com",
+				"VITE_API_URL": "https://api.sportsdey.com",
+				"VITE_PUBLIC_URL": "https://sportsdey.com",
+				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.databet.cloud/v2/f7078267/bootstrap.js",
+				"VITE_DATABET_SPA_BASENAME": "/",
+				"VITE_DATABET_DEFAULT_LOCALE": "en"
 			},
 			"routes": [
 				{

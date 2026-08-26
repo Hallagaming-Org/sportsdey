@@ -6,7 +6,6 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema } from "@/schemas";
-import { toWAT } from "@/utils";
 import {
 	CreateUserNotificationSchema,
 	NotificationAcknowledgementSchema,
@@ -15,6 +14,11 @@ import {
 	UserNotificationListResponseSchema,
 	UserNotificationSingleResponseSchema,
 } from "@/schemas/notifications";
+import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import { sendSms } from "@/utils/sms";
 import { jsonZodErrorFormatter } from "@/utils/zod";
 
@@ -131,7 +135,8 @@ const unreadCountRoute = createRoute({
 	path: "/unread-count",
 	tags: ["Notifications"],
 	summary: "Get unread notifications count",
-	description: "Get the count of unread notifications for the authenticated user",
+	description:
+		"Get the count of unread notifications for the authenticated user",
 	security: [{ BearerAuth: [] }],
 	responses: {
 		200: {
@@ -434,6 +439,23 @@ notificationsRoute.openapi(sendNotificationRoute, async (c) => {
 			message,
 		})
 		.returning();
+
+	if (!notification) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Failed to send notification",
+				details: null,
+			},
+			500,
+		);
+	}
+
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.sendNotification,
+	);
 
 	return c.json(
 		{

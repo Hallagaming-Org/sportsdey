@@ -12,18 +12,33 @@ import {
 	cancelBonusEngineUserBonus,
 	extractBonusEngineMessage,
 	isBonusEngineConfigured,
+	isBonusEngineJsonNotFound,
 	listBonusEngineCampaigns,
 	listBonusEngineUserBonuses,
+	BONUS_ENGINE_UPSTREAM_ROUTE_MISSING,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 const bonusRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-function mapUpstreamStatus(status: number): 400 | 401 | 502 | 503 {
+function mapUpstreamStatus(status: number, error?: string): 400 | 401 | 502 | 503 {
+	if (isHtmlUpstreamError(error)) return 502;
 	if (status === 401) return 401;
 	if (status === 503) return 503;
 	if (status >= 400 && status < 500) return 400;
 	return 502;
+}
+
+function isHtmlUpstreamError(error?: string): boolean {
+	const message = error?.trim() ?? "";
+	return message.startsWith("<") || /cannot post/i.test(message);
+}
+
+/** Strips Express/HTML 404 bodies so clients never see upstream markup. */
+function publicBonusEngineError(error: string | undefined, fallback: string): string {
+	if (isHtmlUpstreamError(error)) return BONUS_ENGINE_UPSTREAM_ROUTE_MISSING;
+	const message = error?.trim() ?? "";
+	return message || fallback;
 }
 
 const campaignsRoute = createRoute({
@@ -84,14 +99,14 @@ bonusRoute.openapi(campaignsRoute, async (c) => {
 	const result = await listBonusEngineCampaigns({
 		env: c.env,
 		userId: user.id,
-		...(body.bonus_type ? { bonusType: body.bonus_type } : {}),
+		bonusType: body.bonus_type,
 	});
-	if (!result.ok && result.status === 404) {
+	if (!result.ok && isBonusEngineJsonNotFound(result)) {
 		return c.json(
 			{
 				success: true as const,
 				data: [],
-				message: result.error ?? "No active bonus campaigns found",
+				message: "No active bonus campaigns found",
 			},
 			200,
 		);
@@ -100,9 +115,12 @@ bonusRoute.openapi(campaignsRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: result.error ?? "Failed to fetch bonus campaigns",
+				error: publicBonusEngineError(
+					result.error,
+					"Failed to fetch bonus campaigns",
+				),
 			},
-			mapUpstreamStatus(result.status),
+			mapUpstreamStatus(result.status, result.error),
 		);
 	}
 
@@ -171,12 +189,12 @@ bonusRoute.openapi(listRoute, async (c) => {
 		env: c.env,
 		userId: user.id,
 	});
-	if (!result.ok && result.status === 404) {
+	if (!result.ok && isBonusEngineJsonNotFound(result)) {
 		return c.json(
 			{
 				success: true as const,
 				data: [],
-				message: result.error ?? "No player bonuses found",
+				message: "No player bonuses found",
 			},
 			200,
 		);
@@ -185,9 +203,12 @@ bonusRoute.openapi(listRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: result.error ?? "Failed to fetch player bonuses",
+				error: publicBonusEngineError(
+					result.error,
+					"Failed to fetch player bonuses",
+				),
 			},
-			mapUpstreamStatus(result.status),
+			mapUpstreamStatus(result.status, result.error),
 		);
 	}
 
@@ -269,9 +290,12 @@ bonusRoute.openapi(activateRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: result.error ?? "Failed to activate bonus",
+				error: publicBonusEngineError(
+					result.error,
+					"Failed to activate bonus",
+				),
 			},
-			mapUpstreamStatus(result.status),
+			mapUpstreamStatus(result.status, result.error),
 		);
 	}
 
@@ -352,9 +376,12 @@ bonusRoute.openapi(cancelRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: result.error ?? "Failed to cancel bonus",
+				error: publicBonusEngineError(
+					result.error,
+					"Failed to cancel bonus",
+				),
 			},
-			mapUpstreamStatus(result.status),
+			mapUpstreamStatus(result.status, result.error),
 		);
 	}
 

@@ -86,7 +86,7 @@ export type BonusEngineListCampaignsBody = {
 	client_id: string;
 	project_id: string;
 	user_id: string;
-	bonus_type?: string;
+	bonus_type: string;
 };
 
 export type BonusEngineUserBonusActionBody = BonusEngineLoyaltyScopedBody & {

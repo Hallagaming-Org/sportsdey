@@ -31,6 +31,20 @@ export function extractBonusEngineMessage(
 	return fallback;
 }
 
+/**
+ * True when Bonus Engine JSON 404 means "no rows". HTML/Express 404s are
+ * misconfigured hosts, not empty collections.
+ */
+export function isBonusEngineJsonNotFound(
+	result: BonusEngineApiResult<unknown>,
+): boolean {
+	if (result.ok || result.status !== 404) return false;
+	const error = (result.error ?? "").trim();
+	if (!error) return true;
+	if (error.startsWith("<") || /cannot post/i.test(error)) return false;
+	return !error.includes("<!DOCTYPE");
+}
+
 export async function bonusEngineRequest<T = unknown>(payload: {
 	env: CloudflareBindings;
 	path: string;

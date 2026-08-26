@@ -59,6 +59,10 @@ import {
 	listAccumulatorStepsBoostPayloads,
 } from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
 const BET_TYPE_LABELS: Record<number, string> = {
@@ -222,11 +226,12 @@ async function ensureAccumulatorProgramBoosts(
 	const failed: Array<{ sport: AccumulatorSport; error: string }> = [];
 	const existing = await listPlayerBetBoosts(env, input.playerId);
 	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
-	const initialQuantity =
-		input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
+	const initialQuantity = input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
 
 	for (const preset of listAccumulatorStepsBoostPayloads()) {
-		if (existing.some((boost) => boostCoversAccumulatorSport(boost, preset.sport))) {
+		if (
+			existing.some((boost) => boostCoversAccumulatorSport(boost, preset.sport))
+		) {
 			skipped.push(preset.sport);
 			continue;
 		}
@@ -3875,7 +3880,7 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			id: string;
 		};
 
-		console.log("responseData", data)
+		console.log("responseData", data);
 
 		const createdBoost = data;
 		if (!createdBoost) {
@@ -3939,6 +3944,12 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 				: {}),
 		});
 	}
+
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.createPromotion,
+	);
 
 	return c.json(
 		{
@@ -4452,6 +4463,11 @@ sportsbookRoute.openapi(betBoostUpdateRoute, async (c) => {
 	}
 
 	const data = (await response.json()) as { id: string };
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updatePromotion,
+	);
 
 	return c.json(
 		{
@@ -4573,6 +4589,12 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 				.where(eq(schema.sportsbookPromotion.id, promotionId));
 		}
 	}
+
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.deletePromotion,
+	);
 
 	return c.json({ success: true as const }, 200);
 });

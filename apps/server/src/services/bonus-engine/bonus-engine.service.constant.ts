@@ -60,6 +60,31 @@ export const BONUS_ENGINE_PRODUCT_TYPE = {
 	SPORTSBOOK: "sportsbook",
 } as const;
 
+export const BONUS_ENGINE_CAMPAIGN_TYPE = {
+	WELCOME: "welcome",
+	LOGIN: "login",
+	MANUAL: "manual",
+	DEPOSIT: "deposit",
+	CODE: "code",
+	CASHBACK: "cashback",
+	FREESPIN: "freespin",
+	FREEBET: "freebet",
+} as const;
+
+export const BONUS_ENGINE_CAMPAIGN_TYPE_VALUES = [
+	BONUS_ENGINE_CAMPAIGN_TYPE.WELCOME,
+	BONUS_ENGINE_CAMPAIGN_TYPE.LOGIN,
+	BONUS_ENGINE_CAMPAIGN_TYPE.MANUAL,
+	BONUS_ENGINE_CAMPAIGN_TYPE.DEPOSIT,
+	BONUS_ENGINE_CAMPAIGN_TYPE.CODE,
+	BONUS_ENGINE_CAMPAIGN_TYPE.CASHBACK,
+	BONUS_ENGINE_CAMPAIGN_TYPE.FREESPIN,
+	BONUS_ENGINE_CAMPAIGN_TYPE.FREEBET,
+] as const;
+
+export const BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE =
+	BONUS_ENGINE_CAMPAIGN_TYPE.WELCOME;
+
 export const BONUS_ENGINE_REWARD_TYPE = {
 	REAL_CASH: "Real Cash",
 } as const;
@@ -96,6 +121,9 @@ export const BONUS_ENGINE_CALLBACK_MESSAGE = {
 	BONUS_ALLOCATION_UPDATED: "Bonus allocation updated successfully",
 	INVALID_JSON: "Invalid JSON body",
 } as const;
+
+export const BONUS_ENGINE_UPSTREAM_ROUTE_MISSING =
+	"Bonus Engine route not found. Check BONUS_ENGINE_BASE_URL.";
 
 export const BONUS_ENGINE_CONTENT_TYPE_JSON = "application/json";
 

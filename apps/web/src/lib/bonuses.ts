@@ -21,13 +21,15 @@ export async function fetchPlayerBonuses(): Promise<BonusCard[]> {
 		.map((row, index) => normalizeUserBonus(row, index));
 }
 
-export async function fetchBonusCampaigns(): Promise<BonusCard[]> {
+export async function fetchBonusCampaigns(payload: {
+	bonusType: string;
+}): Promise<BonusCard[]> {
 	const data = await apiRequest<Record<string, unknown>[]>(
 		BONUS_API_ROUTE.CAMPAIGNS,
 		{
 			method: "POST",
 			credentials: "include",
-			body: JSON.stringify({}),
+			body: JSON.stringify({ bonus_type: payload.bonusType }),
 		},
 	);
 	const rows = Array.isArray(data) ? data : [];

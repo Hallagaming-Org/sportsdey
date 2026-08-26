@@ -1,4 +1,8 @@
 import { z } from "@hono/zod-openapi";
+import {
+	BONUS_ENGINE_CAMPAIGN_TYPE_VALUES,
+	BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
+} from "@/services/bonus-engine/bonus-engine.service.constant";
 
 export const BonusEngineErrorSchema = z
 	.object({
@@ -89,10 +93,12 @@ export const MissionListSuccessSchema = z
 
 export const BonusCampaignsRequestSchema = z
 	.object({
-		bonus_type: z.string().min(1).optional().openapi({
+		bonus_type: z.enum(BONUS_ENGINE_CAMPAIGN_TYPE_VALUES).default(
+			BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
+		).openapi({
 			description:
-				"Optional Bonus Engine `bonus_type` filter (e.g. deposit, login)",
-			example: "deposit",
+				"Bonus Engine `bonus_type` filter. Always sent; defaults to welcome.",
+			example: BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
 		}),
 	})
 	.openapi("BonusCampaignsRequest");
