@@ -329,7 +329,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},	
 		{
 			id: "partner",
-			label: "Become a Partner",
+			label: "Become an affiliate",
 			icon: FaHandshakeAngle,
 			isActive: isItemActive("partner", false),
 			onClick: () => {
