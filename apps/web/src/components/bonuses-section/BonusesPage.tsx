@@ -5,6 +5,7 @@ import {
 	useQueryClient,
 	type QueryClient,
 } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { BonusCard } from "./BonusCard";
 import { BonusesHeader } from "./BonusesHeader";
@@ -18,11 +19,20 @@ import {
 	fetchPlayerBonuses,
 	type BonusCard as BonusCardModel,
 } from "@/lib/bonuses";
-import { BONUS_QUERY_KEY } from "@/lib/bonuses.constant";
+import {
+	BONUS_QUERY_KEY,
+	BONUS_TYPE_DEFAULT,
+	BONUS_TYPE_LABEL,
+	BONUS_TYPE_VALUES,
+	isBonusCampaignType,
+	type BonusCampaignType,
+} from "@/lib/bonuses.constant";
 
 export function BonusesPage() {
 	const queryClient = useQueryClient();
 	const { data: session, isPending: isSessionLoading } = useSession();
+	const [campaignType, setCampaignType] =
+		useState<BonusCampaignType>(BONUS_TYPE_DEFAULT);
 
 	const listQuery = useQuery({
 		queryKey: BONUS_QUERY_KEY.LIST,
@@ -32,8 +42,8 @@ export function BonusesPage() {
 	});
 
 	const campaignsQuery = useQuery({
-		queryKey: BONUS_QUERY_KEY.CAMPAIGNS,
-		queryFn: fetchBonusCampaigns,
+		queryKey: BONUS_QUERY_KEY.campaigns(campaignType),
+		queryFn: () => fetchBonusCampaigns({ bonusType: campaignType }),
 		enabled: Boolean(session?.user),
 		retry: false,
 	});
@@ -63,10 +73,10 @@ export function BonusesPage() {
 		return <Navigate to="/auth/sign-in" />;
 	}
 
-	const isLoading =
-		isSessionLoading ||
-		(listQuery.isLoading && !listQuery.data) ||
-		(campaignsQuery.isLoading && !campaignsQuery.data);
+	const isListLoading =
+		isSessionLoading || (listQuery.isLoading && !listQuery.data);
+	const isCampaignsLoading =
+		campaignsQuery.isLoading && !campaignsQuery.data;
 
 	const mutatingId = activateMutation.isPending
 		? activateMutation.variables?.userbonusId
@@ -80,6 +90,10 @@ export function BonusesPage() {
 
 	const handleCancel = (userbonusId: string) => {
 		cancelMutation.mutate({ userbonusId });
+	};
+
+	const handleCampaignTypeChange = (value: string) => {
+		if (isBonusCampaignType(value)) setCampaignType(value);
 	};
 
 	const mutationError =
@@ -98,7 +112,7 @@ export function BonusesPage() {
 					</p>
 				) : null}
 
-				{isLoading ? (
+				{isListLoading ? (
 					<BonusesGridSkeleton />
 				) : (
 					<div className="space-y-8">
@@ -113,14 +127,46 @@ export function BonusesPage() {
 						/>
 						<BonusSection
 							title="Available offers"
-							empty="No active campaigns right now."
+							empty="No active campaigns for this bonus type."
 							error={campaignsQuery.error}
 							bonuses={campaignsQuery.data ?? []}
+							isLoading={isCampaignsLoading}
+							filter={
+								<CampaignTypeFilter
+									value={campaignType}
+									onChange={handleCampaignTypeChange}
+								/>
+							}
 						/>
 					</div>
 				)}
 			</div>
 		</div>
+	);
+}
+
+/**
+ * Filters Available offers by Bonus Engine `bonus_type`. Options match Admin.
+ */
+function CampaignTypeFilter(payload: {
+	value: BonusCampaignType;
+	onChange: (value: string) => void;
+}) {
+	return (
+		<label className="flex items-center gap-2">
+			<span className="sr-only">Bonus type</span>
+			<select
+				value={payload.value}
+				onChange={(event) => payload.onChange(event.target.value)}
+				className="cursor-pointer rounded-md border border-[#1B2722] bg-[#151616] px-3 py-1.5 font-semibold text-xs text-white outline-none focus:border-accent"
+			>
+				{BONUS_TYPE_VALUES.map((bonusType) => (
+					<option key={bonusType} value={bonusType}>
+						{BONUS_TYPE_LABEL[bonusType]}
+					</option>
+				))}
+			</select>
+		</label>
 	);
 }
 
@@ -130,13 +176,20 @@ function BonusSection(payload: {
 	error: unknown;
 	bonuses: BonusCardModel[];
 	mutatingId?: string;
+	isLoading?: boolean;
+	filter?: ReactNode;
 	onActivate?: (userbonusId: string) => void;
 	onCancel?: (userbonusId: string) => void;
 }) {
 	return (
 		<section className="space-y-4">
-			<h2 className="font-extrabold text-lg text-white">{payload.title}</h2>
-			{payload.error ? (
+			<div className="flex items-center justify-between gap-3">
+				<h2 className="font-extrabold text-lg text-white">{payload.title}</h2>
+				{payload.filter}
+			</div>
+			{payload.isLoading ? (
+				<BonusesGridSkeleton />
+			) : payload.error ? (
 				<p className="py-6 text-center text-sm text-red-400">
 					{payload.error instanceof ApiError
 						? payload.error.message

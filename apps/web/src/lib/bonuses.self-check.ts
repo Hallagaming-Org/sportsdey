@@ -4,6 +4,10 @@ import {
 	normalizeUserBonus,
 	resolveBonusAction,
 } from "./bonuses-normalize.ts";
+import {
+	BONUS_TYPE_DEFAULT,
+	isBonusCampaignType,
+} from "./bonuses.constant.ts";
 
 const assignment = normalizeUserBonus({
 	_id: "68358c5d14dfca8ca571b41e",
@@ -90,5 +94,9 @@ const placeholderGames = resolveBonusAction({
 	hasSportsTargets: false,
 });
 assert.equal(placeholderGames.href, "/games");
+
+assert.equal(BONUS_TYPE_DEFAULT, "welcome");
+assert.equal(isBonusCampaignType("welcome"), true);
+assert.equal(isBonusCampaignType("unknown"), false);
 
 console.log("bonuses.self-check: ok");

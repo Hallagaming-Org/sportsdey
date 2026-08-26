@@ -5,6 +5,9 @@ export {
 	BONUS_ENGINE_BONUS_STATUS_REFERENCE_PREFIX,
 	BONUS_ENGINE_CALLBACK_MESSAGE,
 	BONUS_ENGINE_CALLBACK_PATH,
+	BONUS_ENGINE_CAMPAIGN_TYPE,
+	BONUS_ENGINE_CAMPAIGN_TYPE_VALUES,
+	BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
 	BONUS_ENGINE_DEFAULT_CURRENCY,
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
@@ -16,6 +19,7 @@ export {
 	BONUS_ENGINE_USER_ACTION,
 	BONUS_ENGINE_WALLET_PAYMENT_METHOD,
 	BONUS_ENGINE_HEADER,
+	BONUS_ENGINE_UPSTREAM_ROUTE_MISSING,
 } from "./bonus-engine.service.constant";
 export type {
 	BonusEngineApiResult,
@@ -46,7 +50,7 @@ export {
 	isBonusEngineCallbackVerifyConfigured,
 	isBonusEngineConfigured,
 } from "./config";
-export { extractBonusEngineMessage } from "./client";
+export { extractBonusEngineMessage, isBonusEngineJsonNotFound } from "./client";
 export {
 	hashBonusEngineIdempotencyKey,
 	signBonusEngineBody,
