@@ -4,8 +4,13 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
-import { fetchBetDetailsById } from "@/utils/bet-details";
 import { getFixtureTitlesByIds } from "@/utils/fixtures";
+import {
+	collectTicketOdds,
+	formatTicketSelection,
+	loadMarketDefinitions,
+	parseMarketId,
+} from "@/utils/ticket-selection-labels";
 
 const betHistoryRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -500,6 +505,7 @@ const TicketSelectionSchema = z.object({
 	market: z.string().nullable(),
 	result: z.string().nullable(),
 	pick: z.string().nullable(),
+	odds: z.string().nullable(),
 	status: z.enum(["won", "lost", "pending"]),
 });
 
@@ -599,23 +605,38 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 	let rawSelections: Array<Record<string, any>> = [];
 	try {
 		const parsed = bet.betData ? JSON.parse(bet.betData) : null;
-		if (parsed && Array.isArray(parsed.bet_odds)) {
-			rawSelections = parsed.bet_odds;
-		}
+		rawSelections = collectTicketOdds(parsed);
 	} catch {
 		rawSelections = [];
 	}
 	const matchIds = rawSelections.map((s) => s.match_id).filter(Boolean) as string[];
 	const titleById = await getFixtureTitlesByIds(c.env, matchIds);
+	const typeIds = rawSelections
+		.map((s) => (s.market_id ? parseMarketId(String(s.market_id)).typeId : ""))
+		.filter(Boolean);
+	const marketDefs = await loadMarketDefinitions(c.env, typeIds);
 
-	const selections = rawSelections.map((s) => ({
-		matchId: s.match_id ?? null,
-		match: (s.match_id ? titleById.get(s.match_id) : undefined) ?? s.match_id ?? "Unknown match",
-		market: s.market_id ? `Market ${s.market_id}` : null,
-		result: null,
-		pick: s.odd_ratio ? `@${s.odd_ratio}` : null,
-		status: deriveSelectionStatus(s.odd_status ?? null),
-	}));
+	const selections = rawSelections.map((s) => {
+		const matchTitle =
+			(s.match_id ? titleById.get(s.match_id) : undefined) ?? null;
+		const typeId = s.market_id
+			? parseMarketId(String(s.market_id)).typeId
+			: "";
+		const labels = formatTicketSelection({
+			odd: s,
+			matchTitle,
+			marketDef: typeId ? (marketDefs.get(typeId) ?? null) : null,
+		});
+		return {
+			matchId: s.match_id ?? null,
+			match: matchTitle ?? s.match_id ?? "Unknown match",
+			market: labels.market,
+			result: null,
+			pick: labels.pick,
+			odds: labels.odds,
+			status: deriveSelectionStatus(s.odd_status ?? null),
+		};
+	});
 
 	return c.json(
 		{

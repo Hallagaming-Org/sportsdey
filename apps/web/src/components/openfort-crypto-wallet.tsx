@@ -1,19 +1,19 @@
-import {
-	AccountTypeEnum,
-	RecoveryMethod,
-} from "@openfort/react";
+import { AccountTypeEnum, RecoveryMethod } from "@openfort/react";
 import { useEthereumEmbeddedWallet } from "@openfort/react/ethereum";
 import { Check, Copy, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useSession } from "@/lib/auth/client";
 import {
 	formatCryptoAmount,
-	USDC_DECIMALS,
-	usePolygonAmoyBalances,
+	useOpenfortBalances,
 } from "@/lib/openfort/balances";
 import {
 	isOpenfortEnabled,
+	OPENFORT_CHAIN,
 	OPENFORT_CHAIN_LABEL,
+	OPENFORT_NATIVE_SYMBOL,
+	OPENFORT_STABLECOIN_DECIMALS,
+	OPENFORT_STABLECOIN_SYMBOL,
 } from "@/lib/openfort/config";
 import { useOpenfortReady } from "@/lib/openfort/scope";
 
@@ -36,8 +36,7 @@ function BalanceLine({
 			<span className="text-[#6C7073]">{label}</span>
 			{isLoading ? (
 				<span className="inline-flex items-center gap-1.5 text-[#6C7073]">
-					<Loader2 className="h-3.5 w-3.5 animate-spin" />
-					…
+					<Loader2 className="h-3.5 w-3.5 animate-spin" />…
 				</span>
 			) : (
 				<span className="font-medium text-white tabular-nums">{value}</span>
@@ -46,13 +45,7 @@ function BalanceLine({
 	);
 }
 
-function AddressRow({
-	label,
-	address,
-}: {
-	label: string;
-	address: string;
-}) {
+function AddressRow({ label, address }: { label: string; address: string }) {
 	const [copied, setCopied] = useState(false);
 
 	return (
@@ -90,9 +83,9 @@ function AddressRow({
 	);
 }
 
-function PolygonBalances({ address }: { address: `0x${string}` }) {
-	const { pol, usdc, isLoading, isFetching, refetch } =
-		usePolygonAmoyBalances(address);
+function ChainBalances({ address }: { address: `0x${string}` }) {
+	const { native, stablecoin, isLoading, isFetching, refetch } =
+		useOpenfortBalances(address);
 
 	return (
 		<div className="mt-3 space-y-2 border-[#1B2722] border-t pt-3">
@@ -105,7 +98,7 @@ function PolygonBalances({ address }: { address: `0x${string}` }) {
 					onClick={() => void refetch()}
 					disabled={isFetching}
 					className="cursor-pointer text-[#6C7073] transition-colors hover:text-white disabled:opacity-50"
-					aria-label="Refresh Polygon balances"
+					aria-label={`Refresh ${OPENFORT_CHAIN_LABEL} balances`}
 				>
 					<RefreshCw
 						className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
@@ -113,17 +106,19 @@ function PolygonBalances({ address }: { address: `0x${string}` }) {
 				</button>
 			</div>
 			<BalanceLine
-				label="POL"
+				label={OPENFORT_NATIVE_SYMBOL}
 				isLoading={isLoading}
-				value={`${formatCryptoAmount(pol.data?.value, 18)} POL`}
+				value={`${formatCryptoAmount(native.data?.value, 18)} ${OPENFORT_NATIVE_SYMBOL}`}
 			/>
 			<BalanceLine
-				label="USDC"
+				label={OPENFORT_STABLECOIN_SYMBOL}
 				isLoading={isLoading}
-				value={`${formatCryptoAmount(usdc.data, USDC_DECIMALS)} USDC`}
+				value={`${formatCryptoAmount(stablecoin.data, OPENFORT_STABLECOIN_DECIMALS)} ${OPENFORT_STABLECOIN_SYMBOL}`}
 			/>
-			{(pol.isError || usdc.isError) && (
-				<p className="text-red-400 text-xs">Could not load Polygon balances.</p>
+			{(native.isError || stablecoin.isError) && (
+				<p className="text-red-400 text-xs">
+					Could not load {OPENFORT_CHAIN_LABEL} balances.
+				</p>
 			)}
 		</div>
 	);
@@ -138,9 +133,7 @@ function OpenfortCryptoWalletInner() {
 	const address =
 		evm.address ?? evm.wallets[0]?.address ?? evm.activeWallet?.address;
 	const isBusy =
-		creating ||
-		evm.status === "creating" ||
-		evm.status === "fetching-wallets";
+		creating || evm.status === "creating" || evm.status === "fetching-wallets";
 
 	const createWallet = async () => {
 		setError(null);
@@ -152,9 +145,7 @@ function OpenfortCryptoWalletInner() {
 			});
 		} catch (err) {
 			setError(
-				err instanceof Error
-					? err.message
-					: "Failed to create Polygon wallet",
+				err instanceof Error ? err.message : "Failed to create crypto wallet",
 			);
 		} finally {
 			setCreating(false);
@@ -164,7 +155,7 @@ function OpenfortCryptoWalletInner() {
 	if (!session?.user) {
 		return (
 			<p className="text-[#6C7073] text-sm">
-				Sign in to create a test crypto wallet.
+				Sign in to create a crypto wallet.
 			</p>
 		);
 	}
@@ -172,15 +163,16 @@ function OpenfortCryptoWalletInner() {
 	return (
 		<div className="space-y-4">
 			<p className="text-[#6C7073] text-sm">
-				Separate crypto balance (testnet). Not convertible to ₦. Recovery:
-				passkey. Network: {OPENFORT_CHAIN_LABEL}.
+				Separate crypto balance
+				{OPENFORT_CHAIN.isTestnet ? " (testnet)" : ""}. Not convertible to ₦.
+				Recovery: passkey. Network: {OPENFORT_CHAIN_LABEL}.
 			</p>
 
 			<div className="space-y-3 rounded-xl border border-[#1B2722] bg-[#04100B] p-4">
 				{address ? (
 					<div>
 						<AddressRow label={OPENFORT_CHAIN_LABEL} address={address} />
-						<PolygonBalances address={address} />
+						<ChainBalances address={address} />
 					</div>
 				) : (
 					<button
@@ -192,10 +184,10 @@ function OpenfortCryptoWalletInner() {
 						{creating ? (
 							<span className="inline-flex items-center gap-2">
 								<Loader2 className="h-4 w-4 animate-spin" />
-								Creating Polygon wallet…
+								Creating crypto wallet…
 							</span>
 						) : (
-							"Create Polygon wallet (passkey)"
+							"Create crypto wallet (passkey)"
 						)}
 					</button>
 				)}
@@ -215,9 +207,15 @@ export function OpenfortCryptoWallet() {
 		<section className="mt-6 min-h-40 w-full rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm md:p-7">
 			<div className="mb-4 flex items-center justify-between gap-3 border-[#1B2722] border-b pb-3">
 				<h2 className="font-semibold text-base text-white">Crypto</h2>
-				<span className="rounded-md border border-[#1B2722] px-2 py-0.5 text-[#6C7073] text-[11px] uppercase tracking-wide">
-					Test
-				</span>
+				{OPENFORT_CHAIN.isTestnet ? (
+					<span className="rounded-md border border-[#1B2722] px-2 py-0.5 text-[#6C7073] text-[11px] uppercase tracking-wide">
+						Test
+					</span>
+				) : (
+					<span className="rounded-md border border-[#1B2722] px-2 py-0.5 text-[#6C7073] text-[11px] uppercase tracking-wide">
+						{OPENFORT_CHAIN_LABEL}
+					</span>
+				)}
 			</div>
 			{openfortReady ? (
 				<OpenfortCryptoWalletInner />

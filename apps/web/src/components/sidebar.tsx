@@ -6,7 +6,6 @@ import {
 	Home,
 	Newspaper,
 	Target,
-	Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -240,7 +239,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				},
 				{
 					id: "pvp-esports",
-					label: "Esports Tournaments",
+					label: "Tournaments",
 					isActive: false,
 					onClick: () =>
 						window.open("https://tournaments.sportsdey.com/", "_blank"),
@@ -327,8 +326,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
 			},
-		},
-		
+		},	
 		{
 			id: "partner",
 			label: "Become a Partner",
@@ -362,8 +360,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		// 		navigate({ to: "/betting", search: { type: "jackpots" } });
 		// 	},
 		// },
-
-
 		// {
 		// 	id: "refer",
 		// 	label: "Refer & Earn",

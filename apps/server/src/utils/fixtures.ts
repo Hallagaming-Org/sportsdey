@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
+import { sportsbookApiBase } from "@/utils/ticket-selection-labels";
 import type { CloudflareBindings } from "../types";
 
 interface DataBetFixtureResponse {
@@ -37,13 +38,14 @@ export async function getFixtureTitlesByIds(
 ): Promise<Map<string, string>> {
 	const titleById = new Map<string, string>();
 	
-	if (sportEventIds.length === 0 || !env.PROXY_URL || !env.PROXY_SECRET) {
+	const base = sportsbookApiBase(env);
+	if (sportEventIds.length === 0 || !base || !env.PROXY_SECRET) {
 		return titleById;
 	}
 
 	try {
 		const res = await fetchWithTimeout(
-			`${env.PROXY_URL}/sportsbook/sport-events-fixtures`,
+			`${base}/sport-events-fixtures`,
 			{
 				method: "POST",
 				headers: {

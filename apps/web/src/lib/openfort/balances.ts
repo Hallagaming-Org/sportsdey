@@ -2,8 +2,7 @@ import { erc20Abi, formatUnits } from "viem";
 import { useBalance, useReadContract } from "wagmi";
 import {
 	OPENFORT_EVM_CHAIN_ID,
-	POLYGON_AMOY_USDC,
-	USDC_DECIMALS,
+	OPENFORT_STABLECOIN_ADDRESS,
 } from "@/lib/openfort/config";
 
 export function formatCryptoAmount(
@@ -19,14 +18,14 @@ export function formatCryptoAmount(
 	});
 }
 
-export function usePolygonAmoyBalances(address?: `0x${string}`) {
-	const pol = useBalance({
+export function useOpenfortBalances(address?: `0x${string}`) {
+	const native = useBalance({
 		address,
 		chainId: OPENFORT_EVM_CHAIN_ID,
 		query: { enabled: Boolean(address), refetchInterval: 30_000 },
 	});
-	const usdc = useReadContract({
-		address: POLYGON_AMOY_USDC,
+	const stablecoin = useReadContract({
+		address: OPENFORT_STABLECOIN_ADDRESS,
 		abi: erc20Abi,
 		functionName: "balanceOf",
 		args: address ? [address] : undefined,
@@ -35,14 +34,12 @@ export function usePolygonAmoyBalances(address?: `0x${string}`) {
 	});
 
 	return {
-		pol,
-		usdc,
-		isLoading: Boolean(address) && (pol.isLoading || usdc.isLoading),
-		isFetching: pol.isFetching || usdc.isFetching,
+		native,
+		stablecoin,
+		isLoading: Boolean(address) && (native.isLoading || stablecoin.isLoading),
+		isFetching: native.isFetching || stablecoin.isFetching,
 		refetch: async () => {
-			await Promise.all([pol.refetch(), usdc.refetch()]);
+			await Promise.all([native.refetch(), stablecoin.refetch()]);
 		},
 	};
 }
-
-export { USDC_DECIMALS };
