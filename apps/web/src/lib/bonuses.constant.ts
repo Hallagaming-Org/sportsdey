@@ -63,9 +63,48 @@ export const BONUS_PRODUCT_TYPE = {
 } as const;
 
 export const BONUS_TYPE = {
-	DEPOSIT: "deposit",
+	WELCOME: "welcome",
 	LOGIN: "login",
+	MANUAL: "manual",
+	DEPOSIT: "deposit",
+	CODE: "code",
+	CASHBACK: "cashback",
+	FREESPIN: "freespin",
+	FREEBET: "freebet",
 } as const;
+
+export const BONUS_TYPE_VALUES = [
+	BONUS_TYPE.WELCOME,
+	BONUS_TYPE.LOGIN,
+	BONUS_TYPE.MANUAL,
+	BONUS_TYPE.DEPOSIT,
+	BONUS_TYPE.CODE,
+	BONUS_TYPE.CASHBACK,
+	BONUS_TYPE.FREESPIN,
+	BONUS_TYPE.FREEBET,
+] as const;
+
+export type BonusCampaignType = (typeof BONUS_TYPE_VALUES)[number];
+
+export const BONUS_TYPE_DEFAULT = BONUS_TYPE.WELCOME;
+
+export const BONUS_TYPE_LABEL: Record<BonusCampaignType, string> = {
+	[BONUS_TYPE.WELCOME]: "Welcome",
+	[BONUS_TYPE.LOGIN]: "Login",
+	[BONUS_TYPE.MANUAL]: "Manual",
+	[BONUS_TYPE.DEPOSIT]: "Deposit",
+	[BONUS_TYPE.CODE]: "Code",
+	[BONUS_TYPE.CASHBACK]: "Cashback",
+	[BONUS_TYPE.FREESPIN]: "Free spin",
+	[BONUS_TYPE.FREEBET]: "Free bet",
+};
+
+const BONUS_TYPE_VALUE_SET = new Set<string>(BONUS_TYPE_VALUES);
+
+/** True when `value` is a Bonus Engine Admin campaign type. */
+export function isBonusCampaignType(value: string): value is BonusCampaignType {
+	return BONUS_TYPE_VALUE_SET.has(value);
+}
 
 export const BONUS_PLACEHOLDER_IDS = new Set([
 	"provider_id",
@@ -76,4 +115,6 @@ export const BONUS_PLACEHOLDER_IDS = new Set([
 export const BONUS_QUERY_KEY = {
 	LIST: ["bonuses", "list"] as const,
 	CAMPAIGNS: ["bonuses", "campaigns"] as const,
+	campaigns: (bonusType: string) =>
+		["bonuses", "campaigns", bonusType] as const,
 };
