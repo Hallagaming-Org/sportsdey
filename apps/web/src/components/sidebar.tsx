@@ -6,7 +6,6 @@ import {
 	Home,
 	Newspaper,
 	Target,
-	Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -16,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
+import PredictionMarketIcon from "@/logos/PredictionMarketIcon";
 import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
 import { FaHandshakeAngle } from "react-icons/fa6";
@@ -214,7 +214,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},
 		{
 			id: "p2p",
-			label: "PvP",
+			label: "Esports",
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
@@ -265,16 +265,18 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToVideos,
 		},
 		{
-			id: "predictions",
-			label: "Predictions Market",
-			icon: PredictionMarket,
-			isActive: isItemActive("predictions", false),
+			id: "prediction",
+			label: "Prediction Market",
+			icon: PredictionMarketIcon,
+			isActive: isItemActive("prediction", false),
 			onClick: () => {
-				setActiveOverride("predictions");
-				window.open("https://prediction.sportsdey.com/", "_blank");
+				setActiveOverride("prediction");
+				window.open(
+					"https://prediction.sportsdey.com/",
+					"_blank",
+				);
 			},
-		},
-			
+		},	
 		{
 			id: "trading",
 			label: "Trading",
@@ -325,11 +327,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
 			},
-		},
-		
+		},	
 		{
 			id: "partner",
-			label: "Become a Partner",
+			label: "Become an affiliate",
 			icon: FaHandshakeAngle,
 			isActive: isItemActive("partner", false),
 			onClick: () => {
@@ -360,8 +361,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		// 		navigate({ to: "/betting", search: { type: "jackpots" } });
 		// 	},
 		// },
-
-
 		// {
 		// 	id: "refer",
 		// 	label: "Refer & Earn",

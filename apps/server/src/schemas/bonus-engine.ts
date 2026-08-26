@@ -1,4 +1,8 @@
 import { z } from "@hono/zod-openapi";
+import {
+	BONUS_ENGINE_CAMPAIGN_TYPE_VALUES,
+	BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
+} from "@/services/bonus-engine/bonus-engine.service.constant";
 
 export const BonusEngineErrorSchema = z
 	.object({
@@ -87,6 +91,58 @@ export const MissionListSuccessSchema = z
 	})
 	.openapi("MissionListSuccess");
 
+export const BonusCampaignsRequestSchema = z
+	.object({
+		bonus_type: z.enum(BONUS_ENGINE_CAMPAIGN_TYPE_VALUES).default(
+			BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
+		).openapi({
+			description:
+				"Bonus Engine `bonus_type` filter. Always sent; defaults to welcome.",
+			example: BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
+		}),
+	})
+	.openapi("BonusCampaignsRequest");
+
+export const BonusCampaignsSuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.array(z.record(z.string(), z.unknown())),
+		message: z.string().optional(),
+	})
+	.openapi("BonusCampaignsSuccess");
+
+export const BonusListSuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.array(z.record(z.string(), z.unknown())),
+		message: z.string().optional(),
+	})
+	.openapi("BonusListSuccess");
+
+export const BonusActionRequestSchema = z
+	.object({
+		userbonus_id: z.string().min(1).openapi({
+			description:
+				"Player bonus assignment `_id` from `POST /getall_User_bonus` (forwarded as Bonus Engine `userbonus_id`)",
+			example: "66d7fbf439d19fb08c09a37c",
+		}),
+	})
+	.openapi("BonusActionRequest");
+
+export const BonusActionSuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z
+			.object({
+				user_id: z.string().optional(),
+				real_wallet_balance: z.number().optional(),
+				bonus_wallet_balance: z.number().optional(),
+			})
+			.passthrough(),
+		message: z.string().optional(),
+	})
+	.openapi("BonusActionSuccess");
+
 export const BonusEngineCallbackAckSchema = z
 	.object({
 		status: z.number(),
@@ -101,8 +157,10 @@ export const BonusEngineBalanceCallbackSuccessSchema = z
 		message: z.string(),
 		data: z.object({
 			user_id: z.string(),
+			username: z.string().optional(),
 			real_wallet_balance: z.number(),
 			bonus_wallet_balance: z.number(),
+			timestamp: z.string().optional(),
 		}),
 	})
 	.openapi("BonusEngineBalanceCallbackSuccess");
