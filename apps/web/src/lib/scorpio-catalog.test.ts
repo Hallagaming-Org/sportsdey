@@ -32,4 +32,16 @@ describe("resolveScorpioGameImage", () => {
 		assert.equal(resolveScorpioGameImage({ mobile: {} }), null);
 		assert.equal(resolveScorpioGameImage(undefined), null);
 	});
+
+	it("rejects relative paths that would 404 on sportsdey.com", () => {
+		assert.equal(resolveScorpioGameImage("/game_pic/foo.jpg"), null);
+		assert.equal(resolveScorpioGameImage("game_pic/foo.jpg"), null);
+	});
+
+	it("upgrades http thumbnails to https", () => {
+		assert.equal(
+			resolveScorpioGameImage("http://cdn.example/tile.jpg"),
+			"https://cdn.example/tile.jpg",
+		);
+	});
 });

@@ -31,12 +31,11 @@ export type ClassicLobbyGame = {
 export const CLASSIC_CATEGORIES = [
 	"popular",
 	"crash",
-	"instant",
 	"original",
 	"pvp",
+	"arcade",
 	"slots",
 	"tablecardgames",
-	"arcade",
 	"classic",
 	"bingo",
 	"dice",
@@ -51,12 +50,11 @@ export const CLASSIC_CATEGORIES = [
 export const CLASSIC_CATEGORY_LABELS: Record<string, string> = {
 	popular: "Popular",
 	crash: "Crash",
-	instant: "Instant",
 	original: "Original",
 	pvp: "PvP",
+	arcade: "Arcade",
 	slots: "Slots",
 	tablecardgames: "Table/Card Games",
-	arcade: "Arcade",
 	classic: "Classic",
 	bingo: "Bingo",
 	dice: "Dice",
@@ -71,12 +69,11 @@ export const CLASSIC_CATEGORY_LABELS: Record<string, string> = {
 export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	popular: "🔥",
 	crash: "🚀",
-	instant: "⚡",
 	original: "🎯",
 	pvp: "⚔️",
+	arcade: "🕹️",
 	slots: "🎰",
 	tablecardgames: "🃏",
-	arcade: "🕹️",
 	classic: "👑",
 	bingo: "🎱",
 	dice: "🎲",
@@ -272,12 +269,15 @@ const KNOWN_GAME_BY_NAME: Record<string, string> = {
 	"lagos rush": "LAGOSRUSH",
 };
 
-/** Prefer our static art over provider/API thumbnails (match code or title). */
+/** Prefer our R2 art, then static originals, then provider thumbnails. */
 export function resolveKnownLobbyImage(game: {
 	code: string;
 	name: string;
 	imageUrl?: string | null;
 }): string | null {
+	if (game.imageUrl?.includes("bucket.sportsdey.com")) {
+		return game.imageUrl;
+	}
 	const byCode = CLASSIC_KNOWN_GAMES[game.code]?.image;
 	if (byCode) return byCode;
 	const alias = KNOWN_GAME_BY_NAME[game.name.toLowerCase().trim()];

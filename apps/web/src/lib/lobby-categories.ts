@@ -1,5 +1,7 @@
 /** Shared Casino lobby category helpers (Classic D1 links + Scorpio overlay). */
 
+import { httpsLobbyImageUrl } from "./scorpio-image";
+
 export type LobbyCategory = {
 	id: string;
 	name: string;
@@ -32,6 +34,9 @@ const LOBBY_SLUG_ALIASES: Record<string, string> = {
 	tablecardgames: "tablecardgames",
 	tableandcardgames: "tablecardgames",
 	tablegames: "tablecardgames",
+	instant: "arcade",
+	instantgames: "arcade",
+	instantgame: "arcade",
 };
 
 /** Map DB / JSON / aggregator slugs onto Casino tab slugs. */
@@ -54,6 +59,24 @@ function mergeCategories(
 	return into;
 }
 
+function isR2LobbyImage(url: string): boolean {
+	return url.includes("bucket.sportsdey.com");
+}
+
+function rememberCatalogImage(
+	into: Map<string, string>,
+	key: string,
+	imageUrl: string | null | undefined,
+): void {
+	if (!key) return;
+	const url = httpsLobbyImageUrl(imageUrl);
+	if (!url) return;
+	const existing = into.get(key);
+	if (!existing || (isR2LobbyImage(url) && !isR2LobbyImage(existing))) {
+		into.set(key, url);
+	}
+}
+
 export function overlayScorpioLobbyCategories<
 	T extends {
 		id: string;
@@ -61,24 +84,37 @@ export function overlayScorpioLobbyCategories<
 		code: string;
 		categories: LobbyCategory[];
 		providerId?: number;
+		imageUrl?: string | null;
 	},
 >(
 	scorpio: T[],
-	catalog: { name: string; code: string; categories?: LobbyCategory[] }[],
-): T[] {
+	catalog: {
+		name: string;
+		code: string;
+		categories?: LobbyCategory[];
+		imageUrl?: string | null;
+	}[],
+): Array<T & { fallbackImageUrl: string | null }> {
 	const byName = new Map<string, LobbyCategory[]>();
 	const byCode = new Map<string, LobbyCategory[]>();
+	const imageByName = new Map<string, string>();
+	const imageByCode = new Map<string, string>();
 
 	for (const game of catalog) {
 		const cats = (game.categories ?? []).map((c) => ({
 			...c,
 			slug: canonicalLobbySlug(c.slug),
 		}));
-		if (cats.length === 0) continue;
 		const nameKey = normalizeGameName(game.name);
-		byName.set(nameKey, mergeCategories(byName.get(nameKey) ?? [], cats));
+		if (cats.length > 0) {
+			byName.set(nameKey, mergeCategories(byName.get(nameKey) ?? [], cats));
+			if (game.code) {
+				byCode.set(game.code, mergeCategories(byCode.get(game.code) ?? [], cats));
+			}
+		}
+		rememberCatalogImage(imageByName, nameKey, game.imageUrl);
 		if (game.code) {
-			byCode.set(game.code, mergeCategories(byCode.get(game.code) ?? [], cats));
+			rememberCatalogImage(imageByCode, game.code, game.imageUrl);
 		}
 	}
 
@@ -101,8 +137,23 @@ export function overlayScorpioLobbyCategories<
 			return slug.startsWith("type-") || /^\d+$/.test(c.id);
 		});
 
+		const liveImage = httpsLobbyImageUrl(game.imageUrl);
+		const d1Image =
+			imageByCode.get(game.id) ??
+			(game.providerId != null
+				? imageByCode.get(`scorpio:${game.providerId}:${game.code}`)
+				: undefined) ??
+			imageByCode.get(game.code) ??
+			imageByName.get(normalizeGameName(game.name)) ??
+			null;
+		const imageUrl = liveImage ?? d1Image;
+		const fallbackImageUrl =
+			d1Image && d1Image !== imageUrl ? d1Image : null;
+
 		return {
 			...game,
+			imageUrl,
+			fallbackImageUrl,
 			categories: mergeCategories([...resolved], providerCats),
 		};
 	});

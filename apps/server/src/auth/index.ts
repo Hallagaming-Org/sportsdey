@@ -93,8 +93,21 @@ export async function signSessionToken(
 	return `${token}.${signatureB64}`;
 }
 
+function oauthCredentials(clientId?: string, clientSecret?: string) {
+	const id = clientId?.trim() ?? "";
+	const secret = clientSecret?.trim() ?? "";
+	if (!id || !secret) return undefined;
+	return { clientId: id, clientSecret: secret };
+}
+
 export const createAuth = (env: CloudflareBindings) => {
 	const db = drizzle(env.DB, { schema });
+	const google = oauthCredentials(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
+	const facebook = oauthCredentials(
+		env.FACEBOOK_CLIENT_ID,
+		env.FACEBOOK_CLIENT_SECRET,
+	);
+	const apple = oauthCredentials(env.APPLE_CLIENT_ID, env.APPLE_CLIENT_SECRET);
 	const toOrigin = (value?: string) => {
 		if (!value) return "";
 		try {
@@ -111,6 +124,7 @@ export const createAuth = (env: CloudflareBindings) => {
 				"https://stagingweb.sportsdey.com",
 				"https://sportsdey.com",
 				"https://binary.sportsdey.com",
+				"https://appleid.apple.com",
 				"sportsdey-mobile://",
 				"exp://**",
 				"https://admin.sportsdey.com",
@@ -138,14 +152,9 @@ export const createAuth = (env: CloudflareBindings) => {
 			},
 		},
 		socialProviders: {
-			google: {
-				clientId: env.GOOGLE_CLIENT_ID || "",
-				clientSecret: env.GOOGLE_CLIENT_SECRET || "",
-			},
-			facebook: {
-				clientId: env.FACEBOOK_CLIENT_ID || "",
-				clientSecret: env.FACEBOOK_CLIENT_SECRET || "",
-			},
+			...(google ? { google } : {}),
+			...(facebook ? { facebook } : {}),
+			...(apple ? { apple } : {}),
 		},
 		plugins: [expo(), openAPI(), bearer()],
 		user: {

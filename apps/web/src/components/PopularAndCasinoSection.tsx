@@ -24,6 +24,7 @@ import {
 	pickGamesByOrderedNames,
 	resolveKnownLobbyImage,
 } from "@/lib/classic-lobby";
+import { overlayScorpioLobbyCategories } from "@/lib/lobby-categories";
 import {
 	excludeScorpioStoredGames,
 	parseScorpioStoredCode,
@@ -436,9 +437,10 @@ function HotCasinoPanel() {
 					: "Slotegrator",
 			}));
 
-		const scorpio: HotLobbyGame[] = (scorpioQuery.data ?? []).filter(
-			(game) => game.enabled,
-		);
+		const scorpio: HotLobbyGame[] = overlayScorpioLobbyCategories(
+			scorpioQuery.data ?? [],
+			classicQuery.data ?? [],
+		).filter((game) => game.enabled);
 
 		// Prefer classic/Slotegrator when the same title exists in both catalogs.
 		const merged: HotLobbyGame[] = [...classic, ...scorpio];
@@ -628,6 +630,10 @@ function HotCasinoPanel() {
 						? CLASSIC_KNOWN_GAMES[game.code]
 						: undefined;
 					const image = resolveKnownLobbyImage(game);
+					const fallback =
+						"fallbackImageUrl" in game
+							? (game.fallbackImageUrl ?? null)
+							: null;
 					const Icon = image ? undefined : known?.icon;
 					const dual = supportsDualLaunch(game);
 					return (
@@ -659,6 +665,7 @@ function HotCasinoPanel() {
 							)}
 							<CasinoLobbyArt
 								src={image}
+								fallbackSrc={fallback}
 								name={game.name}
 								icon={Icon}
 								dimmed={isLoadingThis}

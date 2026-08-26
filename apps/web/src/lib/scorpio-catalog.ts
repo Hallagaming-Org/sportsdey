@@ -34,6 +34,8 @@ export type ScorpioLobbyGame = {
 	name: string;
 	code: string;
 	imageUrl: string | null;
+	/** D1/R2 art to try if the live provider CDN fails. */
+	fallbackImageUrl?: string | null;
 	categories: ScorpioCategory[];
 	enabled: boolean;
 	createdAt: number;
