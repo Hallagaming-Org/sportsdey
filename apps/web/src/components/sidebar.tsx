@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
+import PredictionMarketIcon from "@/logos/PredictionMarketIcon";
 import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
 import { FaHandshakeAngle } from "react-icons/fa6";
@@ -266,7 +267,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{
 			id: "prediction",
 			label: "Prediction Market",
-			icon: Trading,
+			icon: PredictionMarketIcon,
 			isActive: isItemActive("prediction", false),
 			onClick: () => {
 				setActiveOverride("prediction");
