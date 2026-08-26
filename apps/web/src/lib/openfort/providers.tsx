@@ -5,7 +5,6 @@ import {
 } from "@openfort/react";
 import { getDefaultConfig, OpenfortWagmiBridge } from "@openfort/react/wagmi";
 import type { PropsWithChildren } from "react";
-import { polygonAmoy } from "viem/chains";
 import { createConfig, WagmiProvider } from "wagmi";
 import { authClient } from "@/lib/auth/client";
 import {
@@ -13,7 +12,8 @@ import {
 	OPENFORT_EVM_CHAIN_ID,
 	OPENFORT_FEE_SPONSORSHIP_ID,
 	OPENFORT_PUBLISHABLE_KEY,
-	POLYGON_AMOY_USDC,
+	OPENFORT_STABLECOIN_ADDRESS,
+	OPENFORT_VIEM_CHAIN,
 	SHIELD_PUBLISHABLE_KEY,
 } from "@/lib/openfort/config";
 import { OpenfortSessionSync } from "@/lib/openfort/session-sync";
@@ -21,7 +21,7 @@ import { OpenfortSessionSync } from "@/lib/openfort/session-sync";
 const wagmiConfig = createConfig(
 	getDefaultConfig({
 		appName: "Sportsdey",
-		chains: [polygonAmoy],
+		chains: [OPENFORT_VIEM_CHAIN],
 		walletConnectProjectId:
 			import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID || "demo",
 	}),
@@ -55,7 +55,7 @@ export function OpenfortProviders({ children }: PropsWithChildren) {
 						ethereum: {
 							chainId: OPENFORT_EVM_CHAIN_ID,
 							assets: {
-								[OPENFORT_EVM_CHAIN_ID]: [POLYGON_AMOY_USDC],
+								[OPENFORT_EVM_CHAIN_ID]: [OPENFORT_STABLECOIN_ADDRESS],
 							},
 							...(OPENFORT_FEE_SPONSORSHIP_ID
 								? {

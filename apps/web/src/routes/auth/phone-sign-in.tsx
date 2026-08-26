@@ -7,7 +7,10 @@ import {
   requestPhoneOtp,
 } from "@/lib/auth/client";
 import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
-import { loginWebengageUser } from "@/lib/webengage";
+import {
+  loginWebengageUser,
+  trackWebengageLoginInitiated,
+} from "@/lib/webengage";
 import { Lock, Eye, EyeOff } from "lucide-react";
 import z from "zod";
 
@@ -70,6 +73,7 @@ function PhoneSignInPage() {
 
     setError("");
     setIsLoading(true);
+    trackWebengageLoginInitiated("phone");
 
     try {
       if (isSignUp) {

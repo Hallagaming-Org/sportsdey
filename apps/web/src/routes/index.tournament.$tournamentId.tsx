@@ -202,6 +202,9 @@ function RouteComponent() {
 																team1: match.competitors.home.name,
 																team2: match.competitors.away.name,
 																sport: "football",
+																date: match.date || match.start_time,
+																tournament:
+																	filteredSchedules?.competition.name,
 															})
 														}
 														id={match.id}

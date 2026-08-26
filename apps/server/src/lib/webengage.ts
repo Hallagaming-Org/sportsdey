@@ -1,4 +1,5 @@
 import type { ExecutionContext } from "hono";
+import { buildWebengageUserPayload } from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
 function getConfig(env: CloudflareBindings) {
@@ -68,15 +69,7 @@ export function setWebengageUserAttributes(
 	const { apiKey, licenseCode, host } = getConfig(env);
 	if (!apiKey || !licenseCode || !host) return;
 
-	const { userId, email, firstName, lastName, phone, ...custom } = params;
-	const payload: Record<string, unknown> = { userId };
-	if (email) payload.email = email;
-	if (firstName) payload.firstName = firstName;
-	if (lastName) payload.lastName = lastName;
-	if (phone) payload.phone = phone;
-	for (const [key, value] of Object.entries(custom)) {
-		payload[key] = value;
-	}
+	const payload = buildWebengageUserPayload(params);
 
 	const promise = fetch(
 		`${host}/v1/accounts/${licenseCode}/users`,

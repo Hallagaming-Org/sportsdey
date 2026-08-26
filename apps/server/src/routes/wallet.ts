@@ -939,6 +939,11 @@ walletRoute.openapi(callbackRoute, async (c) => {
 			const paymentMethod = tx.channel === "card" ? "card" : "bank_transfer";
 
 			if (status === "failed" && transaction) {
+				const [failedWallet] = await db
+					.select({ balance: schema.wallet.balance })
+					.from(schema.wallet)
+					.where(eq(schema.wallet.userId, transaction.userId))
+					.limit(1);
 				trackWebengageEvent(
 					c.env,
 					{
@@ -948,6 +953,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 							amount: (tx.amount ?? transaction.amount) / 100,
 							payment_method: paymentMethod,
 							failure_reason: tx.gateway_response || "Payment failed",
+							wallet_balance_after: (failedWallet?.balance ?? 0) / 100,
 						},
 					},
 					c.executionCtx,
@@ -1949,7 +1955,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 		c.env,
 		{
 			userId: user.id,
-			eventName: "transfer_funds completed",
+			eventName: "transfer_funds_completed",
 			eventData: {
 				"wallet id": recipientWalletId,
 				amount,
@@ -2131,7 +2137,7 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		c.env,
 		{
 			userId: user.id,
-			eventName: "transfer_funds initated",
+			eventName: "transfer_funds initiated",
 			eventData: {
 				"wallet id": "game_wallet",
 				amount,
@@ -2186,7 +2192,7 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 	// 	c.env,
 	// 	{
 	// 		userId: user.id,
-	// 		eventName: "transfer_funds completed",
+	// 		eventName: "transfer_funds_completed",
 	// 		eventData: {
 	// 			"wallet id": "game_wallet",
 	// 			amount,

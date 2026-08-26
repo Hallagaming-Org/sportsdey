@@ -168,7 +168,7 @@ function AccountPage() {
 				"First Name": firstName,
 				"Last Name": lastName,
 				Mobile: user.mobileNumber ?? "",
-				Country: user.country ?? "",
+				Country: user.country ?? formState.country,
 				"Reference Id": formState.referralCode || formState.referralId || "",
 			});
 			if (referralSynced) {
