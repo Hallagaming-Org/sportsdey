@@ -3,7 +3,7 @@ import { Apple, GooglePlay } from "iconsax-reactjs";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import DiscordFooter from "@/logos/DiscordFooter";
 import FacebookFooterIcon from "@/logos/FacebookFooterIcon";
-import FlutterwaveLogo from "@/logos/flutterwave.png";
+// import FlutterwaveLogo from "@/logos/flutterwave.png";
 import InstagramFooter from "@/logos/InstagramFooter";
 import KudaLogo from "@/logos/kuda.png";
 import MastercardLogo from "@/logos/mastercard.png";
