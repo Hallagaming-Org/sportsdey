@@ -213,7 +213,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		},
 		{
 			id: "p2p",
-			label: "PvP",
+			label: "Esports",
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
