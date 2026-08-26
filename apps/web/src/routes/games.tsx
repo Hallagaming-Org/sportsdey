@@ -59,7 +59,7 @@ export const Route = createFileRoute("/games")({
 	): { category?: string; play?: string } => ({
 		category:
 			typeof search.category === "string" && search.category
-				? search.category
+				? canonicalLobbySlug(search.category)
 				: undefined,
 		play:
 			typeof search.play === "string" && search.play.trim()
@@ -482,11 +482,14 @@ function GamesPage() {
 
 	const getGameDisplay = (game: LobbyGame) => {
 		const image = resolveKnownLobbyImage(game);
+		const fallback =
+			"fallbackImageUrl" in game ? (game.fallbackImageUrl ?? null) : null;
 		if (!isScorpioGame(game)) {
 			const known = CLASSIC_KNOWN_GAMES[game.code];
 			return {
 				name: game.name,
 				image,
+				fallback,
 				Icon: image ? undefined : known?.icon,
 				gradient: known?.gradient ?? DEFAULT_GRADIENT,
 			};
@@ -495,6 +498,7 @@ function GamesPage() {
 		return {
 			name: game.name,
 			image,
+			fallback,
 			Icon: undefined as ComponentType<{ className?: string }> | undefined,
 			gradient: DEFAULT_GRADIENT,
 		};
@@ -737,6 +741,7 @@ function GamesPage() {
 												)}
 												<CasinoLobbyArt
 													src={display.image}
+													fallbackSrc={display.fallback}
 													name={display.name}
 													icon={display.Icon}
 													dimmed={loadingGame === game.id}
@@ -789,6 +794,7 @@ function GamesPage() {
 										)}
 										<CasinoLobbyArt
 											src={display.image}
+											fallbackSrc={display.fallback}
 											name={display.name}
 											icon={display.Icon}
 											dimmed={loadingGame === game.id}

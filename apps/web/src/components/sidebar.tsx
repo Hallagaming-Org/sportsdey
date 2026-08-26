@@ -268,9 +268,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "predictions",
 			label: "Predictions Market",
 			icon: PredictionMarket,
-			isActive: false,
-			// disabled: true,
-			onClick: () => showComingSoon("Predictions Market"),
+			isActive: isItemActive("predictions", false),
+			onClick: () => {
+				setActiveOverride("predictions");
+				window.open("https://prediction.sportsdey.com/", "_blank");
+			},
 		},
 			
 		{

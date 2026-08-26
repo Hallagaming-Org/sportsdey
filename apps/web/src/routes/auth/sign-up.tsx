@@ -142,8 +142,8 @@ export default function SignUpPage() {
 				<p className="mt-6 text-center text-gray-500 text-sm">
 					Already have an account?{" "}
 					<Link
-						to="/auth/sign-in"
-						search={{ returnTo }}
+						to="/auth/phone-sign-in"
+						search={{ returnTo, mode: "login" }}
 						className="font-medium text-blue-600 hover:text-blue-700"
 					>
 						Sign in

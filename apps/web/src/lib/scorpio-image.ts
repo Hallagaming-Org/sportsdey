@@ -5,10 +5,20 @@ export type ScorpioGameImage =
 	| undefined
 	| null;
 
+/** Absolute https thumbnail only — relative / http srcs 404 or mixed-content block. */
+export function httpsLobbyImageUrl(value: string | null | undefined): string | null {
+	if (!value) return null;
+	const trimmed = value.trim();
+	if (/^https:\/\//i.test(trimmed)) return trimmed;
+	if (/^http:\/\//i.test(trimmed)) {
+		return `https://${trimmed.slice("http://".length)}`;
+	}
+	return null;
+}
+
 function firstHttpUrl(value: unknown): string | null {
 	if (typeof value === "string") {
-		const trimmed = value.trim();
-		return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+		return httpsLobbyImageUrl(value);
 	}
 	if (!value || typeof value !== "object") return null;
 	if (Array.isArray(value)) {
@@ -30,8 +40,7 @@ export function resolveScorpioGameImage(
 	gameImage: ScorpioGameImage,
 ): string | null {
 	if (typeof gameImage === "string") {
-		const trimmed = gameImage.trim();
-		return trimmed || null;
+		return httpsLobbyImageUrl(gameImage);
 	}
 	if (!gameImage || typeof gameImage !== "object") return null;
 
@@ -58,9 +67,10 @@ export function resolveScorpioGameImage(
 		img.mobile?.verticalTile?.small,
 	];
 	for (const candidate of candidates) {
-		if (typeof candidate === "string" && candidate.trim()) {
-			return candidate.trim();
-		}
+		const url = httpsLobbyImageUrl(
+			typeof candidate === "string" ? candidate : null,
+		);
+		if (url) return url;
 	}
 	return firstHttpUrl(gameImage);
 }

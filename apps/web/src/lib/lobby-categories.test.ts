@@ -22,6 +22,8 @@ describe("lobby categories", () => {
 		assert.equal(canonicalLobbySlug("virtual-sports"), "virtuals");
 		assert.equal(canonicalLobbySlug("table_card_games"), "tablecardgames");
 		assert.equal(canonicalLobbySlug("tablecardgames"), "tablecardgames");
+		assert.equal(canonicalLobbySlug("instant"), "arcade");
+		assert.equal(canonicalLobbySlug("instant-games"), "arcade");
 	});
 
 	it("treats games tagged with any crash variant as matching Crash", () => {
@@ -59,6 +61,12 @@ describe("lobby categories", () => {
 		assert.equal(gameMatchesLobbyCategory(lotto, "lottery"), true);
 		assert.equal(gameMatchesLobbyCategory(jackpot, "slots"), false);
 		assert.equal(gameMatchesLobbyCategory(jackpot, "jackpot"), true);
+
+		const instant = {
+			categories: [{ id: "4", name: "Instant", slug: "instant" }],
+		};
+		assert.equal(gameMatchesLobbyCategory(instant, "arcade"), true);
+		assert.equal(gameMatchesLobbyCategory(instant, "instant"), true);
 	});
 
 	it("counts a game with several crash labels once", () => {
@@ -133,6 +141,90 @@ describe("lobby categories", () => {
 		assert.equal(
 			overlaid[0]?.categories.some((c) => c.slug === "others"),
 			true,
+		);
+	});
+
+	it("fills a missing Scorpio thumbnail from D1", () => {
+		const scorpio = [
+			{
+				id: "scorpio:16:619",
+				name: "10 Bulky Fruits",
+				code: "619",
+				providerId: 16,
+				imageUrl: null as string | null,
+				categories: [{ id: "16", name: "Amusnet", slug: "amusnet" }],
+			},
+		];
+		const catalog = [
+			{
+				name: "10 Bulky Fruits",
+				code: "scorpio:16:619",
+				imageUrl: "https://bucket.sportsdey.com/gdrive-files/10%20Bulky%20Fruits.jpg",
+				categories: [{ id: "slots", name: "slots", slug: "slots" }],
+			},
+		];
+
+		const overlaid = overlayScorpioLobbyCategories(scorpio, catalog);
+		assert.equal(
+			overlaid[0]?.imageUrl,
+			"https://bucket.sportsdey.com/gdrive-files/10%20Bulky%20Fruits.jpg",
+		);
+		assert.equal(overlaid[0]?.fallbackImageUrl, null);
+	});
+
+	it("keeps live Scorpio art and uses D1 R2 as onError fallback", () => {
+		const scorpio = [
+			{
+				id: "scorpio:2:TBHRSlot",
+				name: "10 Burning Heart",
+				code: "TBHRSlot",
+				providerId: 2,
+				imageUrl: "https://cdn.example/live-heart.jpg",
+				categories: [{ id: "2", name: "EGT", slug: "egt" }],
+			},
+		];
+		const catalog = [
+			{
+				name: "10 Burning Heart",
+				code: "scorpio:2:TBHRSlot",
+				imageUrl: "https://bucket.sportsdey.com/gdrive-files/10%20Burning%20Heart.jpg",
+			},
+		];
+
+		const overlaid = overlayScorpioLobbyCategories(scorpio, catalog);
+		assert.equal(overlaid[0]?.imageUrl, "https://cdn.example/live-heart.jpg");
+		assert.equal(
+			overlaid[0]?.fallbackImageUrl,
+			"https://bucket.sportsdey.com/gdrive-files/10%20Burning%20Heart.jpg",
+		);
+	});
+
+	it("moves Instant-tagged catalog games onto Arcade", () => {
+		const scorpio = [
+			{
+				id: "scorpio:1:aviatrix-mines",
+				name: "Aviatrix Mines",
+				code: "aviatrix-mines",
+				providerId: 1,
+				categories: [{ id: "1", name: "Provider", slug: "provider" }],
+			},
+		];
+		const catalog = [
+			{
+				name: "Aviatrix Mines",
+				code: "scorpio:1:aviatrix-mines",
+				categories: [{ id: "instant", name: "Instant", slug: "instant" }],
+			},
+		];
+
+		const overlaid = overlayScorpioLobbyCategories(scorpio, catalog);
+		assert.equal(
+			overlaid[0]?.categories.some((c) => c.slug === "arcade"),
+			true,
+		);
+		assert.equal(
+			overlaid[0]?.categories.some((c) => c.slug === "instant"),
+			false,
 		);
 	});
 });

@@ -127,13 +127,14 @@ export default function DesktopFooter() {
 						<h3 className="mb-6 font-bold text-base text-white">Our Ecosystem</h3>
 						<ul className="space-y-4 text-sm">
 							<li>
-								<Link
-									to="/betting"
-									search={{ type: "jackpots" } as any}
-									className="cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								<a
+									href="https://prediction.sportsdey.com/"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 								>
 									Prediction Market
-								</Link>
+								</a>
 							</li>
 							<li>
 								<a
