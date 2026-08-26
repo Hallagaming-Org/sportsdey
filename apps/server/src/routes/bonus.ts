@@ -99,7 +99,7 @@ bonusRoute.openapi(campaignsRoute, async (c) => {
 	const result = await listBonusEngineCampaigns({
 		env: c.env,
 		userId: user.id,
-		...(body.bonus_type ? { bonusType: body.bonus_type } : {}),
+		bonusType: body.bonus_type,
 	});
 	if (!result.ok && isBonusEngineJsonNotFound(result)) {
 		return c.json(

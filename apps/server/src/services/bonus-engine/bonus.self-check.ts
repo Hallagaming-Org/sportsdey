@@ -31,24 +31,14 @@ assert.deepEqual(
 		clientId: "shiv",
 		projectId: "main",
 		userId: "hari114",
-		bonusType: "deposit",
+		bonusType: "welcome",
 	}),
 	{
 		client_id: "shiv",
 		project_id: "main",
 		user_id: "hari114",
-		bonus_type: "deposit",
+		bonus_type: "welcome",
 	},
-);
-
-assert.equal(
-	"bonus_type" in
-		buildBonusEngineListCampaignsBody({
-			clientId: "shiv",
-			projectId: "main",
-			userId: "hari114",
-		}),
-	false,
 );
 
 assert.deepEqual(

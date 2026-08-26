@@ -51,20 +51,17 @@ export function buildBonusEnginePlayerScopedBody(payload: {
 }
 
 /**
- * Builds `POST /list_active_campaign` body. `bonusType` is omitted when unset
- * so the engine returns every active campaign for the player.
+ * Builds `POST /list_active_campaign` body. `bonus_type` is always sent.
  */
 export function buildBonusEngineListCampaignsBody(payload: {
 	clientId: string;
 	projectId: string;
 	userId: string;
-	bonusType?: string;
+	bonusType: string;
 }): BonusEngineListCampaignsBody {
 	return {
 		...buildBonusEnginePlayerScopedBody(payload),
-		...(payload.bonusType
-			? { [BONUS_ENGINE_BODY_FIELD.BONUS_TYPE]: payload.bonusType }
-			: {}),
+		[BONUS_ENGINE_BODY_FIELD.BONUS_TYPE]: payload.bonusType,
 	};
 }
 
@@ -213,13 +210,13 @@ export function isBonusEngineActivateAccepted(
 export async function listBonusEngineCampaigns(payload: {
 	env: CloudflareBindings;
 	userId: string;
-	bonusType?: string;
+	bonusType: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineBonusCampaignItem[]>>> {
 	return signedBonusRequest({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.LIST_ACTIVE_CAMPAIGN,
 		userId: payload.userId,
-		...(payload.bonusType ? { bonusType: payload.bonusType } : {}),
+		bonusType: payload.bonusType,
 	});
 }
 
