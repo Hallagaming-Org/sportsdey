@@ -34,6 +34,7 @@ export type NewsDetail = {
 	_id: string;
 	title: string;
 	publishedAt: string;
+	category?: string;
 	image: ImageSizes | null;
 	slug: { current: string } | null;
 	body: unknown;

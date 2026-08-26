@@ -5,6 +5,7 @@ import z from "zod";
 import { signIn } from "@/lib/auth/client";
 import { Phone } from "lucide-react";
 import { buildPublicUrl } from "@/lib/public-url";
+import { trackWebengageLoginInitiated } from "@/lib/webengage";
 
 const signInSearchSchema = z.object({
 	returnTo: z.string().optional().catch(""),
@@ -34,6 +35,7 @@ export default function SignInPage() {
 	) => {
 		setIsLoading(true);
 		setError("");
+		trackWebengageLoginInitiated(provider);
 		try {
 			const result = await signIn.social({
 				provider,

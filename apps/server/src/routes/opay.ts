@@ -275,8 +275,11 @@ opayRoute.openapi(callbackRoute, async (c) => {
 					eventName: "deposit_completed",
 					eventData: {
 						amount: existingTxn.amount / 100,
+						currency: "NGN",
 						payment_method: "opay",
+						transaction_id: existingTxn.reference,
 						type: "credit",
+						wallet_balance_after: newBalance / 100,
 					},
 				},
 				c.executionCtx,
@@ -303,6 +306,11 @@ opayRoute.openapi(callbackRoute, async (c) => {
 			}
 		}
 	} else {
+		const [failedWallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, existingTxn.userId))
+			.limit(1);
 		trackWebengageEvent(
 			c.env,
 			{
@@ -311,6 +319,8 @@ opayRoute.openapi(callbackRoute, async (c) => {
 				eventData: {
 					amount: existingTxn.amount / 100,
 					payment_method: "opay",
+					failure_reason: status || "Payment failed",
+					wallet_balance_after: (failedWallet?.balance ?? 0) / 100,
 				},
 			},
 			c.executionCtx,
