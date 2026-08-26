@@ -117,7 +117,7 @@ export default function DesktopFooter() {
 									rel="noopener noreferrer"
 									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 								>
-									Become a Partner
+									Become an affiliate
 								</a>
 							</li>
 						</ul>
@@ -284,7 +284,7 @@ export default function DesktopFooter() {
 						{ name: "Monnify", logo: MonnifyLogo },
 						{ name: "Mastercard", logo: MastercardLogo },
 						{ name: "Kuda", logo: KudaLogo },
-						{ name: "Flutterwave", logo: FlutterwaveLogo },
+						// { name: "Flutterwave", logo: FlutterwaveLogo },
 					].map((provider) => (
 						<div
 							key={provider.name}
