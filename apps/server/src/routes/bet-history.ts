@@ -28,6 +28,7 @@ const BetHistoryItemSchema = z.object({
 	potentialWin: z.number().nullable(),
 	actualPayout: z.number().nullable(),
 	settledAt: z.string().nullable(),
+	betType: z.string().nullable(),
 });
 
 const BetHistoryResponseSchema = z
@@ -199,6 +200,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		potentialWin: number | null;
 		actualPayout: number | null;
 		settledAt: string | null;
+		betType: string | null;
 		createdAt: Date;
 	}> = [];
 
@@ -255,6 +257,9 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			potentialWin: oddsValue > 0 ? stakeNaira * oddsValue : null,
 			actualPayout: isSettled ? (row.settleAmount ?? 0) / 100 : null,
 			settledAt: isSettled ? toWAT(row.updatedAt) : null,
+			betType: row.betType
+				? getGameTypeLabel(row.betData, row.betType).replace(/^Bets - /, "")
+				: null,
 			createdAt: row.createdAt,
 		});
 	}
@@ -507,6 +512,7 @@ const TicketSelectionSchema = z.object({
 	pick: z.string().nullable(),
 	odds: z.string().nullable(),
 	status: z.enum(["won", "lost", "pending"]),
+	startTime: z.string().nullable(),
 });
 
 const TicketDetailSchema = z.object({
@@ -635,6 +641,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			pick: labels.pick,
 			odds: labels.odds,
 			status: deriveSelectionStatus(s.odd_status ?? null),
+			startTime: s.meta?.sport_event_info_start_time ?? null, 
 		};
 	});
 

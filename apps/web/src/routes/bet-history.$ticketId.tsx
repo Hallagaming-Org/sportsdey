@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import Trophy from "@/logos/trophy.svg?react";
 import { apiRequest } from "@/lib/api";
@@ -20,42 +20,164 @@ type BetSelection = {
 	pick: string | null;
 	odds: string | null;
 	status: SelectionStatus;
+	startTime: string | null;
 };
 
 type CasinoSelection = {
-  id: string;
-  type: string;
-  amount: number;
-  status: SelectionStatus;
-  gameName: string;
-  provider?: string;
-  roundId?: string;
+	id: string;
+	type: string;
+	amount: number;
+	status: SelectionStatus;
+	gameName: string;
+	provider?: string;
+	roundId?: string;
 };
 
 type TicketDetail = {
-  ticketId: string;
-  dateTime: string;
-  betType: string;
-  outcome: TicketOutcome;
-  stake: number;
-  totalOdds: number;
-  totalReturn: number | null;
-  potentialCashout: number | null;
-  numberOfBets: number;
-  selections: BetSelection[];
-  isCasino?: boolean;
-  casinoSelections?: CasinoSelection[];
-  gameName?: string;
-  provider?: string;
-  roundId?: string;
-  multiplier?: number;
+	ticketId: string;
+	dateTime: string;
+	betType: string;
+	outcome: TicketOutcome;
+	stake: number;
+	totalOdds: number;
+	totalReturn: number | null;
+	potentialCashout: number | null;
+	numberOfBets: number;
+	selections: BetSelection[];
+	isCasino?: boolean;
+	casinoSelections?: CasinoSelection[];
+	gameName?: string;
+	provider?: string;
+	roundId?: string;
+	multiplier?: number;
 };
 
+// ===== MOCK PENDING TICKET DATA =====
+const MOCK_PENDING_TICKET: TicketDetail = {
+	ticketId: "9CGxh37XSpOryuK3gkWxiGp1VpYOW5EAAGsHXwAy",
+	dateTime: "Aug 22, 2026, 10:30 am",
+	betType: "Accumulator",
+	outcome: "pending",
+	stake: 1000,
+	totalOdds: 5.42,
+	totalReturn: null,
+	potentialCashout: 5420,
+	numberOfBets: 4,
+	selections: [
+		{
+			matchId: "1",
+			match: "Arsenal vs Chelsea",
+			market: "Match Result",
+			result: null,
+			pick: "Arsenal to Win",
+			odds: "1.85",
+			status: "pending",
+			startTime: new Date(Date.now() + 3600000 * 2).toISOString(), // 2 hours from now
+		},
+		{
+			matchId: "2",
+			match: "Liverpool vs Man City",
+			market: "Over/Under",
+			result: null,
+			pick: "Over 2.5 Goals",
+			odds: "1.62",
+			status: "pending",
+			startTime: new Date(Date.now() + 3600000 * 3).toISOString(), // 3 hours from now
+		},
+		{
+			matchId: "3",
+			match: "Barcelona vs Real Madrid",
+			market: "Both Teams to Score",
+			result: null,
+			pick: "Yes",
+			odds: "1.35",
+			status: "pending",
+			startTime: new Date(Date.now() + 3600000 * 4).toISOString(), // 4 hours from now
+		},
+		{
+			matchId: "4",
+			match: "Bayern Munich vs Dortmund",
+			market: "Match Result",
+			result: null,
+			pick: "Bayern Munich to Win",
+			odds: "1.42",
+			status: "pending",
+			startTime: new Date(Date.now() + 3600000 * 5).toISOString(), // 5 hours from now
+		},
+	],
+	isCasino: false,
+};
+
+// ===== MOCK CASINO PENDING TICKET =====
+const MOCK_CASINO_PENDING_TICKET: TicketDetail = {
+	ticketId: "L-46375946524744580182",
+	dateTime: "Aug 22, 2026, 11:15 am",
+	betType: "Casino",
+	outcome: "pending",
+	stake: 500,
+	totalOdds: 0,
+	totalReturn: null,
+	potentialCashout: 1500,
+	numberOfBets: 1,
+	selections: [],
+	isCasino: true,
+	gameName: "Aviator",
+	provider: "Spribe",
+	roundId: "round_abc123",
+	multiplier: 3.0,
+	casinoSelections: [
+		{
+			id: "1",
+			type: "BET",
+			amount: 500,
+			status: "pending",
+			gameName: "Aviator",
+			provider: "Spribe",
+			roundId: "round_abc123",
+		},
+	],
+};
+// ===== END MOCK DATA =====
+
 async function fetchTicketDetail(ticketId: string): Promise<TicketDetail> {
+	// Use this to test mock data - set to true to see mock pending ticket
+	const USE_MOCK = true;
+	const USE_CASINO_MOCK = false; // Toggle to test casino pending mock
+	
+	if (USE_MOCK) {
+		// Return mock data based on the ticketId
+		if (ticketId === "mock-pending") {
+			return MOCK_PENDING_TICKET;
+		}
+		if (ticketId === "mock-casino-pending") {
+			return MOCK_CASINO_PENDING_TICKET;
+		}
+		// Return a pending ticket for any ticketId that starts with "pending-"
+		if (ticketId.startsWith("pending-")) {
+			return MOCK_PENDING_TICKET;
+		}
+		if (ticketId.startsWith("casino-pending-")) {
+			return MOCK_CASINO_PENDING_TICKET;
+		}
+	}
+	
 	return apiRequest<TicketDetail>(`bet-history/${ticketId}`, {
 		method: "GET",
 		credentials: "include",
 	});
+}
+
+function hasNotStarted(startTime: string | null): boolean {
+	if (!startTime) return false;
+	return new Date(startTime).getTime() > Date.now();
+}
+
+function formatKickoff(startTime: string | null): string {
+	if (!startTime) return "";
+	const d = new Date(startTime);
+	const date = d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" });
+	const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+	return `${date} - ${time}`;
 }
 
 function formatMoney(value: number) {
@@ -81,26 +203,23 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 
 	return (
 		<div
-			className={`relative overflow-hidden rounded-2xl border ${
-				won
+			className={`relative overflow-hidden rounded-2xl border ${won
 					? "border-[#1F4D2C] bg-[#0A1A0E]"
 					: lost
 						? "border-[#1C1D1F] bg-[#0A0A0A]"
 						: "border-[#3A3312] bg-[#14120A]"
-			}`}
+				}`}
 		>
 			<div className="flex">
 				<div
-					className={`flex w-8 shrink-0 flex-col items-center gap-2 pt-3 pb-2 ${
-						won ? "bg-[#123018]" : lost ? "bg-[#1A1A1A]" : "bg-[#3A3312]"
-					}`}
+					className={`flex w-8 shrink-0 flex-col items-center gap-2 pt-3 pb-2 ${won ? "bg-[#123018]" : lost ? "bg-[#1A1A1A]" : "bg-[#3A3312]"
+						}`}
 				>
 					{won && <Trophy className="h-4 w-4 text-[#E8A93D]" fill="#E8A93D" />}
 					{!won && <span className="mt-0.5 h-2 w-2 rounded-full bg-[#8C8F8F]" />}
 					<span
-						className={`font-bold text-xs text-center tracking-wide [writing-mode:vertical-rl] ${
-							won ? "text-[#2EFF0C]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
-						}`}
+						className={`font-bold text-xs text-center tracking-wide [writing-mode:vertical-rl] ${won ? "text-[#2EFF0C]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
+							}`}
 						style={{ transform: "rotate(360deg)" }}
 					>
 						{statusLabel(selection.status).toUpperCase()}
@@ -109,10 +228,7 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 
 				<div className="flex-1 px-4 py-3">
 					<div className="flex items-center justify-between text-xs">
-						<span className="text-[#8C8F8F]">
-							
-							{"—"}
-						</span>
+						<span className="text-[#8C8F8F]">—</span>
 						<span className="truncate text-[#B5B7B5] underline decoration-[#B5B7B5]/40">
 							{selection.match}
 						</span>
@@ -150,69 +266,92 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 	);
 }
 
-/** Casino Selection Card */
-function CasinoSelectionCard({ selection }: { selection: CasinoSelection }) {
-  const won = selection.status === "won";
-  const lost = selection.status === "lost";
+// Pending card for mobile
+function PendingSelectionCard({ selection }: { selection: BetSelection }) {
+	const notStarted = hasNotStarted(selection.startTime);
 
-  return (
-    <div
-      className={`relative overflow-hidden rounded-2xl border ${
-        won
-          ? "border-[#1F4D2C] bg-[#0A1A0E]"
-          : lost
-            ? "border-[#1C1D1F] bg-[#0A0A0A]"
-            : "border-[#3A3312] bg-[#14120A]"
-      }`}
-    >
-      <div className="flex">
-        <div
-          className={`flex w-8 shrink-0 flex-col items-center gap-2 pt-3 pb-2 ${
-            won ? "bg-[#123018]" : lost ? "bg-[#1A1A1A]" : "bg-[#3A3312]"
-          }`}
-        >
-          {won && <Trophy className="h-4 w-4 text-[#E8A93D]" fill="#E8A93D" />}
-          {!won && <span className="mt-0.5 h-2 w-2 rounded-full bg-[#8C8F8F]" />}
-          <span
-            className={`font-bold text-xs text-center tracking-wide [writing-mode:vertical-rl] ${
-              won ? "text-[#2EFF0C]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
-            }`}
-            style={{ transform: "rotate(360deg)" }}
-          >
-            {statusLabel(selection.status).toUpperCase()}
-          </span>
-        </div>
+	return (
+		<div className="relative overflow-hidden rounded-2xl border border-[#2A3A24] bg-[#0A0A0A] px-4 py-3">
+			<div className="flex items-center justify-between text-sm">
+				<span className="text-white">{selection.match}</span>
+				<span className="text-[#8C8F8F] text-xs">{formatKickoff(selection.startTime)}</span>
+			</div>
 
-        <div className="flex-1 px-4 py-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[#8C8F8F]">{selection.gameName}</span>
-            <span className="text-[#B5B7B5]">{selection.type}</span>
-          </div>
+			<div className="mt-1 flex items-center justify-between">
+				<span className="font-semibold text-white">{selection.pick ?? "—"}</span>
+				<span className="font-semibold text-white">{selection.odds ?? "—"}</span>
+			</div>
 
-          <div className="mt-3 space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[#8C8F8F]">Amount:</span>
-              <span className="text-white">{formatMoney(selection.amount)}</span>
-            </div>
-            {selection.provider && (
-              <div className="flex justify-between">
-                <span className="text-[#8C8F8F]">Provider:</span>
-                <span className="text-white">{selection.provider}</span>
-              </div>
-            )}
-            {selection.roundId && (
-              <div className="flex justify-between">
-                <span className="text-[#8C8F8F]">Round ID:</span>
-                <span className="text-white text-xs truncate">{selection.roundId}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+			<div className="mt-1 text-[#6B6E6C] text-xs">{selection.market ?? "—"}</div>
+
+			{notStarted && (
+				<span className="pointer-events-none absolute inset-0 flex items-center justify-end pr-4 font-black text-2xl text-[#3A3A3A] tracking-tight">
+					NOT START
+				</span>
+			)}
+		</div>
+	);
 }
 
+/** Casino Selection Card */
+function CasinoSelectionCard({ selection }: { selection: CasinoSelection }) {
+	const won = selection.status === "won";
+	const lost = selection.status === "lost";
+
+	return (
+		<div
+			className={`relative overflow-hidden rounded-2xl border ${won
+					? "border-[#1F4D2C] bg-[#0A1A0E]"
+					: lost
+						? "border-[#1C1D1F] bg-[#0A0A0A]"
+						: "border-[#3A3312] bg-[#14120A]"
+				}`}
+		>
+			<div className="flex">
+				<div
+					className={`flex w-8 shrink-0 flex-col items-center gap-2 pt-3 pb-2 ${won ? "bg-[#123018]" : lost ? "bg-[#1A1A1A]" : "bg-[#3A3312]"
+						}`}
+				>
+					{won && <Trophy className="h-4 w-4 text-[#E8A93D]" fill="#E8A93D" />}
+					{!won && <span className="mt-0.5 h-2 w-2 rounded-full bg-[#8C8F8F]" />}
+					<span
+						className={`font-bold text-xs text-center tracking-wide [writing-mode:vertical-rl] ${won ? "text-[#2EFF0C]" : lost ? "text-[#8C8F8F]" : "text-[#E8C547]"
+							}`}
+						style={{ transform: "rotate(360deg)" }}
+					>
+						{statusLabel(selection.status).toUpperCase()}
+					</span>
+				</div>
+
+				<div className="flex-1 px-4 py-3">
+					<div className="flex items-center justify-between text-xs">
+						<span className="text-[#8C8F8F]">{selection.gameName}</span>
+						<span className="text-[#B5B7B5]">{selection.type}</span>
+					</div>
+
+					<div className="mt-3 space-y-1 text-sm">
+						<div className="flex justify-between">
+							<span className="text-[#8C8F8F]">Amount:</span>
+							<span className="text-white">{formatMoney(selection.amount)}</span>
+						</div>
+						{selection.provider && (
+							<div className="flex justify-between">
+								<span className="text-[#8C8F8F]">Provider:</span>
+								<span className="text-white">{selection.provider}</span>
+							</div>
+						)}
+						{selection.roundId && (
+							<div className="flex justify-between">
+								<span className="text-[#8C8F8F]">Round ID:</span>
+								<span className="text-white text-xs truncate">{selection.roundId}</span>
+							</div>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 function TicketDetailsPage() {
 	const navigate = useNavigate();
@@ -243,12 +382,11 @@ function TicketDetailsPage() {
 	const isPending = ticket.outcome === "pending";
 	const isCasino = ticket.isCasino || false;
 
-
 	const shortenTicketId = (ticketId: string) => {
-	return ticketId.length > 8
-		? `${ticketId.slice(0, 5)}...${ticketId.slice(-3)}`
-		: ticketId;
-};
+		return ticketId.length > 8
+			? `${ticketId.slice(0, 5)}...${ticketId.slice(-3)}`
+			: ticketId;
+	};
 
 	const handleCopyTicketId = () => {
 		navigator.clipboard.writeText(ticket.ticketId);
@@ -322,10 +460,18 @@ function TicketDetailsPage() {
 							<span className="text-[#FFFFFF]">Stake amount</span>
 							<span className="font-semibold text-white">{formatMoney(ticket.stake)}</span>
 						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-[#FFFFFF]">Total Odds</span>
-							<span className="font-semibold text-white">{ticket.totalOdds.toFixed(2)}</span>
-						</div>
+						{!isCasino && (
+							<div className="flex items-center justify-between">
+								<span className="text-[#FFFFFF]">Total Odds</span>
+								<span className="font-semibold text-white">{ticket.totalOdds.toFixed(2)}</span>
+							</div>
+						)}
+						{isCasino && ticket.multiplier && (
+							<div className="flex items-center justify-between">
+								<span className="text-[#FFFFFF]">Multiplier</span>
+								<span className="font-semibold text-white">{ticket.multiplier.toFixed(2)}x</span>
+							</div>
+						)}
 						{isWon && ticket.totalReturn !== null && (
 							<div className="flex items-center justify-between">
 								<span className="text-[#FFFFFF]">Total Return</span>
@@ -343,101 +489,126 @@ function TicketDetailsPage() {
 							</div>
 						)}
 					</div>
-				</div>                 
+				</div>
 
-        {/* DESKTOP: table view for sportsbook */}
-        {!isCasino && ticket.selections && ticket.selections.length > 0 && (
-          <div className="mt-4 hidden overflow-hidden rounded-2xl border border-[#1C1D1F] md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-left">
-                <thead>
-                  <tr className="border-[#1C1D1F] border-b text-[#6B6E6C] text-xs uppercase tracking-wide">
-                    <th className="px-4 py-3 font-medium">Match</th>
-                    <th className="px-4 py-3 font-medium">Market</th>
-                    <th className="px-4 py-3 font-medium">Result</th>
-                    <th className="px-4 py-3 font-medium">Pick</th>
-                    <th className="px-4 py-3 font-medium">Odds</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {ticket.selections.map((sel, index) => (
-                    <tr
-                      key={sel.matchId ?? index}
-                      className={`border-[#1C1D1F] border-b last:border-none ${
-                        isWon ? (index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent") : "bg-transparent"
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-white text-sm">{sel.match}</td>
-                      <td className="px-4 py-3 text-white text-sm">{sel.market ?? "—"}</td>
-                      <td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result ?? "—"}</td>
-                      <td className="px-4 py-3 text-white text-sm">{sel.pick ?? "—"}</td>
-                      <td className="px-4 py-3 text-white text-sm">{sel.odds ?? "—"}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${statusBadgeClass(sel.status)}`}
-                        >
-                          {statusLabel(sel.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-[#6B6E6C]">
-                        <ChevronRight className="h-4 w-4" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+				{/* DESKTOP: table view for sportsbook */}
+				{!isCasino && ticket.selections && ticket.selections.length > 0 && (
+					<div className="mt-4 hidden overflow-hidden rounded-2xl border border-[#1C1D1F] md:block">
+						<div className="overflow-x-auto">
+							<table className="w-full min-w-[720px] border-collapse text-left">
+								<thead>
+									<tr className="border-[#1C1D1F] border-b text-[#6B6E6C] text-xs uppercase tracking-wide">
+										<th className="px-4 py-3 font-medium">Match</th>
+										<th className="px-4 py-3 font-medium">Market</th>
+										<th className="px-4 py-3 font-medium">Result</th>
+										<th className="px-4 py-3 font-medium">Pick</th>
+										<th className="px-4 py-3 font-medium">Odds</th>
+										<th className="px-4 py-3 font-medium">Status</th>
+										<th className="px-4 py-3 font-medium" />
+									</tr>
+								</thead>
+								<tbody>
+									{ticket.selections.map((sel, index) => (
+										<tr
+											key={sel.matchId ?? index}
+											className={`border-[#1C1D1F] border-b last:border-none ${isWon ? (index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent") : "bg-transparent"
+												}`}
+										>
+											<td className="px-4 py-3 text-white text-sm">{sel.match}</td>
+											<td className="px-4 py-3 text-white text-sm">{sel.market ?? "—"}</td>
+											<td className="px-4 py-3 text-[#8C8F8F] text-sm">{sel.result ?? "—"}</td>
+											<td className="px-4 py-3 text-white text-sm">{sel.pick ?? "—"}</td>
+											<td className="px-4 py-3 text-white text-sm">{sel.odds ?? "—"}</td>
+											<td className="px-4 py-3">
+												<span
+													className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${statusBadgeClass(sel.status)}`}
+												>
+													{statusLabel(sel.status)}
+												</span>
+											</td>
+											<td className="px-4 py-3 text-[#6B6E6C]">
+												<ChevronRight className="h-4 w-4" />
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				)}
 
-        {/* Casino Summary Section */}
-        {isCasino && (
-          <div className="mt-4 overflow-hidden rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A] p-4">
-            <h3 className="text-white text-sm font-semibold mb-3">Game Details</h3>
-            <div className="space-y-2 text-sm">
-              {ticket.gameName && (
-                <div className="flex justify-between">
-                  <span className="text-[#8C8F8F]">Game</span>
-                  <span className="text-white">{ticket.gameName}</span>
-                </div>
-              )}
-              {ticket.provider && (
-                <div className="flex justify-between">
-                  <span className="text-[#8C8F8F]">Provider</span>
-                  <span className="text-white">{ticket.provider}</span>
-                </div>
-              )}
-              {ticket.roundId && (
-                <div className="flex justify-between">
-                  <span className="text-[#8C8F8F]">Round ID</span>
-                  <span className="text-white text-xs truncate">{ticket.roundId}</span>
-                </div>
-              )}
-              {ticket.multiplier && (
-                <div className="flex justify-between">
-                  <span className="text-[#8C8F8F]">Multiplier</span>
-                  <span className="text-white">{ticket.multiplier.toFixed(2)}x</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
+				{/* Casino Summary Section */}
+				{isCasino && (
+					<div className="mt-4 overflow-hidden rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A] p-4">
+						<h3 className="text-white text-sm font-semibold mb-3">Game Details</h3>
+						<div className="space-y-2 text-sm">
+							{ticket.gameName && (
+								<div className="flex justify-between">
+									<span className="text-[#8C8F8F]">Game</span>
+									<span className="text-white">{ticket.gameName}</span>
+								</div>
+							)}
+							{ticket.provider && (
+								<div className="flex justify-between">
+									<span className="text-[#8C8F8F]">Provider</span>
+									<span className="text-white">{ticket.provider}</span>
+								</div>
+							)}
+							{ticket.roundId && (
+								<div className="flex justify-between">
+									<span className="text-[#8C8F8F]">Round ID</span>
+									<span className="text-white text-xs truncate">{ticket.roundId}</span>
+								</div>
+							)}
+							{ticket.multiplier && (
+								<div className="flex justify-between">
+									<span className="text-[#8C8F8F]">Multiplier</span>
+									<span className="text-white">{ticket.multiplier.toFixed(2)}x</span>
+								</div>
+							)}
+						</div>
+					</div>
+				)}
 
 				{/* MOBILE: vertical strip cards */}
-					<div className="mt-4 space-y-3 md:hidden">
+				<div className="mt-4 space-y-3 md:hidden">
 					{isCasino && ticket.casinoSelections ? (
 						ticket.casinoSelections.map((sel, index) => (
-						<CasinoSelectionCard key={sel.id ?? index} selection={sel} />
+							<CasinoSelectionCard key={sel.id ?? index} selection={sel} />
 						))
 					) : (
-						ticket.selections?.map((sel, index) => (
-						<SelectionCard key={sel.matchId ?? index} selection={sel} />
-						))
+						ticket.selections?.map((sel, index) => {
+							// Use pending card style for pending selections
+							if (sel.status === "pending") {
+								return <PendingSelectionCard key={sel.matchId ?? index} selection={sel} />;
+							}
+							return <SelectionCard key={sel.matchId ?? index} selection={sel} />;
+						})
 					)}
-					</div>
+				</div>
+
+				{/* CASH OUT BUTTON - only for pending tickets */}
+{isPending && (
+	<div className="mt-6  px-2 py-4 md:rounded-2xl md:border md:border-[#1C1D1F] md:bg-[#0A0A0A] md:p-4">
+		<div className="flex items-center gap-4 md:justify-between">
+			<div className="hidden md:block">
+				<span className="text-[#6B6E6C] text-sm">Cashout</span>
+				<div className="font-bold text-white text-xl">
+					₦{formatMoney(ticket.potentialCashout || 0)}
+				</div>
+			</div>
+			<RefreshCcw className="h-6 w-6 shrink-0 text-[#00BD61] md:hidden" strokeWidth={3} />
+			<button
+				type="button"
+				disabled
+				className="h-11 flex-1 cursor-not-allowed rounded-full border border-[#B68B2B] bg-transparent px-6 py-2 font-bold text-[#FFC900] text-sm md:flex-none md:border-0 md:bg-[#FF8A4C] md:text-white md:font-semibold md:opacity-60 md:hover:opacity-80 md:transition-opacity"
+				title="Cash out is not yet available"
+			>
+				Cashout&nbsp;&nbsp;{formatMoney(ticket.potentialCashout || 0)}
+			</button>
+		</div>
+	</div>
+)}
 
 				{/* Footer */}
 				<div className="mt-4 divide-y divide-[#1C1D1F] rounded-2xl border border-[#1C1D1F]">
@@ -445,15 +616,14 @@ function TicketDetailsPage() {
 						<span className="text-[#B5B7B5] text-sm">
 							Number of Bets: {ticket.numberOfBets}
 						</span>
-						{/* <button type="button" className="text-accent text-sm hover:opacity-80">
-							Bet Details &gt;
-						</button> */}
 					</div>
 					<div className="flex items-center justify-between px-5 py-4">
-						<button type="button" 
-						onClick={() => navigate({ to: "/bet-history" })}
-						aria-label="Back to bet history"
-						className="text-[#B5B7B5] text-sm cursor-pointer hover:text-white">
+						<button
+							type="button"
+							onClick={() => navigate({ to: "/bet-history" })}
+							aria-label="Back to bet history"
+							className="text-[#B5B7B5] text-sm cursor-pointer hover:text-white"
+						>
 							Check Transaction History
 						</button>
 						<span className="text-[#6B6E6C]">&gt;</span>

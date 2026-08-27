@@ -161,7 +161,9 @@ function MobileBetCard({
 				<div className="flex items-center justify-between ">
 					<span className="text-sm">
 						<span className="text-[#8C8F8F]">{timePart}</span>{" "}
-						<span className="font-bold text-white">{bet.betType ?? "Multiple"}</span>
+						<span className="font-bold text-white">
+							{bet.betType ?? bet.type.replace(/^Bets - /, "")}
+						</span>
 					</span>
 					{isWon && (
 						<span className="flex items-center gap-1.5 font-semibold text-[#23BF09] text-sm">
