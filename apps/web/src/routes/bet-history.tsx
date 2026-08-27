@@ -140,7 +140,7 @@ function MobileBetCard({
 
 	const visibleSelections = bet.selections?.slice(0, 3) ?? [];
 	const hasSelections = visibleSelections.length > 0;
-	
+
 	const remainingCount =
 		bet.totalSelections !== undefined
 			? Math.max(0, bet.totalSelections - visibleSelections.length)
@@ -151,8 +151,8 @@ function MobileBetCard({
 			type="button"
 			onClick={onOpen}
 			className={`relative w-full overflow-hidden rounded-2xl text-left transition-colors ${isWon
-					? "bg-gradient-to-b from-[#051C01] via-[#04100B] to-[#04100B]"
-					: "border border-[#1B2A17] bg-black"
+				? "bg-gradient-to-b from-[#051C01] via-[#04100B] to-[#04100B]"
+				: "border border-[#1B2A17] bg-black"
 				}`}
 		>
 			{isWon && <span className="absolute inset-x-0 top-0 h-1 bg-[#23BF09]" />}
@@ -180,7 +180,7 @@ function MobileBetCard({
 				</div>
 
 				<div className="mt-3 space-y-1.5">
-{					hasSelections ? (
+					{hasSelections ? (
 						visibleSelections.map((sel, i) => (
 							<div key={i} className="flex items-center justify-between text-sm">
 								<span className="flex items-center gap-2 text-white">
@@ -194,7 +194,7 @@ function MobileBetCard({
 					) : (
 						<div className="text-[#B5B7B5] text-sm">{bet.type}</div>
 					)}
-					
+
 					{hasSelections && remainingCount > 0 && (
 						<div className="text-[#5A5D5B] text-xs">
 							And {remainingCount} other selection...
@@ -350,16 +350,16 @@ function BetHistoryPage() {
 											setPage(1);
 										}}
 										className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors ${isActive
-												? "bg-accent text-white"
-												: "bg-[#141514] text-[#8C8F8F] hover:text-white"
+											? "bg-accent text-white"
+											: "bg-[#141514] text-[#8C8F8F] hover:text-white"
 											}`}
 									>
 										{tab.label}
 										{typeof tab.count === "number" && (
 											<span
 												className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs ${isActive
-														? "bg-[#2A2B2A]  text-white"
-														: "bg-[#2A2B2A] text-[#8C8F8F]"
+													? "bg-[#2A2B2A]  text-white"
+													: "bg-[#2A2B2A] text-[#8C8F8F]"
 													}`}
 											>
 												{tab.count}
@@ -545,7 +545,7 @@ function BetHistoryPage() {
 																		}}
 																		className="block w-full px-4 py-2 text-left text-sm text-[#B5B7B5] hover:bg-[#1C1D1F] hover:text-white"
 																	>
-																		View transaction info
+																		View Ticket
 																	</button>
 																</div>
 															)}

@@ -33,6 +33,7 @@ import webengageEventsRoute from "./webengage-events";
 import africastalkingDlrRoute from "./africastalking-dlr";
 import betHistoryRoute from "./bet-history";
 import opayRoute from "./opay";
+import kudaRoute from "./kuda";
 
 const routes = new OpenAPIHono();
 
@@ -69,6 +70,7 @@ routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
 routes.route("/bet-history", betHistoryRoute);
 routes.route("/opay", opayRoute);
+routes.route("/kuda", kudaRoute);
 routes.route("/loyalty", loyaltyRoute);
 routes.route("/mission", missionRoute);
 routes.route("/bonus", bonusRoute);

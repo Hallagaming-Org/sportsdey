@@ -216,6 +216,37 @@ export const opayTransactionRelations = relations(
 	}),
 );
 
+
+
+export const kudaTransactions = sqliteTable(
+	"kuda_transactions",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		reference: text("reference").notNull().unique(),
+		amount: integer("amount").notNull(),
+		status: text("status").notNull().default("initiated"), // initiated, pending, success, failed, reversed
+		type: text("type").notNull(), // deposit, withdrawal
+		beneficiaryAccount: text("beneficiary_account"),
+		beneficiaryBank: text("beneficiary_bank"),
+		beneficiaryName: text("beneficiary_name"),
+		narration: text("narration"),
+		kudaReference: text("kuda_reference"),
+		rawCallbackPayload: text("raw_callback_payload"),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`CURRENT_TIMESTAMP`),
+	},
+	(table) => [
+		index("kuda_transactions_user_id_idx").on(table.userId),
+		index("kuda_transactions_reference_idx").on(table.reference),
+	],
+);
+
+
+
+
 export const sportsbookPromotionTypes = ["bet_boost", "free_bet"] as const;
 export type SportsbookPromotionType = (typeof sportsbookPromotionTypes)[number];
 
