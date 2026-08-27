@@ -170,6 +170,19 @@ function deriveStatusFromCasino(type: string): "success" | "pending" | "failed" 
 	}
 }
 
+// Bet Type labels for display
+const BET_TYPE_LABELS: Record<number, string> = {
+	1: "Single",
+	2: "Accumulator",
+	3: "System",
+	4: "Chain",
+	5: "Conditional",
+	6: "Multi-single",
+	7: "Multi-accumulator",
+	8: "Live series",
+	9: "Live accumulator",
+};
+
 betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	const user = c.get("user");
 	if (!user) {
@@ -204,7 +217,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		createdAt: Date;
 	}> = [];
 
-	// ===== 1.SPORTSBOOK BETS =====
+	// ===== 1. SPORTSBOOK BETS =====
 	const sbFilters: any[] = [eq(schema.sportsbookBet.userId, user.id)];
 	if (filter === "settled") {
 		sbFilters.push(isNotNull(schema.sportsbookBet.settleType));
@@ -245,10 +258,13 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		const oddsValue = row.totalOdds ? Number.parseFloat(row.totalOdds) : 0;
 		const status = row.settleType === 1 ? "success" : row.settleType === 3 ? "failed" : "pending";
 
+		const typeLabel = getGameTypeLabel(row.betData, row.betType);
+		const betTypeLabel = row.betType ? (BET_TYPE_LABELS[row.betType] || null) : null;
+
 		allItems.push({
 			id: row.id,
 			ticketId: row.id,
-			type: getGameTypeLabel(row.betData, row.betType),
+			type: typeLabel,
 			amount: stakeNaira,
 			multiplier: oddsValue,
 			status,
@@ -257,14 +273,12 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			potentialWin: oddsValue > 0 ? stakeNaira * oddsValue : null,
 			actualPayout: isSettled ? (row.settleAmount ?? 0) / 100 : null,
 			settledAt: isSettled ? toWAT(row.updatedAt) : null,
-			betType: row.betType
-				? getGameTypeLabel(row.betData, row.betType).replace(/^Bets - /, "")
-				: null,
+			betType: betTypeLabel,
 			createdAt: row.createdAt,
 		});
 	}
 
-	// ===== 2. FETCH CASINO TRANSACTIONS=====
+	// ===== 2. FETCH CASINO TRANSACTIONS (gameTransactions) =====
 	const casinoFilters: any[] = [eq(schema.gameTransactions.userId, user.id)];
 	if (search) {
 		casinoFilters.push(like(schema.gameTransactions.id, `%${search}%`));
@@ -322,6 +336,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			potentialWin: isWin ? amountNaira : null,
 			actualPayout: isWin ? amountNaira : null,
 			settledAt: isWin ? toWAT(row.createdAt) : null,
+			betType: "Casino",
 			createdAt: row.createdAt,
 		});
 	}
@@ -365,11 +380,12 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			potentialWin: isWin ? amountNaira : null,
 			actualPayout: isWin ? amountNaira : null,
 			settledAt: isWin ? toWAT(row.createdAt) : null,
+			betType: "Casino",
 			createdAt: row.createdAt,
 		});
 	}
 
-	// ===== 4.  SLOTEGRATOR TRANSACTIONS =====
+	// ===== 4. FETCH SLOTEGRATOR TRANSACTIONS =====
 	const slotFilters: any[] = [eq(schema.slotitegrationTransactions.userId, user.id)];
 	if (search) {
 		slotFilters.push(like(schema.slotitegrationTransactions.id, `%${search}%`));
@@ -414,11 +430,12 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			potentialWin: isWin ? amountNaira : null,
 			actualPayout: isWin ? amountNaira : null,
 			settledAt: isWin ? toWAT(row.createdAt) : null,
+			betType: "Casino",
 			createdAt: row.createdAt,
 		});
 	}
 
-	// ===== 5.  SCORPIO TRANSACTIONS =====
+	// ===== 5. FETCH SCORPIO TRANSACTIONS =====
 	const scorpioFilters: any[] = [eq(schema.scorpioTransactions.userId, user.id)];
 	if (search) {
 		scorpioFilters.push(like(schema.scorpioTransactions.id, `%${search}%`));
@@ -438,6 +455,12 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.limit(MAX_PER_SOURCE);
 
 	for (const row of scorpioRows) {
+		let gameName = "Scorpio";
+		if (row.gameCode) {
+			const name = await getGameName(row.gameCode);
+			if (name) gameName = name;
+		}
+
 		const amountNaira = row.amount / 100;
 		const isWin = ["WIN", "win", "WON", "won"].includes(row.type);
 		const status = deriveStatusFromCasino(row.type);
@@ -448,7 +471,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		allItems.push({
 			id: row.id,
 			ticketId: row.id,
-			type: `Casino - ${row.gameCode || 'Scorpio'}`,
+			type: `Casino - ${gameName}`,
 			amount: amountNaira,
 			multiplier: 0,
 			status,
@@ -457,6 +480,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			potentialWin: isWin ? amountNaira : null,
 			actualPayout: isWin ? amountNaira : null,
 			settledAt: isWin ? toWAT(row.createdAt) : null,
+			betType: "Casino",
 			createdAt: row.createdAt,
 		});
 	}
@@ -492,18 +516,6 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 
 // ─── Ticket Detail ───
 
-const BET_TYPE_LABELS: Record<number, string> = {
-	1: "Single",
-	2: "Accumulator",
-	3: "System",
-	4: "Chain",
-	5: "Conditional",
-	6: "Multi-single",
-	7: "Multi-accumulator",
-	8: "Live series",
-	9: "Live accumulator",
-};
-
 const TicketSelectionSchema = z.object({
 	matchId: z.string().nullable(),
 	match: z.string(),
@@ -526,6 +538,12 @@ const TicketDetailSchema = z.object({
 	potentialCashout: z.number().nullable(),
 	numberOfBets: z.number(),
 	selections: z.array(TicketSelectionSchema),
+	isCasino: z.boolean().optional(),
+	gameName: z.string().optional(),
+	provider: z.string().optional(),
+	roundId: z.string().optional(),
+	multiplier: z.number().optional(),
+	casinoSelections: z.array(z.any()).optional(),
 });
 
 const TicketDetailResponseSchema = z
@@ -566,6 +584,58 @@ function deriveSelectionStatus(oddStatus: number | null): "won" | "lost" | "pend
 	return "pending";
 }
 
+// Helper to process casino transactions
+function processCasinoTransaction(
+	tx: { 
+		id: string; 
+		type: string; 
+		amount: number; 
+		balanceBefore: number | null; 
+		game: string | null; 
+		createdAt: Date;
+		provider?: string;
+		roundId?: string;
+	},
+	gameName: string,
+	provider: string
+) {
+	const isWin = tx.type === "WIN" || tx.type === "win" || tx.type === "WON";
+	const stakeNaira = tx.amount / 100;
+	const outcome: "won" | "lost" | "pending" = isWin ? "won" : 
+		tx.type === "BET" || tx.type === "bet" ? "pending" : "lost";
+
+	return {
+		success: true as const,
+		data: {
+			ticketId: tx.id,
+			dateTime: toWAT(tx.createdAt),
+			betType: "Casino",
+			outcome,
+			stake: stakeNaira,
+			totalOdds: 0,
+			totalReturn: isWin ? stakeNaira : null,
+			potentialCashout: null,
+			numberOfBets: 1,
+			selections: [],
+			isCasino: true,
+			gameName: gameName,
+			provider: provider,
+			roundId: tx.roundId || undefined,
+			multiplier: isWin && tx.amount > 0 ? 
+				(tx.amount / (tx.balanceBefore || 1)) : 0,
+			casinoSelections: [{
+				id: tx.id,
+				type: tx.type,
+				amount: stakeNaira,
+				status: outcome,
+				gameName: gameName,
+				provider: provider,
+				roundId: tx.roundId || undefined,
+			}],
+		},
+	};
+}
+
 betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 	const user = c.get("user");
 	if (!user) {
@@ -575,6 +645,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 	const { id } = c.req.valid("param");
 	const db = drizzle(c.env.DB, { schema });
 
+	// find in sportsbook bets
 	const bet = await db
 		.select({
 			id: schema.sportsbookBet.id,
@@ -586,6 +657,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			betType: schema.sportsbookBet.betType,
 			betData: schema.sportsbookBet.betData,
 			createdAt: schema.sportsbookBet.createdAt,
+			updatedAt: schema.sportsbookBet.updatedAt,
 		})
 		.from(schema.sportsbookBet)
 		.where(
@@ -596,57 +668,54 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 		)
 		.get();
 
-	if (!bet) {
-		return c.json({ success: false as const, error: "Ticket not found" }, 404);
-	}
+	if (bet) {
+		const derived = deriveStatus(bet.status, bet.settleType);
+		const outcome: "won" | "lost" | "pending" =
+			derived === "success" ? "won" : derived === "failed" ? "lost" : "pending";
 
-	const derived = deriveStatus(bet.status, bet.settleType);
-	const outcome: "won" | "lost" | "pending" =
-		derived === "success" ? "won" : derived === "failed" ? "lost" : "pending";
+		const stakeNaira = bet.stake / 100;
+		const oddsValue = bet.totalOdds ? Number.parseFloat(bet.totalOdds) : 0;
+		const potentialWin = oddsValue > 0 ? stakeNaira * oddsValue : 0;
 
-	const stakeNaira = bet.stake / 100;
-	const oddsValue = bet.totalOdds ? Number.parseFloat(bet.totalOdds) : 0;
-	const potentialWin = oddsValue > 0 ? stakeNaira * oddsValue : 0;
+		let rawSelections: Array<Record<string, any>> = [];
+		try {
+			const parsed = bet.betData ? JSON.parse(bet.betData) : null;
+			rawSelections = collectTicketOdds(parsed);
+		} catch {
+			rawSelections = [];
+		}
+		
+		const matchIds = rawSelections.map((s) => s.match_id).filter(Boolean) as string[];
+		const titleById = await getFixtureTitlesByIds(c.env, matchIds);
+		const typeIds = rawSelections
+			.map((s) => (s.market_id ? parseMarketId(String(s.market_id)).typeId : ""))
+			.filter(Boolean);
+		const marketDefs = await loadMarketDefinitions(c.env, typeIds);
 
-	let rawSelections: Array<Record<string, any>> = [];
-	try {
-		const parsed = bet.betData ? JSON.parse(bet.betData) : null;
-		rawSelections = collectTicketOdds(parsed);
-	} catch {
-		rawSelections = [];
-	}
-	const matchIds = rawSelections.map((s) => s.match_id).filter(Boolean) as string[];
-	const titleById = await getFixtureTitlesByIds(c.env, matchIds);
-	const typeIds = rawSelections
-		.map((s) => (s.market_id ? parseMarketId(String(s.market_id)).typeId : ""))
-		.filter(Boolean);
-	const marketDefs = await loadMarketDefinitions(c.env, typeIds);
-
-	const selections = rawSelections.map((s) => {
-		const matchTitle =
-			(s.match_id ? titleById.get(s.match_id) : undefined) ?? null;
-		const typeId = s.market_id
-			? parseMarketId(String(s.market_id)).typeId
-			: "";
-		const labels = formatTicketSelection({
-			odd: s,
-			matchTitle,
-			marketDef: typeId ? (marketDefs.get(typeId) ?? null) : null,
+		const selections = rawSelections.map((s) => {
+			const matchTitle =
+				(s.match_id ? titleById.get(s.match_id) : undefined) ?? null;
+			const typeId = s.market_id
+				? parseMarketId(String(s.market_id)).typeId
+				: "";
+			const labels = formatTicketSelection({
+				odd: s,
+				matchTitle,
+				marketDef: typeId ? (marketDefs.get(typeId) ?? null) : null,
+			});
+			return {
+				matchId: s.match_id ?? null,
+				match: matchTitle ?? s.match_id ?? "Unknown match",
+				market: labels.market,
+				result: null,
+				pick: labels.pick,
+				odds: labels.odds,
+				status: deriveSelectionStatus(s.odd_status ?? null),
+				startTime: s.meta?.sport_event_info_start_time ?? null,
+			};
 		});
-		return {
-			matchId: s.match_id ?? null,
-			match: matchTitle ?? s.match_id ?? "Unknown match",
-			market: labels.market,
-			result: null,
-			pick: labels.pick,
-			odds: labels.odds,
-			status: deriveSelectionStatus(s.odd_status ?? null),
-			startTime: s.meta?.sport_event_info_start_time ?? null, 
-		};
-	});
 
-	return c.json(
-		{
+		return c.json({
 			success: true as const,
 			data: {
 				ticketId: bet.id,
@@ -659,10 +728,143 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				potentialCashout: outcome === "pending" ? potentialWin : null,
 				numberOfBets: selections.length,
 				selections,
+				isCasino: false,
 			},
-		},
-		200,
-	);
+		}, 200);
+	}
+
+	// Try Thundr transactions
+	const thundrBet = await db
+		.select({
+			id: schema.thundrTransactions.id,
+			type: schema.thundrTransactions.type,
+			amount: schema.thundrTransactions.amount,
+			balanceBefore: schema.thundrTransactions.balanceBefore,
+			roundId: schema.thundrTransactions.roundId,
+			gameId: schema.thundrTransactions.gameId,
+			createdAt: schema.thundrTransactions.createdAt,
+		})
+		.from(schema.thundrTransactions)
+		.where(
+			and(
+				eq(schema.thundrTransactions.id, id),
+				eq(schema.thundrTransactions.userId, user.id),
+			),
+		)
+		.get();
+
+	if (thundrBet) {
+		let gameName = thundrBet.gameId || "Thundr";
+		if (thundrBet.gameId) {
+			const [game] = await db
+				.select({ name: schema.game.name })
+				.from(schema.game)
+				.where(eq(schema.game.code, thundrBet.gameId))
+				.limit(1);
+			if (game?.name) gameName = game.name;
+		}
+		return c.json(processCasinoTransaction(thundrBet, gameName, "Thundr"), 200);
+	}
+
+	// Try gameTransactions
+	const casinoBet = await db
+		.select({
+			id: schema.gameTransactions.id,
+			type: schema.gameTransactions.type,
+			amount: schema.gameTransactions.amount,
+			balanceBefore: schema.gameTransactions.balanceBefore,
+			game: schema.gameTransactions.game,
+			createdAt: schema.gameTransactions.createdAt,
+		})
+		.from(schema.gameTransactions)
+		.where(
+			and(
+				eq(schema.gameTransactions.id, id),
+				eq(schema.gameTransactions.userId, user.id),
+			),
+		)
+		.get();
+
+	if (casinoBet) {
+		let gameName = "Casino";
+		if (casinoBet.game) {
+			const [game] = await db
+				.select({ name: schema.game.name })
+				.from(schema.game)
+				.where(eq(schema.game.code, casinoBet.game))
+				.limit(1);
+			if (game?.name) gameName = game.name;
+		}
+		return c.json(processCasinoTransaction(casinoBet, gameName, "ICRASH"), 200);
+	}
+
+	// Try Slotegrator 
+	const slotBet = await db
+		.select({
+			id: schema.slotitegrationTransactions.id,
+			type: schema.slotitegrationTransactions.type,
+			amount: schema.slotitegrationTransactions.amount,
+			balanceBefore: schema.slotitegrationTransactions.balanceBefore,
+			gameId: schema.slotitegrationTransactions.gameId,
+			roundId: schema.slotitegrationTransactions.roundId,
+			createdAt: schema.slotitegrationTransactions.createdAt,
+		})
+		.from(schema.slotitegrationTransactions)
+		.where(
+			and(
+				eq(schema.slotitegrationTransactions.id, id),
+				eq(schema.slotitegrationTransactions.userId, user.id),
+			),
+		)
+		.get();
+
+	if (slotBet) {
+		let gameName = "Slotegrator";
+		if (slotBet.gameId) {
+			const [game] = await db
+				.select({ name: schema.game.name })
+				.from(schema.game)
+				.where(eq(schema.game.code, slotBet.gameId))
+				.limit(1);
+			if (game?.name) gameName = game.name;
+		}
+		return c.json(processCasinoTransaction(slotBet, gameName, "Slotegrator"), 200);
+	}
+
+	// Try Scorpio 
+	const scorpioBet = await db
+		.select({
+			id: schema.scorpioTransactions.id,
+			type: schema.scorpioTransactions.type,
+			amount: schema.scorpioTransactions.amount,
+			balanceBefore: schema.scorpioTransactions.balanceBefore,
+			gameCode: schema.scorpioTransactions.gameCode,
+			roundId: schema.scorpioTransactions.roundId,
+			createdAt: schema.scorpioTransactions.createdAt,
+		})
+		.from(schema.scorpioTransactions)
+		.where(
+			and(
+				eq(schema.scorpioTransactions.id, id),
+				eq(schema.scorpioTransactions.userId, user.id),
+			),
+		)
+		.get();
+
+	if (scorpioBet) {
+		let gameName = "Scorpio";
+		if (scorpioBet.gameCode) {
+			const [game] = await db
+				.select({ name: schema.game.name })
+				.from(schema.game)
+				.where(eq(schema.game.code, scorpioBet.gameCode))
+				.limit(1);
+			if (game?.name) gameName = game.name;
+		}
+		return c.json(processCasinoTransaction(scorpioBet, gameName, "Scorpio"), 200);
+	}
+
+	return c.json({ success: false as const, error: "Ticket not found" }, 404);
 });
 
 export default betHistoryRoute;
