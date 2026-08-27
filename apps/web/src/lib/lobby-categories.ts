@@ -99,6 +99,8 @@ export function overlayScorpioLobbyCategories<
 	const byCode = new Map<string, LobbyCategory[]>();
 	const imageByName = new Map<string, string>();
 	const imageByCode = new Map<string, string>();
+	/** Thundr originals like Plinko must not leak their tabs onto same-named aggregator titles. */
+	const skipNameOverlayCodes = new Set(["plinko"]);
 
 	for (const game of catalog) {
 		const cats = (game.categories ?? []).map((c) => ({
@@ -106,11 +108,13 @@ export function overlayScorpioLobbyCategories<
 			slug: canonicalLobbySlug(c.slug),
 		}));
 		const nameKey = normalizeGameName(game.name);
-		if (cats.length > 0) {
+		if (cats.length > 0 && !skipNameOverlayCodes.has(game.code)) {
 			byName.set(nameKey, mergeCategories(byName.get(nameKey) ?? [], cats));
 			if (game.code) {
 				byCode.set(game.code, mergeCategories(byCode.get(game.code) ?? [], cats));
 			}
+		} else if (cats.length > 0 && game.code) {
+			byCode.set(game.code, mergeCategories(byCode.get(game.code) ?? [], cats));
 		}
 		rememberCatalogImage(imageByName, nameKey, game.imageUrl);
 		if (game.code) {

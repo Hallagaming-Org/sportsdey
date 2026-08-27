@@ -2730,7 +2730,6 @@
 		"Penalty Series",
 		"Crash Bonus",
 		"Colour Prediction",
-		"Plinko",
 		"Keno",
 		"Mines Gold",
 		"Wheel",
@@ -2861,7 +2860,6 @@
 		"Mines",
 		"Wheel",
 		"Mines gold",
-		"Plinko",
 		"Color prediction",
 		"Crash bonus",
 		"Aviatrix second chance",
@@ -2889,7 +2887,8 @@
 		"Game of thrones jackpot king"
 	],
 	"arcade": [
-		"Aviatrix Mines"
+		"Aviatrix Mines",
+		"Plinko"
 	],
 	"lotto": [
 		"Sweet Lotto"

@@ -24,7 +24,7 @@ import {
 	CLASSIC_CATEGORY_LABELS,
 	CLASSIC_KNOWN_GAMES,
 	CLASSIC_PRIORITY_GAMES,
-	CLASSIC_THUNDR_CODES,
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
 	type ClassicLaunchMode,
 	type ClassicLobbyGame,
 	classicCategoryCounts,
@@ -75,7 +75,7 @@ const DEFAULT_GRADIENT =
 
 const PAGE_SIZE = 24;
 
-const GAMES_HIDDEN_FROM_ALL = new Set(CLASSIC_THUNDR_CODES);
+const GAMES_HIDDEN_FROM_ALL = new Set(CLASSIC_HIDDEN_FROM_ALL_CODES);
 
 function isScorpioGame(game: LobbyGame): game is ScorpioLobbyGame {
 	return "provider" in game && game.provider === "scorpio";

@@ -1,6 +1,10 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
 import { canonicalLobbySlug } from "@/lib/lobby-categories";
+import {
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
+	CLASSIC_THUNDR_CODES,
+} from "@/lib/classic-lobby-codes";
 import { isScorpioStoredCode } from "@/lib/lobby-games";
 import { resolveServerUrl } from "@/lib/server-url";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
@@ -107,7 +111,6 @@ export const HOT_CASINO_GAME_NAMES = [
 	"Football Crash",
 	"Mines",
 	"Keno",
-	"Plinko",
 ];
 
 /** @deprecated Use HOT_CASINO_GAME_NAMES */
@@ -131,14 +134,10 @@ export const CLASSIC_PRIORITY_GAMES = [
 	"spin_and_win",
 ];
 
-export const CLASSIC_THUNDR_CODES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-];
+export {
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
+	CLASSIC_THUNDR_CODES,
+} from "@/lib/classic-lobby-codes";
 
 export const CLASSIC_ORIGINALS_CODES = [
 	"LAGOSRUSH",
@@ -362,7 +361,7 @@ export function filterClassicGames(
 					break;
 				case "pvp":
 					filtered = allGames.filter((g) =>
-						CLASSIC_THUNDR_CODES.includes(g.code),
+						(CLASSIC_THUNDR_CODES as readonly string[]).includes(g.code),
 					);
 					break;
 				case "original":
@@ -413,7 +412,7 @@ export function classicCategoryCounts(
 					break;
 				case "pvp":
 					acc[cat] = allGames.filter((g) =>
-						CLASSIC_THUNDR_CODES.includes(g.code),
+						(CLASSIC_THUNDR_CODES as readonly string[]).includes(g.code),
 					).length;
 					break;
 				case "original":

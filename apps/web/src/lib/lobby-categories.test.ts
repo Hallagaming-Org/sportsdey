@@ -199,6 +199,38 @@ describe("lobby categories", () => {
 		);
 	});
 
+	it("does not copy Thundr Plinko crash tags onto a same-named Scorpio game", () => {
+		const scorpio = [
+			{
+				id: "scorpio:1:plinko-live",
+				name: "Plinko",
+				code: "plinko-live",
+				providerId: 1,
+				categories: [{ id: "1", name: "Provider", slug: "provider" }],
+			},
+		];
+		const catalog = [
+			{
+				name: "Plinko",
+				code: "plinko",
+				categories: [
+					{ id: "arcade", name: "arcade", slug: "arcade" },
+					{ id: "crash-games", name: "crash-games", slug: "crash-games" },
+				],
+			},
+		];
+
+		const overlaid = overlayScorpioLobbyCategories(scorpio, catalog);
+		assert.equal(
+			overlaid[0]?.categories.some((c) => c.slug === "crash"),
+			false,
+		);
+		assert.equal(
+			overlaid[0]?.categories.some((c) => c.slug === "arcade"),
+			false,
+		);
+	});
+
 	it("moves Instant-tagged catalog games onto Arcade", () => {
 		const scorpio = [
 			{
