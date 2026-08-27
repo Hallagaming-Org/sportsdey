@@ -12,7 +12,7 @@ import VisaIcon from "@/logos/visa.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
 type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
-export type DepositProvider = "paystack" | "opay";
+export type DepositProvider = "paystack" | "opay" | "kuda";
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
 
@@ -116,6 +116,11 @@ export function DepositModal({
 
 		if (activeMethod === "direct_banking" && selectedBank === "paystack") {
 			onSubmit("paystack");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "kuda") {
+			onSubmit("kuda");
 			return;
 		}
 	};

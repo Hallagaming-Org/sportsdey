@@ -114,9 +114,9 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			{
 				reference,
 				amountKobo,
-				returnUrl: `${c.env.FRONTEND_URL}/wallet?deposit=success`,
-				callbackUrl: `${c.env.SERVER_URL}/opay/callback`,
-				cancelUrl: `${c.env.FRONTEND_URL}/wallet?deposit=cancelled`,
+				returnUrl: `${c.env.BETTER_AUTH_URL}/wallet?deposit=success`,
+    			callbackUrl: `${c.env.SERVER_URL}/opay/callback`,
+    			cancelUrl: `${c.env.BETTER_AUTH_URL}/wallet?deposit=cancelled`,
 				userEmail: user.email,
 				userMobile: user.mobileNumber ?? "",
 				userName: user.name,

@@ -3,7 +3,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { kudaRequest, generateRequestRef } from "@/lib/kuda/client";
+import { kudaRequest, generateRequestRef } from "@/lib/kuda/clients";
 import { creditWallet } from "@/db/atomic-wallet";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
