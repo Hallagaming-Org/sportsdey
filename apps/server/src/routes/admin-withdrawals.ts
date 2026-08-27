@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { creditWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import { setWebengageUserAttributes, trackWebengageEvent } from "@/lib/webengage";
+import { trackWebengageEvent } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
@@ -14,6 +14,7 @@ import {
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
 import { createTransferRecipient, initiateTransfer } from "@/utils/paystack";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const adminWithdrawalsRoute = new OpenAPIHono<{
@@ -379,14 +380,7 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: txn.userId,
-			wallet_balance: (txn.balance ?? 0) / 100,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, txn.userId, c.executionCtx);
 	await recordActivityForSession(
 		c.env,
 		session.adminId,

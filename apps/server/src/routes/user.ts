@@ -6,7 +6,6 @@ import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
 import {
@@ -18,6 +17,7 @@ import {
 	isDefaultPhoneUserName,
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const PROFILE_CHANGE_CONTACT_EMAIL = "support@sportsdey.com";
@@ -546,21 +546,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
-	const firstName = nameParts[0] || "";
-	const lastName = nameParts.slice(1).join(" ") || "";
-
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: updatedUser.id,
-			email: updatedUser.email ?? "",
-			firstName,
-			lastName,
-			phone: updatedUser.mobileNumber ?? undefined,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, updatedUser.id, c.executionCtx);
 
 	return c.json(
 		{
@@ -1029,6 +1015,8 @@ userRoute.openapi(
 			session.adminId,
 			adminActivityActions.createUser,
 		);
+
+		await syncWebengageUserProfile(c.env, newUser.id, c.executionCtx);
 
 		return c.json(
 			{
@@ -1602,21 +1590,7 @@ async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
 		);
 	}
 
-	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
-	const firstName = nameParts[0] || "";
-	const lastName = nameParts.slice(1).join(" ") || "";
-
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: updatedUser.id,
-			email: updatedUser.email ?? "",
-			firstName,
-			lastName,
-			phone: updatedUser.mobileNumber ?? undefined,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, updatedUser.id, c.executionCtx);
 
 	return c.json(
 		{

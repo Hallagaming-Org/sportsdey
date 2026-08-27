@@ -5,7 +5,8 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { createCashierOrder } from "@/lib/opay/client";
 import { verifyCallbackSignature } from "@/lib/opay/signature";
-import { setWebengageUserAttributes, trackWebengageEvent } from "@/lib/webengage";
+import { trackWebengageEvent } from "@/lib/webengage";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const opayRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -60,11 +61,21 @@ opayRoute.openapi(initiateRoute, async (c) => {
 
 	const parsed = InitiateSchema.safeParse(await c.req.json());
 	if (!parsed.success) {
-		return c.json({ success: false as const, error: "Invalid request body" }, 400);
+		return c.json(
+			{ success: false as const, error: "Invalid request body" },
+			400,
+		);
 	}
 
-	if (!c.env.OPAY_MERCHANT_ID || !c.env.OPAY_PUBLIC_KEY || !c.env.OPAY_PRIVATE_KEY) {
-		return c.json({ success: false as const, error: "OPay is not configured" }, 500);
+	if (
+		!c.env.OPAY_MERCHANT_ID ||
+		!c.env.OPAY_PUBLIC_KEY ||
+		!c.env.OPAY_PRIVATE_KEY
+	) {
+		return c.json(
+			{ success: false as const, error: "OPay is not configured" },
+			500,
+		);
 	}
 
 	const db = drizzle(c.env.DB, { schema });
@@ -72,16 +83,25 @@ opayRoute.openapi(initiateRoute, async (c) => {
 	const amountKobo = Math.round(parsed.data.amount * 100);
 
 	try {
-		const [opayTxn] = await db.insert(schema.opayTransaction).values({
-			id: `opaytxn_${crypto.randomUUID()}`,
-			userId: user.id,
-			reference,
-			amount: amountKobo,
-			status: "initiated",
-		}).returning({ id: schema.opayTransaction.id });
+		const [opayTxn] = await db
+			.insert(schema.opayTransaction)
+			.values({
+				id: `opaytxn_${crypto.randomUUID()}`,
+				userId: user.id,
+				reference,
+				amount: amountKobo,
+				status: "initiated",
+			})
+			.returning({ id: schema.opayTransaction.id });
 
 		if (!opayTxn?.id) {
-			return c.json({ success: false as const, error: "Failed to record deposit transaction" }, 500);
+			return c.json(
+				{
+					success: false as const,
+					error: "Failed to record deposit transaction",
+				},
+				500,
+			);
 		}
 
 		const result = await createCashierOrder(
@@ -110,7 +130,13 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			.returning({ id: schema.opayTransaction.id });
 
 		if (!updatedTxn?.id) {
-			return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
+			return c.json(
+				{
+					success: false as const,
+					error: "Failed to update deposit transaction",
+				},
+				500,
+			);
 		}
 
 		return c.json(
@@ -127,10 +153,22 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			.where(eq(schema.opayTransaction.reference, reference))
 			.returning({ id: schema.opayTransaction.id });
 		if (!updatedTxn?.id) {
-			return c.json({ success: false as const, error: "Failed to update deposit transaction" }, 500);
+			return c.json(
+				{
+					success: false as const,
+					error: "Failed to update deposit transaction",
+				},
+				500,
+			);
 		}
-		console.error("OPay initiate failed:", err instanceof Error ? err.message : err);
-		return c.json({ success: false as const, error: "Failed to initiate deposit" }, 500);
+		console.error(
+			"OPay initiate failed:",
+			err instanceof Error ? err.message : err,
+		);
+		return c.json(
+			{ success: false as const, error: "Failed to initiate deposit" },
+			500,
+		);
 	}
 });
 
@@ -176,21 +214,23 @@ opayRoute.openapi(callbackRoute, async (c) => {
 			reference = String(body.reference);
 			status = String(body.status);
 		}
-	} 
-	else if (
+	} else if (
 		typeof parsedBody === "object" &&
 		parsedBody !== null &&
 		"payload" in parsedBody &&
 		"sha512" in parsedBody
 	) {
-		const body = parsedBody as { payload?: Record<string, unknown>; sha512?: string };
-		
+		const body = parsedBody as {
+			payload?: Record<string, unknown>;
+			sha512?: string;
+		};
+
 		if (body.payload && typeof body.sha512 === "string") {
 			const { valid, payload: signedPayload } = await verifyCallbackSignature(
 				rawBody,
-				c.env.OPAY_PRIVATE_KEY
+				c.env.OPAY_PRIVATE_KEY,
 			);
-			
+
 			if (valid && signedPayload) {
 				isValid = true;
 				payload = signedPayload;
@@ -229,7 +269,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 	}
 
 	const dbStatus = status === "SUCCESS" ? "success" : "failed";
-	
+
 	await db
 		.update(schema.opayTransaction)
 		.set({
@@ -285,25 +325,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 				c.executionCtx,
 			);
 
-			const [userRecord] = await db
-				.select({ email: schema.user.email, name: schema.user.name })
-				.from(schema.user)
-				.where(eq(schema.user.id, existingTxn.userId))
-				.limit(1);
-
-			if (userRecord) {
-				setWebengageUserAttributes(
-					c.env,
-					{
-						userId: existingTxn.userId,
-						email: userRecord.email,
-						firstName: userRecord.name?.split(" ")[0],
-						lastName: userRecord.name?.split(" ").slice(1).join(" "),
-						wallet_balance: newBalance / 100,
-					},
-					c.executionCtx,
-				);
-			}
+			await syncWebengageUserProfile(c.env, existingTxn.userId, c.executionCtx);
 		}
 	} else {
 		const [failedWallet] = await db

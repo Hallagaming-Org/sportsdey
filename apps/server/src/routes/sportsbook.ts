@@ -10,7 +10,6 @@ import {
 } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
-import { asEventNumber } from "@/utils/webengage-event";
 import { requirePermission } from "@/middleware/admin-permissions";
 import {
 	AccumulatorBonusTableResponseSchema,
@@ -61,6 +60,11 @@ import {
 	adminActivityActions,
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
+import { asEventNumber } from "@/utils/webengage-event";
+import {
+	scheduleWebengageUserProfileSync,
+	syncWebengageUserProfile,
+} from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const BET_TYPE_LABELS: Record<number, string> = {
@@ -513,6 +517,7 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 					failed: grant.failed,
 				});
 			}
+			await syncWebengageUserProfile(c.env, user.id, c.executionCtx);
 		} catch (error) {
 			console.error("Accumulator program grant threw on token create", {
 				playerId: user.id,
@@ -1236,6 +1241,8 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		c.executionCtx,
 	);
 
+	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
+
 	const stakeMajor =
 		typeof bet.stake === "number" && Number.isFinite(bet.stake)
 			? bet.stake / 100
@@ -1868,6 +1875,8 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		c.executionCtx,
 	);
 
+	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
+
 	return c.body(null, 204);
 });
 
@@ -2411,6 +2420,8 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
+
+	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
 
 	return c.body(null, 204);
 });

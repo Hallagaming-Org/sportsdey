@@ -41,7 +41,18 @@ export function toWebengageTimestamp(
 		return Number.isNaN(value.getTime()) ? undefined : value;
 	}
 	if (!value || typeof value !== "string") return undefined;
-	const parsed = new Date(value);
+	const trimmed = value.trim();
+	const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+	if (iso) {
+		const parsed = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+		return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+	}
+	const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+	if (dmy) {
+		const parsed = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+		return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+	}
+	const parsed = new Date(trimmed);
 	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
@@ -83,12 +94,40 @@ export function setWebengageUserAttribute(attribute: string, value: unknown) {
 	Webengage()?.user.setAttribute(attribute, value);
 }
 
-export function setWebengageUserAttributes(attributes: Record<string, unknown>) {
+export function setWebengageUserAttributes(
+	attributes: Record<string, unknown>,
+) {
 	const we = Webengage();
 	if (!we) return;
-	for (const [key, value] of Object.entries(attributes)) {
+	for (const [key, value] of Object.entries(
+		compactWebengageAttrs(attributes),
+	)) {
 		we.user.setAttribute(key, value);
 	}
+}
+
+export function setWebengageSdkUserProfile(input: {
+	email?: string | null;
+	firstName?: string | null;
+	lastName?: string | null;
+	phone?: string | null;
+	dateOfBirth?: string | Date | null;
+	preferredLanguage?: string | null;
+}) {
+	const dateOfBirth = toWebengageTimestamp(input.dateOfBirth);
+	const language =
+		input.preferredLanguage?.trim() ||
+		(typeof navigator !== "undefined" ? navigator.language : "") ||
+		"en";
+	setWebengageUserAttributes({
+		we_email: input.email,
+		we_first_name: input.firstName,
+		we_last_name: input.lastName,
+		we_phone: input.phone,
+		we_birth_date: dateOfBirth,
+		date_of_birth: dateOfBirth,
+		preferred_language: language,
+	});
 }
 
 const WEBENGAGE_API_EVENTS = new Set([

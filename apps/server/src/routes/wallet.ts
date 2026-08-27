@@ -4,15 +4,7 @@ import { and, count, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import {
-	setWebengageUserAttributes,
-	trackWebengageEvent,
-} from "@/lib/webengage";
-import {
-	BONUS_ENGINE_DEFAULT_CURRENCY,
-	reportBonusEngineDeposit,
-	runBonusEngineBackground,
-} from "@/services/bonus-engine";
+import { trackWebengageEvent } from "@/lib/webengage";
 import {
 	CallbackQuerySchema,
 	CreateWithdrawalAccountErrorSchema,
@@ -42,6 +34,11 @@ import {
 	WithdrawErrorSchema,
 	WithdrawSchema,
 } from "@/schemas/wallet";
+import {
+	BONUS_ENGINE_DEFAULT_CURRENCY,
+	reportBonusEngineDeposit,
+	runBonusEngineBackground,
+} from "@/services/bonus-engine";
 import { toWAT } from "@/utils";
 import {
 	getNigerianBanks,
@@ -56,6 +53,7 @@ import {
 	getTransactionChannel,
 } from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -682,10 +680,16 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			.where(eq(schema.walletTransaction.id, transactionId))
 			.returning({ id: schema.walletTransaction.id });
 		if (!updatedTxn?.id) {
-			return c.json({ success: false, error: "Failed to update deposit transaction" }, 500);
+			return c.json(
+				{ success: false, error: "Failed to update deposit transaction" },
+				500,
+			);
 		}
 		console.error("Paystack initiate failed:", error);
-		return c.json({ success: false, error: "Failed to initialize deposit" }, 400);
+		return c.json(
+			{ success: false, error: "Failed to initialize deposit" },
+			400,
+		);
 	}
 
 	if (paystackResult.reference !== reference) {
@@ -695,7 +699,10 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 			.where(eq(schema.walletTransaction.id, transactionId))
 			.returning({ id: schema.walletTransaction.id });
 		if (!updatedTxn?.id) {
-			return c.json({ success: false, error: "Failed to update deposit reference" }, 500);
+			return c.json(
+				{ success: false, error: "Failed to update deposit reference" },
+				500,
+			);
 		}
 	}
 
@@ -1027,14 +1034,6 @@ walletRoute.openapi(callbackRoute, async (c) => {
 						})
 						.where(eq(schema.walletTransaction.reference, reference));
 
-					const userEmail = transaction.userId;
-					const userRecord = await db
-						.select({ email: schema.user.email, name: schema.user.name })
-						.from(schema.user)
-						.where(eq(schema.user.id, transaction.userId))
-						.limit(1)
-						.then((r) => r[0]);
-
 					trackWebengageEvent(
 						c.env,
 						{
@@ -1052,26 +1051,16 @@ walletRoute.openapi(callbackRoute, async (c) => {
 						c.executionCtx,
 					);
 
-					setWebengageUserAttributes(
+					await syncWebengageUserProfile(
 						c.env,
-						{
-							userId: transaction.userId,
-							email: userRecord?.email,
-							firstName: userRecord?.name?.split(" ")[0],
-							lastName: userRecord?.name?.split(" ").slice(1).join(" "),
-							wallet_balance: newBalance / 100,
-						},
+						transaction.userId,
 						c.executionCtx,
 					);
 				}
 			}
 
-			if (
-				status === "success" &&
-				transaction?.type === "credit"
-			) {
-				const depositAmountMajor =
-					(tx.amount ?? transaction.amount) / 100;
+			if (status === "success" && transaction?.type === "credit") {
+				const depositAmountMajor = (tx.amount ?? transaction.amount) / 100;
 				const depositReport = reportBonusEngineDeposit({
 					env: c.env,
 					deposit: {
@@ -1762,14 +1751,7 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: user.id,
-			wallet_balance: newBalance / 100,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, user.id, c.executionCtx);
 
 	const superAdmins = await db
 		.select({ id: schema.admin.id })
@@ -1973,14 +1955,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: user.id,
-			wallet_balance: (updatedSenderWallet?.balance ?? 0) / 100,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, user.id, c.executionCtx);
 
 	return c.json(
 		{

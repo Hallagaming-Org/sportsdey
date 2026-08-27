@@ -41,6 +41,21 @@ describe("WebEngage audit smoke", () => {
 			lastName: "User",
 			wallet_balance: 49820,
 			kyc_status: true,
+			registration_date: "2026-01-15T00:00:00.000Z",
+			total_deposited: 100,
+			total_withdrawn: 20,
+			deposit_count: 1,
+			last_deposit_date: "2026-08-10T00:00:00.000Z",
+			total_bets_placed: 2,
+			total_amount_wagered: 150,
+			total_winnings: 150,
+			avg_bet_amount: 75,
+			last_bet_date: "2026-08-20T00:00:00.000Z",
+			favourite_sport: "football",
+			favourite_league: "EPL",
+			preferred_bet_type: "single",
+			live_bet_ratio: 0.5,
+			open_bets_count: 1,
 		});
 		assert.equal(payload.userId, "k6sSXgXmhVARBZG93bNH5y6nCduqBHIO");
 		assert.equal(payload.email, "audit@example.com");
@@ -48,8 +63,26 @@ describe("WebEngage audit smoke", () => {
 		assert.deepEqual(payload.attributes, {
 			wallet_balance: 49820,
 			kyc_status: true,
+			registration_date: "2026-01-15T00:00:00.000Z",
+			total_deposited: 100,
+			total_withdrawn: 20,
+			deposit_count: 1,
+			last_deposit_date: "2026-08-10T00:00:00.000Z",
+			total_bets_placed: 2,
+			total_amount_wagered: 150,
+			total_winnings: 150,
+			avg_bet_amount: 75,
+			last_bet_date: "2026-08-20T00:00:00.000Z",
+			favourite_sport: "football",
+			favourite_league: "EPL",
+			preferred_bet_type: "single",
+			live_bet_ratio: 0.5,
+			open_bets_count: 1,
 		});
-		assert.equal(typeof (payload.attributes as { wallet_balance: number }).wallet_balance, "number");
+		assert.equal(
+			typeof (payload.attributes as { wallet_balance: number }).wallet_balance,
+			"number",
+		);
 	});
 
 	it("omits empty event data and skips fetch when WebEngage config is missing", async () => {
@@ -89,11 +122,17 @@ describe("WebEngage audit smoke", () => {
 		const bodies: { url: string; payload: Record<string, unknown> }[] = [];
 		const originalFetch = globalThis.fetch;
 		const pending: Promise<unknown>[] = [];
-		globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+		globalThis.fetch = (async (
+			input: RequestInfo | URL,
+			init?: RequestInit,
+		) => {
 			const url = String(input);
 			bodies.push({
 				url,
-				payload: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+				payload: JSON.parse(String(init?.body ?? "{}")) as Record<
+					string,
+					unknown
+				>,
 			});
 			return new Response("{}", { status: 200 });
 		}) as typeof fetch;
@@ -163,6 +202,7 @@ describe("WebEngage audit smoke", () => {
 			[];
 		let logoutCount = 0;
 		const logins: string[] = [];
+		const userAttrs: Array<{ key: string; value: unknown }> = [];
 		(globalThis as { window?: unknown }).window = {
 			webengage: {
 				track(name: string, attrs?: Record<string, unknown>) {
@@ -175,7 +215,9 @@ describe("WebEngage audit smoke", () => {
 					logout() {
 						logoutCount += 1;
 					},
-					setAttribute() {},
+					setAttribute(key: string, value: unknown) {
+						userAttrs.push({ key, value });
+					},
 				},
 			},
 		};
@@ -186,9 +228,7 @@ describe("WebEngage audit smoke", () => {
 		globalThis.fetch = (async () =>
 			new Response(null, { status: 202 })) as typeof fetch;
 
-		const webengage = await import(
-			"../../../web/src/lib/webengage.ts"
-		);
+		const webengage = await import("../../../web/src/lib/webengage.ts");
 
 		webengage.trackWebengageLoginInitiated("phone");
 		webengage.loginWebengageUser("user-1");
@@ -228,18 +268,43 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(match.attrs?.timings instanceof Date);
 		assert.equal(match.attrs?.referrer, "https://sportsdey.com/news");
 		assert.equal("match_score" in (match.attrs ?? {}), false);
+
+		webengage.setWebengageSdkUserProfile({
+			email: "audit@example.com",
+			firstName: "Sujal",
+			lastName: "Tankaria",
+			phone: "9807883288",
+			dateOfBirth: "15/08/1990",
+			preferredLanguage: "en-NG",
+		});
+		const byKey = Object.fromEntries(
+			userAttrs.map((item) => [item.key, item.value]),
+		);
+		assert.ok(byKey.date_of_birth instanceof Date);
+		assert.ok(byKey.we_birth_date instanceof Date);
+		assert.equal((byKey.date_of_birth as Date).getFullYear(), 1990);
+		assert.equal((byKey.date_of_birth as Date).getMonth(), 7);
+		assert.equal((byKey.date_of_birth as Date).getDate(), 15);
+		assert.equal(byKey.preferred_language, "en-NG");
+		assert.equal(byKey.we_email, "audit@example.com");
+		assert.equal(byKey.we_first_name, "Sujal");
+		assert.equal(byKey.we_last_name, "Tankaria");
+		assert.equal(byKey.we_phone, "9807883288");
+
 		globalThis.fetch = originalFetch;
 	});
 
 	it("keeps the audit event names and identity wiring in source", () => {
-		const transferModal = readRepo("apps/web/src/components/transfer-modal.tsx");
-		const withdrawModal = readRepo("apps/web/src/components/withdraw-modal.tsx");
+		const transferModal = readRepo(
+			"apps/web/src/components/transfer-modal.tsx",
+		);
+		const withdrawModal = readRepo(
+			"apps/web/src/components/withdraw-modal.tsx",
+		);
 		const banner = readRepo("apps/web/src/components/BannerCarousel.tsx");
 		const webengageWeb = readRepo("apps/web/src/lib/webengage.ts");
 		const wallet = readRepo("apps/server/src/routes/wallet.ts");
-		const withdrawals = readRepo(
-			"apps/server/src/routes/admin-withdrawals.ts",
-		);
+		const withdrawals = readRepo("apps/server/src/routes/admin-withdrawals.ts");
 		const sportsbook = readRepo("apps/server/src/routes/sportsbook.ts");
 		const authClient = readRepo("apps/web/src/lib/auth/client.ts");
 		const cms = readRepo("apps/server/src/routes/cms.ts");
@@ -276,5 +341,52 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(news.includes("Time: new Date()"));
 		assert.ok(news.includes("article_category: news.category"));
 		assert.ok(news.includes("article_category: news?.category"));
+
+		const profileUtil = readRepo(
+			"apps/server/src/utils/webengage-user-profile.ts",
+		);
+		const completeProfile = readRepo(
+			"apps/web/src/routes/auth/complete-profile.tsx",
+		);
+		const account = readRepo("apps/web/src/routes/account.tsx");
+		const root = readRepo("apps/web/src/routes/__root.tsx");
+		const kyc = readRepo("apps/server/src/routes/kyc.ts");
+		const user = readRepo("apps/server/src/routes/user.ts");
+		const phoneAuth = readRepo("apps/server/src/routes/phone-auth.ts");
+
+		assert.ok(webengageWeb.includes("date_of_birth"));
+		assert.ok(webengageWeb.includes("preferred_language"));
+		assert.ok(webengageWeb.includes("we_birth_date"));
+		assert.ok(webengageWeb.includes("setWebengageSdkUserProfile"));
+		assert.ok(completeProfile.includes("dateOfBirth: dob.trim()"));
+		assert.ok(account.includes("dateOfBirth: user.dob"));
+		assert.ok(root.includes("setWebengageSdkUserProfile"));
+		for (const attr of [
+			"kyc_status",
+			"registration_date",
+			"wallet_balance",
+			"total_deposited",
+			"total_withdrawn",
+			"deposit_count",
+			"last_deposit_date",
+			"total_bets_placed",
+			"total_amount_wagered",
+			"total_winnings",
+			"avg_bet_amount",
+			"last_bet_date",
+			"favourite_sport",
+			"favourite_league",
+			"preferred_bet_type",
+			"live_bet_ratio",
+			"open_bets_count",
+		]) {
+			assert.ok(profileUtil.includes(attr), `missing user attr ${attr}`);
+		}
+		assert.ok(wallet.includes("syncWebengageUserProfile"));
+		assert.ok(kyc.includes("syncWebengageUserProfile"));
+		assert.ok(user.includes("syncWebengageUserProfile"));
+		assert.ok(sportsbook.includes("syncWebengageUserProfile"));
+		assert.ok(sportsbook.includes("scheduleWebengageUserProfileSync"));
+		assert.ok(phoneAuth.includes("scheduleWebengageUserProfileSync"));
 	});
 });

@@ -5,13 +5,13 @@ import { alias } from "drizzle-orm/sqlite-core";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { filePurpose } from "@/db/schema";
-import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { toWAT } from "@/utils";
 import {
 	adminActivityActions,
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 type R2Bucket = CloudflareBindings["PRODUCTION_BUCKET"];
@@ -996,14 +996,7 @@ kycRoute.openapi(approveKycRoute, async (c) => {
 		adminActivityActions.approveDocument,
 	);
 
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: kycRecord.userId,
-			kyc_status: true,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, kycRecord.userId, c.executionCtx);
 
 	return c.json(
 		{ success: true, data: { message: "KYC approved successfully" } },
@@ -1114,14 +1107,7 @@ kycRoute.openapi(rejectKycRoute, async (c) => {
 		adminActivityActions.rejectDocument,
 	);
 
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: kycRecord.userId,
-			kyc_status: false,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, kycRecord.userId, c.executionCtx);
 
 	return c.json({ success: true, data: { message: "KYC rejected" } }, 200);
 });

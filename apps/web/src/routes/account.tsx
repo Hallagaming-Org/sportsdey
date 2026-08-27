@@ -1,7 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Camera, Edit, Loader2, User } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+	type ChangeEvent,
+	type FormEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { DobPicker } from "@/components/dob-picker";
 import { Input } from "@/components/ui/input";
@@ -11,6 +17,7 @@ import { useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
 import {
 	loginWebengageUser,
+	setWebengageSdkUserProfile,
 	trackWebengageEvent,
 } from "@/lib/webengage";
 
@@ -91,6 +98,14 @@ function AccountPage() {
 			mobileNumbers: profile.mobileNumber ?? "",
 		}));
 		setPreviewImage(null);
+		const nameParts = (profile.name ?? "").trim().split(/\s+/);
+		setWebengageSdkUserProfile({
+			email: profile.email,
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
+			phone: profile.mobileNumber,
+			dateOfBirth: profile.dob,
+		});
 	}, [profile]);
 
 	const updateUserMutation = useMutation({
@@ -163,6 +178,13 @@ function AccountPage() {
 			const nameParts = user.name.trim().split(/\s+/);
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
+			setWebengageSdkUserProfile({
+				email: user.email,
+				firstName,
+				lastName,
+				phone: user.mobileNumber,
+				dateOfBirth: user.dob,
+			});
 			trackWebengageEvent("Profile Completed", {
 				userId: session?.user?.id ?? "",
 				"First Name": firstName,
@@ -371,7 +393,7 @@ function AccountPage() {
 						</div>
 
 						{/* Profile photo - centered circle */}
-						<div className="mb-3 mt-6 flex justify-center">
+						<div className="mt-6 mb-3 flex justify-center">
 							<input
 								ref={fileInputRef}
 								type="file"
@@ -407,7 +429,7 @@ function AccountPage() {
 							</button>
 						</div>
 						<div className="mb-10 flex justify-center">
-							<p className="text-[10px] md:text-sm text-gray-500 dark:text-[#8C8F8F]">
+							<p className="text-[10px] text-gray-500 md:text-sm dark:text-[#8C8F8F]">
 								{displayName}
 							</p>
 						</div>

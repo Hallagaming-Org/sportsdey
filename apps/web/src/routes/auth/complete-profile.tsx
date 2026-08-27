@@ -3,6 +3,7 @@ import { Mail, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+import { DobPicker } from "@/components/dob-picker";
 import {
 	clearPendingReferralCode,
 	getPendingReferralCode,
@@ -13,10 +14,9 @@ import { authClient, useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
 import {
 	loginWebengageUser,
-	setWebengageUserAttributes,
+	setWebengageSdkUserProfile,
 	trackWebengageEvent,
 } from "@/lib/webengage";
-import { DobPicker } from "@/components/dob-picker";
 
 const profileSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -100,11 +100,12 @@ function CompleteProfilePage() {
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
 			const userMobile = sessionUser?.mobileNumber || phone || "";
-			setWebengageUserAttributes({
-				we_first_name: firstName,
-				we_last_name: lastName,
-				we_email: email.trim(),
-				we_phone: userMobile,
+			setWebengageSdkUserProfile({
+				email: email.trim(),
+				firstName,
+				lastName,
+				phone: userMobile,
+				dateOfBirth: dob.trim(),
 			});
 
 			const pendingReferral =

@@ -3,7 +3,11 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { and, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { createAuth, createHashCookie, createSignedSessionCookieString } from "@/auth";
+import {
+	createAuth,
+	createHashCookie,
+	createSignedSessionCookieString,
+} from "@/auth";
 import { SESSION_TTL_MS } from "@/constants/session";
 import * as schema from "@/db/schema";
 import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
@@ -14,6 +18,7 @@ import {
 	isDefaultPhoneUserName,
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
+import { scheduleWebengageUserProfileSync } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const phoneAuthRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -233,7 +238,11 @@ async function upsertCredentialPassword(
 }
 
 async function issuePhoneSession(
-	c: { env: CloudflareBindings; req: { header: (name: string) => string | undefined }; header: (name: string, value: string, opts?: { append: boolean }) => void },
+	c: {
+		env: CloudflareBindings;
+		req: { header: (name: string) => string | undefined };
+		header: (name: string, value: string, opts?: { append: boolean }) => void;
+	},
 	db: PhoneDb,
 	signedInUser: typeof schema.user.$inferSelect,
 	isFirstTimeSignIn: boolean,
@@ -480,14 +489,12 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 	const otpHash = hashOtp(otp);
 	const message = `Your SportsDey verification code is ${otp}. It expires in 5 minutes.`;
 
-
 	//  To be the deleted
 	// console.log("AT env check:", {
 	// 	username: c.env.AFRICASTALKING_USERNAME,
 	// 	apiKeyLength: c.env.AFRICASTALKING_API_KEY?.length,
 	// 	apiKeyPreview: c.env.AFRICASTALKING_API_KEY?.slice(0, 10),
 	// });
-
 
 	const providerResult = await sendOtpWithAfricaTalking({
 		apiKey: c.env.AFRICASTALKING_API_KEY,
@@ -698,6 +705,10 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		isFirstTimeSignIn,
 	);
 
+	if (isFirstTimeSignIn) {
+		scheduleWebengageUserProfileSync(c.env, signedInUser.id, c.executionCtx);
+	}
+
 	return c.json(
 		{
 			success: true as const,
@@ -747,7 +758,8 @@ phoneAuthRoute.openapi(loginRoute, async (c) => {
 		return c.json(
 			{
 				success: false as const,
-				error: "This account has no password yet. Use Forgot password to set one.",
+				error:
+					"This account has no password yet. Use Forgot password to set one.",
 			},
 			401,
 		);
@@ -774,10 +786,7 @@ phoneAuthRoute.openapi(setPasswordRoute, async (c) => {
 		headers: c.req.raw.headers,
 	});
 	if (!sessionResult?.user?.id) {
-		return c.json(
-			{ success: false as const, error: "Unauthorized" },
-			401,
-		);
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 	}
 
 	const { password } = c.req.valid("json");
@@ -789,10 +798,7 @@ phoneAuthRoute.openapi(setPasswordRoute, async (c) => {
 		.limit(1);
 
 	if (!user) {
-		return c.json(
-			{ success: false as const, error: "Unauthorized" },
-			401,
-		);
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 	}
 
 	await upsertCredentialPassword(db, user, password);
