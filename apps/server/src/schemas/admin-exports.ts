@@ -1,8 +1,23 @@
 import { z } from "@hono/zod-openapi";
 import { exportFormats, exportSources } from "@/types/exports";
 
+const ExportFilterValueSchema = z.union([
+	z.string(),
+	z.number(),
+	z.boolean(),
+	z.null(),
+]);
+
 export const ExportFiltersSchema = z
-	.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))
+	.record(z.string(), ExportFilterValueSchema.optional())
+	.transform((filters) => {
+		const compact: Record<string, string | number | boolean> = {};
+		for (const [key, value] of Object.entries(filters ?? {})) {
+			if (value === null || value === undefined || value === "") continue;
+			compact[key] = value;
+		}
+		return compact;
+	})
 	.default({});
 
 export const CreateExportSchema = z.object({

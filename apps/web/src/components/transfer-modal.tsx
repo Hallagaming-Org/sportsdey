@@ -42,11 +42,6 @@ export function TransferModal({
 			setTransferSuccess(
 				`₦${formatAmount(data.amount)} transferred to ${data.recipientName}`,
 			);
-			trackWebengageEvent("transfer_funds_completed", {
-				"wallet id": recipientWalletId.trim(),
-				amount: data.amount,
-				transaction_id: data.transactionId,
-			});
 			setTimeout(() => {
 				handleClose();
 			}, 2000);

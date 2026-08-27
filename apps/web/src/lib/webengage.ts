@@ -91,12 +91,52 @@ export function setWebengageUserAttributes(attributes: Record<string, unknown>) 
 	}
 }
 
+const WEBENGAGE_API_EVENTS = new Set([
+	"Match viewed",
+	"Match Added to Favourite",
+	"Match Removed from Favourite",
+]);
+
+function serializeEventData(
+	attributes?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+	if (!attributes) return undefined;
+	const data: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(attributes)) {
+		if (value instanceof Date) {
+			data[key] = value.toISOString();
+			continue;
+		}
+		data[key] = value;
+	}
+	return data;
+}
+
+async function postWebengageApiEvent(
+	eventName: string,
+	attributes?: Record<string, unknown>,
+) {
+	if (!WEBENGAGE_API_EVENTS.has(eventName)) return;
+	try {
+		const { apiRequest } = await import("@/lib/api");
+		await apiRequest("webengage/events", {
+			method: "POST",
+			credentials: "include",
+			body: JSON.stringify({
+				eventName,
+				eventData: serializeEventData(attributes),
+			}),
+		});
+	} catch {
+		// Website SDK still fired; API delivery must not break the page.
+	}
+}
+
 export function trackWebengageEvent(
 	eventName: string,
 	attributes?: Record<string, unknown>,
 ) {
-	Webengage()?.track(
-		eventName,
-		attributes ? compactWebengageAttrs(attributes) : undefined,
-	);
+	const compact = attributes ? compactWebengageAttrs(attributes) : undefined;
+	Webengage()?.track(eventName, compact);
+	void postWebengageApiEvent(eventName, compact);
 }

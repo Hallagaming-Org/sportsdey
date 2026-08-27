@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { SuccessModal } from "@/components/success-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
-import { trackWebengageEvent } from "@/lib/webengage";
 
 type BankOption = {
 	name: string;
@@ -64,13 +63,6 @@ export function WithdrawModal({
 			}),
 		onSuccess: () => {
 			setIsSuccess(true);
-			trackWebengageEvent("withdrawal_requested", {
-				amount: Number(withdrawAmount),
-				bank: selectedBankName,
-				wallet_balance_before: walletBalance,
-				"account number": withdrawAccountNumber.trim(),
-				"account name": withdrawAccountName.trim(),
-			});
 		},
 		onError: (error) => {
 			if (error instanceof ApiError && error.status === 401) {

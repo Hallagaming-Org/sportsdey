@@ -45,18 +45,16 @@ import {
 	runBonusEngineBackground,
 } from "@/services/bonus-engine";
 import {
-	ACCUMULATOR_MAX_MULTIPLIER,
 	ACCUMULATOR_MAX_SELECTIONS,
 	ACCUMULATOR_MIN_SELECTIONS,
-	ACCUMULATOR_MULTIPLIER_PER_STEP,
 	ACCUMULATOR_PROGRAM_QUANTITY,
 	ACCUMULATOR_SPORTS,
 	type AccumulatorSport,
 	boostCoversAccumulatorSport,
-	buildAccumulatorBoostPayload,
 	defaultAccumulatorProgramExpiry,
 	getAccumulatorBonusTable,
-	listAccumulatorStepsBoostPayloads,
+	listAccumulatorFoldBoostPayloads,
+	planAccumulatorFoldGrants,
 } from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
 import {
@@ -188,7 +186,10 @@ type DatabetBoostRecord = {
 	calculation_strategy?: { type?: string };
 	required_conditions?: Array<{
 		bet_details?: Array<{
-			data?: { sport?: { sport_ids?: string[] } };
+			data?: {
+				sport?: { sport_ids?: string[] };
+				odds_count?: { min?: number; max?: number };
+			};
 		}>;
 	}>;
 };
@@ -216,66 +217,119 @@ async function ensureAccumulatorProgramBoosts(
 		expiresAt?: string;
 	},
 ): Promise<{
-	created: Array<{ sport: AccumulatorSport; dataBetBoostId: string }>;
+	created: Array<{
+		sport: AccumulatorSport;
+		selections: number;
+		dataBetBoostId: string;
+	}>;
 	skipped: AccumulatorSport[];
-	failed: Array<{ sport: AccumulatorSport; error: string }>;
+	removedLegacy: string[];
+	failed: Array<{
+		sport: AccumulatorSport;
+		selections: number;
+		error: string;
+	}>;
 }> {
-	const created: Array<{ sport: AccumulatorSport; dataBetBoostId: string }> =
-		[];
-	const skipped: AccumulatorSport[] = [];
-	const failed: Array<{ sport: AccumulatorSport; error: string }> = [];
+	const created: Array<{
+		sport: AccumulatorSport;
+		selections: number;
+		dataBetBoostId: string;
+	}> = [];
+	const failed: Array<{
+		sport: AccumulatorSport;
+		selections: number;
+		error: string;
+	}> = [];
 	const existing = await listPlayerBetBoosts(env, input.playerId);
-	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
-	const initialQuantity = input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
+	const planned = planAccumulatorFoldGrants(existing);
+	const removedLegacy: string[] = [];
 
-	for (const preset of listAccumulatorStepsBoostPayloads()) {
-		if (
-			existing.some((boost) => boostCoversAccumulatorSport(boost, preset.sport))
-		) {
-			skipped.push(preset.sport);
-			continue;
-		}
-
-		const response = await databetFetch(env, "/bet-boosts", {
-			method: "POST",
-			body: {
-				idempotence_id: crypto.randomUUID(),
-				player_id: input.playerId,
-				currency_code: input.currency ?? "NGN",
-				initial_quantity: initialQuantity,
-				applicable_conditions: preset.applicable_conditions,
-				required_conditions: preset.required_conditions,
-				calculation_strategy: preset.calculation_strategy,
-				expires_at: expiresAt,
-			},
+	for (const boostId of planned.legacyStepsBoostIds) {
+		const response = await databetFetch(env, `/bet-boosts/${boostId}`, {
+			method: "DELETE",
 		});
-
-		if (!response.ok) {
-			failed.push({
-				sport: preset.sport,
-				error: `${response.status} ${await response.text()}`,
-			});
+		if (response.ok || response.status === 404) {
+			removedLegacy.push(boostId);
 			continue;
 		}
-
-		const raw = (await response.json()) as
-			| { id: string }
-			| Array<{ id: string }>;
-		const createdBoost = Array.isArray(raw) ? raw[0] : raw;
-		if (!createdBoost?.id) {
-			failed.push({
-				sport: preset.sport,
-				error: "No boost created",
-			});
-			continue;
-		}
-		created.push({
-			sport: preset.sport,
-			dataBetBoostId: createdBoost.id,
+		const boost = existing.find((item) => item.id === boostId);
+		const sport =
+			ACCUMULATOR_SPORTS.find(
+				(candidate) =>
+					boost != null && boostCoversAccumulatorSport(boost, candidate),
+			) ?? "football";
+		failed.push({
+			sport,
+			selections: 0,
+			error: `delete legacy steps ${boostId}: ${response.status} ${await response.text()}`,
 		});
 	}
 
-	return { created, skipped, failed };
+	const remaining = existing.filter(
+		(boost) => !removedLegacy.includes(boost.id),
+	);
+	const { toCreate, blockedLegacySports } =
+		planAccumulatorFoldGrants(remaining);
+	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
+	const initialQuantity = input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
+	const concurrency = 8;
+
+	let nextIndex = 0;
+	async function grantNext(): Promise<void> {
+		while (nextIndex < toCreate.length) {
+			const preset = toCreate[nextIndex++];
+			if (!preset) return;
+			const response = await databetFetch(env, "/bet-boosts", {
+				method: "POST",
+				body: {
+					idempotence_id: crypto.randomUUID(),
+					player_id: input.playerId,
+					currency_code: input.currency ?? "NGN",
+					initial_quantity: initialQuantity,
+					applicable_conditions: preset.applicable_conditions,
+					required_conditions: preset.required_conditions,
+					calculation_strategy: preset.calculation_strategy,
+					expires_at: expiresAt,
+				},
+			});
+
+			if (!response.ok) {
+				failed.push({
+					sport: preset.sport,
+					selections: preset.selections,
+					error: `${response.status} ${await response.text()}`,
+				});
+				continue;
+			}
+
+			const raw = (await response.json()) as
+				| { id: string }
+				| Array<{ id: string }>;
+			const createdBoost = Array.isArray(raw) ? raw[0] : raw;
+			if (!createdBoost?.id) {
+				failed.push({
+					sport: preset.sport,
+					selections: preset.selections,
+					error: "No boost created",
+				});
+				continue;
+			}
+			created.push({
+				sport: preset.sport,
+				selections: preset.selections,
+				dataBetBoostId: createdBoost.id,
+			});
+		}
+	}
+
+	await Promise.all(
+		Array.from(
+			{ length: Math.min(concurrency, Math.max(toCreate.length, 0)) },
+			() => grantNext(),
+		),
+	);
+
+	return { created, skipped: blockedLegacySports, removedLegacy, failed };
 }
 
 const createTokenRoute = createRoute({
@@ -2338,6 +2392,8 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
+	// WebEngage `bet_cashout_requested`: Databet calls this after the player
+	// taps Cash Out in Sportsbook (My Bets) and the cash-out is accepted.
 	trackWebengageEvent(
 		c.env,
 		{
@@ -4133,10 +4189,8 @@ sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
 				minSelections: ACCUMULATOR_MIN_SELECTIONS,
 				maxSelections: ACCUMULATOR_MAX_SELECTIONS,
 				program: {
-					strategy: "steps" as const,
-					selectionsPerStep: 1,
-					multiplierPerStep: ACCUMULATOR_MULTIPLIER_PER_STEP,
-					maxMultiplier: ACCUMULATOR_MAX_MULTIPLIER,
+					strategy: "static" as const,
+					boostCount: listAccumulatorFoldBoostPayloads().length,
 				},
 				rows: getAccumulatorBonusTable(),
 			},
@@ -4151,7 +4205,7 @@ const accumulatorProgramGrantRoute = createRoute({
 	tags: ["Sportsbook"],
 	summary: "Grant accumulator bonus program",
 	description:
-		"Create the football, basketball, and tennis DataBet steps boosts for a player. Bonus grows as they add more games. Skips sports that already have a steps boost.",
+		"Create one DataBet static boost per published sport × fold (football 3–50, basketball/tennis 2–50). Deletes the legacy steps program first so the player has only the static table.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {

@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { creditWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import { trackWebengageEvent } from "@/lib/webengage";
+import { setWebengageUserAttributes, trackWebengageEvent } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
@@ -373,9 +373,17 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 				transaction_id: transfer.reference,
 				bank: bankCode,
 				wallet_balance_after: (txn.balance ?? 0) / 100,
-				"account number": accountNumber,
-				"account name": accountName ?? "",
+				account_number: accountNumber,
+				account_name: accountName ?? "",
 			},
+		},
+		c.executionCtx,
+	);
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: txn.userId,
+			wallet_balance: (txn.balance ?? 0) / 100,
 		},
 		c.executionCtx,
 	);

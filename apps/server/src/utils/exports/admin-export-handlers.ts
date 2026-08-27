@@ -59,7 +59,13 @@ export async function createAdminExport(c: AdminExportContext) {
 			{ success: false, error: "Unauthorized", details: null },
 			401,
 		);
-	const body = CreateExportSchema.safeParse(await c.req.json());
+	let raw: unknown;
+	try {
+		raw = c.req.valid("json");
+	} catch {
+		raw = await c.req.json();
+	}
+	const body = CreateExportSchema.safeParse(raw);
 	if (!body.success)
 		return c.json(
 			{ success: false, error: "Invalid export request", details: null },
@@ -75,12 +81,26 @@ export async function createAdminExport(c: AdminExportContext) {
 			...body.data,
 			requestedBy: session.adminId,
 		});
-		await recordActivityForSession(
-			c.env,
-			session.adminId,
-			adminActivityActions.exportFile,
+		try {
+			await recordActivityForSession(
+				c.env,
+				session.adminId,
+				adminActivityActions.exportFile,
+			);
+		} catch (error) {
+			console.error("Failed to record export activity", error);
+		}
+		return c.json(
+			{
+				success: true,
+				data: {
+					jobId: job.jobId,
+					rowCount: Number(job.rowCount) || 0,
+					chunkCount: Number(job.chunkCount) || 0,
+				},
+			},
+			202,
 		);
-		return c.json({ success: true, data: job }, 202);
 	} catch (error) {
 		console.error("Failed to create export job", error);
 		return c.json(

@@ -38,8 +38,8 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 							onClick={() =>
 								trackWebengageEvent("Banner Clicked", {
 									"Banner Name":
+										banner.title?.trim() ||
 										banner.alt?.trim() ||
-										banner.imageUrl.split("/").pop()?.split("?")[0] ||
 										"Banner",
 									"Banner ID": banner._id,
 									Image: banner.imageUrl,

@@ -1756,9 +1756,17 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 				amount,
 				bank: bankCode,
 				wallet_balance_before: wallet.balance / 100,
-				"account number": accountNumber,
-				"account name": accountName ?? "",
+				account_number: accountNumber,
+				account_name: accountName ?? "",
 			},
+		},
+		c.executionCtx,
+	);
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: user.id,
+			wallet_balance: newBalance / 100,
 		},
 		c.executionCtx,
 	);
@@ -1957,11 +1965,19 @@ walletRoute.openapi(transferRoute, async (c) => {
 			userId: user.id,
 			eventName: "transfer_funds_completed",
 			eventData: {
-				"wallet id": recipientWalletId,
+				wallet_id: recipientWalletId,
 				amount,
 				transaction_id: reference,
 				wallet_balance_after: (updatedSenderWallet?.balance ?? 0) / 100,
 			},
+		},
+		c.executionCtx,
+	);
+	setWebengageUserAttributes(
+		c.env,
+		{
+			userId: user.id,
+			wallet_balance: (updatedSenderWallet?.balance ?? 0) / 100,
 		},
 		c.executionCtx,
 	);

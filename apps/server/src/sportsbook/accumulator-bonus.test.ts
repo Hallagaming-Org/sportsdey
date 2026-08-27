@@ -6,11 +6,14 @@ import {
 	ACCUMULATOR_MULTIPLIER_PER_STEP,
 	buildAccumulatorBoostPayload,
 	buildAccumulatorStepsBoostPayload,
+	boostCoversAccumulatorFold,
 	boostCoversAccumulatorSport,
 	getAccumulatorBonusPercent,
 	getAccumulatorBonusTable,
 	getAccumulatorMultiplier,
+	listAccumulatorFoldBoostPayloads,
 	listAccumulatorStepsBoostPayloads,
+	planAccumulatorFoldGrants,
 } from "./accumulator-bonus";
 
 describe("accumulator bonus table", () => {
@@ -112,6 +115,53 @@ describe("accumulator bonus table", () => {
 		assert.equal(listAccumulatorStepsBoostPayloads().length, 3);
 	});
 
+	it("lists one static boost per spreadsheet fold, not a linear steps scale", () => {
+		const payloads = listAccumulatorFoldBoostPayloads();
+		assert.equal(payloads.length, 146);
+		assert.equal(
+			payloads.filter((p) => p.sport === "football").length,
+			48,
+		);
+		assert.equal(
+			payloads.filter((p) => p.sport === "basketball").length,
+			49,
+		);
+		assert.equal(payloads.some((p) => p.sport === "football" && p.selections === 2), false);
+
+		const football5 = payloads.find(
+			(p) => p.sport === "football" && p.selections === 5,
+		);
+		assert.equal(football5?.calculation_strategy.type, "static");
+		assert.equal(football5?.bonusPercent, 15);
+		assert.equal(football5?.multiplier, "1.15");
+		assert.equal(
+			football5?.calculation_strategy.strategy.params.min_selections,
+			5,
+		);
+
+		const football12 = payloads.find(
+			(p) => p.sport === "football" && p.selections === 12,
+		);
+		const football13 = payloads.find(
+			(p) => p.sport === "football" && p.selections === 13,
+		);
+		assert.equal(football12?.bonusPercent, 50);
+		assert.equal(football13?.bonusPercent, 60);
+		assert.equal(football12?.multiplier, "1.50");
+		assert.equal(football13?.multiplier, "1.60");
+
+		const basketball2 = payloads.find(
+			(p) => p.sport === "basketball" && p.selections === 2,
+		);
+		const tennis50 = payloads.find(
+			(p) => p.sport === "tennis" && p.selections === 50,
+		);
+		assert.equal(basketball2?.bonusPercent, 3);
+		assert.equal(basketball2?.multiplier, "1.03");
+		assert.equal(tennis50?.bonusPercent, 500);
+		assert.equal(tennis50?.multiplier, "6.00");
+	});
+
 	it("detects an existing steps boost for a sport", () => {
 		const payload = buildAccumulatorStepsBoostPayload("tennis");
 		assert.equal(
@@ -131,6 +181,98 @@ describe("accumulator bonus table", () => {
 					required_conditions: payload.required_conditions as never,
 				},
 				"football",
+			),
+			false,
+		);
+	});
+
+	it("detects an existing static boost for one sport × fold only", () => {
+		const football5 = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 5,
+		});
+		assert.ok(football5);
+		assert.equal(
+			boostCoversAccumulatorFold(
+				{
+					calculation_strategy: football5.calculation_strategy,
+					required_conditions: football5.required_conditions as never,
+				},
+				"football",
+				5,
+			),
+			true,
+		);
+		assert.equal(
+			boostCoversAccumulatorFold(
+				{
+					calculation_strategy: football5.calculation_strategy,
+					required_conditions: football5.required_conditions as never,
+				},
+				"football",
+				6,
+			),
+			false,
+		);
+		assert.equal(
+			boostCoversAccumulatorFold(
+				{
+					calculation_strategy: football5.calculation_strategy,
+					required_conditions: football5.required_conditions as never,
+				},
+				"tennis",
+				5,
+			),
+			false,
+		);
+	});
+
+	it("blocks static grants while a legacy steps boost is still present", () => {
+		const tennisSteps = buildAccumulatorStepsBoostPayload("tennis");
+		const plan = planAccumulatorFoldGrants([
+			{
+				id: "legacy-tennis-steps",
+				calculation_strategy: tennisSteps.calculation_strategy,
+				required_conditions: tennisSteps.required_conditions as never,
+			},
+		]);
+		assert.deepEqual(plan.blockedLegacySports, ["tennis"]);
+		assert.deepEqual(plan.legacyStepsBoostIds, ["legacy-tennis-steps"]);
+		assert.equal(
+			plan.toCreate.some((preset) => preset.sport === "tennis"),
+			false,
+		);
+		assert.equal(plan.toCreate.length, 48 + 49);
+	});
+
+	it("grants the full static table once legacy steps boosts are gone", () => {
+		const plan = planAccumulatorFoldGrants([]);
+		assert.deepEqual(plan.blockedLegacySports, []);
+		assert.deepEqual(plan.legacyStepsBoostIds, []);
+		assert.equal(plan.toCreate.length, 146);
+		assert.equal(
+			plan.toCreate.filter((preset) => preset.sport === "tennis").length,
+			49,
+		);
+	});
+
+	it("skips static folds the player already has and still grants the rest", () => {
+		const football5 = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 5,
+		});
+		assert.ok(football5);
+		const plan = planAccumulatorFoldGrants([
+			{
+				calculation_strategy: football5.calculation_strategy,
+				required_conditions: football5.required_conditions as never,
+			},
+		]);
+		assert.deepEqual(plan.blockedLegacySports, []);
+		assert.equal(plan.toCreate.length, 145);
+		assert.equal(
+			plan.toCreate.some(
+				(preset) => preset.sport === "football" && preset.selections === 5,
 			),
 			false,
 		);

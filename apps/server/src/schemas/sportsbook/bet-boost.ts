@@ -46,10 +46,8 @@ export const AccumulatorBonusTableResponseSchema = z.object({
 		}),
 		maxSelections: z.number(),
 		program: z.object({
-			strategy: z.literal("steps"),
-			selectionsPerStep: z.number(),
-			multiplierPerStep: z.string(),
-			maxMultiplier: z.string(),
+			strategy: z.literal("static"),
+			boostCount: z.number(),
 		}),
 		rows: z.array(
 			z.object({
@@ -77,13 +75,16 @@ export const AccumulatorProgramGrantResponseSchema = z.object({
 		created: z.array(
 			z.object({
 				sport: z.enum(["football", "basketball", "tennis"]),
+				selections: z.number().int(),
 				dataBetBoostId: z.string(),
 			}),
 		),
 		skipped: z.array(z.enum(["football", "basketball", "tennis"])),
+		removedLegacy: z.array(z.string()),
 		failed: z.array(
 			z.object({
 				sport: z.enum(["football", "basketball", "tennis"]),
+				selections: z.number().int(),
 				error: z.string(),
 			}),
 		),

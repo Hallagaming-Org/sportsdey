@@ -10,6 +10,8 @@ import {
 import {
 	asEventNumber,
 	buildWebengageUserPayload,
+	compactEventData,
+	isWebengageBrowserApiEvent,
 } from "@/utils/webengage-event";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -48,6 +50,39 @@ describe("WebEngage audit smoke", () => {
 			kyc_status: true,
 		});
 		assert.equal(typeof (payload.attributes as { wallet_balance: number }).wallet_balance, "number");
+	});
+
+	it("omits empty event data and skips fetch when WebEngage config is missing", async () => {
+		assert.deepEqual(
+			compactEventData({
+				amount: 100,
+				account_name: "",
+				failure_reason: undefined,
+			}),
+			{ amount: 100 },
+		);
+		assert.equal(isWebengageBrowserApiEvent("Match viewed"), true);
+		assert.equal(isWebengageBrowserApiEvent("Banner Clicked"), false);
+
+		const originalFetch = globalThis.fetch;
+		let called = 0;
+		globalThis.fetch = (async () => {
+			called += 1;
+			return new Response("{}", { status: 200 });
+		}) as typeof fetch;
+		try {
+			trackWebengageEvent(
+				{
+					WEBENGAGE_API_KEY: "",
+					WEBENGAGE_LICENSE_CODE: "",
+					WEBENGAGE_HOST: "",
+				} as never,
+				{ userId: "user-1", eventName: "deposit_completed" },
+			);
+			assert.equal(called, 0);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
 	});
 
 	it("POSTs nested user attributes and numeric event data through the Worker client", async () => {
@@ -147,6 +182,9 @@ describe("WebEngage audit smoke", () => {
 		(globalThis as { document?: { referrer: string } }).document = {
 			referrer: "https://sportsdey.com/news",
 		};
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(null, { status: 202 })) as typeof fetch;
 
 		const webengage = await import(
 			"../../../web/src/lib/webengage.ts"
@@ -190,28 +228,48 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(match.attrs?.timings instanceof Date);
 		assert.equal(match.attrs?.referrer, "https://sportsdey.com/news");
 		assert.equal("match_score" in (match.attrs ?? {}), false);
+		globalThis.fetch = originalFetch;
 	});
 
 	it("keeps the audit event names and identity wiring in source", () => {
 		const transferModal = readRepo("apps/web/src/components/transfer-modal.tsx");
+		const withdrawModal = readRepo("apps/web/src/components/withdraw-modal.tsx");
+		const banner = readRepo("apps/web/src/components/BannerCarousel.tsx");
+		const webengageWeb = readRepo("apps/web/src/lib/webengage.ts");
 		const wallet = readRepo("apps/server/src/routes/wallet.ts");
+		const withdrawals = readRepo(
+			"apps/server/src/routes/admin-withdrawals.ts",
+		);
 		const sportsbook = readRepo("apps/server/src/routes/sportsbook.ts");
 		const authClient = readRepo("apps/web/src/lib/auth/client.ts");
 		const cms = readRepo("apps/server/src/routes/cms.ts");
+		const events = readRepo("apps/server/src/routes/webengage-events.ts");
 		const news = readRepo("apps/web/src/routes/news.$slug.tsx");
-		const signIn = readRepo("apps/web/src/routes/auth/sign-in.tsx");
 		const phone = readRepo("apps/web/src/routes/auth/phone-sign-in.tsx");
 
 		assert.equal(transferModal.includes("transfer_funds initated"), false);
 		assert.ok(transferModal.includes('"transfer_funds initiated"'));
-		assert.ok(transferModal.includes('"transfer_funds_completed"'));
+		assert.equal(transferModal.includes("transfer_funds_completed"), false);
 		assert.ok(wallet.includes('eventName: "transfer_funds initiated"'));
 		assert.ok(wallet.includes('eventName: "transfer_funds_completed"'));
+		assert.ok(wallet.includes("account_number: accountNumber"));
+		assert.ok(withdrawals.includes("account_number: accountNumber"));
+		assert.equal(withdrawModal.includes("withdrawal_requested"), false);
+		assert.ok(wallet.includes('eventName: "deposit_completed"'));
+		assert.ok(wallet.includes('eventName: "deposit_failed"'));
+		assert.ok(wallet.includes('eventName: "withdrawal_requested"'));
+		assert.ok(withdrawals.includes('eventName: "withdrawal_completed"'));
+		assert.ok(banner.includes("banner.title?.trim()"));
+		assert.equal(banner.includes('imageUrl.split("/")'), false);
+		assert.ok(cms.includes("coalesce(alt, image.alt)"));
+		assert.ok(webengageWeb.includes("webengage/events"));
+		assert.ok(events.includes("isWebengageBrowserApiEvent"));
 		assert.ok(sportsbook.includes("stake_amount: asEventNumber("));
 		assert.ok(sportsbook.includes("odds_total: asEventNumber("));
 		assert.ok(sportsbook.includes("wallet_id: wallet.id"));
+		assert.ok(sportsbook.includes('eventName: "bet_cashout_requested"'));
+		assert.ok(sportsbook.includes("taps Cash Out in Sportsbook"));
 		assert.ok(authClient.includes("logoutWebengageUser()"));
-		assert.ok(signIn.includes("trackWebengageLoginInitiated(provider)"));
 		assert.ok(phone.includes('trackWebengageLoginInitiated("phone")'));
 		assert.ok(cms.includes("category: n.category"));
 		assert.ok(cms.includes("category,"));
