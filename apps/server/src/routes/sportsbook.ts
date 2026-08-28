@@ -46,16 +46,15 @@ import {
 import {
 	ACCUMULATOR_MAX_SELECTIONS,
 	ACCUMULATOR_MIN_SELECTIONS,
-	ACCUMULATOR_PROGRAM_QUANTITY,
 	ACCUMULATOR_SPORTS,
 	type AccumulatorSport,
-	boostCoversAccumulatorSport,
-	defaultAccumulatorProgramExpiry,
 	getAccumulatorBonusTable,
 	listAccumulatorFoldBoostPayloads,
-	planAccumulatorFoldGrants,
-	planAccumulatorFoldRepairs,
 } from "@/sportsbook/accumulator-bonus";
+import {
+	ensureAccumulatorProgramBoosts,
+	scheduleAccumulatorProgramBoosts,
+} from "@/sportsbook/accumulator-boost-sync";
 import { toWAT } from "@/utils";
 import {
 	adminActivityActions,
@@ -181,231 +180,6 @@ async function databetFetch(
 		});
 		throw error;
 	}
-}
-
-type DatabetBoostRecord = {
-	id: string;
-	calculation_strategy?: { type?: string };
-	required_conditions?: Array<{
-		bet_details?: Array<{
-			data?: {
-				sport?: { sport_ids?: string[] };
-				odds_count?: { min?: number; max?: number };
-			};
-		}>;
-	}>;
-	applicable_conditions?: Array<{
-		bet_details?: Array<{
-			data?: {
-				sport?: { sport_ids?: string[] };
-				odds_count?: { min?: number; max?: number };
-			};
-		}>;
-	}>;
-};
-
-async function listPlayerBetBoosts(
-	env: CloudflareBindings,
-	playerId: string,
-): Promise<DatabetBoostRecord[]> {
-	const response = await databetFetch(
-		env,
-		`/bet-boosts?player_id=${encodeURIComponent(playerId)}`,
-	);
-	if (!response.ok) return [];
-	const data = (await response.json()) as DatabetBoostRecord[] | unknown;
-	if (!Array.isArray(data)) return [];
-	return data.filter((boost) => typeof boost?.id === "string");
-}
-
-async function ensureAccumulatorProgramBoosts(
-	env: CloudflareBindings,
-	input: {
-		playerId: string;
-		currency?: string;
-		initialQuantity?: number;
-		expiresAt?: string;
-	},
-): Promise<{
-	created: Array<{
-		sport: AccumulatorSport;
-		selections: number;
-		dataBetBoostId: string;
-	}>;
-	repaired: Array<{
-		sport: AccumulatorSport;
-		selections: number;
-		dataBetBoostId: string;
-	}>;
-	skipped: AccumulatorSport[];
-	removedLegacy: string[];
-	failed: Array<{
-		sport: AccumulatorSport;
-		selections: number;
-		error: string;
-	}>;
-}> {
-	const created: Array<{
-		sport: AccumulatorSport;
-		selections: number;
-		dataBetBoostId: string;
-	}> = [];
-	const repaired: Array<{
-		sport: AccumulatorSport;
-		selections: number;
-		dataBetBoostId: string;
-	}> = [];
-	const failed: Array<{
-		sport: AccumulatorSport;
-		selections: number;
-		error: string;
-	}> = [];
-	const existing = await listPlayerBetBoosts(env, input.playerId);
-	const planned = planAccumulatorFoldGrants(existing);
-	const removedLegacy: string[] = [];
-
-	for (const boostId of planned.legacyStepsBoostIds) {
-		const response = await databetFetch(env, `/bet-boosts/${boostId}`, {
-			method: "DELETE",
-		});
-		if (response.ok || response.status === 404) {
-			removedLegacy.push(boostId);
-			continue;
-		}
-		const boost = existing.find((item) => item.id === boostId);
-		const sport =
-			ACCUMULATOR_SPORTS.find(
-				(candidate) =>
-					boost != null && boostCoversAccumulatorSport(boost, candidate),
-			) ?? "football";
-		failed.push({
-			sport,
-			selections: 0,
-			error: `delete legacy steps ${boostId}: ${response.status} ${await response.text()}`,
-		});
-	}
-
-	const remaining = existing.filter(
-		(boost) => !removedLegacy.includes(boost.id),
-	);
-
-	const toRepair = planAccumulatorFoldRepairs(remaining);
-	for (const repair of toRepair) {
-		const response = await databetFetch(env, `/bet-boosts/${repair.boostId}`, {
-			method: "PUT",
-			body: {
-				player_id: input.playerId,
-				applicable_conditions: repair.applicable_conditions,
-			},
-		});
-		if (!response.ok) {
-			failed.push({
-				sport: repair.sport,
-				selections: repair.selections,
-				error: `repair applicable ${repair.boostId}: ${response.status} ${await response.text()}`,
-			});
-			continue;
-		}
-		repaired.push({
-			sport: repair.sport,
-			selections: repair.selections,
-			dataBetBoostId: repair.boostId,
-		});
-	}
-
-	const { toCreate, blockedLegacySports } =
-		planAccumulatorFoldGrants(remaining);
-	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
-	const initialQuantity = input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
-	const concurrency = 8;
-
-	let nextIndex = 0;
-	async function grantNext(): Promise<void> {
-		while (nextIndex < toCreate.length) {
-			const preset = toCreate[nextIndex++];
-			if (!preset) return;
-			const response = await databetFetch(env, "/bet-boosts", {
-				method: "POST",
-				body: {
-					idempotence_id: crypto.randomUUID(),
-					player_id: input.playerId,
-					currency_code: input.currency ?? "NGN",
-					initial_quantity: initialQuantity,
-					applicable_conditions: preset.applicable_conditions,
-					required_conditions: preset.required_conditions,
-					calculation_strategy: preset.calculation_strategy,
-					expires_at: expiresAt,
-				},
-			});
-
-			if (!response.ok) {
-				failed.push({
-					sport: preset.sport,
-					selections: preset.selections,
-					error: `${response.status} ${await response.text()}`,
-				});
-				continue;
-			}
-
-			const raw = (await response.json()) as
-				| { id: string }
-				| Array<{ id: string }>;
-			const createdBoost = Array.isArray(raw) ? raw[0] : raw;
-			if (!createdBoost?.id) {
-				failed.push({
-					sport: preset.sport,
-					selections: preset.selections,
-					error: "No boost created",
-				});
-				continue;
-			}
-			created.push({
-				sport: preset.sport,
-				selections: preset.selections,
-				dataBetBoostId: createdBoost.id,
-			});
-		}
-	}
-
-	await Promise.all(
-		Array.from(
-			{ length: Math.min(concurrency, Math.max(toCreate.length, 0)) },
-			() => grantNext(),
-		),
-	);
-
-	return { created, repaired, skipped: blockedLegacySports, removedLegacy, failed };
-}
-
-function scheduleAccumulatorProgramBoosts(
-	env: CloudflareBindings,
-	playerId: string,
-	executionCtx?: ExecutionContext,
-): void {
-	const task = ensureAccumulatorProgramBoosts(env, { playerId })
-		.then((grant) => {
-			if (grant.failed.length > 0) {
-				console.error("Accumulator program grant failed on token create", {
-					playerId,
-					failed: grant.failed,
-				});
-			}
-		})
-		.catch((error) => {
-			console.error("Accumulator program grant threw on token create", {
-				playerId,
-				error:
-					error instanceof Error
-						? { name: error.name, message: error.message }
-						: String(error),
-			});
-		});
-
-	if (executionCtx && typeof executionCtx.waitUntil === "function") {
-		executionCtx.waitUntil(task);
-		return;
-	}
-	void task;
 }
 
 const createTokenRoute = createRoute({
@@ -579,7 +353,12 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	}
 
 	if (user) {
-		scheduleAccumulatorProgramBoosts(c.env, user.id, c.executionCtx);
+		scheduleAccumulatorProgramBoosts(
+			databetFetch,
+			c.env,
+			user.id,
+			c.executionCtx,
+		);
 		scheduleWebengageUserProfileSync(c.env, user.id, c.executionCtx);
 	}
 
@@ -4316,11 +4095,12 @@ sportsbookRoute.openapi(accumulatorProgramGrantRoute, async (c) => {
 	}
 
 	const result = c.req.valid("json");
-	const grant = await ensureAccumulatorProgramBoosts(c.env, {
+	const grant = await ensureAccumulatorProgramBoosts(databetFetch, c.env, {
 		playerId: result.player_id,
 		currency: result.currency,
 		initialQuantity: result.initial_quantity,
 		expiresAt: result.expires_at,
+		force: true,
 	});
 
 	return c.json(
