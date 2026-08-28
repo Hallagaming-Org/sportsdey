@@ -69,6 +69,11 @@ declare namespace Cloudflare {
 		WEBENGAGE_LICENSE_CODE: string;
 		WEBENGAGE_HOST: string;
 		WEBENGAGE_DSN_URL: string;
+		KUDA_ENV?: "uat" | "production";
+		KUDA_API_KEY: string;
+		KUDA_BUSINESS_EMAIL: string;
+		KUDA_WEBHOOK_USERNAME: string;
+		KUDA_WEBHOOK_PASSWORD: string;
 		AT_DLR_SECRET: string;
 		AFFNOOK_API_KEY: string;
 		AFFNOOK_BASE_URL: string;

@@ -200,7 +200,8 @@ app.use("*", async (c, next) => {
 		path.startsWith("/bonus-engine/callback/") ||
 		path.startsWith("/gamification/callback/") ||
 		path.startsWith("/bem/api/BonusEngine/") ||
-		path.startsWith("/opay/callback")
+		path.startsWith("/opay/callback") ||
+		path.startsWith("/kuda/webhook")
 	) {
 		return next();
 	}

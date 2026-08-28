@@ -11,6 +11,7 @@ import { BillPaymentModal } from "@/components/bill-payment-modal";
 import {
 	DepositModal,
 	type DepositProvider,
+	type KudaDepositInstructions,
 } from "@/components/deposit-modal";
 import { TransferModal } from "@/components/transfer-modal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,6 +61,11 @@ type OpayDepositResponse = {
 	reference: string;
 };
 
+type KudaDepositResponse = {
+	success: true;
+	data: KudaDepositInstructions;
+};
+
 const MIN_DEPOSIT_AMOUNT = 100;
 const MAX_DEPOSIT_AMOUNT = 9_999_999;
 
@@ -70,6 +76,8 @@ function WalletPage() {
 	const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 	const [depositAmount, setDepositAmount] = useState("");
 	const [depositError, setDepositError] = useState("");
+	const [kudaDepositInstructions, setKudaDepositInstructions] =
+		useState<KudaDepositInstructions | null>(null);
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
 	const [walletIdCopied, setWalletIdCopied] = useState(false);
@@ -111,8 +119,12 @@ function WalletPage() {
 		});
 	const depositMutation = useMutation({
 		mutationFn: ({ amount, provider }: { amount: number; provider: DepositProvider }) =>
-			apiRequest<FundWalletResponse | OpayDepositResponse>(
-				provider === "opay" ? "opay/initiate" : "wallet/fund",
+			apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse>(
+				provider === "opay"
+					? "opay/initiate"
+					: provider === "kuda"
+						? "kuda/deposit/initiate"
+						: "wallet/fund",
 				{
 					method: "POST",
 					credentials: "include",
@@ -120,6 +132,11 @@ function WalletPage() {
 				},
 			),
 		onSuccess: (data) => {
+			if ("data" in data) {
+				setKudaDepositInstructions(data.data);
+				setDepositError("");
+				return;
+			}
 			window.location.href = "authorizationUrl" in data ? data.authorizationUrl : data.cashierUrl;
 			setIsDepositModalOpen(false);
 			setDepositAmount("");
@@ -171,6 +188,7 @@ function WalletPage() {
 		}
 
 		setDepositError("");
+		setKudaDepositInstructions(null);
 		trackWebengageEvent("deposit_initiated", {
 			amount,
 			currency: "NGN",
@@ -257,7 +275,10 @@ function WalletPage() {
 								<div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<button
 										type="button"
-										onClick={() => setIsDepositModalOpen(true)}
+										onClick={() => {
+											setKudaDepositInstructions(null);
+											setIsDepositModalOpen(true);
+										}}
 										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Deposit
@@ -353,12 +374,14 @@ function WalletPage() {
 				onClose={() => {
 					setIsDepositModalOpen(false);
 					setDepositError("");
+					setKudaDepositInstructions(null);
 				}}
 				amount={depositAmount}
 				onAmountChange={setDepositAmount}
 				onSubmit={handleDepositSubmit}
 				isPending={depositMutation.isPending}
 				error={depositError}
+				kudaDepositInstructions={kudaDepositInstructions}
 				walletBalance={walletData?.balance ?? undefined}
 			/>
 

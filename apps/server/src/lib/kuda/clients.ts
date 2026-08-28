@@ -21,7 +21,7 @@ const BASE_URLS: Record<KudaEnv, string> = {
 	production: "https://kuda-openapi.kuda.com/v2.1",
 };
 
-let cachedToken: { token: string; expiresAt: number } | null = null;
+let cachedToken: { key: string; token: string; expiresAt: number } | null = null;
 
 /**
  * Kuda access token
@@ -29,17 +29,15 @@ let cachedToken: { token: string; expiresAt: number } | null = null;
 export async function getKudaAccessToken(
 	env: CloudflareBindings,
 ): Promise<string> {
-	if (cachedToken && cachedToken.expiresAt > Date.now() + 60000) {
-		return cachedToken.token;
-	}
-
 	const apiKey = env.KUDA_API_KEY;
 	const businessEmail = env.KUDA_BUSINESS_EMAIL;
-	const envType = (env.NODE_ENV === "production" ? "production" : "uat") as KudaEnv;
+	const envType = env.KUDA_ENV === "production" ? "production" : "uat";
 
 	if (!apiKey || !businessEmail) {
 		throw new Error("Kuda API credentials not configured");
 	}
+	const cacheKey = `${envType}:${businessEmail}`;
+	if (cachedToken?.key === cacheKey && cachedToken.expiresAt > Date.now() + 60000) return cachedToken.token;
 
 	const baseUrl = BASE_URLS[envType];
 
@@ -49,21 +47,21 @@ export async function getKudaAccessToken(
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
-			apiKey: apiKey,
-			businessEmail: businessEmail,
+			apiKey,
+			email: businessEmail,
 		}),
 	});
 
 	if (!response.ok) {
-		const error = await response.text();
-		throw new Error(`Failed to get Kuda token: ${response.status} - ${error}`);
+		throw new Error(`Failed to get Kuda token: ${response.status}`);
 	}
 
 	const data = (await response.json()) as KudaTokenResponse;
 
 	cachedToken = {
+		key: cacheKey,
 		token: data.accessToken,
-		expiresAt: Date.now() + data.expiresIn * 1000,
+		expiresAt: Date.now() + Math.max(60, data.expiresIn || 300) * 1000,
 	};
 
 	return data.accessToken;
@@ -85,12 +83,11 @@ export async function kudaRequest<T = KudaBaseResponse>(
 	env: CloudflareBindings,
 	serviceType: KudaServiceType,
 	data?: Record<string, unknown>,
+	requestRef = generateRequestRef(),
 ): Promise<T> {
 	const token = await getKudaAccessToken(env);
-	const envType = (env.NODE_ENV === "production" ? "production" : "uat") as KudaEnv;
+	const envType = env.KUDA_ENV === "production" ? "production" : "uat";
 	const baseUrl = BASE_URLS[envType];
-
-	const requestRef = generateRequestRef();
 
 	const payload: KudaBaseRequest = {
 		serviceType,
@@ -117,8 +114,7 @@ export async function kudaRequest<T = KudaBaseResponse>(
 	console.log(`[Kuda] ${serviceType} response status:`, response.status);
 
 	if (!response.ok) {
-		console.error(`[Kuda] ${serviceType} error:`, rawResponse);
-		throw new Error(`Kuda API error: ${response.status} - ${rawResponse}`);
+		throw new Error(`Kuda API error: ${response.status}`);
 	}
 
 	const jsonResponse = JSON.parse(rawResponse) as T;
@@ -132,28 +128,36 @@ export async function kudaRequest<T = KudaBaseResponse>(
 }
 
 
-export async function generateVirtualAccount(
+export async function createDynamicCollectionAccount(
 	env: CloudflareBindings,
-	params: { userId: string; reference: string; amount: number }
-): Promise<{ accountNumber: string; bankName: string }> {
-	if (env.KUDA_ENV === "uat" || env.NODE_ENV === "staging") {
-		return {
-			accountNumber: `911${Math.random().toString().slice(2, 12)}`,
-			bankName: "Kuda Bank",
-		};
-	}
-
+	params: { requestRef: string; amount: number; accountName: string },
+): Promise<{ accountNumber: string; accountName: string }> {
 	const response = await kudaRequest<{
 		status: boolean;
 		message: string;
-		data: { accountNumber: string; bankName: string };
-	}>(env, "FUND_VIRTUAL_ACCOUNT", {
-		userId: params.userId,
-		reference: params.reference,
+		data: { accountNumber: string; accountName: string };
+	}>(env, "ADMIN_CREATE_DYNAMIC_COLLECTION_ACCOUNT", {
 		amount: params.amount,
-	});
-
+		isFlexiblePayment: false,
+		accountName: params.accountName,
+	}, params.requestRef);
+	if (!response.data?.accountNumber || !response.data.accountName) throw new Error("Kuda did not return a collection account");
 	return response.data;
+}
+
+export async function queryDynamicCollectionStatus(
+	env: CloudflareBindings,
+	params: { accountCreationRequestRef: string; accountNumber: string },
+): Promise<Record<string, unknown>> {
+	const response = await kudaRequest<{
+		status: boolean;
+		message: string;
+		data: Record<string, unknown>;
+	}>(env, "DYNAMIC_COLLECTION_ACCOUNT_TSQ", {
+		accountCreationRequestRef: params.accountCreationRequestRef,
+		accountNumber: params.accountNumber,
+	});
+	return response.data ?? {};
 }
 
 /**
