@@ -87,6 +87,28 @@ export function SportsbookPage() {
 		}
 	}, []);
 
+	const accumulatorSyncUserRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		if (!token || !session?.user) {
+			return;
+		}
+		if (accumulatorSyncUserRef.current === session.user.id) {
+			return;
+		}
+		accumulatorSyncUserRef.current = session.user.id;
+
+		void apiRequest<{ synced?: true; skipped?: true; reason?: string }>(
+			"sportsbook/bet-boost/accumulator/sync",
+			{
+				method: "POST",
+				credentials: "include",
+			},
+		).catch((err) => {
+			console.warn("Accumulator boost sync failed on sportsbook load", err);
+		});
+	}, [token, session?.user]);
+
 	useEffect(() => {
 		// if (isSessionLoading || !session?.user) return;
 		void loadToken();
