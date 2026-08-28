@@ -385,7 +385,15 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(wallet.includes("syncWebengageUserProfile"));
 		assert.ok(kyc.includes("syncWebengageUserProfile"));
 		assert.ok(user.includes("syncWebengageUserProfile"));
-		assert.ok(sportsbook.includes("scheduleAccumulatorProgramBoosts"));
+		assert.equal(
+			sportsbook.includes("scheduleAccumulatorProgramBoosts("),
+			false,
+			"token/create must not schedule accumulator sync anymore",
+		);
+		assert.ok(
+			sportsbook.includes("/bet-boost/accumulator/sync"),
+			"missing dedicated accumulator sync route",
+		);
 		assert.ok(sportsbook.includes("scheduleWebengageUserProfileSync"));
 		assert.ok(phoneAuth.includes("scheduleWebengageUserProfileSync"));
 	});
