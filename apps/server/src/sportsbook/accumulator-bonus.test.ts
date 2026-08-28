@@ -9,6 +9,7 @@ import {
 	boostCoversAccumulatorFold,
 	boostCoversAccumulatorSport,
 	boostHasLooseApplicableConditions,
+	betBoostListIncludesApplicable,
 	getAccumulatorBonusPercent,
 	getAccumulatorBonusTable,
 	getAccumulatorMultiplier,
@@ -148,6 +149,69 @@ describe("accumulator bonus table", () => {
 		assert.deepEqual(
 			repairs[0]?.applicable_conditions,
 			payload.applicable_conditions,
+		);
+	});
+
+	it("does not flag repair when list payload omits applicable_conditions", () => {
+		const payload = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 50,
+		});
+		assert.ok(payload);
+		const listRow = {
+			id: "boost-50",
+			calculation_strategy: payload.calculation_strategy,
+			required_conditions: payload.required_conditions as never,
+		};
+		assert.equal(boostHasLooseApplicableConditions(listRow), false);
+		assert.equal(planAccumulatorFoldRepairs([listRow]).length, 0);
+	});
+
+	it("skips boosts already marked repaired in KV planning", () => {
+		const payload = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 50,
+		});
+		assert.ok(payload);
+		const looseBoost = {
+			id: "boost-50",
+			calculation_strategy: payload.calculation_strategy,
+			required_conditions: payload.required_conditions as never,
+			applicable_conditions: [
+				{
+					type: "bet_details",
+					bet_details: [
+						{
+							type: "express",
+							data: {
+								sport: {
+									type: "sport",
+									match_all_odds: true,
+									sport_ids: ["football"],
+								},
+							},
+						},
+					],
+				},
+			],
+		};
+		const repairs = planAccumulatorFoldRepairs([looseBoost], {
+			skipBoostIds: new Set(["boost-50"]),
+		});
+		assert.equal(repairs.length, 0);
+	});
+
+	it("detects when list responses include applicable_conditions", () => {
+		assert.equal(
+			betBoostListIncludesApplicable([
+				{ id: "a", required_conditions: [] },
+				{ id: "b", applicable_conditions: [] },
+			]),
+			true,
+		);
+		assert.equal(
+			betBoostListIncludesApplicable([{ id: "a", required_conditions: [] }]),
+			false,
 		);
 	});
 

@@ -393,18 +393,36 @@ function accumulatorFoldFromRequired(
 	return { sport, selections: min };
 }
 
-/** True when a static accumulator boost only matches sport in applicable (pre-fix grants). */
+/**
+ * True when list payload includes applicable_conditions and they are sport-only
+ * (or wrong fold). When the list omits applicable_conditions entirely we cannot
+ * verify eligibility — caller must not infer "needs repair" from absence alone.
+ */
 export function boostHasLooseApplicableConditions(boost: DatabetBoostLike): boolean {
 	if (boost.calculation_strategy?.type !== "static") return false;
 	const required = requiredBetDetail(boost);
 	if (!required) return false;
 	const fold = accumulatorFoldFromRequired(required);
 	if (!fold) return false;
+	if (boost.applicable_conditions === undefined) return false;
+	if (
+		!Array.isArray(boost.applicable_conditions) ||
+		boost.applicable_conditions.length === 0
+	) {
+		return false;
+	}
 	const applicable = applicableBetDetail(boost);
 	if (!applicable?.odds_count) return true;
 	const appMin = Number(applicable.odds_count.min);
 	const appMax = Number(applicable.odds_count.max ?? applicable.odds_count.min);
 	return appMin !== fold.selections || appMax !== fold.selections;
+}
+
+/** Whether DataBet included applicable_conditions on list items (shape probe). */
+export function betBoostListIncludesApplicable(
+	boosts: DatabetBoostLike[],
+): boolean {
+	return boosts.some((boost) => boost.applicable_conditions !== undefined);
 }
 
 export type AccumulatorFoldBoostRepair = {
@@ -417,10 +435,12 @@ export type AccumulatorFoldBoostRepair = {
 /** PATCH targets for boosts granted before applicable_conditions matched required. */
 export function planAccumulatorFoldRepairs(
 	existing: DatabetBoostLike[],
+	options: { skipBoostIds?: ReadonlySet<string> } = {},
 ): AccumulatorFoldBoostRepair[] {
 	const repairs: AccumulatorFoldBoostRepair[] = [];
 	for (const boost of existing) {
-		if (!boost.id || !boostHasLooseApplicableConditions(boost)) continue;
+		if (!boost.id || options.skipBoostIds?.has(boost.id)) continue;
+		if (!boostHasLooseApplicableConditions(boost)) continue;
 		const required = requiredBetDetail(boost);
 		if (!required) continue;
 		const fold = accumulatorFoldFromRequired(required);
