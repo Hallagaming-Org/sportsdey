@@ -53,7 +53,6 @@ import {
 } from "@/sportsbook/accumulator-bonus";
 import {
 	ensureAccumulatorProgramBoosts,
-	scheduleAccumulatorProgramBoosts,
 } from "@/sportsbook/accumulator-boost-sync";
 import { toWAT } from "@/utils";
 import {
@@ -353,12 +352,6 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	}
 
 	if (user) {
-		scheduleAccumulatorProgramBoosts(
-			databetFetch,
-			c.env,
-			user.id,
-			c.executionCtx,
-		);
 		scheduleWebengageUserProfileSync(c.env, user.id, c.executionCtx);
 	}
 
