@@ -363,6 +363,46 @@ export async function ensureAccumulatorProgramBoosts(
 	};
 }
 
+export type AccumulatorProgramSyncResult =
+	| { synced: true }
+	| { skipped: true; reason: "already_done" };
+
+export async function runAccumulatorProgramSync(
+	databetFetch: DatabetFetch,
+	env: CloudflareBindings,
+	playerId: string,
+): Promise<AccumulatorProgramSyncResult> {
+	const kv = getAccumulatorKv(env);
+	if (kv && (await isAccumulatorProgramSynced(kv, playerId))) {
+		return { skipped: true, reason: "already_done" };
+	}
+
+	const grant = await ensureAccumulatorProgramBoosts(databetFetch, env, {
+		playerId,
+	});
+
+	if (grant.skippedSync && grant.skipReason === "nothing_to_do") {
+		return { skipped: true, reason: "already_done" };
+	}
+
+	if (grant.skippedSync && grant.skipReason === "lock") {
+		const kvAfterLock = getAccumulatorKv(env);
+		if (
+			kvAfterLock &&
+			(await isAccumulatorProgramSynced(kvAfterLock, playerId))
+		) {
+			return { skipped: true, reason: "already_done" };
+		}
+		throw new Error("accumulator sync already in progress");
+	}
+
+	if (grant.skippedSync && grant.skipReason === "list_failed") {
+		throw new Error("accumulator boost list unavailable");
+	}
+
+	return { synced: true };
+}
+
 export function scheduleAccumulatorProgramBoosts(
 	databetFetch: DatabetFetch,
 	env: CloudflareBindings,

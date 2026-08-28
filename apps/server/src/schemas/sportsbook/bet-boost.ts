@@ -68,6 +68,19 @@ export const AccumulatorProgramGrantSchema = z.object({
 	expires_at: z.string().optional(),
 });
 
+export const AccumulatorProgramSyncResponseSchema = z.object({
+	success: z.literal(true),
+	data: z.union([
+		z.object({
+			synced: z.literal(true),
+		}),
+		z.object({
+			skipped: z.literal(true),
+			reason: z.literal("already_done"),
+		}),
+	]),
+});
+
 export const AccumulatorProgramGrantResponseSchema = z.object({
 	success: z.literal(true),
 	data: z.object({

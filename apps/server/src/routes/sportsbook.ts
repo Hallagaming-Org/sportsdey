@@ -15,6 +15,7 @@ import {
 	AccumulatorBonusTableResponseSchema,
 	AccumulatorProgramGrantResponseSchema,
 	AccumulatorProgramGrantSchema,
+	AccumulatorProgramSyncResponseSchema,
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -53,6 +54,7 @@ import {
 } from "@/sportsbook/accumulator-bonus";
 import {
 	ensureAccumulatorProgramBoosts,
+	runAccumulatorProgramSync,
 } from "@/sportsbook/accumulator-boost-sync";
 import { toWAT } from "@/utils";
 import {
@@ -4034,6 +4036,108 @@ sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
 		},
 		200,
 	);
+});
+
+const accumulatorProgramSyncRoute = createRoute({
+	method: "post",
+	path: "/bet-boost/accumulator/sync",
+	tags: ["Sportsbook"],
+	summary: "Sync accumulator bonus program for the logged-in player",
+	description:
+		"Lists, repairs, and creates DataBet static accumulator boosts for the authenticated user. Skips when the program is already synced in KV.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Sync completed or skipped",
+			content: {
+				"application/json": {
+					schema: AccumulatorProgramSyncResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: {
+				"application/json": {
+					schema: SportsbookTokenErrorSchema,
+				},
+			},
+		},
+		409: {
+			description: "Another sync is already running for this player",
+			content: {
+				"application/json": {
+					schema: SportsbookTokenErrorSchema,
+				},
+			},
+		},
+		503: {
+			description: "DataBet boost list unavailable",
+			content: {
+				"application/json": {
+					schema: SportsbookTokenErrorSchema,
+				},
+			},
+		},
+	},
+});
+
+sportsbookRoute.openapi(accumulatorProgramSyncRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	try {
+		const result = await runAccumulatorProgramSync(
+			databetFetch,
+			c.env,
+			user.id,
+		);
+		return c.json({ success: true as const, data: result }, 200);
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "accumulator sync failed";
+		if (message === "accumulator sync already in progress") {
+			return c.json(
+				{
+					success: false as const,
+					error: "Accumulator sync already in progress",
+					details: null,
+				},
+				409,
+			);
+		}
+		if (message === "accumulator boost list unavailable") {
+			return c.json(
+				{
+					success: false as const,
+					error: "Unable to list bet boosts",
+					details: null,
+				},
+				503,
+			);
+		}
+		console.error("Accumulator program sync failed", {
+			playerId: user.id,
+			error,
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Accumulator sync failed",
+				details: message,
+			},
+			500,
+		);
+	}
 });
 
 const accumulatorProgramGrantRoute = createRoute({
