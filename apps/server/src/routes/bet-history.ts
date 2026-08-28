@@ -3,14 +3,14 @@ import { and, desc, eq, isNotNull, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
-import type { CloudflareBindings } from "../types";
-import { getFixtureTitlesByIds } from "@/utils/fixtures";
+import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
 import {
 	collectTicketOdds,
 	formatTicketSelection,
 	loadMarketDefinitions,
 	parseMarketId,
 } from "@/utils/ticket-selection-labels";
+import type { CloudflareBindings } from "../types";
 
 const betHistoryRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -78,7 +78,10 @@ const getBetHistoryRoute = createRoute({
 	},
 });
 
-function getGameTypeLabel(betData: string | null, betType: number | null = null): string {
+function getGameTypeLabel(
+	betData: string | null,
+	betType: number | null = null,
+): string {
 	if (betType) {
 		const typeMap: Record<number, string> = {
 			1: "Bets - Single",
@@ -93,17 +96,17 @@ function getGameTypeLabel(betData: string | null, betType: number | null = null)
 		};
 		return typeMap[betType] || "Bets - Sport";
 	}
-	
+
 	if (!betData) return "Bets - Sport";
-	
+
 	try {
 		const parsed = JSON.parse(betData);
-		
+
 		if (parsed.provider || parsed.gameName || parsed.game_name) {
-			const gameName = parsed.gameName || parsed.game_name || 'Casino';
+			const gameName = parsed.gameName || parsed.game_name || "Casino";
 			return `Casino - ${gameName}`;
 		}
-		
+
 		if (parsed.gameType === "Sportsbook") {
 			if (parsed.sport) {
 				return `Bets - ${parsed.sport}`;
@@ -112,29 +115,29 @@ function getGameTypeLabel(betData: string | null, betType: number | null = null)
 				const firstOdd = parsed.bet_odds[0];
 				if (firstOdd.sport_id) {
 					const sportMap: Record<string, string> = {
-						'football': 'Sport',
-						'soccer': 'Sport',
-						'basketball': 'Basketball',
-						'tennis': 'Tennis',
-						'baseball': 'Baseball',
-						'americanfootball': 'American Football',
-						'icehockey': 'Ice Hockey',
-						'rugby': 'Rugby',
-						'cricket': 'Cricket',
-						'boxing': 'Boxing',
-						'mma': 'MMA',
-						'esports': 'Esports',
+						football: "Sport",
+						soccer: "Sport",
+						basketball: "Basketball",
+						tennis: "Tennis",
+						baseball: "Baseball",
+						americanfootball: "American Football",
+						icehockey: "Ice Hockey",
+						rugby: "Rugby",
+						cricket: "Cricket",
+						boxing: "Boxing",
+						mma: "MMA",
+						esports: "Esports",
 					};
-					return `Bets - ${sportMap[firstOdd.sport_id] || 'Sport'}`;
+					return `Bets - ${sportMap[firstOdd.sport_id] || "Sport"}`;
 				}
 			}
 			return "Bets - Sport";
 		}
-		
+
 		if (parsed.gameType) {
 			return parsed.gameType;
 		}
-		
+
 		return "Bets - Sport";
 	} catch {
 		return "Bets - Sport";
@@ -152,7 +155,9 @@ function deriveStatus(
 	return "failed";
 }
 
-function deriveStatusFromCasino(type: string): "success" | "pending" | "failed" {
+function deriveStatusFromCasino(
+	type: string,
+): "success" | "pending" | "failed" {
 	switch (type) {
 		case "WIN":
 		case "win":
@@ -256,10 +261,17 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		const isSettled = row.settleType !== null;
 		const stakeNaira = row.stake / 100;
 		const oddsValue = row.totalOdds ? Number.parseFloat(row.totalOdds) : 0;
-		const status = row.settleType === 1 ? "success" : row.settleType === 3 ? "failed" : "pending";
+		const status =
+			row.settleType === 1
+				? "success"
+				: row.settleType === 3
+					? "failed"
+					: "pending";
 
 		const typeLabel = getGameTypeLabel(row.betData, row.betType);
-		const betTypeLabel = row.betType ? (BET_TYPE_LABELS[row.betType] || null) : null;
+		const betTypeLabel = row.betType
+			? BET_TYPE_LABELS[row.betType] || null
+			: null;
 
 		allItems.push({
 			id: row.id,
@@ -371,7 +383,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		allItems.push({
 			id: row.id,
 			ticketId: row.id,
-			type: `Casino - ${row.gameId || 'Thundr'}`,
+			type: `Casino - ${row.gameId || "Thundr"}`,
 			amount: amountNaira,
 			multiplier: 0,
 			status,
@@ -386,7 +398,9 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	}
 
 	// ===== 4. FETCH SLOTEGRATOR TRANSACTIONS =====
-	const slotFilters: any[] = [eq(schema.slotitegrationTransactions.userId, user.id)];
+	const slotFilters: any[] = [
+		eq(schema.slotitegrationTransactions.userId, user.id),
+	];
 	if (search) {
 		slotFilters.push(like(schema.slotitegrationTransactions.id, `%${search}%`));
 	}
@@ -436,7 +450,9 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	}
 
 	// ===== 5. FETCH SCORPIO TRANSACTIONS =====
-	const scorpioFilters: any[] = [eq(schema.scorpioTransactions.userId, user.id)];
+	const scorpioFilters: any[] = [
+		eq(schema.scorpioTransactions.userId, user.id),
+	];
 	if (search) {
 		scorpioFilters.push(like(schema.scorpioTransactions.id, `%${search}%`));
 	}
@@ -494,7 +510,9 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 
 	// ===== 7. COUNTS =====
 	const settledItems = allItems.filter((item) => item.status === "success");
-	const unsettledItems = allItems.filter((item) => item.status === "pending" || item.status === "failed");
+	const unsettledItems = allItems.filter(
+		(item) => item.status === "pending" || item.status === "failed",
+	);
 
 	return c.json(
 		{
@@ -578,7 +596,9 @@ const getTicketDetailRoute = createRoute({
 	},
 });
 
-function deriveSelectionStatus(oddStatus: number | null): "won" | "lost" | "pending" {
+function deriveSelectionStatus(
+	oddStatus: number | null,
+): "won" | "lost" | "pending" {
 	if (oddStatus === 1) return "won";
 	if (oddStatus === 3) return "lost";
 	return "pending";
@@ -586,23 +606,26 @@ function deriveSelectionStatus(oddStatus: number | null): "won" | "lost" | "pend
 
 // Helper to process casino transactions
 function processCasinoTransaction(
-	tx: { 
-		id: string; 
-		type: string; 
-		amount: number; 
-		balanceBefore: number | null; 
-		game: string | null; 
+	tx: {
+		id: string;
+		type: string;
+		amount: number;
+		balanceBefore: number | null;
+		game: string | null;
 		createdAt: Date;
 		provider?: string;
 		roundId?: string;
 	},
 	gameName: string,
-	provider: string
+	provider: string,
 ) {
 	const isWin = tx.type === "WIN" || tx.type === "win" || tx.type === "WON";
 	const stakeNaira = tx.amount / 100;
-	const outcome: "won" | "lost" | "pending" = isWin ? "won" : 
-		tx.type === "BET" || tx.type === "bet" ? "pending" : "lost";
+	const outcome: "won" | "lost" | "pending" = isWin
+		? "won"
+		: tx.type === "BET" || tx.type === "bet"
+			? "pending"
+			: "lost";
 
 	return {
 		success: true as const,
@@ -621,17 +644,19 @@ function processCasinoTransaction(
 			gameName: gameName,
 			provider: provider,
 			roundId: tx.roundId || undefined,
-			multiplier: isWin && tx.amount > 0 ? 
-				(tx.amount / (tx.balanceBefore || 1)) : 0,
-			casinoSelections: [{
-				id: tx.id,
-				type: tx.type,
-				amount: stakeNaira,
-				status: outcome,
-				gameName: gameName,
-				provider: provider,
-				roundId: tx.roundId || undefined,
-			}],
+			multiplier:
+				isWin && tx.amount > 0 ? tx.amount / (tx.balanceBefore || 1) : 0,
+			casinoSelections: [
+				{
+					id: tx.id,
+					type: tx.type,
+					amount: stakeNaira,
+					status: outcome,
+					gameName: gameName,
+					provider: provider,
+					roundId: tx.roundId || undefined,
+				},
+			],
 		},
 	};
 }
@@ -684,11 +709,15 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 		} catch {
 			rawSelections = [];
 		}
-		
-		const matchIds = rawSelections.map((s) => s.match_id).filter(Boolean) as string[];
+
+		const matchIds = rawSelections
+			.map((s) => s.match_id)
+			.filter(Boolean) as string[];
 		const titleById = await getFixtureTitlesByIds(c.env, matchIds);
 		const typeIds = rawSelections
-			.map((s) => (s.market_id ? parseMarketId(String(s.market_id)).typeId : ""))
+			.map((s) =>
+				s.market_id ? parseMarketId(String(s.market_id)).typeId : "",
+			)
 			.filter(Boolean);
 		const marketDefs = await loadMarketDefinitions(c.env, typeIds);
 
@@ -705,7 +734,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			});
 			return {
 				matchId: s.match_id ?? null,
-				match: matchTitle ?? s.match_id ?? "Unknown match",
+				match: matchDisplayName(matchTitle, s.match_id),
 				market: labels.market,
 				result: null,
 				pick: labels.pick,
@@ -715,22 +744,27 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			};
 		});
 
-		return c.json({
-			success: true as const,
-			data: {
-				ticketId: bet.id,
-				dateTime: toWAT(bet.createdAt),
-				betType: bet.betType ? (BET_TYPE_LABELS[bet.betType] ?? "Unknown") : "Unknown",
-				outcome,
-				stake: stakeNaira,
-				totalOdds: oddsValue,
-				totalReturn: outcome === "won" ? (bet.settleAmount ?? 0) / 100 : null,
-				potentialCashout: outcome === "pending" ? potentialWin : null,
-				numberOfBets: selections.length,
-				selections,
-				isCasino: false,
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					ticketId: bet.id,
+					dateTime: toWAT(bet.createdAt),
+					betType: bet.betType
+						? (BET_TYPE_LABELS[bet.betType] ?? "Unknown")
+						: "Unknown",
+					outcome,
+					stake: stakeNaira,
+					totalOdds: oddsValue,
+					totalReturn: outcome === "won" ? (bet.settleAmount ?? 0) / 100 : null,
+					potentialCashout: outcome === "pending" ? potentialWin : null,
+					numberOfBets: selections.length,
+					selections,
+					isCasino: false,
+				},
 			},
-		}, 200);
+			200,
+		);
 	}
 
 	// Try Thundr transactions
@@ -798,7 +832,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 		return c.json(processCasinoTransaction(casinoBet, gameName, "ICRASH"), 200);
 	}
 
-	// Try Slotegrator 
+	// Try Slotegrator
 	const slotBet = await db
 		.select({
 			id: schema.slotitegrationTransactions.id,
@@ -828,10 +862,13 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				.limit(1);
 			if (game?.name) gameName = game.name;
 		}
-		return c.json(processCasinoTransaction(slotBet, gameName, "Slotegrator"), 200);
+		return c.json(
+			processCasinoTransaction(slotBet, gameName, "Slotegrator"),
+			200,
+		);
 	}
 
-	// Try Scorpio 
+	// Try Scorpio
 	const scorpioBet = await db
 		.select({
 			id: schema.scorpioTransactions.id,
@@ -861,7 +898,10 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				.limit(1);
 			if (game?.name) gameName = game.name;
 		}
-		return c.json(processCasinoTransaction(scorpioBet, gameName, "Scorpio"), 200);
+		return c.json(
+			processCasinoTransaction(scorpioBet, gameName, "Scorpio"),
+			200,
+		);
 	}
 
 	return c.json({ success: false as const, error: "Ticket not found" }, 404);

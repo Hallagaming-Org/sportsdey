@@ -58,7 +58,7 @@ async function renderXlsx(table: ExportTable): Promise<Uint8Array> {
 		fgColor: { argb: "FF1F4E78" },
 	};
 	header.alignment = { vertical: "middle", wrapText: true };
-	for (const row of table.rows) sheet.addRow(row.map(spreadsheetCell));
+	sheet.addRows(table.rows.map((row) => row.map(spreadsheetCell)));
 	sheet.autoFilter = {
 		from: { row: 1, column: 1 },
 		to: {
@@ -136,14 +136,17 @@ function fitPdfText(
 ): string {
 	const safe = pdfSafe(text);
 	if (font.widthOfTextAtSize(safe, size) <= maxWidth) return safe;
-	let fitted = safe;
-	while (
-		fitted.length > 0 &&
-		font.widthOfTextAtSize(`${fitted}...`, size) > maxWidth
-	) {
-		fitted = fitted.slice(0, -1);
+	let lo = 0;
+	let hi = safe.length;
+	while (lo < hi) {
+		const mid = Math.floor((lo + hi + 1) / 2);
+		if (font.widthOfTextAtSize(`${safe.slice(0, mid)}...`, size) <= maxWidth) {
+			lo = mid;
+		} else {
+			hi = mid - 1;
+		}
 	}
-	return fitted.length ? `${fitted}...` : "";
+	return lo ? `${safe.slice(0, lo)}...` : "";
 }
 
 async function renderPdf(table: ExportTable): Promise<Uint8Array> {

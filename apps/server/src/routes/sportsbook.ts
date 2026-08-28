@@ -54,6 +54,7 @@ import {
 	getAccumulatorBonusTable,
 	listAccumulatorFoldBoostPayloads,
 	planAccumulatorFoldGrants,
+	planAccumulatorFoldRepairs,
 } from "@/sportsbook/accumulator-bonus";
 import { toWAT } from "@/utils";
 import {
@@ -61,10 +62,7 @@ import {
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
 import { asEventNumber } from "@/utils/webengage-event";
-import {
-	scheduleWebengageUserProfileSync,
-	syncWebengageUserProfile,
-} from "@/utils/webengage-user-profile";
+import { scheduleWebengageUserProfileSync } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const BET_TYPE_LABELS: Record<number, string> = {
@@ -196,6 +194,14 @@ type DatabetBoostRecord = {
 			};
 		}>;
 	}>;
+	applicable_conditions?: Array<{
+		bet_details?: Array<{
+			data?: {
+				sport?: { sport_ids?: string[] };
+				odds_count?: { min?: number; max?: number };
+			};
+		}>;
+	}>;
 };
 
 async function listPlayerBetBoosts(
@@ -226,6 +232,11 @@ async function ensureAccumulatorProgramBoosts(
 		selections: number;
 		dataBetBoostId: string;
 	}>;
+	repaired: Array<{
+		sport: AccumulatorSport;
+		selections: number;
+		dataBetBoostId: string;
+	}>;
 	skipped: AccumulatorSport[];
 	removedLegacy: string[];
 	failed: Array<{
@@ -235,6 +246,11 @@ async function ensureAccumulatorProgramBoosts(
 	}>;
 }> {
 	const created: Array<{
+		sport: AccumulatorSport;
+		selections: number;
+		dataBetBoostId: string;
+	}> = [];
+	const repaired: Array<{
 		sport: AccumulatorSport;
 		selections: number;
 		dataBetBoostId: string;
@@ -272,6 +288,31 @@ async function ensureAccumulatorProgramBoosts(
 	const remaining = existing.filter(
 		(boost) => !removedLegacy.includes(boost.id),
 	);
+
+	const toRepair = planAccumulatorFoldRepairs(remaining);
+	for (const repair of toRepair) {
+		const response = await databetFetch(env, `/bet-boosts/${repair.boostId}`, {
+			method: "PUT",
+			body: {
+				player_id: input.playerId,
+				applicable_conditions: repair.applicable_conditions,
+			},
+		});
+		if (!response.ok) {
+			failed.push({
+				sport: repair.sport,
+				selections: repair.selections,
+				error: `repair applicable ${repair.boostId}: ${response.status} ${await response.text()}`,
+			});
+			continue;
+		}
+		repaired.push({
+			sport: repair.sport,
+			selections: repair.selections,
+			dataBetBoostId: repair.boostId,
+		});
+	}
+
 	const { toCreate, blockedLegacySports } =
 		planAccumulatorFoldGrants(remaining);
 	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
@@ -333,7 +374,38 @@ async function ensureAccumulatorProgramBoosts(
 		),
 	);
 
-	return { created, skipped: blockedLegacySports, removedLegacy, failed };
+	return { created, repaired, skipped: blockedLegacySports, removedLegacy, failed };
+}
+
+function scheduleAccumulatorProgramBoosts(
+	env: CloudflareBindings,
+	playerId: string,
+	executionCtx?: ExecutionContext,
+): void {
+	const task = ensureAccumulatorProgramBoosts(env, { playerId })
+		.then((grant) => {
+			if (grant.failed.length > 0) {
+				console.error("Accumulator program grant failed on token create", {
+					playerId,
+					failed: grant.failed,
+				});
+			}
+		})
+		.catch((error) => {
+			console.error("Accumulator program grant threw on token create", {
+				playerId,
+				error:
+					error instanceof Error
+						? { name: error.name, message: error.message }
+						: String(error),
+			});
+		});
+
+	if (executionCtx && typeof executionCtx.waitUntil === "function") {
+		executionCtx.waitUntil(task);
+		return;
+	}
+	void task;
 }
 
 const createTokenRoute = createRoute({
@@ -507,26 +579,8 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	}
 
 	if (user) {
-		try {
-			const grant = await ensureAccumulatorProgramBoosts(c.env, {
-				playerId: user.id,
-			});
-			if (grant.failed.length > 0) {
-				console.error("Accumulator program grant failed on token create", {
-					playerId: user.id,
-					failed: grant.failed,
-				});
-			}
-			await syncWebengageUserProfile(c.env, user.id, c.executionCtx);
-		} catch (error) {
-			console.error("Accumulator program grant threw on token create", {
-				playerId: user.id,
-				error:
-					error instanceof Error
-						? { name: error.name, message: error.message }
-						: String(error),
-			});
-		}
+		scheduleAccumulatorProgramBoosts(c.env, user.id, c.executionCtx);
+		scheduleWebengageUserProfileSync(c.env, user.id, c.executionCtx);
 	}
 
 	return c.json(

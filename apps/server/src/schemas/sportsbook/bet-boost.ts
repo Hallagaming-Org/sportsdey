@@ -79,6 +79,13 @@ export const AccumulatorProgramGrantResponseSchema = z.object({
 				dataBetBoostId: z.string(),
 			}),
 		),
+		repaired: z.array(
+			z.object({
+				sport: z.enum(["football", "basketball", "tennis"]),
+				selections: z.number().int(),
+				dataBetBoostId: z.string(),
+			}),
+		),
 		skipped: z.array(z.enum(["football", "basketball", "tennis"])),
 		removedLegacy: z.array(z.string()),
 		failed: z.array(

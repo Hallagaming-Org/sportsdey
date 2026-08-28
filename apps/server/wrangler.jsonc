@@ -46,7 +46,7 @@
 			],
 			"queues": {
 				"producers": [{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-staging-exports" }],
-				"consumers": [{ "queue": "sportsdey-staging-exports", "max_batch_size": 10, "max_concurrency": 2, "max_retries": 3 }]
+				"consumers": [{ "queue": "sportsdey-staging-exports", "max_batch_size": 10, "max_concurrency": 8, "max_retries": 3 }]
 			},
 			"triggers": { "crons": ["0 * * * *"] },
 			"vars": {
@@ -72,7 +72,7 @@
 			"routes": ["api.sportsdey.com"],
 			"queues": {
 				"producers": [{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-production-exports" }],
-				"consumers": [{ "queue": "sportsdey-production-exports", "max_batch_size": 10, "max_concurrency": 2, "max_retries": 3 }]
+				"consumers": [{ "queue": "sportsdey-production-exports", "max_batch_size": 10, "max_concurrency": 8, "max_retries": 3 }]
 			},
 			"triggers": { "crons": ["0 * * * *"] },
 			"d1_databases": [

@@ -1,5 +1,16 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, count, desc, eq, gte, inArray, like, lt, lte, or } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	gte,
+	inArray,
+	like,
+	lt,
+	lte,
+	or,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -7,7 +18,7 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
-import { getFixtureTitlesByIds } from "@/utils/fixtures";
+import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
 import type { CloudflareBindings } from "../types";
 
 const adminTicketsRoute = new OpenAPIHono<{
@@ -133,7 +144,10 @@ const TicketsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Search by player name or bet ID" }),
-	page: z.string().optional().openapi({ description: "Page number (default 1)" }),
+	page: z
+		.string()
+		.optional()
+		.openapi({ description: "Page number (default 1)" }),
 	limit: z
 		.string()
 		.optional()
@@ -377,7 +391,10 @@ const handleGetTicketsList = async (
 		1,
 		Number.parseInt(url.searchParams.get("page") || "1", 10) || 1,
 	);
-	const parsedLimit = Number.parseInt(url.searchParams.get("limit") || "10", 10);
+	const parsedLimit = Number.parseInt(
+		url.searchParams.get("limit") || "10",
+		10,
+	);
 	const limit = Math.min(
 		100,
 		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
@@ -435,8 +452,7 @@ const handleGetTicketsList = async (
 			}
 		}
 
-		const sbWhere =
-			sbConditions.length > 0 ? and(...sbConditions) : undefined;
+		const sbWhere = sbConditions.length > 0 ? and(...sbConditions) : undefined;
 
 		if (unpaginated) {
 			const sbResults = await db
@@ -869,8 +885,14 @@ function paginateTicketRows(
 			},
 		};
 	}
-	const page = Math.max(1, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1);
-	const parsedLimit = Number.parseInt(url.searchParams.get("limit") || "10", 10);
+	const page = Math.max(
+		1,
+		Number.parseInt(url.searchParams.get("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(
+		url.searchParams.get("limit") || "10",
+		10,
+	);
 	const limit = Math.min(
 		100,
 		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
@@ -1305,19 +1327,21 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		try {
 			if (bet.betData) {
 				rawBetData = JSON.parse(bet.betData);
-				
+
 				if (rawBetData && Array.isArray(rawBetData.bet_odds)) {
 					rawSelections = rawBetData.bet_odds;
 				}
-				
+
 				if (rawBetData && Array.isArray(rawBetData.bet_builder_odds)) {
 					rawBetBuilderOdds = rawBetData.bet_builder_odds;
 				}
-				
-				console.log(`[getTicketById] Found ${rawSelections.length} selections, ${rawBetBuilderOdds.length} bet builder odds`);
+
+				console.log(
+					`[getTicketById] Found ${rawSelections.length} selections, ${rawBetBuilderOdds.length} bet builder odds`,
+				);
 			}
 		} catch (error) {
-			console.error('[getTicketById] Failed to parse betData:', error);
+			console.error("[getTicketById] Failed to parse betData:", error);
 			rawSelections = [];
 			rawBetBuilderOdds = [];
 		}
@@ -1347,10 +1371,10 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		const selections = rawSelections.map((s) => {
 			const matchId = s.match_id;
 			const title = matchId ? titleById.get(matchId) : undefined;
-			
+
 			return {
 				matchId: matchId ?? null,
-				match: title ?? matchId ?? "Unknown match",
+				match: matchDisplayName(title, matchId),
 				marketId: s.market_id ?? null,
 				oddId: s.odd_id ?? null,
 				odds: s.odd_ratio ?? null,
@@ -1361,14 +1385,14 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		const betBuilderSelections = rawBetBuilderOdds.map((builder) => {
 			const groupMatchId = builder.match_id;
 			const groupTitle = groupMatchId ? titleById.get(groupMatchId) : undefined;
-			
+
 			const legs = Array.isArray(builder.odds)
 				? builder.odds.map((o: any) => {
 						const legMatchId = o.match_id;
 						const legTitle = legMatchId ? titleById.get(legMatchId) : undefined;
 						return {
 							matchId: legMatchId ?? null,
-							match: legTitle ?? legMatchId ?? "Unknown match",
+							match: matchDisplayName(legTitle, legMatchId),
 							marketId: o.market_id ?? null,
 							oddId: o.odd_id ?? null,
 							odds: o.odd_ratio ?? null,
@@ -1376,17 +1400,19 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 						};
 					})
 				: [];
-			
+
 			return {
 				matchId: groupMatchId ?? null,
-				match: groupTitle ?? groupMatchId ?? "Unknown match",
+				match: matchDisplayName(groupTitle, groupMatchId),
 				ratio: builder.ratio ?? null,
 				status: builder.status ?? null,
 				legs,
 			};
 		});
 
-		const totalOddsNum = bet.totalOdds ? parseFloat(bet.totalOdds) : null;
+		const totalOddsNum = bet.totalOdds
+			? Number.parseFloat(bet.totalOdds)
+			: null;
 		const potentialWin = totalOddsNum ? bet.stake * totalOddsNum : null;
 		const actualPayout = bet.settleAmount ?? null;
 		const profit = actualPayout != null ? actualPayout - bet.stake : null;

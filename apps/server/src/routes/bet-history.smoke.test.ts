@@ -316,6 +316,8 @@ describe("bet-history ticket labels smoke (in-memory, real handler)", () => {
 			assert.equal(String(row.pick ?? "").startsWith("@"), false);
 			assert.ok(row.market, JSON.stringify(row));
 			assert.ok(row.pick, JSON.stringify(row));
+			assert.equal(String(row.match).includes(":"), false, JSON.stringify(row));
+			assert.ok(/\bvs\b/i.test(String(row.match)), JSON.stringify(row));
 		}
 
 		assert.ok(

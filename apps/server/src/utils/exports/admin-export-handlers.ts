@@ -193,17 +193,33 @@ export async function downloadAdminExportZip(
 			]).stream(),
 		});
 	}
-	for (const chunk of completed) {
-		const object = await bucket.get(chunk.r2Key);
-		if (!object?.body)
-			return c.json(
-				{ success: false, error: "An export file is missing", details: null },
-				500,
-			);
-		files.push({
-			name: chunk.r2Key.split("/").pop() ?? `part-${chunk.chunkIndex + 1}`,
-			body: object.body as unknown as ReadableStream,
-		});
+	let objects: Array<{
+		index: number;
+		name: string;
+		body: ReadableStream;
+	}>;
+	try {
+		objects = await Promise.all(
+			completed.map(async (chunk) => {
+				const object = await bucket.get(chunk.r2Key);
+				if (!object?.body) {
+					throw new Error("An export file is missing");
+				}
+				return {
+					index: chunk.chunkIndex,
+					name: chunk.r2Key.split("/").pop() ?? `part-${chunk.chunkIndex + 1}`,
+					body: object.body as unknown as ReadableStream,
+				};
+			}),
+		);
+	} catch {
+		return c.json(
+			{ success: false, error: "An export file is missing", details: null },
+			500,
+		);
+	}
+	for (const object of objects.sort((a, b) => a.index - b.index)) {
+		files.push({ name: object.name, body: object.body });
 	}
 	return new Response(createZipStream(files), {
 		status: 200,

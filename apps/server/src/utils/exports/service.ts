@@ -17,7 +17,7 @@ const MAX_QUEUE_ATTEMPTS = 3;
 const STALE_CHUNK_MS = 15 * 60 * 1000;
 
 export function chunkSizeFor(format: ExportFormat): number {
-	return format === "pdf" ? 2_000 : 10_000;
+	return format === "pdf" ? 5_000 : 20_000;
 }
 
 export function exportBucket(
@@ -241,6 +241,7 @@ export async function processExportMessage(
 			parseFilters(job.filters),
 			chunk.startOffset,
 			chunk.rowLimit,
+			{ skipCount: true },
 		);
 		const rendered = await renderExportChunk(format, table.table);
 		const r2Key = `exports/${job.id}/part-${String(chunk.chunkIndex + 1).padStart(3, "0")}.${format}`;

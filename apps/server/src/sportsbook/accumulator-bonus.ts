@@ -219,23 +219,10 @@ export function buildAccumulatorBoostPayload(input: {
 			},
 		},
 		required_conditions: conditions,
-		applicable_conditions: [
-			{
-				type: "bet_details",
-				bet_details: [
-					{
-						type: "express",
-						data: {
-							sport: {
-								type: "sport",
-								match_all_odds: true,
-								sport_ids: [input.sport],
-							},
-						},
-					},
-				],
-			},
-		],
+		// Must mirror required_conditions (including exact odds_count). Sport-only
+		// applicable rules make every fold boost eligible on any acca of that sport,
+		// so Databet can latch onto the 50-fold x6.00 boost on a 3-leg ~30x slip.
+		applicable_conditions: conditions,
 		bonusPercent,
 		multiplier,
 	};
@@ -363,21 +350,91 @@ export function defaultAccumulatorProgramExpiry(): string {
 	return expires.toISOString();
 }
 
+type BetDetailData = {
+	sport?: { sport_ids?: string[] };
+	odds_count?: { min?: number; max?: number };
+};
+
 export type DatabetBoostLike = {
 	id?: string;
 	calculation_strategy?: { type?: string };
 	required_conditions?: Array<{
 		bet_details?: Array<{
-			data?: {
-				sport?: { sport_ids?: string[] };
-				odds_count?: { min?: number; max?: number };
-			};
+			data?: BetDetailData;
+		}>;
+	}>;
+	applicable_conditions?: Array<{
+		bet_details?: Array<{
+			data?: BetDetailData;
 		}>;
 	}>;
 };
 
-function requiredBetDetail(boost: DatabetBoostLike) {
+function requiredBetDetail(boost: DatabetBoostLike): BetDetailData | undefined {
 	return boost.required_conditions?.[0]?.bet_details?.[0]?.data;
+}
+
+function applicableBetDetail(boost: DatabetBoostLike): BetDetailData | undefined {
+	return boost.applicable_conditions?.[0]?.bet_details?.[0]?.data;
+}
+
+function accumulatorFoldFromRequired(
+	data: BetDetailData,
+): { sport: AccumulatorSport; selections: number } | null {
+	const sport = ACCUMULATOR_SPORTS.find((candidate) =>
+		data.sport?.sport_ids?.includes(candidate),
+	);
+	if (!sport) return null;
+	const min = Number(data.odds_count?.min);
+	const max = Number(data.odds_count?.max ?? data.odds_count?.min);
+	if (!Number.isInteger(min) || min !== max || min < 2 || min > ACCUMULATOR_MAX_SELECTIONS) {
+		return null;
+	}
+	return { sport, selections: min };
+}
+
+/** True when a static accumulator boost only matches sport in applicable (pre-fix grants). */
+export function boostHasLooseApplicableConditions(boost: DatabetBoostLike): boolean {
+	if (boost.calculation_strategy?.type !== "static") return false;
+	const required = requiredBetDetail(boost);
+	if (!required) return false;
+	const fold = accumulatorFoldFromRequired(required);
+	if (!fold) return false;
+	const applicable = applicableBetDetail(boost);
+	if (!applicable?.odds_count) return true;
+	const appMin = Number(applicable.odds_count.min);
+	const appMax = Number(applicable.odds_count.max ?? applicable.odds_count.min);
+	return appMin !== fold.selections || appMax !== fold.selections;
+}
+
+export type AccumulatorFoldBoostRepair = {
+	boostId: string;
+	sport: AccumulatorSport;
+	selections: number;
+	applicable_conditions: unknown[];
+};
+
+/** PATCH targets for boosts granted before applicable_conditions matched required. */
+export function planAccumulatorFoldRepairs(
+	existing: DatabetBoostLike[],
+): AccumulatorFoldBoostRepair[] {
+	const repairs: AccumulatorFoldBoostRepair[] = [];
+	for (const boost of existing) {
+		if (!boost.id || !boostHasLooseApplicableConditions(boost)) continue;
+		const required = requiredBetDetail(boost);
+		if (!required) continue;
+		const fold = accumulatorFoldFromRequired(required);
+		if (!fold) continue;
+		const payload = buildAccumulatorBoostPayload(fold);
+		if (!payload) continue;
+		repairs.push({
+			boostId: boost.id,
+			sport: fold.sport,
+			selections: fold.selections,
+			applicable_conditions: payload.applicable_conditions,
+		});
+	}
+	return repairs;
 }
 
 /** True when the player already has the legacy linear `steps` program for this sport. */

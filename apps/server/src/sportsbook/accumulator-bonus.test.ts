@@ -8,13 +8,25 @@ import {
 	buildAccumulatorStepsBoostPayload,
 	boostCoversAccumulatorFold,
 	boostCoversAccumulatorSport,
+	boostHasLooseApplicableConditions,
 	getAccumulatorBonusPercent,
 	getAccumulatorBonusTable,
 	getAccumulatorMultiplier,
 	listAccumulatorFoldBoostPayloads,
 	listAccumulatorStepsBoostPayloads,
 	planAccumulatorFoldGrants,
+	planAccumulatorFoldRepairs,
 } from "./accumulator-bonus";
+
+/** Product of decimal selection odds (what Databet shows before boost). */
+function accumulatorOddsProduct(odds: number[]): number {
+	return odds.reduce((total, odd) => total * odd, 1);
+}
+
+/** Databet static boost applies multiplier on top of product odds. */
+function boostedAccumulatorOdds(productOdds: number, multiplier: string): number {
+	return productOdds * Number.parseFloat(multiplier);
+}
 
 describe("accumulator bonus table", () => {
 	it("has no football Doubles bonus", () => {
@@ -81,6 +93,100 @@ describe("accumulator bonus table", () => {
 		};
 		assert.equal(required.bet_details[0]?.type, "express");
 		assert.equal(required.bet_details[0]?.data.odds_count.min, 5);
+	});
+
+	it("mirrors required_conditions in applicable_conditions with exact odds_count", () => {
+		const payload = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 3,
+		});
+		assert.ok(payload);
+		assert.deepEqual(
+			payload.applicable_conditions,
+			payload.required_conditions,
+		);
+		const applicable = payload.applicable_conditions[0] as {
+			bet_details: Array<{ data: { odds_count: { min: number; max: number } } }>;
+		};
+		assert.equal(applicable.bet_details[0]?.data.odds_count.min, 3);
+		assert.equal(applicable.bet_details[0]?.data.odds_count.max, 3);
+	});
+
+	it("detects legacy sport-only applicable rules that need repair", () => {
+		const payload = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 50,
+		});
+		assert.ok(payload);
+		const looseBoost = {
+			id: "boost-50",
+			calculation_strategy: payload.calculation_strategy,
+			required_conditions: payload.required_conditions as never,
+			applicable_conditions: [
+				{
+					type: "bet_details",
+					bet_details: [
+						{
+							type: "express",
+							data: {
+								sport: {
+									type: "sport",
+									match_all_odds: true,
+									sport_ids: ["football"],
+								},
+							},
+						},
+					],
+				},
+			],
+		};
+		assert.equal(boostHasLooseApplicableConditions(looseBoost), true);
+		assert.equal(boostHasLooseApplicableConditions(payload as never), false);
+		const repairs = planAccumulatorFoldRepairs([looseBoost]);
+		assert.equal(repairs.length, 1);
+		assert.equal(repairs[0]?.boostId, "boost-50");
+		assert.deepEqual(
+			repairs[0]?.applicable_conditions,
+			payload.applicable_conditions,
+		);
+	});
+
+	it("3-leg ~30x acca should not share applicable rules with 50-fold x6 boost", () => {
+		const legOdds = [2, 3, 5];
+		const product = accumulatorOddsProduct(legOdds);
+		assert.equal(product, 30);
+
+		const trebleBoost = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 3,
+		});
+		const maxFoldBoost = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 50,
+		});
+		assert.ok(trebleBoost);
+		assert.ok(maxFoldBoost);
+		assert.equal(maxFoldBoost.multiplier, "6.00");
+
+		const trebleApplicable = (
+			trebleBoost.applicable_conditions[0] as {
+				bet_details: Array<{ data: { odds_count: { min: number } } }>;
+			}
+		).bet_details[0]?.data.odds_count.min;
+		const maxFoldApplicable = (
+			maxFoldBoost.applicable_conditions[0] as {
+				bet_details: Array<{ data: { odds_count: { min: number } } }>;
+			}
+		).bet_details[0]?.data.odds_count.min;
+		assert.equal(trebleApplicable, 3);
+		assert.equal(maxFoldApplicable, 50);
+
+		assert.equal(boostedAccumulatorOdds(product, trebleBoost.multiplier), 31.5);
+		assert.notEqual(
+			boostedAccumulatorOdds(product, maxFoldBoost.multiplier),
+			product,
+		);
+		assert.equal(boostedAccumulatorOdds(product, maxFoldBoost.multiplier), 180);
 	});
 
 	it("builds one steps boost per sport that grows with extra selections", () => {

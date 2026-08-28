@@ -385,7 +385,7 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(wallet.includes("syncWebengageUserProfile"));
 		assert.ok(kyc.includes("syncWebengageUserProfile"));
 		assert.ok(user.includes("syncWebengageUserProfile"));
-		assert.ok(sportsbook.includes("syncWebengageUserProfile"));
+		assert.ok(sportsbook.includes("scheduleAccumulatorProgramBoosts"));
 		assert.ok(sportsbook.includes("scheduleWebengageUserProfileSync"));
 		assert.ok(phoneAuth.includes("scheduleWebengageUserProfileSync"));
 	});
