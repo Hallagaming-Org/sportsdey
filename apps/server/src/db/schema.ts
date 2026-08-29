@@ -216,6 +216,19 @@ export const opayTransactionRelations = relations(
 	}),
 );
 
+export const palmpayTransaction = sqliteTable("palmpay_transaction", {
+	id: text("id").primaryKey(),
+	userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+	reference: text("reference").notNull().unique(),
+	orderNo: text("order_no").unique(),
+	amount: integer("amount").notNull(),
+	status: text("status").notNull().default("initiated"),
+	checkoutUrl: text("checkout_url"),
+	rawCallbackPayload: text("raw_callback_payload"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`).notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`).$onUpdate(() => new Date()).notNull(),
+}, (table) => [index("palmpay_transaction_user_id_idx").on(table.userId)]);
+
 
 
 export const kudaTransactions = sqliteTable(

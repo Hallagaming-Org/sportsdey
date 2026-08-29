@@ -34,6 +34,7 @@ import africastalkingDlrRoute from "./africastalking-dlr";
 import betHistoryRoute from "./bet-history";
 import opayRoute from "./opay";
 import kudaRoute from "./kuda";
+import palmpayRoute from "./palmpay";
 
 const routes = new OpenAPIHono();
 
@@ -71,6 +72,7 @@ routes.route("/kyc", kycRoute);
 routes.route("/bet-history", betHistoryRoute);
 routes.route("/opay", opayRoute);
 routes.route("/kuda", kudaRoute);
+routes.route("/palmpay", palmpayRoute);
 routes.route("/loyalty", loyaltyRoute);
 routes.route("/mission", missionRoute);
 routes.route("/bonus", bonusRoute);

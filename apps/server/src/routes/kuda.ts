@@ -84,6 +84,10 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 		await db.update(schema.kudaTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(schema.kudaTransactions.reference, reference));
 		return c.json({ success: false as const, error: "Unable to create a Kuda deposit account. Please try again." }, 500);
 	}
+	} catch (error) {
+		console.error("[Kuda] database setup failed", { reference, error: error instanceof Error ? error.message : "Unknown error" });
+		return c.json({ success: false as const, error: "Kuda deposits are not ready on this environment. Apply the staging database migration and try again." }, 503);
+	}
 });
 
 const webhookRoute = createRoute({

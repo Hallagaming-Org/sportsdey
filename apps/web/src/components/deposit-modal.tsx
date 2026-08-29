@@ -7,12 +7,15 @@ import KudaIcon from "@/logos/kuda.svg?react";
 import MastercardIcon from "@/logos/mastercard.svg?react";
 import OpayIcon from "@/logos/opay.svg?react";
 import PaystackIcon from "@/logos/paystack.svg?react";
+import PalmPayLogo from "@/logos/palmpay.png";
 import VerveIcon from "@/logos/verve.svg?react";
 import VisaIcon from "@/logos/visa.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
 type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
-export type DepositProvider = "paystack" | "opay" | "kuda";
+export type DepositProvider = "paystack" | "opay" | "kuda" | "palmpay";
+
+const PalmPayIcon = ({ className }: { className?: string }) => <img src={PalmPayLogo} alt="PalmPay" className={className} />;
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
 
@@ -26,6 +29,7 @@ const BANKS = [
 	{ key: "opay", name: "Opay", Icon: OpayIcon },
 	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
 	{ key: "kuda", name: "Kuda", Icon: KudaIcon },
+	{ key: "palmpay", name: "PalmPay", Icon: PalmPayIcon },
 ];
 
 /** Order matches deposit Figma: Bank Transfer → Card → Crypto → Direct Banking */
@@ -132,6 +136,8 @@ export function DepositModal({
 			onSubmit("kuda");
 			return;
 		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "palmpay") onSubmit("palmpay");
 	};
 
 	const handleCopyAccountNumber = () => {

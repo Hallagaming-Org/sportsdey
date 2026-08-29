@@ -124,6 +124,8 @@ function WalletPage() {
 					? "opay/initiate"
 					: provider === "kuda"
 						? "kuda/deposit/initiate"
+						: provider === "palmpay"
+							? "palmpay/initiate"
 						: "wallet/fund",
 				{
 					method: "POST",

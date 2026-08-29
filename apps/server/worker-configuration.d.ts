@@ -75,6 +75,10 @@ declare namespace Cloudflare {
 		KUDA_BUSINESS_EMAIL: string;
 		KUDA_WEBHOOK_USERNAME: string;
 		KUDA_WEBHOOK_PASSWORD: string;
+		PALMPAY_ENV?: "sandbox" | "production";
+		PALMPAY_APP_ID: string;
+		PALMPAY_MERCHANT_PRIVATE_KEY: string;
+		PALMPAY_PLATFORM_PUBLIC_KEY: string;
 		AT_DLR_SECRET: string;
 		AFFNOOK_API_KEY: string;
 		AFFNOOK_BASE_URL: string;
