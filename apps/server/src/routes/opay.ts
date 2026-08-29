@@ -29,14 +29,18 @@ const ErrorSchema = z.object({
 });
 
 function getWalletRedirectOrigin(env: CloudflareBindings): string | null {
-	const configuredOrigin = env.BETTER_AUTH_URL?.trim() || env.CORS_ORIGIN?.trim();
-	if (!configuredOrigin) return null;
-
-	try {
-		return new URL(configuredOrigin).origin;
-	} catch {
-		return null;
+	for (const configuredOrigin of [
+		env.FRONTEND_URL,
+		env.CORS_ORIGIN,
+		env.BETTER_AUTH_URL,
+	]) {
+		if (!configuredOrigin?.trim()) continue;
+		try {
+			return new URL(configuredOrigin).origin;
+		} catch {
+		}
 	}
+	return null;
 }
 
 const initiateRoute = createRoute({
