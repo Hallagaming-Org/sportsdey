@@ -43,6 +43,7 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 	const amountKobo = Math.round(parsed.data.amount * 100);
 	const reference = `KDA${crypto.randomUUID().replaceAll("-", "").toUpperCase()}`;
 	const db = drizzle(c.env.DB, { schema });
+	try {
 	const [wallet] = await db.select({ id: schema.wallet.id }).from(schema.wallet).where(eq(schema.wallet.userId, user.id)).limit(1);
 	if (!wallet) return c.json({ success: false as const, error: "Wallet is not available" }, 400);
 

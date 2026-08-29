@@ -53,10 +53,10 @@
 				"NODE_ENV": "staging",
 				
 				
-				"BETTER_AUTH_URL": "https://staging.sportsdey.com",
-				"FRONTEND_URL": "https://staging.sportsdey.com",
+				"BETTER_AUTH_URL": "https://stagingweb.sportsdey.com",
+				"FRONTEND_URL": "https://stagingweb.sportsdey.com",
 				"SERVER_URL": "https://staging-api.sportsdey.com",
-				"CORS_ORIGIN": "https://staging.sportsdey.com",
+				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
 				"COOKIE_DOMAIN": "sportsdey.com",
 
 				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
