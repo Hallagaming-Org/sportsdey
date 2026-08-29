@@ -57,7 +57,9 @@ type TicketDetail = {
 };
 
 async function fetchTicketDetail(ticketId: string): Promise<TicketDetail> {
-	return apiRequest<TicketDetail>(`bet-history/${ticketId}`, {
+	return apiRequest<TicketDetail>(
+		`bet-history/${encodeURIComponent(ticketId)}`,
+		{
 		method: "GET",
 		credentials: "include",
 	});
