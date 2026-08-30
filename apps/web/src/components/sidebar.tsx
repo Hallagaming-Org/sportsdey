@@ -5,7 +5,7 @@ import {
 	Gift,
 	Home,
 	Newspaper,
-	Trophy,
+	Target,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -15,8 +15,10 @@ import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarket from "@/logos/PredictionMarket";
+import PredictionMarketIcon from "@/logos/PredictionMarketIcon";
 import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
+import { FaHandshakeAngle } from "react-icons/fa6";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import ScoresIcon from "@/logos/scores.svg?react";
@@ -48,9 +50,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const { setTab } = useActiveTab();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const searchStr = location.search || "";
+	const search = (location.search || {}) as Record<string, any>;
 	const currentSport = useCurrentSport();
-	const params = new URLSearchParams(searchStr);
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
@@ -105,7 +106,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToCasino = () => {
 		setTab("games");
 		trackWebengageEvent("Category", { Name: "Casino" });
-		navigate({ to: "/games", search: { category: undefined } });
+		navigate({
+			to: "/games",
+			search: { category: undefined },
+		});
 	};
 
 	const goToSportsbook = () => {
@@ -217,20 +221,20 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				"casino",
 				(location.pathname.startsWith("/games") ||
 					location.pathname.startsWith("/game/")) &&
-					params.get("category") !== "pvp",
+					search.category !== "pvp",
 			),
 			onClick: goToCasino,
 		},
 		{
 			id: "p2p",
-			label: "PvP",
+			label: "Esports",
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
 			isActive: isItemActive(
 				"p2p",
 				location.pathname.startsWith("/games") &&
-					params.get("category") === "pvp",
+					search.category === "pvp",
 			),
 			subItems: [
 				{
@@ -238,15 +242,18 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					label: "PvP Games",
 					isActive:
 						location.pathname.startsWith("/games") &&
-						params.get("category") === "pvp",
+						search.category === "pvp",
 					onClick: () => {
 						setTab("games");
-						navigate({ to: "/games", search: { category: "pvp" } });
+						navigate({
+							to: "/games",
+							search: { category: "pvp" },
+						});
 					},
 				},
 				{
 					id: "pvp-esports",
-					label: "Esports Tournaments",
+					label: "Tournaments",
 					isActive: false,
 					onClick: () =>
 						window.open("https://tournaments.sportsdey.com/", "_blank"),
@@ -259,18 +266,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Newspaper,
 			isActive: isItemActive(
 				"news",
-				location.pathname.startsWith("/news") && params.get("tab") !== "videos",
+				location.pathname.startsWith("/news") && search.tab !== "videos",
 			),
 			onClick: goToNews,
 		},
-		// {
-		// 	id: "predictions",
-		// 	label: "Predictions Market",
-		// 	icon: PredictionMarket,
-		// 	isActive: false,
-		// 	disabled: true,
-		// 	onClick: () => showComingSoon("Predictions Market"),
-		// },
 		{
 			id: "videos",
 			label: "Videos",
@@ -278,6 +277,19 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive("videos", location.pathname.startsWith("/videos")),
 			onClick: goToVideos,
 		},
+		{
+			id: "prediction",
+			label: "Prediction Market",
+			icon: PredictionMarketIcon,
+			isActive: isItemActive("prediction", false),
+			onClick: () => {
+				setActiveOverride("prediction");
+				window.open(
+					"https://prediction.sportsdey.com/",
+					"_blank",
+				);
+			},
+		},	
 		{
 			id: "trading",
 			label: "Trading",
@@ -299,6 +311,50 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		// 	disabled: true,
 		// 	onClick: () => showComingSoon("Tournament"),
 		// },
+
+		{
+			id: "missions",
+			label: "Missions",
+			icon: Target,
+			isActive: isItemActive(
+				"missions",
+				location.pathname.startsWith("/missions"),
+			),
+			onClick: () => {
+				setTab("missions");
+				trackWebengageEvent("Category", { Name: "Missions" });
+				navigate({ to: "/missions" as any });
+			},
+		},
+
+		{
+			id: "promotions",
+			label: "Promotions",
+			icon: Gift,
+			isActive: isItemActive(
+				"promotions",
+				location.pathname.startsWith("/promotions"),
+			),
+			onClick: () => {
+				setTab("promotions");
+				trackWebengageEvent("Category", { Name: "Promotions" });
+				navigate({ to: "/promotions" as any });
+			},
+		},	
+		{
+			id: "partner",
+			label: "Become an affiliate",
+			icon: FaHandshakeAngle,
+			isActive: isItemActive("partner", false),
+			onClick: () => {
+				setActiveOverride("partner");
+				window.open("https://Partners.sportsdey.com", "_blank");
+			},
+		},
+
+
+
+
 		// {
 		// 	id: "lottery",
 		// 	label: "Lottery",
@@ -318,20 +374,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		// 		navigate({ to: "/betting", search: { type: "jackpots" } });
 		// 	},
 		// },
-		{
-			id: "promotions",
-			label: "Promotions",
-			icon: Gift,
-			isActive: isItemActive(
-				"promotions",
-				location.pathname.startsWith("/promotions"),
-			),
-			onClick: () => {
-				setTab("promotions");
-				trackWebengageEvent("Category", { Name: "Promotions" });
-				navigate({ to: "/promotions" as any });
-			},
-		},
 		// {
 		// 	id: "refer",
 		// 	label: "Refer & Earn",

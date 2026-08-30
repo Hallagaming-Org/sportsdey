@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import {
 	LagosRushBalanceRequestSchema,
 	LagosRushBalanceResponseSchema,
@@ -203,17 +204,12 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 		);
 	}
 
-	const newBalanceKobo = oldBalanceKobo - amount;
+	const updatedWallet = await debitWallet(db, playerId, amount);
 
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId))
-		.returning();
-
-	if (!updatedWallet?.id) {
+	if (!updatedWallet) {
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
+	const newBalanceKobo = updatedWallet.balance;
 
 	const transactionId = crypto.randomUUID();
 
@@ -352,17 +348,12 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 
 	const oldBalanceKobo = wallet?.balance ?? 0;
 
-	const newBalanceKobo = oldBalanceKobo + amount;
+	const updatedWallet = await creditWallet(db, playerId, amount);
 
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId))
-		.returning();
-
-	if (!updatedWallet?.id) {
+	if (!updatedWallet) {
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
+	const newBalanceKobo = updatedWallet.balance;
 
 	const transactionId = crypto.randomUUID();
 
@@ -501,17 +492,12 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 
 	const oldBalanceKobo = wallet?.balance ?? 0;
 
-	const newBalanceKobo = oldBalanceKobo + amount;
+	const updatedWallet = await creditWallet(db, playerId, amount);
 
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId))
-		.returning();
-
-	if (!updatedWallet?.id) {
+	if (!updatedWallet) {
 		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
+	const newBalanceKobo = updatedWallet.balance;
 
 	const transactionId = crypto.randomUUID();
 

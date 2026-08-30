@@ -6,6 +6,10 @@ import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
 const adminLogNotesRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -35,10 +39,7 @@ const createLogNoteRoute = createRoute({
 				"application/json": {
 					schema: z.object({
 						userId: z.string().openapi({ description: "User ID" }),
-						note: z
-							.string()
-							.min(1)
-							.openapi({ description: "Note content" }),
+						note: z.string().min(1).openapi({ description: "Note content" }),
 					}),
 				},
 			},
@@ -49,9 +50,7 @@ const createLogNoteRoute = createRoute({
 			description: "Log note created",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({ logNote: LogNoteSchema }),
-					),
+					schema: successResponseSchema(z.object({ logNote: LogNoteSchema })),
 				},
 			},
 		},
@@ -83,9 +82,7 @@ const deleteLogNoteRoute = createRoute({
 			description: "Log note deleted",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({ success: z.literal(true) }),
-					),
+					schema: successResponseSchema(z.object({ success: z.literal(true) })),
 				},
 			},
 		},
@@ -180,7 +177,11 @@ adminLogNotesRoute.openapi(createLogNoteRoute, async (c) => {
 	}
 
 	const [adminRecord] = await db
-		.select({ name: schema.admin.name, role: schema.admin.role, email: schema.admin.email })
+		.select({
+			name: schema.admin.name,
+			role: schema.admin.role,
+			email: schema.admin.email,
+		})
 		.from(schema.admin)
 		.where(eq(schema.admin.id, session.adminId))
 		.limit(1);
@@ -209,6 +210,11 @@ adminLogNotesRoute.openapi(createLogNoteRoute, async (c) => {
 	if (!created) {
 		return c.json({ success: false, error: "Failed to create log note" }, 500);
 	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.createLogNote,
+	);
 
 	return c.json({
 		success: true,
@@ -232,8 +238,7 @@ const deleteUserLogNotesRoute = createRoute({
 	path: "/log-notes/user/{userId}",
 	tags: ["Admin - Log Notes"],
 	summary: "Delete all log notes for a user",
-	description:
-		"Deletes all log notes for a specific user. Super admin only.",
+	description: "Deletes all log notes for a specific user. Super admin only.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: z.object({
@@ -245,9 +250,7 @@ const deleteUserLogNotesRoute = createRoute({
 			description: "Log notes deleted",
 			content: {
 				"application/json": {
-					schema: successResponseSchema(
-						z.object({ deleted: z.number() }),
-					),
+					schema: successResponseSchema(z.object({ deleted: z.number() })),
 				},
 			},
 		},
@@ -297,15 +300,15 @@ adminLogNotesRoute.openapi(deleteLogNoteRoute, async (c) => {
 		.limit(1);
 
 	if (!existing) {
-		return c.json(
-			{ success: false, error: "Log note not found" },
-			404,
-		);
+		return c.json({ success: false, error: "Log note not found" }, 404);
 	}
 
-	await db
-		.delete(schema.adminLogNote)
-		.where(eq(schema.adminLogNote.id, id));
+	await db.delete(schema.adminLogNote).where(eq(schema.adminLogNote.id, id));
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.deleteLogNote,
+	);
 
 	return c.json({ success: true, data: { success: true as const } });
 });
@@ -347,6 +350,11 @@ adminLogNotesRoute.openapi(deleteUserLogNotesRoute, async (c) => {
 	const result = await db
 		.delete(schema.adminLogNote)
 		.where(eq(schema.adminLogNote.userId, userId));
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.deleteLogNote,
+	);
 
 	return c.json({
 		success: true,

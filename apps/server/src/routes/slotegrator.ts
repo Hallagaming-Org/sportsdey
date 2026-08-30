@@ -1,8 +1,21 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
+import {
+	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
+	BONUS_ENGINE_PRODUCT_TYPE,
+	reportBonusEngineBet,
+	runBonusEngineBackground,
+} from "@/services/bonus-engine";
 import { verifySlotitegrationSignature } from "@/utils";
+import {
+	initSlotegratorDemo,
+	mapSlotegratorUpstreamError,
+	resolveSlotegratorReturnUrl,
+	SlotegratorApiError,
+} from "@/utils/slotegrator";
 import type { CloudflareBindings } from "../types";
 
 type SlotitegrationContext = {
@@ -15,6 +28,11 @@ const LaunchGameSchema = z
 	.object({
 		game_uuid: z.string().openapi({ description: "Game UUID" }),
 		device: z.string().optional().openapi({ description: "Device type" }),
+		return_url: z
+			.string()
+			.url()
+			.optional()
+			.openapi({ description: "URL after the player exits the game" }),
 	})
 	.openapi("LaunchGame");
 
@@ -36,6 +54,19 @@ const LaunchGameErrorResponseSchema = z
 		details: z.any().openapi({ description: "Error details" }),
 	})
 	.openapi("LaunchGameErrorResponse");
+
+const LaunchDemoGameSchema = z
+	.object({
+		game_uuid: z.string().openapi({ description: "Game UUID" }),
+		device: z.string().optional().openapi({ description: "Device type" }),
+		language: z.string().optional().openapi({ description: "UI language" }),
+		return_url: z
+			.string()
+			.url()
+			.optional()
+			.openapi({ description: "URL after player exits the demo" }),
+	})
+	.openapi("LaunchDemoGame");
 
 const launchGameRoute = createRoute({
 	method: "post",
@@ -97,20 +128,76 @@ const launchGameRoute = createRoute({
 	},
 });
 
-slotegratorRoute.openapi(launchGameRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(
-			{
-				success: false,
-				error: "Unauthorized",
-				details: null,
+const launchDemoGameRoute = createRoute({
+	method: "post",
+	path: "/launch-demo",
+	tags: ["Slotegrator"],
+	summary: "Initialize a Slotegrator demo game (no real money)",
+	description:
+		"Calls Slotegrator POST /games/init-demo and returns a launch URL. No wallet session or user auth required.",
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: LaunchDemoGameSchema,
+				},
 			},
-			401,
-		);
-	}
+		},
+	},
+	responses: {
+		200: {
+			description: "Demo game launch URL",
+			content: {
+				"application/json": {
+					schema: LaunchGameResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Game not found",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		422: {
+			description: "Validation error or demo unsupported",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		500: {
+			description: "Server configuration error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		502: {
+			description: "Upstream API / merchant auth error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		503: {
+			description: "Upstream rate limited",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
 
-	const result = LaunchGameSchema.safeParse(await c.req.json());
+slotegratorRoute.openapi(launchDemoGameRoute, async (c) => {
+	const result = LaunchDemoGameSchema.safeParse(await c.req.json());
 	if (!result.success) {
 		return c.json(
 			{
@@ -122,13 +209,103 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		);
 	}
 
+	try {
+		const returnUrl = resolveSlotegratorReturnUrl(
+			c.env,
+			result.data.return_url,
+		);
+		const data = await initSlotegratorDemo(c.env, {
+			...result.data,
+			return_url: returnUrl,
+		});
+		return c.json(
+			{
+				success: true,
+				data: { url: data.url },
+			},
+			200,
+		);
+	} catch (error) {
+		if (error instanceof SlotegratorApiError) {
+			const allowed = [404, 422, 500, 502, 503] as const;
+			const status = allowed.includes(
+				error.status as (typeof allowed)[number],
+			)
+				? (error.status as (typeof allowed)[number])
+				: 502;
+			return c.json(
+				{
+					success: false,
+					error: error.message,
+					details: error.details,
+				},
+				status,
+			);
+		}
+		console.error("Slotegrator launch-demo unexpected error", error);
+		return c.json(
+			{
+				success: false,
+				error: "Failed to launch demo game",
+				details: null,
+			},
+			502,
+		);
+	}
+});
+
+slotegratorRoute.openapi(launchGameRoute, async (c) => {
+	const user = c.get("user");
+	const incomingHeaders = Object.fromEntries(c.req.raw.headers.entries());
+	const logIncomingHeaders = {
+		...incomingHeaders,
+		authorization: incomingHeaders.authorization ? "[REDACTED]" : undefined,
+		cookie: incomingHeaders.cookie ? "[REDACTED]" : undefined,
+	};
+	if (!user) {
+		console.log("Slotegrator real launch request", {
+			body: null,
+			params: { route: c.req.param(), query: c.req.query() },
+			headers: logIncomingHeaders,
+		});
+		return c.json(
+			{
+				success: false,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	const requestPayload: unknown = await c.req.json();
+	const result = LaunchGameSchema.safeParse(requestPayload);
+	if (!result.success) {
+		console.log("Slotegrator real launch request validation failed", {
+			body: requestPayload,
+			params: { route: c.req.param(), query: c.req.query() },
+			headers: logIncomingHeaders,
+			validation: result.error.flatten(),
+		});
+		return c.json(
+			{
+				success: false,
+				error: "Invalid request parameters",
+				details: null,
+			},
+			422,
+		);
+	}
+
 	const { game_uuid, device } = result.data;
+	const return_url = resolveSlotegratorReturnUrl(c.env, result.data.return_url);
 
 	const merchantKey = c.env.SLOTITEGRATION_MERCHANT_KEY;
 	const merchantId = c.env.SLOTITEGRATION_MERCHANT_ID;
-	const slotegratorApiUrl = c.env.SLOTEGRATOR_API_URL;
+	const proxyUrl = c.env.PROXY_URL;
+	const proxySecret = c.env.PROXY_SECRET;
 
-	if (!merchantKey || !merchantId || !slotegratorApiUrl) {
+	if (!merchantKey || !merchantId || !proxyUrl || !proxySecret) {
 		return c.json(
 			{
 				success: false,
@@ -170,11 +347,10 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		session_id: sessionToken,
 	};
 	if (device) requestBody.device = device;
+	if (return_url) requestBody.return_url = return_url;
 
 	const timestamp = Math.floor(Date.now() / 1000).toString();
 	const nonce = crypto.randomUUID();
-
-	console.log("requestBody", requestBody);
 
 	const allParams: Record<string, string> = {
 		...requestBody,
@@ -190,61 +366,115 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	}
 	const queryString = params.toString();
 
-	console.log("queryString", queryString);
-
 	const cryptoMod = await import("crypto");
 	const computedSign = cryptoMod
 		.createHmac("sha1", merchantKey)
 		.update(queryString)
 		.digest("hex");
-	console.log("X-Merchant-Id", merchantId);
-	console.log("X-Timestamp", timestamp);
-	console.log("X-Nonce", nonce);
-	console.log("X-Sign", computedSign);
 
-	const response = await fetch(`${slotegratorApiUrl}/games/init`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
+	const slotegratorProxyPath =
+		c.env.NODE_ENV === "staging" ? "slotegrator-staging" : "slotegrator";
+	const proxyRequestUrl = `${proxyUrl}/${slotegratorProxyPath}/games/init`;
+	const proxyRequestHeaders = {
+		"Content-Type": "application/x-www-form-urlencoded",
+		"X-Merchant-Id": merchantId,
+		"X-Timestamp": timestamp,
+		"X-Nonce": nonce,
+		"X-Sign": computedSign,
+		"X-Proxy-Auth": proxySecret,
+	};
+
+	console.log("Slotegrator real launch request", {
+		body: result.data,
+		params: {
+			route: c.req.param(),
+			query: c.req.query(),
+			requestBody,
+			allParams,
+			queryString,
 		},
+		headers: logIncomingHeaders,
+		proxy: {
+			url: proxyRequestUrl,
+			method: "POST",
+			body: requestBody,
+			headers: {
+				...proxyRequestHeaders,
+				"X-Sign": "[REDACTED]",
+				"X-Proxy-Auth": "[REDACTED]",
+			},
+		},
+	});
+
+	const response = await fetch(proxyRequestUrl, {
+		method: "POST",
+		headers: proxyRequestHeaders,
 		body: new URLSearchParams(requestBody),
 	});
-	console.log("slotegrator body", JSON.stringify(response.body));
-	console.log(
-		"slotegrator headers",
-		JSON.stringify({
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
-		}),
-	);
 
-	const upstreamData = await response.json();
-	console.log("slotegrator response", upstreamData);
+	let upstreamData: unknown = null;
+	const upstreamText = await response.text();
+	if (upstreamText) {
+		try {
+			upstreamData = JSON.parse(upstreamText);
+		} catch {
+			upstreamData = upstreamText;
+		}
+	}
+
+	console.log("Slotegrator real launch proxy result", {
+		url: response.url,
+		upstreamUrl: response.headers.get("x-proxy-upstream-url"),
+		status: response.status,
+		statusText: response.statusText,
+		ok: response.ok,
+		headers: Object.fromEntries(response.headers.entries()),
+		body: upstreamData,
+	});
+
 	if (!response.ok) {
+		const mapped = mapSlotegratorUpstreamError(response.status, upstreamData);
+		const allowed = [404, 422, 500, 502, 503] as const;
+		const status = allowed.includes(
+			mapped.status as (typeof allowed)[number],
+		)
+			? (mapped.status as (typeof allowed)[number])
+			: 502;
 		return c.json(
 			{
 				success: false,
-				error: "Upstream API error",
-				details: null,
+				error: mapped.message,
+				details: mapped.details,
 			},
-			response.status,
+			status,
 		);
 	}
 
-	const data = upstreamData as { url: string };
+	const url =
+		upstreamData &&
+		typeof upstreamData === "object" &&
+		typeof (upstreamData as { url?: unknown }).url === "string"
+			? (upstreamData as { url: string }).url
+			: "";
+
+	if (!url) {
+		return c.json(
+			{
+				success: false,
+				error: "Upstream launch response missing URL",
+				details: upstreamData,
+			},
+			502,
+		);
+	}
+
+	// Do not prefetch `url` — GIS launch tokens are single-use.
 
 	return c.json(
 		{
 			success: true,
 			data: {
-				url: data.url,
+				url,
 			},
 		},
 		200,
@@ -423,15 +653,9 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		const newBalance = wallet.balance - amountInKobo;
+		const updatedWallet = await debitWallet(db, playerId, amountInKobo);
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
-
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -440,6 +664,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		const newBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -502,6 +727,59 @@ slotegratorRoute.post("/", async (c) => {
 
 		const balance = newBalance / 100;
 
+		const reportPromise = (async () => {
+			let providerId: string = BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.uniqueId;
+			let gameId = gameUuid || undefined;
+			if (gameUuid) {
+				const [catalogGame] = await db
+					.select({
+						id: schema.game.id,
+						code: schema.game.code,
+						providerId: schema.game.providerId,
+					})
+					.from(schema.game)
+					.where(
+						or(eq(schema.game.code, gameUuid), eq(schema.game.id, gameUuid)),
+					)
+					.limit(1);
+				if (catalogGame) {
+					providerId =
+						catalogGame.providerId?.trim() ||
+						BONUS_ENGINE_FALLBACK_CASINO_PROVIDER.uniqueId;					
+					gameId = catalogGame.code || catalogGame.id;
+				}
+			}
+
+			const result = await reportBonusEngineBet({
+				env: c.env,
+				bet: {
+					userId: playerId,
+					betId: transactionId,
+					amount,
+					productType: BONUS_ENGINE_PRODUCT_TYPE.CASINO,
+					currency,
+					providerId,
+					gameId,
+				},
+			});
+			if (!result.ok) {
+				console.error("Bonus Engine bet report failed", {
+					betId: transactionId,
+					userId: playerId,
+					status: result.status,
+					error: result.error,
+				});
+			}
+		})().catch((error: unknown) => {
+			console.error("Bonus Engine bet report error", {
+				betId: transactionId,
+				userId: playerId,
+				error,
+			});
+		});
+
+		await runBonusEngineBackground(c.executionCtx, reportPromise);
+
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 
@@ -555,15 +833,10 @@ slotegratorRoute.post("/", async (c) => {
 
 		const amountInKobo = Math.round(amount * 100);
 		const currentBalance = wallet?.balance ?? 0;
-		const newBalance = currentBalance + amountInKobo;
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const updatedWallet = await creditWallet(db, playerId, amountInKobo);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -572,6 +845,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		const newBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -767,15 +1041,10 @@ slotegratorRoute.post("/", async (c) => {
 
 		const amountInKobo = Math.round(amount * 100);
 		const currentBalance = wallet?.balance ?? 0;
-		const newBalance = currentBalance + amountInKobo;
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const updatedWallet = await creditWallet(db, playerId, amountInKobo);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -784,6 +1053,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		const newBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -846,6 +1116,7 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
+		const balance = newBalance / 100;
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 
@@ -875,14 +1146,14 @@ slotegratorRoute.post("/", async (c) => {
 
 		txKeys.forEach(([key]) => {
 			const match = key.match(/rollback_transactions\[(\d+)\]\[(\w+)\]/);
-			if (match) {
+			if (match?.[1] !== undefined && match[2] !== undefined) {
 				const index = Number.parseInt(match[1], 10);
 				const field = match[2];
 				if (!rollbackTransactions[index]) {
 					rollbackTransactions[index] = {} as never;
 				}
 				const value = params.get(key);
-				if (value !== undefined) {
+				if (value !== null) {
 					(rollbackTransactions[index] as Record<string, string>)[field] =
 						value;
 				}
@@ -970,13 +1241,13 @@ slotegratorRoute.post("/", async (c) => {
 			}
 		}
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: currentBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const netAdjustment = currentBalance - wallet.balance;
+		const updatedWallet =
+			netAdjustment >= 0
+				? await creditWallet(db, playerId, netAdjustment)
+				: await debitWallet(db, playerId, -netAdjustment);
 
-		if (!updatedWallet?.id) {
+		if (!updatedWallet) {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -985,6 +1256,7 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+		currentBalance = updatedWallet.balance;
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)

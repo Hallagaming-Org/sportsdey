@@ -10,6 +10,7 @@ export const BetPlaceRequestSchema = z.object({
 	bet_insurance_id: z.string().optional(),
 	bet_boost_id: z.string().optional(),
 	total_odds_value: z.string().optional(),
+	base_odds_value: z.string().optional(),
 	bet_odds: z.array(z.any()).optional(),
 	bet_builder_odds: z.array(z.any()).optional(),
 	bet_system_sizes: z.array(z.number()).optional(),
@@ -29,7 +30,7 @@ export const BetErrorResponseSchema = z.object({
 export const BetSettleRequestSchema = z.object({
 	request_id: z.string(),
 	bet_id: z.string(),
-	bet_player_id: z.string().optional(),
+	bet_player_id: z.string(),
 	bet_boost_id: z.string().optional(),
 	total_odds_value: z.string().optional(),
 	base_odds_value: z.string().optional(),
@@ -42,8 +43,8 @@ export const BetSettleRequestSchema = z.object({
 export const BetUnsettleRequestSchema = z.object({
 	request_id: z.string(),
 	bet_id: z.string(),
-	bet_player_id: z.string().optional(),
-	unsettle_amount: z.string().optional(),
+	bet_player_id: z.string(),
+	unsettle_amount: z.string(),
 });
 
 export const CashOutAcceptedRequestSchema = z.object({
@@ -62,9 +63,14 @@ export const CashOutDeclinedRequestSchema = z.object({
 
 export const BetConditionDataSchema = z.record(z.string(), z.any());
 
+/**
+ * Databet Bet Boost / freebet condition detail.
+ * Docs use `type: "single" | "express" | "system"` (string), not a numeric bet_type.
+ * @see https://docs.data.bet/betting/bet-boost/
+ */
 export const BetConditionBetDetailSchema = z.object({
-	bet_type: z.number(),
-	data: BetConditionDataSchema,
+	type: z.string(),
+	data: BetConditionDataSchema.optional(),
 });
 
 export const BetConditionSchema = z.object({

@@ -29,6 +29,10 @@ export const auth = betterAuth({
 				required: false,
 				fieldName: "mobile_number",
 			},
+			dob: {
+				type: "string",
+				required: false,
+			},
 		},
 	},
 	socialProviders: {

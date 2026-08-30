@@ -1,14 +1,23 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Camera, Edit, Loader2, User } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+	type ChangeEvent,
+	type FormEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
+import { DobPicker } from "@/components/dob-picker";
 import { Input } from "@/components/ui/input";
 import { syncAffnookRegistrationReferral } from "@/lib/affnook";
 import { apiRequest, apiUploadFile } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
 import {
 	loginWebengageUser,
+	setWebengageSdkUserProfile,
 	trackWebengageEvent,
 } from "@/lib/webengage";
 
@@ -18,6 +27,15 @@ export const Route = createFileRoute("/account")({
 
 const PROFILE_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const PROFILE_ADMIN_EMAIL = "support@sportsdey.com";
+const PROFILE_EDIT_LOCKED_MESSAGE = `You've already updated your profile. Contact admin at ${PROFILE_ADMIN_EMAIL} if you need any further changes.`;
+
+function dobToDisplay(value: string | null | undefined): string {
+	if (!value) return "";
+	const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+	return value;
+}
 
 type UserProfile = {
 	id: string;
@@ -27,8 +45,10 @@ type UserProfile = {
 	image: string | null;
 	country: string | null;
 	mobileNumber: string | null;
+	dob: string | null;
 	createdAt: string;
 	updatedAt: string;
+	canEditProfile?: boolean;
 };
 
 function AccountPage() {
@@ -41,12 +61,14 @@ function AccountPage() {
 	const [formState, setFormState] = useState({
 		fullName: "",
 		email: "",
+		dob: "",
 		country: "",
 		mobileNumbers: "",
 		referralCode: "",
 		referralId: "",
 	});
 	const [isEditing, setIsEditing] = useState(false);
+	const [showEditLocked, setShowEditLocked] = useState(false);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 
 	const {
@@ -71,30 +93,45 @@ function AccountPage() {
 			...prev,
 			fullName: profile.name ?? "",
 			email: profile.email ?? "",
+			dob: dobToDisplay(profile.dob),
 			country: profile.country ?? "",
 			mobileNumbers: profile.mobileNumber ?? "",
 		}));
 		setPreviewImage(null);
+		const nameParts = (profile.name ?? "").trim().split(/\s+/);
+		setWebengageSdkUserProfile({
+			email: profile.email,
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
+			phone: profile.mobileNumber,
+			dateOfBirth: profile.dob,
+		});
 	}, [profile]);
 
 	const updateUserMutation = useMutation({
 		mutationFn: async (data: {
 			name: string;
 			email?: string;
+			dob?: string;
 			country?: string;
 			mobileNumber?: string;
 			referralCode?: string;
 		}) => {
 			const referral = data.referralCode?.trim();
 
-			const payload: Record<string, string> = {
+			const payload: Record<string, string | boolean> = {
 				name: data.name,
+				accountEdit: true,
 			};
-			if (data.email?.trim()) {
-				payload.email = data.email.trim();
+			const nextEmail = data.email?.trim();
+			if (nextEmail && !isPhonePlaceholderEmail(nextEmail)) {
+				payload.email = nextEmail;
 			}
-			if (data.country !== undefined) {
-				payload.country = data.country;
+			if (data.dob?.trim()) {
+				payload.dob = data.dob.trim();
+			}
+			if (data.country?.trim()) {
+				payload.country = data.country.trim();
 			}
 			if (data.mobileNumber?.trim()) {
 				payload.mobileNumber = data.mobileNumber.trim();
@@ -130,6 +167,7 @@ function AccountPage() {
 				...prev,
 				fullName: user.name,
 				email: user.email,
+				dob: dobToDisplay(user.dob),
 				country: user.country ?? "",
 				mobileNumbers: user.mobileNumber ?? "",
 				referralId: referralSynced
@@ -140,12 +178,19 @@ function AccountPage() {
 			const nameParts = user.name.trim().split(/\s+/);
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
+			setWebengageSdkUserProfile({
+				email: user.email,
+				firstName,
+				lastName,
+				phone: user.mobileNumber,
+				dateOfBirth: user.dob,
+			});
 			trackWebengageEvent("Profile Completed", {
 				userId: session?.user?.id ?? "",
 				"First Name": firstName,
 				"Last Name": lastName,
 				Mobile: user.mobileNumber ?? "",
-				Country: user.country ?? "",
+				Country: user.country ?? formState.country,
 				"Reference Id": formState.referralCode || formState.referralId || "",
 			});
 			if (referralSynced) {
@@ -159,9 +204,13 @@ function AccountPage() {
 			}
 		},
 		onError: (error) => {
-			toast.error(
-				error instanceof Error ? error.message : "Failed to update profile",
-			);
+			const message =
+				error instanceof Error ? error.message : "Failed to update profile";
+			if (message.includes("already updated your profile")) {
+				setIsEditing(false);
+				setShowEditLocked(true);
+			}
+			toast.error(message);
 		},
 	});
 
@@ -236,11 +285,37 @@ function AccountPage() {
 		});
 	};
 
+	const canEditProfile = profile?.canEditProfile !== false;
+
+	const promptContactAdmin = () => {
+		setIsEditing(false);
+		setShowEditLocked(true);
+		toast.error(PROFILE_EDIT_LOCKED_MESSAGE);
+	};
+
+	const handleToggleEdit = () => {
+		if (isEditing) {
+			setIsEditing(false);
+			return;
+		}
+		if (!canEditProfile) {
+			promptContactAdmin();
+			return;
+		}
+		setShowEditLocked(false);
+		setIsEditing(true);
+	};
+
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
+		if (!canEditProfile) {
+			promptContactAdmin();
+			return;
+		}
 		updateUserMutation.mutate({
 			name: formState.fullName,
 			email: formState.email.trim() || undefined,
+			dob: formState.dob.trim() || undefined,
 			country: formState.country,
 			mobileNumber: formState.mobileNumbers.trim() || undefined,
 			referralCode: formState.referralCode || undefined,
@@ -254,6 +329,7 @@ function AccountPage() {
 	const inputIds = {
 		fullName: "account-full-name",
 		email: "account-email",
+		dob: "account-dob",
 		country: "account-country",
 		mobileNumbers: "account-mobile",
 		referralCode: "account-referral-code",
@@ -293,7 +369,9 @@ function AccountPage() {
 								Account Information
 							</h2>
 							<p className="text-gray-500 text-sm dark:text-[#8C8F8F]">
-								Edit your information details
+								{canEditProfile
+									? "You can edit your profile once. Further changes go through admin."
+									: "Profile edits are locked. Contact admin for changes."}
 							</p>
 						</div>
 						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-[#1C1D1F]">
@@ -306,7 +384,7 @@ function AccountPage() {
 						<div className="absolute top-6 right-6 mb-4 flex justify-end">
 							<button
 								type="button"
-								onClick={() => setIsEditing((prev) => !prev)}
+								onClick={handleToggleEdit}
 								className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-primary dark:text-[#8C8F8F] dark:hover:text-white"
 							>
 								<Edit className="h-4 w-4" />
@@ -315,7 +393,7 @@ function AccountPage() {
 						</div>
 
 						{/* Profile photo - centered circle */}
-						<div className="mb-3 mt-6 flex justify-center">
+						<div className="mt-6 mb-3 flex justify-center">
 							<input
 								ref={fileInputRef}
 								type="file"
@@ -351,10 +429,25 @@ function AccountPage() {
 							</button>
 						</div>
 						<div className="mb-10 flex justify-center">
-							<p className="text-[10px] md:text-sm text-gray-500 dark:text-[#8C8F8F]">
+							<p className="text-[10px] text-gray-500 md:text-sm dark:text-[#8C8F8F]">
 								{displayName}
 							</p>
 						</div>
+
+						{showEditLocked && (
+							<div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+								<p>
+									You've already updated your profile. Contact admin via email
+									if you want any further changes:{" "}
+									<a
+										href={`mailto:${PROFILE_ADMIN_EMAIL}`}
+										className="font-medium underline underline-offset-2"
+									>
+										{PROFILE_ADMIN_EMAIL}
+									</a>
+								</p>
+							</div>
+						)}
 
 						{/* Form fields */}
 						<form onSubmit={handleSubmit}>
@@ -396,6 +489,25 @@ function AccountPage() {
 										}
 										disabled={!isEditing}
 										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+									/>
+								</div>
+
+								{/* Date of birth */}
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+									<label
+										htmlFor={inputIds.dob}
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+									>
+										Date of birth:
+									</label>
+									<DobPicker
+										id={inputIds.dob}
+										value={formState.dob}
+										onChange={(next) => updateField("dob", next)}
+										disabled={!isEditing}
+										placeholder="Select date of birth"
+										className="flex-1"
+										triggerClassName="h-[42px] rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-sm shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 

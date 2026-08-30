@@ -37,7 +37,10 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 							rel="noopener noreferrer"
 							onClick={() =>
 								trackWebengageEvent("Banner Clicked", {
-									"Banner Name": banner.alt || "",
+									"Banner Name":
+										banner.title?.trim() ||
+										banner.alt?.trim() ||
+										"Banner",
 									"Banner ID": banner._id,
 									Image: banner.imageUrl,
 								})

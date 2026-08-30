@@ -2,248 +2,113 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion, type Variants } from "framer-motion";
 import { Loader2, Search } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+	type ComponentType,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import {
+	CasinoLaunchActions,
+	CasinoLaunchSheet,
+} from "@/components/casino-launch-actions";
+import { CasinoLobbyArt } from "@/components/casino-lobby-art";
+import { InsufficientBalanceModal } from "@/components/insufficient-balance-modal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiRequest } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import {
+	CLASSIC_CATEGORIES,
+	CLASSIC_CATEGORY_EMOJIS,
+	CLASSIC_CATEGORY_LABELS,
+	CLASSIC_KNOWN_GAMES,
+	CLASSIC_PRIORITY_GAMES,
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
+	type ClassicLaunchMode,
+	type ClassicLobbyGame,
+	classicCategoryCounts,
+	fetchClassicLobbyGames,
+	filterClassicGames,
+	isSlotegratorLobbyGame,
+	launchClassicGame,
+	resolveKnownLobbyImage,
+} from "@/lib/classic-lobby";
+import {
+	canonicalLobbySlug,
+	gameMatchesLobbyCategory,
+	overlayScorpioLobbyCategories,
+} from "@/lib/lobby-categories";
+import {
+	excludeScorpioStoredGames,
+	mergeLobbyGames,
+	parseScorpioStoredCode,
+} from "@/lib/lobby-games";
+import {
+	fetchScorpioLobbyGames,
+	launchScorpioGame,
+	type ScorpioLobbyGame,
+} from "@/lib/scorpio-catalog";
 import { cn } from "@/lib/utils";
 import FilerAToZ from "@/logos/FilerAToZ";
-import BlackjackLogo from "../logos/blackjack.svg?react";
-import BlocksLogo from "../logos/blocks.svg?react";
-import PlinkoLogo from "../logos/plinko.svg?react";
-import SlotsLogo from "../logos/slots.svg?react";
-import SolitaireLogo from "../logos/solitaire.svg?react";
-import TwentyOneLogo from "../logos/twentyone.svg?react";
 
 export const Route = createFileRoute("/games")({
 	component: GamesPage,
-	validateSearch: (search: Record<string, unknown>): { category?: string } => ({
-		category: (search.category as string) || undefined,
+	validateSearch: (
+		search: Record<string, unknown>,
+	): { category?: string; play?: string } => ({
+		category:
+			typeof search.category === "string" && search.category
+				? canonicalLobbySlug(search.category)
+				: undefined,
+		play:
+			typeof search.play === "string" && search.play.trim()
+				? search.play.trim()
+				: undefined,
 	}),
 });
 
-const CATEGORIES = [
-	"popular",
-	"crash-games",
-	"original",
-	"pvp",
-	"slots",
-	"tablecardgames",
-	"arcade",
-	"classic",
-	"bingo",
-	"dice",
-	"jackpot",
-	"lottery",
-	"others",
-	"roulette",
-	"scratch",
-] as const;
-
-const CATEGORY_EMOJIS: Record<string, string> = {
-	popular: "🔥",
-	"crash-games": "🚀",
-	original: "🎯",
-	pvp: "⚔️",
-	slots: "🎰",
-	tablecardgames: "🃏",
-	arcade: "🕹️",
-	classic: "👑",
-	bingo: "🎱",
-	dice: "🎲",
-	jackpot: "💰",
-	lottery: "🎟️",
-	others: "🧩",
-	roulette: "🎡",
-	scratch: "🎫",
-};
-
-type Category = {
-	id: string;
-	name: string;
-	slug: string;
-};
-
-type Game = {
-	id: string;
-	name: string;
-	code: string;
-	imageUrl: string | null;
-	categories: Category[];
-	enabled: boolean;
-	createdAt: number;
-	updatedAt: number;
-};
-
-type LaunchResponse = {
-	success: boolean;
-	data:
-		| {
-				url?: string;
-		  }
-		| undefined;
-	error?: string;
-};
-
-const POPULAR_GAME_NAMES = [
-	"Aviator",
-	"Lagos Rush",
-	"Penalty Shoot Out",
-	"Sweet Bonanza",
-	"Mines",
-	"Plinko",
-	"Gates of Olympus",
-	"High Flyer",
-	"Keno",
-	"Big Bass Splash",
-	"Baccarat",
-	"JetX",
-	"Helicopter X",
-	"Balloon",
-	"Xcape",
-	"Hi Lo",
-	"Blocks",
-	"Eagle",
-	"Avia Rush",
-	"Avia Masters",
-	"Roulette",
-	"Space",
-	"Wild Fortune",
-	"Mystic Fortune",
-	"Football X",
-	"Greyhound",
-	"Car Racing",
-	"Crash X",
-];
-
-const PRIORITY_GAMES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-	"XCAPEHB",
-	"EAGLEHB",
-	"LUCKYRISEHB",
-	"LAGOSRUSH",
-];
-
-const THUNDR_CODES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-];
-
-const ORIGINALS_CODES = ["LAGOSRUSH", "sportsdey-crash"];
-
-const SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
-
-const KNOWN_GAMES: Record<
-	string,
-	{
-		subtitle: string;
-		icon?: React.ComponentType<{ className?: string }>;
-		image?: string;
-		gradient: string;
-	}
-> = {
-	solitaire: {
-		subtitle: "classic card game",
-		icon: SolitaireLogo,
-		gradient: "linear-gradient(to bottom, #1e3a5f, #2d5a87, #4a90d9)",
-	},
-	blocks: {
-		subtitle: "puzzle game",
-		icon: BlocksLogo,
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-	twentyone: {
-		subtitle: "card game",
-		icon: TwentyOneLogo,
-		gradient: "linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)",
-	},
-	blackjack: {
-		subtitle: "card game",
-		icon: BlackjackLogo,
-		gradient: "linear-gradient(to bottom, #2d2d2d, #4a4a4a, #6b6b6b)",
-	},
-	slots: {
-		subtitle: "slot machine",
-		icon: SlotsLogo,
-		gradient: "linear-gradient(to bottom, #7b1fa2, #9c27b0, #ba68c8)",
-	},
-	plinko: {
-		subtitle: "lucky drop",
-		icon: PlinkoLogo,
-		gradient: "linear-gradient(to bottom, #00897b, #26a69a, #4db6ac)",
-	},
-	XCAPEHB: {
-		subtitle: "fulfilling games",
-		image: "/xcape-thumbnail-16x9.jpg",
-		gradient: "linear-gradient(to bottom, #1fe0c8, #7a5cff, #c43cff)",
-	},
-	EAGLEHB: {
-		subtitle: "fulfilling games",
-		image: "/eagle-thumbnail-16x9.jpg",
-		gradient: "linear-gradient(to bottom, #d9f27c, #8bbf4f, #5f9e7a)",
-	},
-	LUCKYRISEHB: {
-		subtitle: "fulfilling games",
-		image: "/luckyrise-thumbnail-16x9.png",
-		gradient: "linear-gradient(to bottom, #0E0E2B, #1f3a5f, #d4a017)",
-	},
-	LAGOSRUSH: {
-		subtitle: "fulfilling games",
-		image: "/lagos-rush.png",
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-	"sportsdey-crash": {
-		subtitle: "sportsdey original",
-		image: "/sportsdey-crash.jpeg",
-		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
-	},
-};
+type LobbyGame = ScorpioLobbyGame | ClassicLobbyGame;
 
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
 
 const PAGE_SIZE = 24;
 
-const getUniquePopularGames = (games: Game[], limit: number) => {
-	const result: Game[] = [];
-	const addedIds = new Set<string>();
-	for (const popName of POPULAR_GAME_NAMES) {
-		if (result.length >= limit) break;
-		const match = games.find(
-			(g) =>
-				!addedIds.has(g.id) &&
-				g.name.toLowerCase().includes(popName.toLowerCase()),
-		);
-		if (match) {
-			result.push(match);
-			addedIds.add(match.id);
-		}
-	}
-	return result;
-};
+const GAMES_HIDDEN_FROM_ALL = new Set(CLASSIC_HIDDEN_FROM_ALL_CODES);
 
-const isThundrGame = (code: string) => {
-	return THUNDR_CODES.includes(code);
-};
+function isScorpioGame(game: LobbyGame): game is ScorpioLobbyGame {
+	return "provider" in game && game.provider === "scorpio";
+}
+
+function scorpioMatchesCategory(
+	game: ScorpioLobbyGame,
+	category: string,
+): boolean {
+	if (
+		category === "popular" ||
+		category === "pvp" ||
+		category === "original" ||
+		category === "virtuals"
+	) {
+		return false;
+	}
+	return gameMatchesLobbyCategory(game, category);
+}
 
 function GamesPage() {
 	const navigate = useNavigate({ from: "/games" });
-	const { category } = Route.useSearch();
+	const { category, play } = Route.useSearch();
 	const [loadingGame, setLoadingGame] = useState<string | null>(null);
+	const [activeLaunchId, setActiveLaunchId] = useState<string | null>(null);
+	const [showBalanceModal, setShowBalanceModal] = useState(false);
 	const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 	const [searchInput, setSearchInput] = useState("");
 	const [search, setSearch] = useState("");
 	const [sortAsc, setSortAsc] = useState<boolean | null>(null);
 	const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
+	const [launchError, setLaunchError] = useState<string | null>(null);
+	const autoPlayHandledRef = useRef<string | null>(null);
 
 	useEffect(() => {
 		setSelectedCategory(category || null);
@@ -251,8 +116,7 @@ function GamesPage() {
 
 	useEffect(() => {
 		window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-		const mains = document.querySelectorAll("main");
-		mains.forEach((main) => {
+		document.querySelectorAll("main").forEach((main) => {
 			main.scrollTo({ top: 0, left: 0, behavior: "smooth" });
 		});
 	}, [selectedCategory]);
@@ -262,9 +126,7 @@ function GamesPage() {
 	}, [selectedCategory, search]);
 
 	useEffect(() => {
-		const timer = setTimeout(() => {
-			setSearch(searchInput);
-		}, 300);
+		const timer = setTimeout(() => setSearch(searchInput), 300);
 		return () => clearTimeout(timer);
 	}, [searchInput]);
 
@@ -272,9 +134,7 @@ function GamesPage() {
 		hidden: { opacity: 0 },
 		show: {
 			opacity: 1,
-			transition: {
-				staggerChildren: 0.04,
-			},
+			transition: { staggerChildren: 0.04 },
 		},
 	};
 
@@ -290,113 +150,162 @@ function GamesPage() {
 
 	const { data: session, isPending: isSessionLoading } = useSession();
 
-	const {
-		data: allGames = [],
-		isLoading,
-		error,
-	} = useQuery<Game[]>({
-		queryKey: ["games"],
-		queryFn: async () => {
-			const games = await apiRequest<Game[]>("games");
-			return games.filter((game) => game.enabled);
-		},
+	const scorpioQuery = useQuery<ScorpioLobbyGame[]>({
+		queryKey: ["scorpio-games"],
+		enabled: !isSessionLoading,
+		queryFn: fetchScorpioLobbyGames,
+		staleTime: 60_000,
+		retry: 1,
 	});
 
-	const categoryCounts =
-		allGames.length > 0
-			? CATEGORIES.reduce<Record<string, number>>((acc, cat) => {
-					if (SPECIAL_CATEGORIES.includes(cat)) {
-						let count: number;
-						switch (cat) {
-							case "popular":
-								count = getUniquePopularGames(allGames, Infinity).length;
-								break;
-							case "pvp":
-								count = allGames.filter((g) =>
-									THUNDR_CODES.includes(g.code),
-								).length;
-								break;
-							case "crash-games":
-								count = allGames.filter((g) =>
-									g.name.toLowerCase().includes("aviator"),
-								).length;
-								break;
-							case "original":
-								count = allGames.filter((g) =>
-									ORIGINALS_CODES.includes(g.code),
-								).length;
-								break;
-							default:
-								count = 0;
-						}
-						acc[cat] = count;
-					} else {
-						acc[cat] = allGames.filter((g) =>
-							g.categories?.some((c) => c.slug === cat),
-						).length;
-					}
-					return acc;
-				}, {})
-			: {};
+	const classicQuery = useQuery<ClassicLobbyGame[]>({
+		queryKey: ["games"],
+		enabled: !isSessionLoading,
+		queryFn: fetchClassicLobbyGames,
+		staleTime: 60_000,
+		retry: 1,
+	});
 
-	let filteredGames = allGames;
+	const classicGames = classicQuery.data ?? [];
+	const scorpioGames = useMemo(
+		() =>
+			overlayScorpioLobbyCategories(
+				scorpioQuery.data ?? [],
+				classicQuery.data ?? [],
+			),
+		[scorpioQuery.data, classicQuery.data],
+	);
 
-	if (selectedCategory) {
-		if (SPECIAL_CATEGORIES.includes(selectedCategory)) {
-			switch (selectedCategory) {
-				case "popular":
-					filteredGames = getUniquePopularGames(allGames, Infinity);
-					break;
-				case "pvp":
-					filteredGames = allGames.filter((g) => THUNDR_CODES.includes(g.code));
-					break;
-				case "crash-games":
-					filteredGames = allGames.filter((g) =>
-						g.name.toLowerCase().includes("aviator"),
-					);
-					break;
-				case "original":
-					filteredGames = allGames.filter((g) =>
-						ORIGINALS_CODES.includes(g.code),
-					);
-					break;
+	const allGames = useMemo(
+		() => mergeLobbyGames(classicGames, scorpioGames),
+		[classicGames, scorpioGames],
+	);
+
+	const allGamesVisible = useMemo(
+		() => allGames.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code)),
+		[allGames],
+	);
+
+	const isLoading =
+		isSessionLoading ||
+		((classicQuery.isLoading || scorpioQuery.isLoading) &&
+			allGames.length === 0);
+	const isFetching = classicQuery.isFetching || scorpioQuery.isFetching;
+	const error =
+		classicQuery.isError && scorpioQuery.isError && allGames.length === 0
+			? (classicQuery.error ?? scorpioQuery.error)
+			: null;
+
+	const refetch = () => {
+		void classicQuery.refetch();
+		void scorpioQuery.refetch();
+	};
+
+	const categoryTabs = useMemo(
+		() =>
+			CLASSIC_CATEGORIES.map((slug) => ({
+				slug,
+				name: CLASSIC_CATEGORY_LABELS[slug] ?? slug.replace(/-/g, " "),
+				emoji: CLASSIC_CATEGORY_EMOJIS[slug],
+			})),
+		[],
+	);
+
+	const categoryCounts = useMemo(() => {
+		const counts = classicCategoryCounts(
+			excludeScorpioStoredGames(classicGames),
+		);
+		for (const slug of CLASSIC_CATEGORIES) {
+			if (
+				slug === "popular" ||
+				slug === "pvp" ||
+				slug === "original" ||
+				slug === "virtuals"
+			) {
+				continue;
 			}
-		} else {
-			filteredGames = allGames.filter((g) =>
-				g.categories?.some((c) => c.slug === selectedCategory),
+			const scorpioCount = scorpioGames.filter((g) =>
+				scorpioMatchesCategory(g, slug),
+			).length;
+			counts[slug] = (counts[slug] ?? 0) + scorpioCount;
+		}
+		return counts;
+	}, [classicGames, scorpioGames]);
+
+	const filteredGames = useMemo(() => {
+		const classicFiltered = filterClassicGames(
+			classicGames,
+			selectedCategory,
+			search,
+		);
+
+		let scorpioFiltered = scorpioGames;
+		if (selectedCategory) {
+			scorpioFiltered = scorpioGames.filter((g) =>
+				scorpioMatchesCategory(g, selectedCategory),
 			);
 		}
-	}
+		if (search) {
+			const q = search.toLowerCase();
+			scorpioFiltered = scorpioFiltered.filter((g) => {
+				const inName = g.name.toLowerCase().includes(q);
+				const inProvider = g.providerName.toLowerCase().includes(q);
+				const inCategory = g.categories.some(
+					(c) =>
+						c.name.toLowerCase().includes(q) ||
+						c.slug.toLowerCase().includes(q),
+				);
+				return inName || inProvider || inCategory;
+			});
+		}
 
-	if (search) {
-		const q = search.toLowerCase();
-		filteredGames = filteredGames.filter((g) =>
-			g.name.toLowerCase().includes(q),
-		);
-	}
+		const visibleClassicFiltered = !selectedCategory
+			? classicFiltered.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code))
+			: classicFiltered;
+		const visibleScorpioFiltered = !selectedCategory
+			? scorpioFiltered.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code))
+			: scorpioFiltered;
 
-	const sortedGames = [...filteredGames].sort((a, b) => {
-		const aAviator = a.name.toLowerCase().includes("aviator");
-		const bAviator = b.name.toLowerCase().includes("aviator");
-		if (aAviator && !bAviator) return -1;
-		if (!aAviator && bAviator) return 1;
+		return mergeLobbyGames(visibleClassicFiltered, visibleScorpioFiltered);
+	}, [classicGames, scorpioGames, selectedCategory, search]);
 
-		if (sortAsc === true) return a.name.localeCompare(b.name);
-		if (sortAsc === false) return b.name.localeCompare(a.name);
+	const sortedGames = useMemo(() => {
+		const list = [...filteredGames];
+		list.sort((a, b) => {
+			const aAviator = a.name.toLowerCase().includes("aviator");
+			const bAviator = b.name.toLowerCase().includes("aviator");
+			if (aAviator && !bAviator) return -1;
+			if (!aAviator && bAviator) return 1;
 
-		const aPriority = PRIORITY_GAMES.indexOf(a.code);
-		const bPriority = PRIORITY_GAMES.indexOf(b.code);
-		if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
-		if (aPriority !== -1) return -1;
-		if (bPriority !== -1) return 1;
-		return a.name.localeCompare(b.name);
-	});
+			if (sortAsc === true) return a.name.localeCompare(b.name);
+			if (sortAsc === false) return b.name.localeCompare(a.name);
+
+			const aPriority = CLASSIC_PRIORITY_GAMES.indexOf(
+				a.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
+			);
+			const bPriority = CLASSIC_PRIORITY_GAMES.indexOf(
+				b.code as (typeof CLASSIC_PRIORITY_GAMES)[number],
+			);
+			if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
+			if (aPriority !== -1) return -1;
+			if (bPriority !== -1) return 1;
+
+			// Classic (Slotegrator) before Scorpio when otherwise equal
+			const aScorpio = isScorpioGame(a);
+			const bScorpio = isScorpioGame(b);
+			if (!aScorpio && bScorpio) return -1;
+			if (aScorpio && !bScorpio) return 1;
+
+			return a.name.localeCompare(b.name);
+		});
+		return list;
+	}, [filteredGames, sortAsc]);
 
 	const displayGames = sortedGames.slice(0, displayCount);
 	const hasMore = sortedGames.length > displayCount;
 
 	const chunkSize = 3;
-	const gameChunks: Game[][] = [];
+	const gameChunks: LobbyGame[][] = [];
 	for (let i = 0; i < displayGames.length; i += chunkSize) {
 		gameChunks.push(displayGames.slice(i, i + chunkSize));
 	}
@@ -417,111 +326,191 @@ function GamesPage() {
 		return () => observer.disconnect();
 	}, [hasMore]);
 
-	const handleGameClick = async (game: Game) => {
-		if (!session?.user) {
-			navigate({ to: "/auth/sign-in" });
+	const goSignIn = () => {
+		navigate({
+			to: "/auth/sign-in",
+			search: {
+				returnTo: window.location.pathname + window.location.search,
+			},
+		});
+	};
+
+	const supportsDualLaunch = (game: LobbyGame) =>
+		!isScorpioGame(game) && isSlotegratorLobbyGame(game);
+
+	const handleGameLaunch = async (
+		game: LobbyGame,
+		mode: ClassicLaunchMode = "real",
+	) => {
+		const needsAuth =
+			isScorpioGame(game) ||
+			parseScorpioStoredCode(game.code) != null ||
+			mode === "real";
+		if (needsAuth && !session?.user) {
+			goSignIn();
 			return;
 		}
 
-		if (game.code === "sportsdey-crash") {
-			window.open(
-				"https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino",
-				"_blank",
-			);
-			return;
-		}
-
-		setLoadingGame(game.code);
+		setLaunchError(null);
+		setActiveLaunchId(null);
+		setLoadingGame(game.id);
 		try {
-			const knownGame = KNOWN_GAMES[game.code];
-			const isKnownGame = !!knownGame;
+			let gameUrl: string | null;
 
-			let url: string;
-			let body: Record<string, unknown>;
-
-			if (isKnownGame) {
-				if (["XCAPEHB", "EAGLEHB", "LUCKYRISEHB"].includes(game.code)) {
-					url = `${import.meta.env.VITE_SERVER_URL}casino/play/${game.code}`;
-					body = {};
-				} else if (game.code === "LAGOSRUSH") {
-					url = `${import.meta.env.VITE_SERVER_URL}lagos-rush/launcher`;
-					body = { game: game.code };
-				} else {
-					url = `${import.meta.env.VITE_SERVER_URL}thndr/play/${game.code}`;
-					body = {};
-				}
+			if (isScorpioGame(game)) {
+				const launch = await launchScorpioGame({
+					providerId: game.providerId,
+					gameCode: game.code,
+					returnUrl: `${window.location.origin}/games`,
+				});
+				gameUrl = launch.url;
 			} else {
-				url = `${import.meta.env.VITE_SERVER_URL}slotegrator/launch`;
-				body = { game_uuid: game.code };
-			}
-
-			const response = await fetch(url, {
-				method: "POST",
-				credentials: "include",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(body),
-			});
-
-			const data: LaunchResponse = await response.json();
-
-			if (!response.ok || data.success === false) {
-				if (data.error === "Unauthorized" || response.status === 401) {
-					navigate({ to: "/auth/sign-in" });
-					return;
+				const stored = parseScorpioStoredCode(game.code);
+				if (stored) {
+					const launch = await launchScorpioGame({
+						providerId: stored.providerId,
+						gameCode: stored.gameCode,
+						returnUrl: `${window.location.origin}/games`,
+					});
+					gameUrl = launch.url;
+				} else {
+					gameUrl = await launchClassicGame(game, { mode });
+					if (!gameUrl) return;
 				}
-				throw new Error(data.error || "Failed to launch game");
-			}
-
-			if (!data.data) {
-				throw new Error("Missing response data");
-			}
-
-			const gameUrl = data.data?.url;
-
-			if (!gameUrl) {
-				throw new Error("Missing launch URL in response");
 			}
 
 			navigate({
 				to: "/game/$gameId",
 				params: { gameId: game.code },
-				search: { category: selectedCategory || undefined },
-				state: { gameUrl } as any,
+				search: {
+					category: selectedCategory || undefined,
+				},
+				state: { gameUrl } as never,
 			});
-		} catch (error) {
+		} catch (err) {
+			const status =
+				err instanceof ApiError
+					? err.status
+					: typeof err === "object" &&
+							err &&
+							"status" in err &&
+							typeof (err as { status?: number }).status === "number"
+						? (err as { status: number }).status
+						: null;
+			const message =
+				err instanceof Error ? err.message : "Failed to launch game";
+			const isSessionMissing =
+				message === "Unauthorized" ||
+				((status === 401 || status === 403) &&
+					/unauthorized|not authenticated/i.test(message));
+			if (isSessionMissing) {
+				goSignIn();
+				return;
+			}
+			if (/insufficient|not enough|balance/i.test(message)) {
+				setShowBalanceModal(true);
+				return;
+			}
+			const friendly = /demo url|does not support demo|demo mode/i.test(message)
+				? "Demo is not available for this game. Try Play Now."
+				: /immediate_exit|could not start|closed the session|zero limits/i.test(
+							message,
+						)
+					? "This game is not playable yet on our Slotegrator contract. Try another title or provider."
+					: message;
+			setLaunchError(friendly);
 		} finally {
 			setLoadingGame(null);
 		}
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent, game: Game) => {
+	const handleCardActivate = (game: LobbyGame) => {
+		if (supportsDualLaunch(game)) {
+			setActiveLaunchId((prev) => (prev === game.id ? null : game.id));
+			return;
+		}
+		void handleGameLaunch(game, "real");
+	};
+
+	useEffect(() => {
+		if (!play || isLoading || allGames.length === 0) return;
+		if (autoPlayHandledRef.current === play) return;
+		autoPlayHandledRef.current = play;
+
+		const needle = play.trim().toLowerCase();
+		const target = allGames.find((game) => {
+			const id = game.id.trim().toLowerCase();
+			const code = game.code.trim().toLowerCase();
+			return id === needle || code === needle;
+		});
+
+		navigate({
+			to: "/games",
+			search: {
+				category: selectedCategory || undefined,
+				play: undefined,
+			},
+			replace: true,
+		});
+
+		if (!target) {
+			setLaunchError(
+				"This mission game is not available in the lobby yet. Pick another title below.",
+			);
+			return;
+		}
+
+		handleCardActivate(target);
+	}, [play, isLoading, allGames, navigate, selectedCategory]);
+
+	const activeLaunchGame = useMemo(
+		() =>
+			activeLaunchId
+				? (displayGames.find((g) => g.id === activeLaunchId) ??
+					allGames.find((g) => g.id === activeLaunchId) ??
+					null)
+				: null,
+		[activeLaunchId, displayGames, allGames],
+	);
+
+	const handleKeyDown = (e: React.KeyboardEvent, game: LobbyGame) => {
 		if (e.key === "Enter" || e.key === " ") {
 			e.preventDefault();
-			handleGameClick(game);
+			handleCardActivate(game);
 		}
 	};
 
-	const getGameDisplay = (game: Game) => {
-		const knownGame = KNOWN_GAMES[game.code];
+	const getGameDisplay = (game: LobbyGame) => {
+		const image = resolveKnownLobbyImage(game);
+		const fallback =
+			"fallbackImageUrl" in game ? (game.fallbackImageUrl ?? null) : null;
+		if (!isScorpioGame(game)) {
+			const known = CLASSIC_KNOWN_GAMES[game.code];
+			return {
+				name: game.name,
+				image,
+				fallback,
+				Icon: image ? undefined : known?.icon,
+				gradient: known?.gradient ?? DEFAULT_GRADIENT,
+			};
+		}
 
 		return {
 			name: game.name,
-			subtitle: knownGame?.subtitle ?? "Play now",
-			icon: knownGame?.icon,
-			image: game.imageUrl ?? knownGame?.image ?? "/lagos-rush.png",
-			gradient: knownGame?.gradient ?? DEFAULT_GRADIENT,
+			image,
+			fallback,
+			Icon: undefined as ComponentType<{ className?: string }> | undefined,
+			gradient: DEFAULT_GRADIENT,
 		};
 	};
 
-	if (isSessionLoading || isLoading) {
+	if (isLoading) {
 		return (
 			<div className="min-h-screen dark:bg-[#121212]">
-				<div className="container mx-auto px-4 pb-8 relative">
-					<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
+				<div className="container relative mx-auto px-4 pb-8">
+					<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
 						<Skeleton className="mb-6 h-8 w-40 bg-gray-200 dark:bg-[#1B2722]" />
-						<div className="flex overflow-x-auto gap-3 pb-2 scrollbar-hide">
+						<div className="scrollbar-hide flex gap-3 overflow-x-auto pb-2">
 							{Array.from({ length: 8 }).map((_, i) => (
 								<Skeleton
 									key={i}
@@ -530,24 +519,7 @@ function GamesPage() {
 							))}
 						</div>
 					</div>
-
-					<div className="flex flex-col gap-4 md:hidden">
-						{Array.from({ length: 4 }).map((_, row) => (
-							<div
-								key={row}
-								className="flex overflow-x-auto gap-2 scrollbar-hide"
-							>
-								{Array.from({ length: 4 }).map((_, col) => (
-									<Skeleton
-										key={col}
-										className="h-[110px] w-[110px] flex-none rounded-xl bg-gray-200 dark:bg-[#1B2722]"
-									/>
-								))}
-							</div>
-						))}
-					</div>
-
-					<div className="hidden md:grid md:grid-cols-4 md:gap-4">
+					<div className="hidden gap-4 md:grid md:grid-cols-4">
 						{Array.from({ length: 16 }).map((_, i) => (
 							<Skeleton
 								key={i}
@@ -562,41 +534,76 @@ function GamesPage() {
 
 	if (error) {
 		return (
-			<div className="flex min-h-screen items-center justify-center dark:bg-[#121212]">
-				<p className="text-red-500">Failed to load games. Please try again.</p>
+			<div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 dark:bg-[#121212]">
+				<p className="text-center text-red-500">
+					{error instanceof ApiError
+						? error.message
+						: "Failed to load games. Please try again."}
+				</p>
+				<button
+					type="button"
+					onClick={() => refetch()}
+					disabled={isFetching}
+					className="rounded-lg border border-[#1BAA04] px-4 py-2 text-sm text-white"
+				>
+					{isFetching ? "Retrying…" : "Retry"}
+				</button>
 			</div>
 		);
 	}
 
 	return (
 		<div className="min-h-screen dark:bg-[#121212]">
-			<div className="container mx-auto px-4 pb-8 relative">
-				<div className="sticky top-0 z-20 bg-[#121212] pt-8 pb-4 mb-4">
-					<div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<InsufficientBalanceModal
+				isOpen={showBalanceModal}
+				onClose={() => setShowBalanceModal(false)}
+				onTopUp={() => {
+					setShowBalanceModal(false);
+					navigate({ to: "/wallet" });
+				}}
+			/>
+			<CasinoLaunchSheet
+				open={Boolean(activeLaunchGame)}
+				gameName={activeLaunchGame?.name ?? ""}
+				loading={Boolean(
+					activeLaunchGame && loadingGame === activeLaunchGame.id,
+				)}
+				onClose={() => setActiveLaunchId(null)}
+				onDemo={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "demo");
+				}}
+				onPlay={() => {
+					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "real");
+				}}
+			/>
+			<div className="container relative mx-auto px-4 pb-8">
+				<div className="sticky top-0 z-20 mb-4 bg-[#121212] pt-8 pb-4">
+					<div className="mb-4 flex flex-col justify-between gap-4 md:flex-row md:items-center">
 						<h1 className="font-bold text-2xl text-gray-900 dark:text-white">
 							Casino
 						</h1>
 
 						<div className="flex flex-wrap items-center gap-2">
-							<div className="relative flex-1 min-w-[200px] md:w-[300px]">
+							<div className="relative min-w-[200px] flex-1 md:w-[300px]">
 								<input
 									type="text"
 									placeholder="Search games"
 									value={searchInput}
 									onChange={(e) => setSearchInput(e.target.value)}
-									className="w-full pl-4 pr-10 py-2 bg-[#1B2722] border border-[#2a3a33] rounded-lg text-sm text-white placeholder-gray-400 focus:outline-none focus:border-[#1BAA04] transition-colors"
+									className="w-full rounded-lg border border-[#2a3a33] bg-[#1B2722] py-2 pr-10 pl-4 text-sm text-white placeholder-gray-400 transition-colors focus:border-[#1BAA04] focus:outline-none"
 								/>
-								<Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+								<Search className="absolute top-1/2 right-2 h-4 w-4 -translate-y-1/2 text-gray-400" />
 							</div>
 
 							{selectedCategory === null && (
 								<button
+									type="button"
 									onClick={() =>
 										setSortAsc((prev) =>
 											prev === null ? true : prev === true ? false : null,
 										)
 									}
-									className={`w-10 h-10 flex items-center justify-center rounded-lg border cursor-pointer ${
+									className={`flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border ${
 										sortAsc === null
 											? "border-[#1BAA04] bg-[#1BAA04]/10"
 											: "border-[#1B2722]"
@@ -608,65 +615,79 @@ function GamesPage() {
 						</div>
 					</div>
 
-					<div className="flex overflow-x-auto gap-3 pb-2 better-scrollbar">
+					{launchError && (
+						<p className="mb-3 text-red-400 text-sm">{launchError}</p>
+					)}
+
+					{(classicQuery.isError || scorpioQuery.isError) &&
+						allGames.length > 0 && (
+							<p className="mb-3 text-amber-400 text-sm">
+								{classicQuery.isError && scorpioQuery.isError
+									? null
+									: classicQuery.isError
+										? "Classic games could not be loaded; showing Scorpio only."
+										: "Scorpio games could not be loaded; showing Classic only."}
+							</p>
+						)}
+
+					<div className="better-scrollbar flex gap-3 overflow-x-auto pb-2">
 						<button
+							type="button"
 							onClick={() =>
 								navigate({
 									search: (prev) => ({ ...prev, category: undefined }),
 								})
 							}
-							className={`flex items-center shrink-0 gap-2 rounded-2xl border px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
+							className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm transition-colors ${
 								selectedCategory === null
 									? "border-[#1BAA04] bg-[#1BAA04] text-white"
-									: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
+									: "border-[#1B2722] text-gray-300"
 							}`}
 						>
-							🎮 All
+							🎮 All Games
 							<span
-								className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
+								className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
 									selectedCategory === null
 										? "bg-[#040C01] text-white"
 										: "bg-[#1B2722] text-gray-300"
 								}`}
 							>
-								{allGames.length.toLocaleString()}
+								{allGamesVisible.length.toLocaleString()}
 							</span>
 						</button>
-						{CATEGORIES.map((cat) => {
-							const emoji = CATEGORY_EMOJIS[cat];
+						{categoryTabs.map((cat) => {
+							const isActive =
+								selectedCategory != null &&
+								canonicalLobbySlug(selectedCategory) ===
+									canonicalLobbySlug(cat.slug);
 							return (
 								<button
-									key={cat}
+									type="button"
+									key={cat.slug}
 									onClick={() =>
 										navigate({
 											search: (prev) => ({
 												...prev,
-												category: selectedCategory === cat ? undefined : cat,
+												category: isActive ? undefined : cat.slug,
 											}),
 										})
 									}
-									className={`flex items-center shrink-0 gap-2 text-white rounded-2xl border px-4 py-2 text-sm font-medium capitalize transition-colors cursor-pointer ${
-										selectedCategory === cat
+									className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-2xl border px-4 py-2 font-medium text-sm text-white transition-colors ${
+										isActive
 											? "border-[#1BAA04] bg-[#1BAA04]"
-											: "border-[#1B2722] text-gray-300 hover:border-[#1B2722]"
+											: "border-[#1B2722] text-gray-300"
 									}`}
 								>
-									{emoji && <span>{emoji}</span>}
-									<span className="capitalize">
-										{cat === "pvp"
-											? "PVP"
-											: cat === "tablecardgames"
-												? "Table Card Games"
-												: cat.replace("-", " ")}
-									</span>
+									{cat.emoji ? <span>{cat.emoji}</span> : null}
+									<span>{cat.name}</span>
 									<span
-										className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-full text-[11px] ${
-											selectedCategory === cat
+										className={`flex h-7 min-w-[28px] items-center justify-center rounded-full px-2 text-[11px] ${
+											isActive
 												? "bg-[#040C01] text-white"
 												: "bg-[#1B2722] text-gray-300"
 										}`}
 									>
-										{categoryCounts[cat]?.toLocaleString() ?? 0}
+										{categoryCounts[cat.slug]?.toLocaleString() ?? 0}
 									</span>
 								</button>
 							);
@@ -676,7 +697,9 @@ function GamesPage() {
 
 				{displayGames.length === 0 ? (
 					<p className="text-center text-gray-500">
-						No games found in this category.
+						{allGames.length === 0
+							? "No games available right now."
+							: "No games found in this category."}
 					</p>
 				) : (
 					<>
@@ -687,78 +710,51 @@ function GamesPage() {
 									variants={containerVariants}
 									initial="hidden"
 									animate="show"
-									className="flex overflow-x-auto gap-2 snap-x snap-mandatory scrollbar-hide"
+									className="scrollbar-hide flex snap-x snap-mandatory gap-2 overflow-x-auto"
 								>
 									{chunk.map((game) => {
 										const display = getGameDisplay(game);
+										const dual = supportsDualLaunch(game);
 										return (
 											<motion.div
-												key={game.code}
+												key={game.id}
 												variants={itemVariants}
 												className={cn(
-													"relative flex flex-none snap-start cursor-pointer flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
-													loadingGame === game.code &&
-														"ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90",
+													"group relative flex flex-none cursor-pointer snap-start flex-col items-center justify-end overflow-hidden rounded-xl transition-all hover:scale-[1.02]",
+													loadingGame === game.id &&
+														"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
 												)}
 												style={{
 													background: display.gradient,
 													flex: "0 0 110px",
 													height: "110px",
 												}}
-												onClick={() => handleGameClick(game)}
+												onClick={() => handleCardActivate(game)}
 												onKeyDown={(e) => handleKeyDown(e, game)}
 												role="button"
 												tabIndex={0}
 											>
-												{loadingGame === game.code && (
+												{loadingGame === game.id && !dual && (
 													<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 														<Loader2 className="h-6 w-6 animate-spin text-white" />
 													</div>
 												)}
-
-												{display.icon ? (
-													<div
-														className="absolute inset-0 flex items-center justify-center p-4"
-														style={{
-															opacity: loadingGame === game.code ? 0.35 : 1,
-														}}
-													>
-														{display.icon && (
-															<display.icon className="h-full w-full object-contain" />
-														)}
-													</div>
-												) : display.image ? (
-													<img
-														src={display.image}
-														alt={display.name}
-														loading="lazy"
-														className="absolute inset-0 h-full w-full object-cover transition-opacity"
-														style={{
-															opacity: loadingGame === game.code ? 0.35 : 1,
-														}}
+												<CasinoLobbyArt
+													src={display.image}
+													fallbackSrc={display.fallback}
+													name={display.name}
+													icon={display.Icon}
+													dimmed={loadingGame === game.id}
+													compact
+												/>
+												{dual && (
+													<CasinoLaunchActions
+														compact
+														active={activeLaunchId === game.id}
+														loading={loadingGame === game.id}
+														onDemo={() => void handleGameLaunch(game, "demo")}
+														onPlay={() => void handleGameLaunch(game, "real")}
 													/>
-												) : (
-													<div
-														className="absolute inset-0 flex items-center justify-center"
-														style={{
-															opacity: loadingGame === game.code ? 0.35 : 1,
-														}}
-													>
-														<span className="font-bold text-4xl text-white/50">
-															{display.name.charAt(0)}
-														</span>
-													</div>
-												)}
-
-												{isThundrGame(game.code) && (
-													<div className="relative z-[1] w-full text-center pb-2">
-														<p
-															className="truncate font-normal text-sm text-white"
-															style={{ fontFamily: "Luckiest Guy" }}
-														>
-															{display.name}
-														</p>
-													</div>
 												)}
 											</motion.div>
 										);
@@ -771,74 +767,45 @@ function GamesPage() {
 							variants={containerVariants}
 							initial="hidden"
 							animate="show"
-							className="hidden md:grid md:grid-cols-4 md:gap-4 lg:grid-cols-6 lg:gap-4"
+							className="hidden gap-4 md:grid md:grid-cols-4 lg:grid-cols-6"
 						>
 							{displayGames.map((game) => {
 								const display = getGameDisplay(game);
+								const dual = supportsDualLaunch(game);
 								return (
 									<motion.div
-										key={game.code}
+										key={game.id}
 										variants={itemVariants}
 										className={cn(
-											"relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
-											loadingGame === game.code &&
-												"ring-2 ring-accent ring-offset-2 ring-offset-background cursor-wait scale-[0.98] opacity-90",
+											"group relative flex aspect-square w-full cursor-pointer flex-col items-center justify-end overflow-hidden rounded-2xl transition-all hover:scale-[1.02]",
+											loadingGame === game.id &&
+												"scale-[0.98] cursor-wait opacity-90 ring-2 ring-accent ring-offset-2 ring-offset-background",
 										)}
 										style={{ background: display.gradient }}
-										onClick={() => handleGameClick(game)}
+										onClick={() => handleCardActivate(game)}
 										onKeyDown={(e) => handleKeyDown(e, game)}
 										role="button"
 										tabIndex={0}
 									>
-										{loadingGame === game.code && (
+										{loadingGame === game.id && !dual && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
 												<Loader2 className="h-10 w-10 animate-spin text-white" />
 											</div>
 										)}
-
-										{display.icon ? (
-											<div
-												className="absolute inset-0 flex items-center justify-center p-4"
-												style={{
-													opacity: loadingGame === game.code ? 0.35 : 1,
-												}}
-											>
-												{display.icon && (
-													<display.icon className="h-full w-full object-contain" />
-												)}
-											</div>
-										) : display.image ? (
-											<img
-												src={display.image}
-												alt={display.name}
-												loading="lazy"
-												className="absolute inset-0 h-full w-full object-cover transition-opacity"
-												style={{
-													opacity: loadingGame === game.code ? 0.35 : 1,
-												}}
+										<CasinoLobbyArt
+											src={display.image}
+											fallbackSrc={display.fallback}
+											name={display.name}
+											icon={display.Icon}
+											dimmed={loadingGame === game.id}
+										/>
+										{dual && (
+											<CasinoLaunchActions
+												active={activeLaunchId === game.id}
+												loading={loadingGame === game.id}
+												onDemo={() => void handleGameLaunch(game, "demo")}
+												onPlay={() => void handleGameLaunch(game, "real")}
 											/>
-										) : (
-											<div
-												className="absolute inset-0 flex items-center justify-center"
-												style={{
-													opacity: loadingGame === game.code ? 0.35 : 1,
-												}}
-											>
-												<span className="font-bold text-4xl text-white/50">
-													{display.name.charAt(0)}
-												</span>
-											</div>
-										)}
-
-										{isThundrGame(game.code) && (
-											<div className="relative z-[1] w-full text-center pb-3">
-												<p
-													className="truncate font-normal text-base text-white"
-													style={{ fontFamily: "Luckiest Guy" }}
-												>
-													{display.name}
-												</p>
-											</div>
 										)}
 									</motion.div>
 								);

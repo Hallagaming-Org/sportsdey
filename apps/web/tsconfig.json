@@ -1,5 +1,5 @@
 {
-	"include": ["**/*.ts", "**/*.tsx", "migrateSportToCategory.js"],
+	"include": ["**/*.ts", "**/*.tsx", "migrateSportToCategory.js", "../server/src/utils/bet-details.ts"],
 	"compilerOptions": {
 		"target": "ES2022",
 		"jsx": "react-jsx",
