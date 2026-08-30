@@ -115,6 +115,15 @@ function statusLabel(status: SelectionStatus) {
 	return "Pending";
 }
 
+function selectionDetailRow(label: string, value: React.ReactNode) {
+	return (
+		<div className="flex items-start justify-between gap-2">
+			<span className="shrink-0 text-[#8C8F8F]">{label}</span>
+			<span className="min-w-0 text-right text-white break-words">{value}</span>
+		</div>
+	);
+}
+
 /** Mobile-only vertical card */
 function SelectionCard({ selection }: { selection: BetSelection }) {
 	const won = selection.status === "won";
@@ -154,31 +163,16 @@ function SelectionCard({ selection }: { selection: BetSelection }) {
 					</span>
 				</div>
 
-				<div className="flex-1 px-4 py-3">
-					<div className="flex items-center justify-between text-xs">
-						<span className="text-[#8C8F8F]">—</span>
-						<span className="truncate text-[#B5B7B5] underline decoration-[#B5B7B5]/40">
-							{displayMatchName(selection.match)}
-						</span>
-					</div>
+				<div className="min-w-0 flex-1 px-4 py-3">
+					<p className="line-clamp-2 break-words text-[#B5B7B5] text-xs underline decoration-[#B5B7B5]/40">
+						{displayMatchName(selection.match)}
+					</p>
 
 					<div className="mt-3 space-y-1 text-sm">
-						<div className="flex justify-between">
-							<span className="text-[#8C8F8F]">Market:</span>
-							<span className="text-white">{selection.market ?? "—"}</span>
-						</div>
-						<div className="flex justify-between">
-							<span className="text-[#8C8F8F]">Result:</span>
-							<span className="text-white">{selection.result ?? "—"}</span>
-						</div>
-						<div className="flex justify-between">
-							<span className="text-[#8C8F8F]">Pick:</span>
-							<span className="text-white">{selection.pick ?? "—"}</span>
-						</div>
-						<div className="flex justify-between">
-							<span className="text-[#8C8F8F]">Odds:</span>
-							<span className="text-white">{selection.odds ?? "—"}</span>
-						</div>
+						{selectionDetailRow("Market:", selection.market ?? "—")}
+						{selectionDetailRow("Result:", selection.result ?? "—")}
+						{selectionDetailRow("Pick:", selection.pick ?? "—")}
+						{selectionDetailRow("Odds:", selection.odds ?? "—")}
 					</div>
 
 					<button
@@ -200,18 +194,20 @@ function PendingSelectionCard({ selection }: { selection: BetSelection }) {
 
 	return (
 		<div className="relative overflow-hidden rounded-2xl border border-[#2A3A24] bg-[#0A0A0A] px-4 py-3">
-			<div className="flex items-center justify-between text-sm">
-				<span className="text-white">{displayMatchName(selection.match)}</span>
-				<span className="text-[#8C8F8F] text-xs">
+			<div className="flex min-w-0 items-start justify-between gap-2 text-sm">
+				<span className="min-w-0 flex-1 break-words text-white">
+					{displayMatchName(selection.match)}
+				</span>
+				<span className="shrink-0 text-[#8C8F8F] text-xs">
 					{formatKickoff(selection.startTime)}
 				</span>
 			</div>
 
-			<div className="mt-1 flex items-center justify-between">
-				<span className="font-semibold text-white">
+			<div className="mt-1 flex items-start justify-between gap-2">
+				<span className="min-w-0 flex-1 break-words font-semibold text-white">
 					{selection.pick ?? "—"}
 				</span>
-				<span className="font-semibold text-white">
+				<span className="shrink-0 font-semibold text-white">
 					{selection.odds ?? "—"}
 				</span>
 			</div>
@@ -268,33 +264,23 @@ function CasinoSelectionCard({ selection }: { selection: CasinoSelection }) {
 					</span>
 				</div>
 
-				<div className="flex-1 px-4 py-3">
-					<div className="flex items-center justify-between text-xs">
-						<span className="text-[#8C8F8F]">{selection.gameName}</span>
-						<span className="text-[#B5B7B5]">{selection.type}</span>
+				<div className="min-w-0 flex-1 px-4 py-3">
+					<div className="flex min-w-0 items-start justify-between gap-2 text-xs">
+						<span className="min-w-0 flex-1 break-words text-[#8C8F8F]">
+							{selection.gameName}
+						</span>
+						<span className="shrink-0 text-[#B5B7B5]">{selection.type}</span>
 					</div>
 
 					<div className="mt-3 space-y-1 text-sm">
-						<div className="flex justify-between">
-							<span className="text-[#8C8F8F]">Amount:</span>
-							<span className="text-white">
-								{formatMoney(selection.amount)}
-							</span>
-						</div>
-						{selection.provider && (
-							<div className="flex justify-between">
-								<span className="text-[#8C8F8F]">Provider:</span>
-								<span className="text-white">{selection.provider}</span>
-							</div>
-						)}
-						{selection.roundId && (
-							<div className="flex justify-between">
-								<span className="text-[#8C8F8F]">Round ID:</span>
-								<span className="truncate text-white text-xs">
-									{selection.roundId}
-								</span>
-							</div>
-						)}
+						{selectionDetailRow("Amount:", formatMoney(selection.amount))}
+						{selection.provider &&
+							selectionDetailRow("Provider:", selection.provider)}
+						{selection.roundId &&
+							selectionDetailRow(
+								"Round ID:",
+								<span className="text-xs">{selection.roundId}</span>,
+							)}
 					</div>
 				</div>
 			</div>
