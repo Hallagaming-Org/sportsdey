@@ -11,10 +11,12 @@ import {
 } from "./accumulator-bonus";
 import {
 	addRepairedBoostIds,
+	accumulatorSyncLockKey,
 	getAccumulatorKv,
 	getRepairedBoostIds,
 	isAccumulatorProgramSynced,
 	markAccumulatorProgramSynced,
+	releaseAccumulatorSyncLock,
 	tryAcquireAccumulatorSyncLock,
 } from "./accumulator-boost-kv";
 
@@ -159,6 +161,8 @@ export async function ensureAccumulatorProgramBoosts(
 		initialQuantity?: number;
 		expiresAt?: string;
 		force?: boolean;
+		/** Caller already holds acc-sync-lock (e.g. waitUntil worker). */
+		skipLock?: boolean;
 	},
 ): Promise<AccumulatorSyncResult> {
 	const empty: AccumulatorSyncResult = {
@@ -171,35 +175,40 @@ export async function ensureAccumulatorProgramBoosts(
 	};
 
 	const kv = getAccumulatorKv(env);
-	if (!input.force && kv && !(await tryAcquireAccumulatorSyncLock(kv, input.playerId))) {
-		return { ...empty, skippedSync: true, skipReason: "lock" };
+	let lockHeld = false;
+	if (!input.force && !input.skipLock && kv) {
+		lockHeld = await tryAcquireAccumulatorSyncLock(kv, input.playerId);
+		if (!lockHeld) {
+			return { ...empty, skippedSync: true, skipReason: "lock" };
+		}
 	}
 
-	const list = await listPlayerBetBoosts(databetFetch, env, input.playerId);
-	if (!list.ok) {
-		console.error("Accumulator program list failed on sync", {
-			playerId: input.playerId,
-			status: list.status,
-			error: list.error,
-		});
-		return { ...empty, skippedSync: true, skipReason: "list_failed" };
-	}
+	try {
+		const list = await listPlayerBetBoosts(databetFetch, env, input.playerId);
+		if (!list.ok) {
+			console.error("Accumulator program list failed on sync", {
+				playerId: input.playerId,
+				status: list.status,
+				error: list.error,
+			});
+			return { ...empty, skippedSync: true, skipReason: "list_failed" };
+		}
 
-	const repairedBoostIds = kv
-		? await getRepairedBoostIds(kv, input.playerId)
-		: new Set<string>();
-	const work = planAccumulatorSyncWork(list.boosts, repairedBoostIds);
+		const repairedBoostIds = kv
+			? await getRepairedBoostIds(kv, input.playerId)
+			: new Set<string>();
+		const work = planAccumulatorSyncWork(list.boosts, repairedBoostIds);
 
-	if (
-		work.legacyStepsBoostIds.length === 0 &&
-		work.toRepair.length === 0 &&
-		work.toCreate.length === 0
-	) {
-		if (kv) await markAccumulatorProgramSynced(kv, input.playerId);
-		return { ...empty, skippedSync: true, skipReason: "nothing_to_do" };
-	}
+		if (
+			work.legacyStepsBoostIds.length === 0 &&
+			work.toRepair.length === 0 &&
+			work.toCreate.length === 0
+		) {
+			if (kv) await markAccumulatorProgramSynced(kv, input.playerId);
+			return { ...empty, skippedSync: true, skipReason: "nothing_to_do" };
+		}
 
-	const created: AccumulatorSyncResult["created"] = [];
+		const created: AccumulatorSyncResult["created"] = [];
 	const repaired: AccumulatorSyncResult["repaired"] = [];
 	const failed: AccumulatorSyncResult["failed"] = [];
 	const removedLegacy: string[] = [];
@@ -339,67 +348,93 @@ export async function ensureAccumulatorProgramBoosts(
 		),
 	);
 
-	if (
-		failed.length === 0 &&
-		kv &&
-		work.legacyStepsBoostIds.length === removedLegacy.length
-	) {
-		const after = planAccumulatorSyncWork(
-			remaining,
-			await getRepairedBoostIds(kv, input.playerId),
-		);
-		if (after.toCreate.length === 0 && after.toRepair.length === 0) {
-			await markAccumulatorProgramSynced(kv, input.playerId);
+		if (
+			failed.length === 0 &&
+			kv &&
+			work.legacyStepsBoostIds.length === removedLegacy.length
+		) {
+			const after = planAccumulatorSyncWork(
+				remaining,
+				await getRepairedBoostIds(kv, input.playerId),
+			);
+			if (after.toCreate.length === 0 && after.toRepair.length === 0) {
+				await markAccumulatorProgramSynced(kv, input.playerId);
+			}
+		}
+
+		return {
+			created,
+			repaired,
+			skipped: blockedLegacySports,
+			removedLegacy,
+			failed,
+			skippedSync: false,
+		};
+	} finally {
+		if (lockHeld && kv) {
+			await releaseAccumulatorSyncLock(kv, input.playerId);
 		}
 	}
-
-	return {
-		created,
-		repaired,
-		skipped: blockedLegacySports,
-		removedLegacy,
-		failed,
-		skippedSync: false,
-	};
 }
 
 export type AccumulatorProgramSyncResult =
 	| { synced: true }
-	| { skipped: true; reason: "already_done" };
+	| {
+			skipped: true;
+			reason: "already_done" | "sync_in_progress";
+	  };
 
 export async function runAccumulatorProgramSync(
 	databetFetch: DatabetFetch,
 	env: CloudflareBindings,
 	playerId: string,
+	executionCtx?: ExecutionContext,
 ): Promise<AccumulatorProgramSyncResult> {
 	const kv = getAccumulatorKv(env);
 	if (kv && (await isAccumulatorProgramSynced(kv, playerId))) {
 		return { skipped: true, reason: "already_done" };
 	}
 
-	const grant = await ensureAccumulatorProgramBoosts(databetFetch, env, {
-		playerId,
-	});
-
-	if (grant.skippedSync && grant.skipReason === "nothing_to_do") {
-		return { skipped: true, reason: "already_done" };
-	}
-
-	if (grant.skippedSync && grant.skipReason === "lock") {
-		const kvAfterLock = getAccumulatorKv(env);
-		if (
-			kvAfterLock &&
-			(await isAccumulatorProgramSynced(kvAfterLock, playerId))
-		) {
+	if (kv && (await kv.get(accumulatorSyncLockKey(playerId)))) {
+		if (await isAccumulatorProgramSynced(kv, playerId)) {
 			return { skipped: true, reason: "already_done" };
 		}
-		throw new Error("accumulator sync already in progress");
+		return { skipped: true, reason: "sync_in_progress" };
 	}
 
-	if (grant.skippedSync && grant.skipReason === "list_failed") {
-		throw new Error("accumulator boost list unavailable");
+	if (!kv || !(await tryAcquireAccumulatorSyncLock(kv, playerId))) {
+		if (kv && (await isAccumulatorProgramSynced(kv, playerId))) {
+			return { skipped: true, reason: "already_done" };
+		}
+		return { skipped: true, reason: "sync_in_progress" };
 	}
 
+	const runSyncJob = async () => {
+		try {
+			const grant = await ensureAccumulatorProgramBoosts(databetFetch, env, {
+				playerId,
+				skipLock: true,
+			});
+			if (grant.failed.length > 0) {
+				console.error("Accumulator program sync partial failure", {
+					playerId,
+					failed: grant.failed,
+				});
+			}
+		} finally {
+			await releaseAccumulatorSyncLock(kv, playerId);
+		}
+	};
+
+	if (executionCtx && typeof executionCtx.waitUntil === "function") {
+		executionCtx.waitUntil(runSyncJob());
+		return { skipped: true, reason: "sync_in_progress" };
+	}
+
+	await runSyncJob();
+	if (kv && (await isAccumulatorProgramSynced(kv, playerId))) {
+		return { skipped: true, reason: "already_done" };
+	}
 	return { synced: true };
 }
 

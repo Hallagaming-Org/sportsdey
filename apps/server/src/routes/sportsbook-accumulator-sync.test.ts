@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import {
 	runAccumulatorProgramSync,
 } from "../sportsbook/accumulator-boost-sync";
-import { accumulatorProgramSyncedKey } from "../sportsbook/accumulator-boost-kv";
+import { accumulatorProgramSyncedKey, accumulatorSyncLockKey } from "../sportsbook/accumulator-boost-kv";
 
 type MemoryKv = {
 	store: Map<string, string>;
@@ -15,6 +15,7 @@ type MemoryKv = {
 		value: string,
 		options?: { expirationTtl?: number },
 	) => Promise<void>;
+	delete: (key: string) => Promise<void>;
 };
 
 function memoryKv(): MemoryKv {
@@ -29,6 +30,9 @@ function memoryKv(): MemoryKv {
 		},
 		async put(key, value) {
 			store.set(key, value);
+		},
+		async delete(key) {
+			store.delete(key);
 		},
 	};
 }
@@ -70,6 +74,17 @@ describe("sportsbook accumulator sync decouple", () => {
 		);
 		assert.deepEqual(result, { skipped: true, reason: "already_done" });
 		assert.equal(ensureCalls, 0);
+	});
+
+	it("runAccumulatorProgramSync returns sync_in_progress when lock is held", async () => {
+		const kv = memoryKv();
+		await kv.put(accumulatorSyncLockKey("player-3"), "1");
+		const result = await runAccumulatorProgramSync(
+			async () => new Response("[]", { status: 200 }),
+			{ sportsdey_ns: kv } as never,
+			"player-3",
+		);
+		assert.deepEqual(result, { skipped: true, reason: "sync_in_progress" });
 	});
 
 	it("runAccumulatorProgramSync invokes ensure path once when not yet synced", async () => {

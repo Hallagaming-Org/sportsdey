@@ -15,6 +15,7 @@ type MemoryKv = {
 		value: string,
 		options?: { expirationTtl?: number },
 	) => Promise<void>;
+	delete: (key: string) => Promise<void>;
 };
 
 function memoryKv(): MemoryKv {
@@ -29,6 +30,9 @@ function memoryKv(): MemoryKv {
 		},
 		async put(key, value) {
 			store.set(key, value);
+		},
+		async delete(key) {
+			store.delete(key);
 		},
 	};
 }
@@ -79,5 +83,16 @@ describe("accumulator boost sync", () => {
 		);
 		assert.equal(grant.skippedSync, true);
 		assert.equal(grant.skipReason, "lock");
+	});
+
+	it("ensureAccumulatorProgramBoosts releases lock after list fails", async () => {
+		const kv = memoryKv();
+		const grant = await ensureAccumulatorProgramBoosts(
+			async () => new Response("nope", { status: 503 }),
+			{ sportsdey_ns: kv } as never,
+			{ playerId: "player-1" },
+		);
+		assert.equal(grant.skipReason, "list_failed");
+		assert.equal(await kv.get("acc-sync-lock:player-1"), null);
 	});
 });

@@ -5,7 +5,8 @@ export type AccumulatorKvNamespace = NonNullable<
 	ReturnType<typeof getAccumulatorKv>
 >;
 
-export const ACCUMULATOR_SYNC_LOCK_TTL_SECONDS = 60;
+/** Covers first-time 146-boost grant; released in finally when sync completes. */
+export const ACCUMULATOR_SYNC_LOCK_TTL_SECONDS = 600;
 export const ACCUMULATOR_REPAIRED_TTL_SECONDS = 365 * 24 * 60 * 60;
 export const ACCUMULATOR_APPLICABLE_REPAIR_VERSION = "v1";
 
@@ -82,4 +83,11 @@ export async function tryAcquireAccumulatorSyncLock(
 	if (await kv.get(key)) return false;
 	await kv.put(key, "1", { expirationTtl: ACCUMULATOR_SYNC_LOCK_TTL_SECONDS });
 	return true;
+}
+
+export async function releaseAccumulatorSyncLock(
+	kv: AccumulatorKvNamespace,
+	playerId: string,
+): Promise<void> {
+	await kv.delete(accumulatorSyncLockKey(playerId));
 }

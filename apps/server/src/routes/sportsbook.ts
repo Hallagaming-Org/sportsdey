@@ -4063,14 +4063,6 @@ const accumulatorProgramSyncRoute = createRoute({
 				},
 			},
 		},
-		409: {
-			description: "Another sync is already running for this player",
-			content: {
-				"application/json": {
-					schema: SportsbookTokenErrorSchema,
-				},
-			},
-		},
 		503: {
 			description: "DataBet boost list unavailable",
 			content: {
@@ -4100,21 +4092,12 @@ sportsbookRoute.openapi(accumulatorProgramSyncRoute, async (c) => {
 			databetFetch,
 			c.env,
 			user.id,
+			c.executionCtx,
 		);
 		return c.json({ success: true as const, data: result }, 200);
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "accumulator sync failed";
-		if (message === "accumulator sync already in progress") {
-			return c.json(
-				{
-					success: false as const,
-					error: "Accumulator sync already in progress",
-					details: null,
-				},
-				409,
-			);
-		}
 		if (message === "accumulator boost list unavailable") {
 			return c.json(
 				{

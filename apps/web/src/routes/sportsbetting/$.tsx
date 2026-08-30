@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
 import { Button } from "@/components/ui/button";
+import { ensureAccumulatorBoostsSynced } from "@/lib/accumulator-sync";
 import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
 import {
@@ -98,13 +99,7 @@ export function SportsbookPage() {
 		}
 		accumulatorSyncUserRef.current = session.user.id;
 
-		void apiRequest<{ synced?: true; skipped?: true; reason?: string }>(
-			"sportsbook/bet-boost/accumulator/sync",
-			{
-				method: "POST",
-				credentials: "include",
-			},
-		).catch((err) => {
+		void ensureAccumulatorBoostsSynced().catch((err) => {
 			console.warn("Accumulator boost sync failed on sportsbook load", err);
 		});
 	}, [token, session?.user]);

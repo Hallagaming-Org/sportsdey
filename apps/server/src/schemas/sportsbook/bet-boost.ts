@@ -76,7 +76,7 @@ export const AccumulatorProgramSyncResponseSchema = z.object({
 		}),
 		z.object({
 			skipped: z.literal(true),
-			reason: z.literal("already_done"),
+			reason: z.enum(["already_done", "sync_in_progress"]),
 		}),
 	]),
 });
