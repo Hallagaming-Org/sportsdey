@@ -13,6 +13,10 @@ import * as schema from "@/db/schema";
 import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import {
+	normalizeNigerianPhone,
+	phoneNumberLookupValues,
+} from "@/utils/nigerian-phone";
+import {
 	buildPhonePlaceholderEmail,
 	buildPhonePlaceholderName,
 	isDefaultPhoneUserName,
@@ -28,9 +32,6 @@ const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_REQUESTS_PER_WINDOW = 5;
-
-const NIGERIAN_LOCAL_REGEX = /^0[789][01]\d{8}$/;
-const NIGERIAN_INTL_REGEX = /^(?:\+?234)[789][01]\d{8}$/;
 
 const RequestOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
@@ -80,33 +81,7 @@ const ErrorSchema = z.object({
 });
 
 function normalizePhone(phone: string): string | null {
-	const cleaned = phone.replace(/\s+/g, "").replace(/-/g, "");
-	if (NIGERIAN_LOCAL_REGEX.test(cleaned)) {
-		return `+234${cleaned.slice(1)}`;
-	}
-	if (NIGERIAN_INTL_REGEX.test(cleaned)) {
-		return cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
-	}
-	return null;
-}
-
-/** Formats that may already exist on a user row from older writes or account edits. */
-function phoneNumberLookupValues(e164Phone: string): string[] {
-	const digits = e164Phone.replace(/\D/g, "");
-	const local =
-		digits.startsWith("234") && digits.length === 13
-			? `0${digits.slice(3)}`
-			: null;
-	return Array.from(
-		new Set(
-			[
-				e164Phone,
-				digits,
-				local,
-				digits.startsWith("234") ? `+${digits}` : null,
-			].filter((value): value is string => Boolean(value)),
-		),
-	);
+	return normalizeNigerianPhone(phone);
 }
 
 /**

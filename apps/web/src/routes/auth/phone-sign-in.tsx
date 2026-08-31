@@ -9,6 +9,10 @@ import {
 	requestPhoneOtp,
 	signIn,
 } from "@/lib/auth/client";
+import {
+	normalizeNigerianPhone,
+	toNigerianNationalInput,
+} from "@/lib/auth/nigerian-phone";
 import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
 import { showAppleFacebookLogin } from "@/lib/auth/social-logins";
 import { buildPublicUrl } from "@/lib/public-url";
@@ -28,21 +32,6 @@ export const Route = createFileRoute("/auth/phone-sign-in")({
 	component: PhoneSignInPage,
 });
 
-const normalizePhoneNumber = (value: string) => {
-	const digits = value.replace(/\D/g, "");
-	if (!digits) return "";
-	if (digits.startsWith("0") && digits.length === 11) {
-		return digits;
-	}
-	if (digits.startsWith("234") && digits.length === 13) {
-		return `+${digits}`;
-	}
-	if (digits.length === 10) {
-		return `+234${digits}`;
-	}
-	return digits;
-};
-
 function PhoneSignInPage() {
 	const { mode, returnTo } = Route.useSearch();
 	const isSignUp = mode === "signup";
@@ -56,22 +45,19 @@ function PhoneSignInPage() {
 	const [isLoading, setIsLoading] = useState(false);
 
 	const canContinue = useMemo(() => {
-		const normalizedLength = phoneNumber.replace(/\D/g, "").length;
 		return (
 			(!isSignUp || acceptedTerms) &&
 			password.length >= 6 &&
-			(normalizedLength === 10 ||
-				normalizedLength === 11 ||
-				normalizedLength === 13)
+			normalizeNigerianPhone(phoneNumber) !== null
 		);
 	}, [phoneNumber, password, acceptedTerms, isSignUp]);
 
 	const handleContinue = async () => {
 		if (!canContinue) return;
 
-		const phone = normalizePhoneNumber(phoneNumber);
+		const phone = normalizeNigerianPhone(phoneNumber);
 		if (!phone) {
-			setError("Please enter a valid phone number.");
+			setError("Please enter a valid Nigerian phone number.");
 			return;
 		}
 
@@ -196,12 +182,15 @@ function PhoneSignInPage() {
 						<div className="h-8 w-px bg-[#bcbcbc]" />
 						<input
 							type="tel"
+							inputMode="tel"
+							autoComplete="tel"
 							value={phoneNumber}
 							onChange={(event) => {
-								const numericValue = event.target.value.replace(/[^0-9]/g, "");
-								setPhoneNumber(numericValue);
+								// Accept paste/type of +234…, 234…, 0…, or national 10 digits;
+								// store national digits beside the fixed +234 prefix.
+								setPhoneNumber(toNigerianNationalInput(event.target.value));
 							}}
-							placeholder="012 345 6789"
+							placeholder="801 234 5678"
 							className="w-full bg-transparent px-4 text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
 						/>
 					</div>
@@ -229,7 +218,7 @@ function PhoneSignInPage() {
 								<button
 									type="button"
 									onClick={() => {
-										const normalized = normalizePhoneNumber(phoneNumber);
+										const normalized = normalizeNigerianPhone(phoneNumber);
 										navigate({
 											to: "/auth/forgot-password",
 											search: {
