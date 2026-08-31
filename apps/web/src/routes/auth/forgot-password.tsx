@@ -3,6 +3,7 @@ import { Phone } from "lucide-react";
 import { useState } from "react";
 import z from "zod";
 import { requestPhoneOtp } from "@/lib/auth/client";
+import { normalizeNigerianPhone } from "@/lib/auth/nigerian-phone";
 
 const forgotPasswordSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
@@ -15,21 +16,6 @@ export const Route = createFileRoute("/auth/forgot-password")({
 	component: ForgotPasswordPage,
 });
 
-const normalizePhoneNumber = (value: string) => {
-	const digits = value.replace(/\D/g, "");
-	if (!digits) return "";
-	if (digits.startsWith("0") && digits.length === 11) {
-		return digits;
-	}
-	if (digits.startsWith("234") && digits.length === 13) {
-		return `+${digits}`;
-	}
-	if (digits.length === 10) {
-		return `+234${digits}`;
-	}
-	return digits;
-};
-
 function ForgotPasswordPage() {
 	const { phone: initialPhone, email: initialEmail } = Route.useSearch();
 	const navigate = useNavigate();
@@ -40,15 +26,16 @@ function ForgotPasswordPage() {
 	const [error, setError] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 
-	const canContinue =
-		phoneNumber.replace(/\D/g, "").length >= 10 ||
-		phoneNumber.trim().length >= 6;
+	const canContinue = normalizeNigerianPhone(phoneNumber) !== null;
 
 	const handleContinue = async () => {
 		if (!canContinue) return;
 
-		const cleanPhone = phoneNumber.trim();
-		const normalized = normalizePhoneNumber(cleanPhone) || cleanPhone;
+		const normalized = normalizeNigerianPhone(phoneNumber);
+		if (!normalized) {
+			setError("Please enter a valid Nigerian phone number.");
+			return;
+		}
 
 		setError("");
 		setIsLoading(true);
@@ -91,7 +78,7 @@ function ForgotPasswordPage() {
 							type="tel"
 							value={phoneNumber}
 							onChange={(event) => setPhoneNumber(event.target.value)}
-							placeholder="Phone Number"
+							placeholder="Phone Number (+234… or 090…)"
 							className="w-full bg-transparent text-[#0a0f0d] text-base outline-none placeholder:text-[#9a9d9a]"
 						/>
 					</div>
