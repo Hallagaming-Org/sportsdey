@@ -1,0 +1,239 @@
+{
+	"env": "staging",
+	"generatedAt": "2026-08-31T19:11:01.952Z",
+	"sheetMapping": {
+		"POPULAR": "popular",
+		"CRASH": "crash",
+		"WHEEL": "jackpot",
+		"CLASSICS": "classic",
+		"INSTANT": "arcade",
+		"TABLE AND CARD": "tablecardgames"
+	},
+	"summary": {
+		"totalAssignments": 208,
+		"onSiteMatched": 150,
+		"notOnSite": 57,
+		"alreadyCorrect": 150,
+		"wrongCategory": 0,
+		"missingCategory": 0
+	},
+	"notOnSite": [
+		"1 TAP MINES",
+		"20 BURNING HOT",
+		"20 EXTRA CROWN",
+		"20 POWER HOT",
+		"20 SUPER HOT",
+		"27 ETERNAL HOT",
+		"7 VEGAS WINS",
+		"ALL STAR WIN",
+		"AVIATOR",
+		"BIG BASS CRASH",
+		"BIG WIN X 25",
+		"BLACK AND WHITE",
+		"BLACKJACK 21 LUCKY LADIES",
+		"BULKY FRUITS",
+		"BURNING HOT",
+		"CHIEF HAWK'S SPIRIT WALK",
+		"CRAZY BANANA",
+		"CRAZY HUNTER SHOOT & WIN",
+		"DIAMOND PLUS",
+		"DIAMOND STRIKE",
+		"DINOSAUR TYCOON 11",
+		"DOG HEIGHTS",
+		"DOGGO BALLON",
+		"EXTRA CROWN",
+		"FIRE HOT 5",
+		"FORTUNE COINS HIT THE CASH",
+		"FORTUNE ZOMBIE SHOOT & WIN",
+		"GOLDEN OX",
+		"GOLDEN PROFIT",
+		"GUN SPINNER",
+		"HIGH FLYER",
+		"HOLLY JOLLY 2 BONANZA",
+		"HOT DECO",
+		"HOT DECO 27",
+		"HOT TO BURN",
+		"JESTER'S RICHES",
+		"Jackpot",
+		"LIGHTING HAPPY FISHING",
+		"LUCKY ROULETTE 1000X",
+		"MR MINI ROULETTE",
+		"MYSTERY WHEEL 27 ETERNAL HOT",
+		"PUMPED X",
+		"ROLL THE DICE X7",
+		"RONALDINHO SCORES",
+		"SECRET TREASURE 1",
+		"SHINING CROWN",
+		"SHINING HOT 5",
+		"SKYROCKET",
+		"SPACE COW TO THE MOON",
+		"SPACE SAM WALK& WIN",
+		"SPACEMAN",
+		"SUGAR SKULL",
+		"SUPREME HOT",
+		"THE WILD WINGS PHOENIX DELUXE",
+		"VIP FILTY RICHES",
+		"VORTEX POWERPLAY",
+		"X 7 HOT"
+	],
+	"wrongCategory": [],
+	"missingCategory": [],
+	"correctSample": [
+		{
+			"title": "FORTUNE GARUDA 1000",
+			"dbCategory": "popular",
+			"current": [
+				"popular"
+			]
+		},
+		{
+			"title": "VORTEX 2",
+			"dbCategory": "popular",
+			"current": [
+				"arcade",
+				"popular"
+			]
+		},
+		{
+			"title": "AERO",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games"
+			]
+		},
+		{
+			"title": "AVIATRIX SECOND CHANCE",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games"
+			]
+		},
+		{
+			"title": "AVIATRIX",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games",
+				"popular"
+			]
+		},
+		{
+			"title": "OVERHEAT",
+			"dbCategory": "crash",
+			"current": [
+				"crash"
+			]
+		},
+		{
+			"title": "GO RUSH",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games"
+			]
+		},
+		{
+			"title": "MARBLE BOUNCE",
+			"dbCategory": "crash",
+			"current": [
+				"crash"
+			]
+		},
+		{
+			"title": "SPACE BLAZE",
+			"dbCategory": "crash",
+			"current": [
+				"arcade",
+				"crash"
+			]
+		},
+		{
+			"title": "CRASH X",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games",
+				"popular"
+			]
+		},
+		{
+			"title": "CRASH FRUIT",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games"
+			]
+		},
+		{
+			"title": "CRASH FIREWORKS",
+			"dbCategory": "crash",
+			"current": [
+				"crash"
+			]
+		},
+		{
+			"title": "BUBBLES",
+			"dbCategory": "crash",
+			"current": [
+				"crash"
+			]
+		},
+		{
+			"title": "CRASH GOAL",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games"
+			]
+		},
+		{
+			"title": "CRASH TOUCHDOWN",
+			"dbCategory": "crash",
+			"current": [
+				"crash",
+				"crash-games"
+			]
+		},
+		{
+			"title": "LIMBO RIDER",
+			"dbCategory": "crash",
+			"current": [
+				"crash"
+			]
+		},
+		{
+			"title": "WHEEL",
+			"dbCategory": "jackpot",
+			"current": [
+				"crash-games",
+				"jackpot"
+			]
+		},
+		{
+			"title": "FORTUNE GEMS 3",
+			"dbCategory": "classic",
+			"current": [
+				"classic",
+				"slots"
+			]
+		},
+		{
+			"title": "JACKPOT JOKER FEVER",
+			"dbCategory": "classic",
+			"current": [
+				"classic",
+				"slots"
+			]
+		},
+		{
+			"title": "FORTUNE COINS",
+			"dbCategory": "classic",
+			"current": [
+				"classic",
+				"slots"
+			]
+		}
+	]
+}
