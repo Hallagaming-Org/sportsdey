@@ -18,12 +18,15 @@ import {
 	normalizeName,
 } from "./categorize-utils";
 
-const envArg = process.argv[2] === "staging" ? "staging" : "production";
+const args = process.argv.slice(2);
+const envArg = args.includes("production") ? "production" : "staging";
+const jsonArg = args.find((a) => a.endsWith(".json"));
 const dbName = envArg === "production" ? "sportsdey_db" : "staging-db";
-const jsonPath = path.resolve(
+const defaultJson = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"casino_games_sheet.json",
 );
+const jsonPath = jsonArg ? path.resolve(jsonArg) : defaultJson;
 
 function sleep(ms: number) {
 	return new Promise((r) => setTimeout(r, ms));

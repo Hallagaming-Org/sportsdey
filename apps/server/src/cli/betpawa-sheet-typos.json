@@ -1,0 +1,52 @@
+{
+	"applied": [
+		{
+			"original": "CRASH GOA;",
+			"fixed": "CRASH GOAL"
+		},
+		{
+			"original": "jJACKPOT",
+			"fixed": "Jackpot"
+		},
+		{
+			"original": "PWER OF OLYMPUS",
+			"fixed": "POWER OF OLYMPUS"
+		},
+		{
+			"original": "LUCKY  OASIS",
+			"fixed": "LUCKY OASIS"
+		},
+		{
+			"original": "CASH  BALLON",
+			"fixed": "CASH BALLOON"
+		},
+		{
+			"original": "CHICKEN ROUTE RO CO CO",
+			"fixed": "Chicken Route: Ro-co-co"
+		}
+	],
+	"duplicateAcrossSections": [
+		{
+			"title": "vortex 2",
+			"sections": [
+				"POPULAR",
+				"INSTANT"
+			]
+		},
+		{
+			"title": "space blaze",
+			"sections": [
+				"CRASH",
+				"INSTANT"
+			]
+		},
+		{
+			"title": "shining crown",
+			"sections": [
+				"WHEEL",
+				"CLASSICS"
+			]
+		}
+	],
+	"note": "Review with Abiola before re-export if sheet source typos change."
+}
