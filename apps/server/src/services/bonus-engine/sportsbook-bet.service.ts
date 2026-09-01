@@ -3,8 +3,13 @@ import { BONUS_ENGINE_SPORTSBOOK_STUB_EVENT_IDS } from "./reference-data.service
 export type SportsbookBetReportIds = {
 	sportId?: string;
 	eventId?: string;
+	leagueId?: string;
 };
 
+/**
+ * Read Data.Bet selection ids for Bonus Engine sports `POST /bet`.
+ * Stub catalog Event IDs are omitted so live matches are not reported as 5000/5001.
+ */
 export function extractSportsbookBetReportIds(
 	betOdds: unknown,
 ): SportsbookBetReportIds {
@@ -24,11 +29,15 @@ export function extractSportsbookBetReportIds(
 		meta.sport_event_info_event_id ??
 		meta.event_id ??
 		meta.eventId;
+	const leagueRaw =
+		meta.sport_event_info_tournament_id ??
+		meta.tournament_id ??
+		meta.league_id ??
+		meta.leagueId;
 
-	const sportId =
-		sportRaw === undefined || sportRaw === null ? "" : String(sportRaw).trim();
-	const eventId =
-		eventRaw === undefined || eventRaw === null ? "" : String(eventRaw).trim();
+	const sportId = stringifyId(sportRaw);
+	const eventId = stringifyId(eventRaw);
+	const leagueId = stringifyId(leagueRaw);
 	const liveEventId =
 		eventId && !BONUS_ENGINE_SPORTSBOOK_STUB_EVENT_IDS.has(eventId)
 			? eventId
@@ -37,5 +46,11 @@ export function extractSportsbookBetReportIds(
 	return {
 		...(sportId ? { sportId } : {}),
 		...(liveEventId ? { eventId: liveEventId } : {}),
+		...(leagueId ? { leagueId } : {}),
 	};
+}
+
+function stringifyId(value: unknown): string {
+	if (value === undefined || value === null) return "";
+	return String(value).trim();
 }
