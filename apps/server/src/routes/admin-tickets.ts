@@ -32,6 +32,29 @@ function formatAmount(amount: number): string {
 	return `₦${(amount / 100).toLocaleString("en-NG")}`;
 }
 
+/** Prefer accept-event balances (real debit); fall back to place/freeze when not yet accepted. */
+function pickSportsbookEventBalances(
+	events: Array<{
+		eventType: string;
+		balanceBefore: number | null;
+		balanceAfter: number | null;
+	}>,
+): { balanceBefore: number | null; balanceAfter: number | null } {
+	const accept = events.find((e) => e.eventType === "accept");
+	if (accept) {
+		return {
+			balanceBefore: accept.balanceBefore,
+			balanceAfter: accept.balanceAfter,
+		};
+	}
+	const place = events.find((e) => e.eventType === "place");
+	const fallback = place ?? events[0];
+	return {
+		balanceBefore: fallback?.balanceBefore ?? null,
+		balanceAfter: fallback?.balanceAfter ?? null,
+	};
+}
+
 function formatDate(date: Date): string {
 	const watDate = new Date(date.getTime() + 60 * 60 * 1000);
 	const months = [
@@ -466,6 +489,7 @@ const handleGetTicketsList = async (
 					outcome: schema.sportsbookBet.status,
 					settleType: schema.sportsbookBet.settleType,
 					createdAt: schema.sportsbookBet.createdAt,
+					eventType: schema.sportsbookBetEvent.eventType,
 					balanceBefore: schema.sportsbookBetEvent.balanceBefore,
 					balanceAfter: schema.sportsbookBetEvent.balanceAfter,
 				})
@@ -479,14 +503,35 @@ const handleGetTicketsList = async (
 				.orderBy(desc(schema.sportsbookBet.createdAt))
 				.limit(perSourceLimit);
 
-			const processedBetIds = new Set<string>();
+			const eventsByBetId = new Map<
+				string,
+				Array<{
+					eventType: string;
+					balanceBefore: number | null;
+					balanceAfter: number | null;
+				}>
+			>();
+			const betRows = new Map<(typeof sbResults)[number]["id"], (typeof sbResults)[number]>();
 			for (const r of sbResults) {
-				if (processedBetIds.has(r.id)) continue;
-				processedBetIds.add(r.id);
+				if (!betRows.has(r.id)) betRows.set(r.id, r);
+				if (r.eventType == null) continue;
+				const list = eventsByBetId.get(r.id) ?? [];
+				list.push({
+					eventType: r.eventType,
+					balanceBefore: r.balanceBefore,
+					balanceAfter: r.balanceAfter,
+				});
+				eventsByBetId.set(r.id, list);
+			}
 
+			for (const r of betRows.values()) {
 				const ts = r.createdAt.getTime();
 				if (fromBoundary && ts < fromBoundary.getTime()) continue;
 				if (toBoundary && ts > toBoundary.getTime()) continue;
+
+				const balances = pickSportsbookEventBalances(
+					eventsByBetId.get(r.id) ?? [],
+				);
 
 				allTickets.push({
 					id: r.id,
@@ -498,8 +543,8 @@ const handleGetTicketsList = async (
 					gameType: "Sportsbook",
 					outcome: mapSbOutcome(r.outcome, r.settleType),
 					createdAt: r.createdAt,
-					balanceBefore: r.balanceBefore,
-					balanceAfter: r.balanceAfter,
+					balanceBefore: balances.balanceBefore,
+					balanceAfter: balances.balanceAfter,
 					roundId: null,
 					provider: null,
 					gameCode: null,
@@ -540,31 +585,39 @@ const handleGetTicketsList = async (
 			listTotal += Number(sbCountRow?.total ?? 0);
 
 			const betIds = sbResults.map((r) => r.id);
-			const eventByBetId = new Map<
+			const eventsByBetId = new Map<
 				string,
-				{ balanceBefore: number | null; balanceAfter: number | null }
+				Array<{
+					eventType: string;
+					balanceBefore: number | null;
+					balanceAfter: number | null;
+				}>
 			>();
 			if (betIds.length > 0) {
 				const eventRows = await db
 					.select({
 						betId: schema.sportsbookBetEvent.betId,
+						eventType: schema.sportsbookBetEvent.eventType,
 						balanceBefore: schema.sportsbookBetEvent.balanceBefore,
 						balanceAfter: schema.sportsbookBetEvent.balanceAfter,
 					})
 					.from(schema.sportsbookBetEvent)
 					.where(inArray(schema.sportsbookBetEvent.betId, betIds));
 				for (const event of eventRows) {
-					if (!eventByBetId.has(event.betId)) {
-						eventByBetId.set(event.betId, {
-							balanceBefore: event.balanceBefore,
-							balanceAfter: event.balanceAfter,
-						});
-					}
+					const list = eventsByBetId.get(event.betId) ?? [];
+					list.push({
+						eventType: event.eventType,
+						balanceBefore: event.balanceBefore,
+						balanceAfter: event.balanceAfter,
+					});
+					eventsByBetId.set(event.betId, list);
 				}
 			}
 
 			for (const r of sbResults) {
-				const event = eventByBetId.get(r.id);
+				const balances = pickSportsbookEventBalances(
+					eventsByBetId.get(r.id) ?? [],
+				);
 				allTickets.push({
 					id: r.id,
 					userId: r.userId,
@@ -575,8 +628,8 @@ const handleGetTicketsList = async (
 					gameType: "Sportsbook",
 					outcome: mapSbOutcome(r.outcome, r.settleType),
 					createdAt: r.createdAt,
-					balanceBefore: event?.balanceBefore ?? null,
-					balanceAfter: event?.balanceAfter ?? null,
+					balanceBefore: balances.balanceBefore,
+					balanceAfter: balances.balanceAfter,
 					roundId: null,
 					provider: null,
 					gameCode: null,
@@ -994,6 +1047,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				outcome: schema.sportsbookBet.status,
 				settleType: schema.sportsbookBet.settleType,
 				createdAt: schema.sportsbookBet.createdAt,
+				eventType: schema.sportsbookBetEvent.eventType,
 				balanceBefore: schema.sportsbookBetEvent.balanceBefore,
 				balanceAfter: schema.sportsbookBetEvent.balanceAfter,
 			})
@@ -1007,14 +1061,35 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			.orderBy(desc(schema.sportsbookBet.createdAt))
 			.limit(MAX_UNPAGINATED_ROWS);
 
-		const processedBetIds = new Set<string>();
+		const eventsByBetId = new Map<
+			string,
+			Array<{
+				eventType: string;
+				balanceBefore: number | null;
+				balanceAfter: number | null;
+			}>
+		>();
+		const betRows = new Map<(typeof sbResults)[number]["id"], (typeof sbResults)[number]>();
 		for (const r of sbResults) {
-			if (processedBetIds.has(r.id)) continue;
-			processedBetIds.add(r.id);
+			if (!betRows.has(r.id)) betRows.set(r.id, r);
+			if (r.eventType == null) continue;
+			const list = eventsByBetId.get(r.id) ?? [];
+			list.push({
+				eventType: r.eventType,
+				balanceBefore: r.balanceBefore,
+				balanceAfter: r.balanceAfter,
+			});
+			eventsByBetId.set(r.id, list);
+		}
 
+		for (const r of betRows.values()) {
 			const ts = r.createdAt.getTime();
 			if (fromBoundary && ts < fromBoundary.getTime()) continue;
 			if (toBoundary && ts > toBoundary.getTime()) continue;
+
+			const balances = pickSportsbookEventBalances(
+				eventsByBetId.get(r.id) ?? [],
+			);
 
 			allTickets.push({
 				id: r.id,
@@ -1026,8 +1101,8 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				gameType: "Sportsbook",
 				outcome: mapSbOutcome(r.outcome, r.settleType),
 				createdAt: r.createdAt,
-				balanceBefore: r.balanceBefore,
-				balanceAfter: r.balanceAfter,
+				balanceBefore: balances.balanceBefore,
+				balanceAfter: balances.balanceAfter,
 				roundId: null,
 				provider: null,
 				gameCode: null,

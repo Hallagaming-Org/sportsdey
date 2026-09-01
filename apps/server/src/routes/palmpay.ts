@@ -22,7 +22,7 @@ route.openapi(createRoute({ method: "post", path: "/initiate", tags: ["PalmPay"]
 		await db.update(schema.palmpayTransaction).set({ status: "pending", orderNo: order.orderNo, checkoutUrl: order.checkoutUrl, updatedAt: new Date() }).where(eq(schema.palmpayTransaction.reference, reference));
 		return c.json({ success: true as const, data: { checkoutUrl: order.checkoutUrl, reference } }, 200);
 	} catch (error) {
-		console.error("[PalmPay] initiate failed", { reference, error: error instanceof Error ? error.message : "Unknown" });
+		console.error("PalmPay deposit initiation failed", { operation: "create_order", reason: error instanceof Error ? error.name : "UnknownError" });
 		await db.update(schema.palmpayTransaction).set({ status: "failed", updatedAt: new Date() }).where(eq(schema.palmpayTransaction.reference, reference));
 		await db.update(schema.walletTransaction).set({ status: "failed" }).where(eq(schema.walletTransaction.reference, reference));
 		return c.json({ success: false as const, error: "Unable to start PalmPay deposit" }, 500);
@@ -43,9 +43,9 @@ route.openapi(createRoute({ method: "post", path: "/webhook", tags: ["PalmPay"],
 		await c.env.DB.batch([
 			c.env.DB.prepare("UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM palmpay_transaction WHERE id = ? AND status != 'success')").bind(txn.amount, txn.userId, txn.id),
 			c.env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(txn.userId, reference),
-			c.env.DB.prepare("UPDATE palmpay_transaction SET status = 'success', raw_callback_payload = ?, updated_at = ? WHERE id = ? AND status != 'success'").bind(JSON.stringify(payload), Date.now(), txn.id),
+			c.env.DB.prepare("UPDATE palmpay_transaction SET status = 'success', raw_callback_payload = ?, updated_at = ? WHERE id = ? AND status != 'success'").bind(JSON.stringify({ orderId: payload.orderId, orderNo: payload.orderNo, orderStatus: payload.orderStatus }), Date.now(), txn.id),
 		]);
-	} catch (error) { console.error("[PalmPay] callback confirmation failed", { reference, error: error instanceof Error ? error.message : "Unknown" }); return c.text("retry", 500); }
+	} catch (error) { console.error("PalmPay callback confirmation failed", { operation: "query_order_status", reason: error instanceof Error ? error.name : "UnknownError" }); return c.text("retry", 500); }
 	return c.text("success");
 });
 

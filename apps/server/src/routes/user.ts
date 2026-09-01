@@ -2104,6 +2104,8 @@ const ManualTransactionSchema = z
 		type: z.enum(["credit", "debit"]),
 		amount: z.number().positive(),
 		reason: z.string().min(1),
+		/** Client-generated key; retries with the same key must not double-credit. */
+		idempotencyKey: z.string().min(8).max(128).optional(),
 	})
 	.openapi("ManualTransaction");
 
@@ -2116,6 +2118,33 @@ const ManualTransactionResponseSchema = z
 		}),
 	})
 	.openapi("ManualTransactionResponse");
+
+function isUniqueConstraintError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let i = 0; i < 5 && current; i++) {
+		const message = current instanceof Error ? current.message : String(current);
+		if (
+			message.includes("UNIQUE constraint failed") ||
+			(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
+		) {
+			return true;
+		}
+		current =
+			current instanceof Error && "cause" in current
+				? current.cause
+				: undefined;
+	}
+	return false;
+}
+
+function manualReferenceFromKey(idempotencyKey: string | undefined): string {
+	if (idempotencyKey) {
+		return idempotencyKey.startsWith("manual_")
+			? idempotencyKey
+			: `manual_${idempotencyKey}`;
+	}
+	return `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
 
 const postManualTransactionRoute = createRoute({
 	method: "post",
@@ -2152,6 +2181,10 @@ const postManualTransactionRoute = createRoute({
 		},
 		400: {
 			description: "Invalid request",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		500: {
+			description: "Server error before money moved",
 			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
@@ -2193,6 +2226,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const userId = c.req.param("userId");
 	const body = c.req.valid("json");
 	const db = drizzle(c.env.DB, { schema });
+	const reference = manualReferenceFromKey(body.idempotencyKey);
 
 	const [existingUser] = await db
 		.select({ id: schema.user.id })
@@ -2215,58 +2249,157 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	}
 
 	const amountInKobo = Math.round(body.amount * 100);
+	const oldBalanceKobo = walletRow.balance;
 
-	const updatedWallet =
-		body.type === "credit"
-			? await creditWallet(db, userId, amountInKobo)
-			: await debitWallet(db, userId, amountInKobo);
-	if (!updatedWallet) {
+	const [existingByRef] = await db
+		.select({
+			id: schema.walletTransaction.id,
+			balance: schema.walletTransaction.balance,
+			status: schema.walletTransaction.status,
+		})
+		.from(schema.walletTransaction)
+		.where(eq(schema.walletTransaction.reference, reference))
+		.limit(1);
+
+	if (existingByRef?.status === "success") {
+		const [liveWallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, userId))
+			.limit(1);
 		return c.json(
 			{
-				success: false as const,
-				error: "Insufficient balance or wallet update failed",
+				success: true as const,
+				data: {
+					transactionId: existingByRef.id,
+					newBalance:
+						(liveWallet?.balance ?? existingByRef.balance ?? oldBalanceKobo) /
+						100,
+				},
 			},
-			400,
+			200,
 		);
 	}
-	const committedBalance = updatedWallet.balance;
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const provisionalBalance =
+		body.type === "credit"
+			? oldBalanceKobo + amountInKobo
+			: oldBalanceKobo - amountInKobo;
 
-	const [transaction] = await db
-		.insert(schema.walletTransaction)
-		.values({
+	try {
+		await db.insert(schema.walletTransaction).values({
 			id: txnId,
 			userId,
 			amount: amountInKobo,
 			type: body.type,
-			reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			status: "success",
+			reference,
+			status: "pending",
 			paymentMethod: "manual",
-			balance: committedBalance,
+			balance: provisionalBalance,
 			metadata: JSON.stringify({
 				reason: body.reason,
 				processedBy: session.adminId,
 				description: `Manual ${body.type} - ${body.reason}`,
+				idempotencyKey: body.idempotencyKey ?? null,
 			}),
 			createdAt: new Date(),
-		})
-		.returning({ id: schema.walletTransaction.id });
-
-	if (!transaction?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record transaction" },
-			500,
-		);
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			const [raced] = await db
+				.select({
+					id: schema.walletTransaction.id,
+					balance: schema.walletTransaction.balance,
+					status: schema.walletTransaction.status,
+				})
+				.from(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.reference, reference))
+				.limit(1);
+			if (raced?.status === "success") {
+				const [liveWallet] = await db
+					.select({ balance: schema.wallet.balance })
+					.from(schema.wallet)
+					.where(eq(schema.wallet.userId, userId))
+					.limit(1);
+				return c.json(
+					{
+						success: true as const,
+						data: {
+							transactionId: raced.id,
+							newBalance:
+								(liveWallet?.balance ?? raced.balance ?? oldBalanceKobo) / 100,
+						},
+					},
+					200,
+				);
+			}
+			// Another request holds the claim and may not have settled yet.
+			return c.json(
+				{
+					success: false as const,
+					error: "Transaction already in progress. Try again shortly.",
+				},
+				500,
+			);
+		}
+		throw error;
 	}
 
-	await recordActivityForSession(
-		c.env,
-		session.adminId,
-		body.type === "credit"
-			? adminActivityActions.manualCredit
-			: adminActivityActions.manualDebit,
-	);
+	let updatedWallet: { balance: number } | undefined;
+	try {
+		updatedWallet =
+			body.type === "credit"
+				? await creditWallet(db, userId, amountInKobo)
+				: await debitWallet(db, userId, amountInKobo);
+		if (!updatedWallet) {
+			await db
+				.delete(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.id, txnId));
+			return c.json(
+				{
+					success: false as const,
+					error: "Insufficient balance or wallet update failed",
+				},
+				400,
+			);
+		}
+	} catch (error) {
+		try {
+			await db
+				.delete(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.id, txnId));
+		} catch {
+			// Keep the wallet error; the claim must not block a later retry.
+		}
+		throw error;
+	}
+
+	const committedBalance = updatedWallet.balance;
+	await db
+		.update(schema.walletTransaction)
+		.set({
+			status: "success",
+			balance: committedBalance,
+		})
+		.where(eq(schema.walletTransaction.id, txnId));
+
+	// Money already moved under a unique reference; never flip this into a 500.
+	try {
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			body.type === "credit"
+				? adminActivityActions.manualCredit
+				: adminActivityActions.manualDebit,
+		);
+	} catch (error) {
+		console.error("Failed to record admin activity after manual wallet txn", {
+			reference,
+			txnId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
 
 	return c.json(
 		{
