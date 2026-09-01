@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Navigate,
@@ -38,8 +38,10 @@ const OpenfortCryptoWallet = lazy(() =>
 export const Route = createFileRoute("/wallet")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { openDeposit?: boolean } => ({
+	): { openDeposit?: boolean; deposit?: string; reference?: string } => ({
 		openDeposit: search.openDeposit ? Boolean(search.openDeposit) : undefined,
+		deposit: typeof search.deposit === "string" ? search.deposit : undefined,
+		reference: typeof search.reference === "string" ? search.reference : undefined,
 	}),
 	component: WalletPage,
 });
@@ -87,6 +89,7 @@ function WalletPage() {
 	} | null>(null);
 	const location = useLocation();
 	const search = Route.useSearch();
+	const queryClient = useQueryClient();
 	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
 		if (search.openDeposit) {
@@ -117,6 +120,21 @@ function WalletPage() {
 			refetchOnMount: "always",
 			refetchOnWindowFocus: true,
 		});
+	const { data: opayStatus } = useQuery({
+		queryKey: ["opay-deposit-status", search.reference],
+		queryFn: () => apiRequest<{ success: true; data: { status: string } }>(`opay/status/${encodeURIComponent(search.reference ?? "")}`, { credentials: "include" }),
+		enabled: !!session?.user && search.deposit === "processing" && !!search.reference?.startsWith("opay_"),
+		refetchInterval: (query) => {
+			const status = query.state.data?.data.status;
+			return status === "success" || status === "failed" ? false : 3_000;
+		},
+	});
+	useEffect(() => {
+		if (opayStatus?.data.status === "success" || opayStatus?.data.status === "failed") {
+			void queryClient.invalidateQueries({ queryKey: ["wallet"] });
+			void queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
+		}
+	}, [opayStatus?.data.status, queryClient]);
 	const depositMutation = useMutation({
 		mutationFn: ({ amount, provider }: { amount: number; provider: DepositProvider }) =>
 			apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse>(

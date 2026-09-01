@@ -80,13 +80,13 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 			amount: parsed.data.amount,
 		} }, 200);
 	} catch (error) {
-		console.error("[Kuda] dynamic account creation failed", { reference, error: error instanceof Error ? error.message : "Unknown error" });
+		console.error("Kuda dynamic account creation failed", { operation: "create_dynamic_collection_account", reason: error instanceof Error ? error.name : "UnknownError" });
 		await db.update(schema.kudaTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(schema.kudaTransactions.reference, reference));
 		return c.json({ success: false as const, error: "Unable to create a Kuda deposit account. Please try again." }, 500);
 	}
 	} catch (error) {
-		console.error("[Kuda] database setup failed", { reference, error: error instanceof Error ? error.message : "Unknown error" });
-		return c.json({ success: false as const, error: "Kuda deposits are not ready on this environment. Apply the staging database migration and try again." }, 503);
+		console.error("Kuda deposit setup failed", { operation: "create_deposit_record", reason: error instanceof Error ? error.name : "UnknownError" });
+		return c.json({ success: false as const, error: "Kuda deposits are not ready on this environment." }, 503);
 	}
 });
 
@@ -129,12 +129,19 @@ kudaRoute.openapi(webhookRoute, async (c) => {
 	const db = drizzle(c.env.DB, { schema });
 	const [transaction] = await db.select().from(schema.kudaTransactions).where(eq(schema.kudaTransactions.reference, payload.clientRequestRef)).limit(1);
 	if (!transaction || transaction.type !== "deposit") {
-		console.warn("[Kuda] received unmatched transaction notification", { reference: payload.clientRequestRef });
+		console.warn("Kuda webhook did not match a recorded deposit");
 		return c.json({ success: true }, 200);
 	}
 	await db.update(schema.kudaTransactions).set({
 		kudaReference: payload.transactionReference,
-		rawCallbackPayload: JSON.stringify(payload),
+		rawCallbackPayload: JSON.stringify({
+			eventType: payload.eventType,
+			transactionReference: payload.transactionReference,
+			clientRequestRef: payload.clientRequestRef,
+			transactionType: payload.transactionType,
+			transactionScope: payload.transactionScope,
+			amount: payload.amount,
+		}),
 		updatedAt: new Date(),
 	}).where(eq(schema.kudaTransactions.id, transaction.id));
 
@@ -148,26 +155,26 @@ async function confirmAndCreditDeposit(env: CloudflareBindings, transactionId: s
 	if (!transaction || transaction.status === "success") return;
 	const receivedAmount = Number(payload.amount);
 	if (!Number.isSafeInteger(receivedAmount) || receivedAmount !== transaction.amount || payload.accountNumber !== transaction.beneficiaryAccount) {
-		console.error("[Kuda] deposit notification did not match its expected collection", { reference: transaction.reference });
+		console.error("Kuda deposit notification did not match its expected collection");
 		return;
 	}
 
 	try {
 		const status = await queryDynamicCollectionStatus(env, { accountCreationRequestRef: transaction.reference, accountNumber: transaction.beneficiaryAccount });
 		if (!isConfirmedCollection(status)) {
-			console.warn("[Kuda] deposit TSQ is not final yet", { reference: transaction.reference });
+			console.warn("Kuda deposit status query is not final yet");
 			return;
 		}
 		const walletTransactionId = `wt_${crypto.randomUUID()}`;
 
 		await env.DB.batch([
-			env.DB.prepare("INSERT OR IGNORE INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, metadata, created_at) VALUES (?, ?, ?, 'credit', ?, 'pending', 'kuda', NULL, ?, ?)").bind(walletTransactionId, transaction.userId, transaction.amount, transaction.reference, JSON.stringify({ kudaReference: payload.transactionReference, accountNumber: transaction.beneficiaryAccount }), Date.now()),
+			env.DB.prepare("INSERT OR IGNORE INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, metadata, created_at) VALUES (?, ?, ?, 'credit', ?, 'pending', 'kuda', NULL, ?, ?)").bind(walletTransactionId, transaction.userId, transaction.amount, transaction.reference, JSON.stringify({ kudaReference: payload.transactionReference, accountNumberLast4: transaction.beneficiaryAccount.slice(-4) }), Date.now()),
 			env.DB.prepare("UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM wallet_transaction WHERE reference = ? AND status = 'pending')").bind(transaction.amount, transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE kuda_transactions SET status = 'success', updated_at = ? WHERE id = ?").bind(Date.now(), transaction.id),
 		]);
 	} catch (error) {
-		console.error("[Kuda] deposit confirmation failed", { reference: transaction.reference, error: error instanceof Error ? error.message : "Unknown error" });
+		console.error("Kuda deposit confirmation failed", { operation: "confirm_dynamic_collection", reason: error instanceof Error ? error.name : "UnknownError" });
 	}
 }
 

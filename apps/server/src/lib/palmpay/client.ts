@@ -5,7 +5,11 @@ const BASE_URLS = { sandbox: "https://open-gw-sandbox.palmpay-inc.com", producti
 type PalmPayPayload = Record<string, string | number | undefined>;
 
 function pem(value: string, type: "PRIVATE" | "PUBLIC") {
-	const body = value.replace(/-----[^-]+-----|\s/g, "");
+	const normalized = value.trim().replace(/\\n/g, "\n");
+	if (normalized.includes("-----BEGIN") && normalized.includes("-----END")) {
+		return normalized;
+	}
+	const body = normalized.replace(/\s/g, "");
 	return `-----BEGIN ${type} KEY-----\n${body}\n-----END ${type} KEY-----`;
 }
 

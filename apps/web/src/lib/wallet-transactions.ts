@@ -206,6 +206,7 @@ export function getTransactionTypeLabel(
 		"hashcodex",
 	]);
 	const sportsbookPaymentMethods = new Set(["sportsbook"]);
+	const depositPaymentMethods = new Set(["opay", "kuda", "palmpay"]);
 
 	if (methodLower === "wallet_transfer") {
 		const transferDebit =
@@ -219,6 +220,10 @@ export function getTransactionTypeLabel(
 	if (methodLower === "crypto") {
 		const asset = meta?.asset ? String(meta.asset) : "Crypto";
 		return isCredit ? `Crypto Deposit · ${asset}` : `Crypto Send · ${asset}`;
+	}
+
+	if (isCredit && depositPaymentMethods.has(methodLower)) {
+		return `Deposit - ${transaction.paymentMethod}`;
 	}
 
 	if (

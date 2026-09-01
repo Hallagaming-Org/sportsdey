@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { createCashierOrder } from "@/lib/opay/client";
+import { createCashierOrder, queryCashierOrderStatus } from "@/lib/opay/client";
 import { verifyCallbackSignature } from "@/lib/opay/signature";
 import { trackWebengageEvent } from "@/lib/webengage";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
@@ -27,6 +27,60 @@ const ErrorSchema = z.object({
 	success: z.literal(false),
 	error: z.string(),
 });
+
+function opayConfig(env: CloudflareBindings) {
+	return {
+		env: env.NODE_ENV === "production" ? ("production" as const) : ("sandbox" as const),
+		merchantId: env.OPAY_MERCHANT_ID,
+		publicKey: env.OPAY_PUBLIC_KEY,
+		privateKey: env.OPAY_PRIVATE_KEY,
+	};
+}
+
+function normalizeStatus(status: string): "success" | "pending" | "failed" {
+	const normalized = status.toUpperCase();
+	if (["SUCCESS", "SUCCESSFUL", "COMPLETED", "PAID"].includes(normalized)) return "success";
+	if (["PENDING", "PROCESSING", "INITIATED"].includes(normalized)) return "pending";
+	return "failed";
+}
+
+function safeCallbackRecord(payload: Record<string, unknown>) {
+	return JSON.stringify({
+		reference: typeof payload.reference === "string" ? payload.reference : undefined,
+		orderNo: typeof payload.orderNo === "string" ? payload.orderNo : undefined,
+		status: typeof payload.status === "string" ? payload.status : undefined,
+	});
+}
+
+async function settleOpayTransaction(
+	env: CloudflareBindings,
+	transaction: { id: string; userId: string; amount: number; reference: string; status: string },
+	providerStatus: string,
+	payload?: Record<string, unknown>,
+) {
+	const status = normalizeStatus(providerStatus);
+	const callbackRecord = payload ? safeCallbackRecord(payload) : null;
+	const now = Date.now();
+
+	if (status === "success") {
+		await env.DB.batch([
+			env.DB.prepare("UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM wallet_transaction WHERE reference = ? AND status = 'pending')").bind(transaction.amount, transaction.userId, transaction.reference),
+			env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(transaction.userId, transaction.reference),
+			env.DB.prepare("UPDATE opay_transaction SET status = 'success', raw_callback_payload = COALESCE(?, raw_callback_payload), updated_at = ? WHERE id = ? AND status != 'success'").bind(callbackRecord, now, transaction.id),
+		]);
+		return status;
+	}
+
+	const db = drizzle(env.DB, { schema });
+	await db.update(schema.opayTransaction).set({
+		status,
+		...(callbackRecord ? { rawCallbackPayload: callbackRecord } : {}),
+	}).where(and(eq(schema.opayTransaction.id, transaction.id), eq(schema.opayTransaction.status, "initiated")));
+	if (status === "failed") {
+		await db.update(schema.walletTransaction).set({ status: "failed" }).where(and(eq(schema.walletTransaction.reference, transaction.reference), eq(schema.walletTransaction.status, "pending")));
+	}
+	return status;
+}
 
 function getWalletRedirectOrigin(env: CloudflareBindings): string | null {
 	for (const configuredOrigin of [
@@ -147,12 +201,7 @@ opayRoute.openapi(initiateRoute, async (c) => {
 		});
 
 		const result = await createCashierOrder(
-			{
-				env: c.env.NODE_ENV === "production" ? "production" : "sandbox",
-				merchantId: c.env.OPAY_MERCHANT_ID,
-				publicKey: c.env.OPAY_PUBLIC_KEY,
-				privateKey: c.env.OPAY_PRIVATE_KEY,
-			},
+			opayConfig(c.env),
 			{
 				reference,
 				amountKobo,
@@ -207,15 +256,53 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			.update(schema.walletTransaction)
 			.set({ status: "failed" })
 			.where(eq(schema.walletTransaction.reference, reference));
-		console.error(
-			"OPay initiate failed:",
-			err instanceof Error ? err.message : err,
-		);
+		console.error("OPay deposit initiation failed", {
+			operation: "create_cashier_order",
+			reason: err instanceof Error ? err.name : "UnknownError",
+		});
 		return c.json(
 			{ success: false as const, error: "Failed to initiate deposit" },
 			500,
 		);
 	}
+});
+
+const statusRoute = createRoute({
+	method: "get",
+	path: "/status/{reference}",
+	tags: ["OPay"],
+	summary: "Confirm an OPay deposit status",
+	security: [{ BearerAuth: [] }],
+	request: { params: z.object({ reference: z.string().min(1) }) },
+	responses: { 200: { description: "Current deposit status" }, 401: { description: "Unauthorized" }, 404: { description: "Deposit not found" } },
+});
+
+opayRoute.openapi(statusRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	const { reference } = c.req.valid("param");
+	const db = drizzle(c.env.DB, { schema });
+	const [transaction] = await db.select({
+		id: schema.opayTransaction.id,
+		userId: schema.opayTransaction.userId,
+		amount: schema.opayTransaction.amount,
+		reference: schema.opayTransaction.reference,
+		orderNo: schema.opayTransaction.orderNo,
+		status: schema.opayTransaction.status,
+	}).from(schema.opayTransaction).where(and(eq(schema.opayTransaction.reference, reference), eq(schema.opayTransaction.userId, user.id))).limit(1);
+	if (!transaction) return c.json({ success: false as const, error: "Deposit not found" }, 404);
+
+	if (transaction.status !== "success" && transaction.orderNo && c.env.OPAY_MERCHANT_ID && c.env.OPAY_PUBLIC_KEY && c.env.OPAY_PRIVATE_KEY) {
+		try {
+			const remote = await queryCashierOrderStatus(opayConfig(c.env), { reference, orderNo: transaction.orderNo });
+			await settleOpayTransaction(c.env, transaction, remote.status, { reference, orderNo: transaction.orderNo, status: remote.status });
+		} catch (error) {
+			console.error("OPay deposit reconciliation failed", { operation: "query_order_status", reason: error instanceof Error ? error.name : "UnknownError" });
+		}
+	}
+
+	const [updated] = await db.select({ status: schema.opayTransaction.status }).from(schema.opayTransaction).where(eq(schema.opayTransaction.id, transaction.id)).limit(1);
+	return c.json({ success: true as const, data: { status: updated?.status ?? transaction.status } }, 200);
 });
 
 const callbackRoute = createRoute({
@@ -294,7 +381,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 		.limit(1);
 
 	if (!existingTxn) {
-		console.error("OPay callback for unknown reference:", reference);
+		console.error("OPay callback did not match a recorded transaction");
 		return c.json({ success: false, error: "Unknown reference" }, 400);
 	}
 
@@ -302,26 +389,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 		return c.json({ success: true }, 200);
 	}
 
-	const normalizedStatus = status.toUpperCase();
-	const dbStatus =
-		normalizedStatus === "SUCCESS"
-			? "success"
-			: normalizedStatus === "PENDING"
-				? "pending"
-				: "failed";
-
-	await db
-		.update(schema.opayTransaction)
-		.set({
-			status: dbStatus,
-			rawCallbackPayload: JSON.stringify(payload),
-		})
-		.where(eq(schema.opayTransaction.id, existingTxn.id));
-
-	await db
-		.update(schema.walletTransaction)
-		.set({ status: dbStatus })
-		.where(eq(schema.walletTransaction.reference, reference));
+	const dbStatus = await settleOpayTransaction(c.env, existingTxn, status, payload);
 
 	if (dbStatus === "success") {
 		const [walletRow] = await db
@@ -334,18 +402,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 			.limit(1);
 
 		if (walletRow) {
-			const newBalance = walletRow.balance + existingTxn.amount;
-
-			await db
-				.update(schema.walletTransaction)
-				.set({ balance: newBalance, status: "success" })
-				.where(eq(schema.walletTransaction.reference, existingTxn.reference));
-
-			await db
-				.update(schema.wallet)
-				.set({ balance: newBalance })
-				.where(eq(schema.wallet.id, walletRow.id));
-
+			const newBalance = walletRow.balance;
 			trackWebengageEvent(
 				c.env,
 				{

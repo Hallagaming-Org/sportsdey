@@ -95,12 +95,6 @@ export async function kudaRequest<T = KudaBaseResponse>(
 		data,
 	};
 
-	console.log(`[Kuda] ${serviceType} request:`, {
-		requestRef,
-		serviceType,
-		dataKeys: data ? Object.keys(data) : [],
-	});
-
 	const response = await fetch(baseUrl, {
 		method: "POST",
 		headers: {
@@ -111,8 +105,6 @@ export async function kudaRequest<T = KudaBaseResponse>(
 	});
 
 	const rawResponse = await response.text();
-	console.log(`[Kuda] ${serviceType} response status:`, response.status);
-
 	if (!response.ok) {
 		throw new Error(`Kuda API error: ${response.status}`);
 	}
