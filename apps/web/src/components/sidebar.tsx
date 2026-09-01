@@ -348,7 +348,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive("partner", false),
 			onClick: () => {
 				setActiveOverride("partner");
-				window.open("https://Partners.sportsdey.com", "_blank");
+				window.open("https://partners.sportsdey.com", "_blank");
 			},
 		},
 

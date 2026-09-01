@@ -112,7 +112,7 @@ export default function DesktopFooter() {
 							</li>
 							<li>
 								<a
-									href="https://wa.link/25tnk8"
+									href="https://partners.sportsdey.com"
 									target="_blank"
 									rel="noopener noreferrer"
 									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
