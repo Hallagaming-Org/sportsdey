@@ -2,9 +2,7 @@
 	"name": "sportsdey-server",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-06-15",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"logs": {
 			"enabled": true,
@@ -41,38 +39,40 @@
 					"bucket_name": "sportsdey-staging"
 				}
 			],
-			"routes": [
-				"staging-api.sportsdey.com"
-			],
+			"routes": ["staging-api.sportsdey.com"],
 			"queues": {
-				"producers": [{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-staging-exports" }],
-				"consumers": [{ "queue": "sportsdey-staging-exports", "max_batch_size": 10, "max_concurrency": 8, "max_retries": 3 }]
+				"producers": [
+					{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-staging-exports" }
+				],
+				"consumers": [
+					{
+						"queue": "sportsdey-staging-exports",
+						"max_batch_size": 10,
+						"max_concurrency": 8,
+						"max_retries": 3
+					}
+				]
 			},
 			"triggers": { "crons": ["0 * * * *"] },
 			"vars": {
-				"NODE_ENV": "staging",
-				
-				
-				"BETTER_AUTH_URL": "https://stagingweb.sportsdey.com",
-				"FRONTEND_URL": "https://stagingweb.sportsdey.com",
-				"SERVER_URL": "https://staging-api.sportsdey.com",
-				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
-				"COOKIE_DOMAIN": "sportsdey.com",
-
-				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
-				// "PROXY_URL": "",
-				// "PROXY_SECRET": "",
-				// "BETTER_AUTH_SECRET": "",
-				// "THNDR_SERVER_SECRET": "",
-				// "THNDR_OPERATOR_ID": ""
+				"NODE_ENV": "staging"
 			}
 		},
 		"production": {
 			"name": "sportsdey-prod",
 			"routes": ["api.sportsdey.com"],
 			"queues": {
-				"producers": [{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-production-exports" }],
-				"consumers": [{ "queue": "sportsdey-production-exports", "max_batch_size": 10, "max_concurrency": 8, "max_retries": 3 }]
+				"producers": [
+					{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-production-exports" }
+				],
+				"consumers": [
+					{
+						"queue": "sportsdey-production-exports",
+						"max_batch_size": 10,
+						"max_concurrency": 8,
+						"max_retries": 3
+					}
+				]
 			},
 			"triggers": { "crons": ["0 * * * *"] },
 			"d1_databases": [
@@ -96,16 +96,7 @@
 				}
 			],
 			"vars": {
-				"NODE_ENV": "production",
-				
-				"BETTER_AUTH_URL": "https://sportsdey.com",
-				"FRONTEND_URL": "https://sportsdey.com",
-				"SERVER_URL": "https://api.sportsdey.com",
-				"CORS_ORIGIN": "https://sportsdey.com",
-				"COOKIE_DOMAIN": "sportsdey.com",
-
-				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
-
+				"NODE_ENV": "production"
 			}
 		}
 	},
