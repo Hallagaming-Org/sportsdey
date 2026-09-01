@@ -4,7 +4,7 @@ import {
 	useNavigate,
 	useParams,
 } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Copy, RefreshCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { apiRequest } from "@/lib/api";
 import Trophy from "@/logos/trophy.svg?react";
@@ -332,6 +332,13 @@ function TicketDetailsPage() {
 		toast.success("Ticket ID copied");
 	};
 
+	const handleOpenSportsbookCashOut = () => {
+		navigate({
+			to: "/sportsbetting/$",
+			params: { _splat: "my-bets" },
+		});
+	};
+
 	const bannerGradient = isWon
 		? "bg-gradient-to-b from-[#105904] via-[#04100B] to-[#000606]"
 		: isPending
@@ -424,14 +431,6 @@ function TicketDetailsPage() {
 								<span className="text-[#FFFFFF]">Total Return</span>
 								<span className="font-semibold text-[#2EFF0C]">
 									{formatMoney(ticket.totalReturn)}
-								</span>
-							</div>
-						)}
-						{isPending && ticket.potentialCashout !== null && (
-							<div className="flex items-center justify-between">
-								<span className="text-[#FFFFFF]">Potential Cashout</span>
-								<span className="font-semibold text-white">
-									{formatMoney(ticket.potentialCashout)}
 								</span>
 							</div>
 						)}
@@ -560,27 +559,20 @@ function TicketDetailsPage() {
 							})}
 				</div>
 
-				{/* CASH OUT BUTTON - only for pending tickets */}
-				{isPending && (
+				
+				{isPending && !isCasino && (
 					<div className="mt-6 px-2 py-4 md:rounded-2xl md:border md:border-[#1C1D1F] md:bg-[#0A0A0A] md:p-4">
 						<div className="flex items-center gap-4 md:justify-between">
 							<div className="hidden md:block">
-								<span className="text-[#6B6E6C] text-sm">Cashout</span>
-								<div className="font-bold text-white text-xl">
-									₦{formatMoney(ticket.potentialCashout || 0)}
-								</div>
+								<span className="font-semibold text-white text-sm">cash-out</span>
+								{/* <p className="mt-1 text-[#8C8F8F] text-xs">Available and priced by the sportsbook.</p> */}
 							</div>
-							<RefreshCcw
-								className="h-6 w-6 shrink-0 text-[#00BD61] md:hidden"
-								strokeWidth={3}
-							/>
 							<button
 								type="button"
-								disabled
-								className="h-11 flex-1 cursor-not-allowed rounded-full border border-[#B68B2B] bg-transparent px-6 py-2 font-bold text-[#FFC900] text-sm md:flex-none md:border-0 md:bg-[#FF8A4C] md:font-semibold md:text-white md:opacity-60 md:transition-opacity md:hover:opacity-80"
-								title="Cash out is not yet available"
+								onClick={handleOpenSportsbookCashOut}
+								className="h-11 flex-1 rounded-full border border-[#B68B2B] bg-transparent px-6 py-2 font-bold text-[#FFC900] text-sm transition-colors hover:bg-[#B68B2B]/15 md:flex-none md:border-0 md:bg-[#FF8A4C] md:font-semibold md:text-white md:hover:bg-[#ff9d6b]"
 							>
-								Cashout&nbsp;&nbsp;{formatMoney(ticket.potentialCashout || 0)}
+								Cash Out
 							</button>
 						</div>
 					</div>

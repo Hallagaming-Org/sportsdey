@@ -681,7 +681,6 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 
 		const stakeNaira = bet.stake / 100;
 		const oddsValue = bet.totalOdds ? Number.parseFloat(bet.totalOdds) : 0;
-		const potentialWin = oddsValue > 0 ? stakeNaira * oddsValue : 0;
 
 		let rawSelections: Array<Record<string, any>> = [];
 		try {
@@ -738,7 +737,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 					stake: stakeNaira,
 					totalOdds: oddsValue,
 					totalReturn: outcome === "won" ? (bet.settleAmount ?? 0) / 100 : null,
-					potentialCashout: outcome === "pending" ? potentialWin : null,
+					potentialCashout: null,
 					numberOfBets: selections.length,
 					selections,
 					isCasino: false,
