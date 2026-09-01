@@ -22,7 +22,7 @@ export type BonusEngineSportCategoryItem = {
 };
 
 export type BonusEngineChampionshipItem = {
-	championshipId: number;
+	championshipId: number | string;
 	name: string;
 };
 
