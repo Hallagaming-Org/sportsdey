@@ -114,6 +114,9 @@ export type BonusEngineReportBetInput = {
 	currency?: string;
 	providerId?: string;
 	gameId?: string;
+	sportId?: string;
+	eventId?: string;
+	leagueId?: string;
 };
 
 export type BonusEngineLoyaltyPointsUpdatePayload = {
