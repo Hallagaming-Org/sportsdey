@@ -161,6 +161,15 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	BONUS_DATA: "bonus_data",
 	REAL_AMOUNT_CHANGE: "real_amount_change",
 	BONUS_AMOUNT_CHANGE: "bonus_amount_change",
+	BET_ID: "bet_id",
+	AMOUNT: "amount",
+	PRODUCT_TYPE: "product_type",
+	CURRENCY: "currency",
+	PROVIDER_ID: "provider_id",
+	GAME_ID: "game_id",
+	SPORT_ID: "sport_id",
+	EVENT_ID: "event_id",
+	LEAGUE_ID: "league_id",
 } as const;
 
 export const BONUS_ENGINE_REPORT_RETRY_ATTEMPTS = 3;
