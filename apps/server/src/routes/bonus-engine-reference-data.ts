@@ -259,7 +259,8 @@ const championshipRoute = createRoute({
 	path: "/sportsbook/championship",
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets the list of championships",
-	description: "Returns a list of championships.",
+	description:
+		"Returns the top 6 European football championships. Championship IDs match Data.Bet tournament ids when the sportsbook proxy is configured.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({
@@ -275,7 +276,7 @@ const championshipRoute = createRoute({
 				"application/json": {
 					schema: z.array(
 						z.object({
-							championshipId: z.number(),
+							championshipId: z.union([z.number(), z.string()]),
 							name: z.string(),
 						}),
 					),
@@ -291,7 +292,7 @@ referenceDataRoute.openapi(championshipRoute, async (c) => {
 	const rejected = await requireSecureData(c);
 	if (rejected) return rejected;
 	const query = c.req.valid("query");
-	return c.json(listBonusEngineChampionships(query), 200);
+	return c.json(await listBonusEngineChampionships({ ...query, env: c.env }), 200);
 });
 
 const eventsRoute = createRoute({
@@ -299,7 +300,8 @@ const eventsRoute = createRoute({
 	path: "/sportsbook/events",
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets the list of sport events",
-	description: "Returns a list of events.",
+	description:
+		"Returns an empty list. Sports missions and bonuses are scoped to league/championship, not individual fixtures.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({
@@ -339,7 +341,8 @@ const eventMarketsRoute = createRoute({
 	path: "/sportsbook/events/markets",
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets event markets",
-	description: "Returns a list of markets for a given sport event.",
+	description:
+		"Returns an empty list. Fixture markets are not catalogued for Bonus Engine Admin.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({

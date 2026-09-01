@@ -69,6 +69,7 @@ export {
 export { syncCasinoCatalogFromSlotegrator } from "./catalog-sync.service";
 export type { CasinoCatalogSyncResult } from "./catalog-sync.service";
 export {
+	buildBonusEngineBetReportBody,
 	reportBonusEngineBet,
 	reportBonusEngineDeposit,
 	runBonusEngineBackground,
