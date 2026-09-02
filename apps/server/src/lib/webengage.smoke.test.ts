@@ -313,10 +313,12 @@ describe("WebEngage audit smoke", () => {
 		const phone = readRepo("apps/web/src/routes/auth/phone-sign-in.tsx");
 
 		assert.equal(transferModal.includes("transfer_funds initated"), false);
-		assert.ok(transferModal.includes('"transfer_funds initiated"'));
+		assert.equal(transferModal.includes('"transfer_funds initiated"'), false);
+		assert.ok(transferModal.includes('"transfer_funds_initiated"'));
 		assert.equal(transferModal.includes("transfer_funds_completed"), false);
-		assert.ok(wallet.includes('eventName: "transfer_funds initiated"'));
+		assert.ok(wallet.includes('eventName: "transfer_funds_initiated"'));
 		assert.ok(wallet.includes('eventName: "transfer_funds_completed"'));
+		assert.ok(wallet.includes('eventName: "deposit_initiated"'));
 		assert.ok(wallet.includes("account_number: accountNumber"));
 		assert.ok(withdrawals.includes("account_number: accountNumber"));
 		assert.equal(withdrawModal.includes("withdrawal_requested"), false);
@@ -324,6 +326,27 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(wallet.includes('eventName: "deposit_failed"'));
 		assert.ok(wallet.includes('eventName: "withdrawal_requested"'));
 		assert.ok(withdrawals.includes('eventName: "withdrawal_completed"'));
+		assert.equal(
+			readRepo("apps/web/src/routes/wallet.tsx").includes(
+				'trackWebengageEvent("deposit_initiated"',
+			),
+			false,
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/opay.ts").includes(
+				'eventName: "deposit_initiated"',
+			),
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/kuda.ts").includes(
+				'eventName: "deposit_initiated"',
+			),
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/kuda.ts").includes(
+				'eventName: "deposit_completed"',
+			),
+		);
 		assert.ok(banner.includes("banner.title?.trim()"));
 		assert.equal(banner.includes('imageUrl.split("/")'), false);
 		assert.ok(cms.includes("coalesce(alt, image.alt)"));
@@ -361,6 +384,10 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(completeProfile.includes("dateOfBirth: dob.trim()"));
 		assert.ok(account.includes("dateOfBirth: user.dob"));
 		assert.ok(root.includes("setWebengageSdkUserProfile"));
+		assert.ok(profileUtil.includes("toWebengageBirthDate"));
+		assert.ok(profileUtil.includes("date_of_birth: birthDate"));
+		assert.ok(profileUtil.includes("dob: schema.user.dob"));
+		assert.ok(sportsbook.includes("cashoutValue / originalStake"));
 		for (const attr of [
 			"kyc_status",
 			"registration_date",

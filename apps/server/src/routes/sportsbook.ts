@@ -2160,23 +2160,27 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 
 	// WebEngage `bet_cashout_requested`: Databet calls this after the player
 	// taps Cash Out in Sportsbook (My Bets) and the cash-out is accepted.
-	trackWebengageEvent(
-		c.env,
-		{
-			userId: bet.userId,
-			eventName: "bet_cashout_requested",
-			eventData: {
-				bet_id: result.data.bet_id,
-				cashout_value: asEventNumber(result.data.refund_amount),
-				original_stake: bet.stake / 100,
-				refund_amount: asEventNumber(result.data.refund_amount),
-				cashout_rate:
-					bet.stake / 100 - (asEventNumber(result.data.refund_amount) ?? 0),
-				original_potential_payout: asEventNumber(result.data.amount),
+	{
+		const originalStake = bet.stake / 100;
+		const cashoutValue = asEventNumber(result.data.refund_amount) ?? 0;
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: bet.userId,
+				eventName: "bet_cashout_requested",
+				eventData: {
+					bet_id: result.data.bet_id,
+					cashout_value: cashoutValue,
+					original_stake: originalStake,
+					refund_amount: cashoutValue,
+					cashout_rate:
+						originalStake > 0 ? cashoutValue / originalStake : null,
+					original_potential_payout: asEventNumber(result.data.amount),
+				},
 			},
-		},
-		c.executionCtx,
-	);
+			c.executionCtx,
+		);
+	}
 
 	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
 

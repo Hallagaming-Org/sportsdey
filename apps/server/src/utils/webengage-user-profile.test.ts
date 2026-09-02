@@ -22,6 +22,25 @@ describe("webengage user profile aggregates", () => {
 		assert.equal(toWebengageIso(null), undefined);
 	});
 
+	it("formats date_of_birth for WebEngage birthDate attribute", async () => {
+		const { toWebengageBirthDate, buildWebengageUserPayload } = await import(
+			"./webengage-event"
+		);
+		assert.equal(toWebengageBirthDate("1998-04-12"), "1998-04-12");
+		assert.equal(toWebengageBirthDate("12/04/1998"), "1998-04-12");
+		assert.equal(toWebengageBirthDate(""), undefined);
+		const payload = buildWebengageUserPayload({
+			userId: "u1",
+			date_of_birth: "1998-04-12",
+			kyc_status: true,
+		});
+		assert.equal(payload.birthDate, "1998-04-12");
+		assert.deepEqual(payload.attributes, {
+			date_of_birth: "1998-04-12",
+			kyc_status: true,
+		});
+	});
+
 	it("counts deposits and withdrawals with the sheet names and number types", () => {
 		const stats = walletTxAggregates([
 			{
