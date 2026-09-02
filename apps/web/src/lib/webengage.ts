@@ -42,16 +42,49 @@ export function toWebengageTimestamp(
 	}
 	if (!value || typeof value !== "string") return undefined;
 	const trimmed = value.trim();
-	const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-	if (iso) {
-		const parsed = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+	if (!trimmed) return undefined;
+
+	const isoDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+	if (isoDate) {
+		const parsed = new Date(
+			Number(isoDate[1]),
+			Number(isoDate[2]) - 1,
+			Number(isoDate[3]),
+		);
 		return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 	}
-	const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+
+	// DD/MM/YYYY or DD-MM-YYYY, optional time (HH:mm or HH:mm:ss)
+	const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(
+		trimmed,
+	);
 	if (dmy) {
-		const parsed = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+		const parsed = new Date(
+			Number(dmy[3]),
+			Number(dmy[2]) - 1,
+			Number(dmy[1]),
+			dmy[4] != null ? Number(dmy[4]) : 0,
+			dmy[5] != null ? Number(dmy[5]) : 0,
+			dmy[6] != null ? Number(dmy[6]) : 0,
+		);
 		return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 	}
+
+	// YYYY-MM-DD HH:mm[:ss]
+	const ymdTime =
+		/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(trimmed);
+	if (ymdTime) {
+		const parsed = new Date(
+			Number(ymdTime[1]),
+			Number(ymdTime[2]) - 1,
+			Number(ymdTime[3]),
+			Number(ymdTime[4]),
+			Number(ymdTime[5]),
+			ymdTime[6] != null ? Number(ymdTime[6]) : 0,
+		);
+		return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+	}
+
 	const parsed = new Date(trimmed);
 	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }

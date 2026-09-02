@@ -87,8 +87,9 @@ export function TransferModal({
 		}
 
 		setTransferError("");
-		trackWebengageEvent("transfer_funds initiated", {
-			"wallet id": recipientWalletId.trim(),
+		// Server emits initiated then completed in order for P2P transfers.
+		trackWebengageEvent("transfer_funds_initiated", {
+			wallet_id: recipientWalletId.trim(),
 			amount,
 		});
 		transferMutation.mutate({

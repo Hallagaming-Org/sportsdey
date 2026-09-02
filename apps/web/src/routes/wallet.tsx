@@ -22,7 +22,6 @@ import { useSession } from "@/lib/auth/client";
 import { OpenfortWalletScope } from "@/lib/openfort/scope";
 import { formatAmount } from "@/lib/utils";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
-import { trackWebengageEvent } from "@/lib/webengage";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
@@ -209,10 +208,8 @@ function WalletPage() {
 
 		setDepositError("");
 		setKudaDepositInstructions(null);
-		trackWebengageEvent("deposit_initiated", {
-			amount,
-			currency: "NGN",
-		});
+		// deposit_initiated is emitted server-side on /wallet fund + OPay/Kuda
+		// initiate so it always precedes deposit_completed in WebEngage.
 		depositMutation.mutate({ amount, provider });
 	};
 

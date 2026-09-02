@@ -658,6 +658,22 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		);
 	}
 
+	// Server-side initiated so WE receives it before deposit_completed (webhook).
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "deposit_initiated",
+			eventData: {
+				amount,
+				currency: "NGN",
+				payment_method: "card",
+				transaction_id: reference,
+			},
+		},
+		c.executionCtx,
+	);
+
 	let paystackResult: Awaited<ReturnType<typeof initializeTransaction>>;
 	try {
 		paystackResult = await initializeTransaction(
@@ -685,6 +701,21 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				500,
 			);
 		}
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "deposit_failed",
+				eventData: {
+					amount,
+					payment_method: "card",
+					failure_reason:
+						error instanceof Error ? error.message : "Failed to initialize deposit",
+					wallet_balance_after: currentBalance / 100,
+				},
+			},
+			c.executionCtx,
+		);
 		console.error("Paystack initiate failed:", error);
 		return c.json(
 			{ success: false, error: "Failed to initialize deposit" },
@@ -1889,6 +1920,20 @@ walletRoute.openapi(transferRoute, async (c) => {
 	const reference = `trf_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 	const amountKobo = amount * 100;
 
+	// Await initiated so WE orders it before transfer_funds_completed in this request.
+	await trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds_initiated",
+			eventData: {
+				wallet_id: recipientWalletId,
+				amount,
+			},
+		},
+		c.executionCtx,
+	);
+
 	const batchResults = await c.env.DB.batch([
 		c.env.DB.prepare(
 			"UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
@@ -2124,13 +2169,13 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 	const nowMs = now.getTime();
 	const amountKobo = amount * 100;
 
-	trackWebengageEvent(
+	await trackWebengageEvent(
 		c.env,
 		{
 			userId: user.id,
-			eventName: "transfer_funds initiated",
+			eventName: "transfer_funds_initiated",
 			eventData: {
-				"wallet id": "game_wallet",
+				wallet_id: "game_wallet",
 				amount,
 			},
 		},
@@ -2179,20 +2224,20 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		.where(eq(schema.gameWallet.id, gameWallet.id))
 		.limit(1);
 
-	// trackWebengageEvent(
-	// 	c.env,
-	// 	{
-	// 		userId: user.id,
-	// 		eventName: "transfer_funds_completed",
-	// 		eventData: {
-	// 			"wallet id": "game_wallet",
-	// 			amount,
-	// 			transaction_id: reference,
-	// 			wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
-	// 		},
-	// 	},
-	// 	c.executionCtx,
-	// );
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds_completed",
+			eventData: {
+				wallet_id: "game_wallet",
+				amount,
+				transaction_id: reference,
+				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+			},
+		},
+		c.executionCtx,
+	);
 
 	return c.json(
 		{

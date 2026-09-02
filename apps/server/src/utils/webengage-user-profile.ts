@@ -4,6 +4,7 @@ import type { ExecutionContext } from "hono";
 import * as schema from "@/db/schema";
 import { setWebengageUserAttributes } from "@/lib/webengage";
 import type { CloudflareBindings } from "@/types";
+import { toWebengageBirthDate } from "@/utils/webengage-event";
 
 const GAME_PAYMENT_METHODS = new Set([
 	"slotegrator games",
@@ -218,6 +219,7 @@ export async function loadWebengageUserProfile(
 			name: schema.user.name,
 			email: schema.user.email,
 			mobileNumber: schema.user.mobileNumber,
+			dob: schema.user.dob,
 			createdAt: schema.user.createdAt,
 			verificationStatus: schema.user.verificationStatus,
 		})
@@ -260,12 +262,15 @@ export async function loadWebengageUserProfile(
 		.where(eq(schema.sportsbookBet.userId, userId));
 
 	const nameParts = (existing.name || "").trim().split(/\s+/);
+	const birthDate = toWebengageBirthDate(existing.dob);
 	return {
 		userId: existing.id,
 		email: existing.email || undefined,
 		firstName: nameParts[0] || undefined,
 		lastName: nameParts.slice(1).join(" ") || undefined,
 		phone: existing.mobileNumber || undefined,
+		birthDate,
+		date_of_birth: birthDate,
 		kyc_status: kycStatusBoolean(existing.verificationStatus, kycRow?.status),
 		registration_date: toWebengageIso(existing.createdAt),
 		wallet_balance: naira(walletRow?.balance),
