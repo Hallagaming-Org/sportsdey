@@ -33,11 +33,21 @@ import {
 	processExportMessage,
 	requeueStaleChunks,
 } from "./utils/exports/service";
+import { isD1CapacityError } from "./utils/d1-errors";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 app.onError((err, c) => {
 	console.error("Unhandled error:", err.message, err.stack);
+	if (isD1CapacityError(err)) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Service temporarily unavailable. Please try again shortly.",
+			},
+			503,
+		);
+	}
 	return c.json(
 		{
 			error: {

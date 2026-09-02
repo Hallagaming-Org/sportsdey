@@ -81,11 +81,11 @@ newsRoute.openapi(
 			);
 		}
 
-		const cacheKey = `news_videos_${query}_${pageToken || "first"}`;
-		let cachedData = null;
+		const cacheKey = `news_videos_${query}_${pageToken || "first"}_${channelId || "all"}`;
+		let cachedData: { data: unknown; expiresAt: number } | null = null;
 		if (getKvNamespace(c.env)) {
 			cachedData = (await getKvNamespace(c.env)?.get(cacheKey, "json")) as {
-				data: any;
+				data: unknown;
 				expiresAt: number;
 			} | null;
 		}
@@ -111,19 +111,31 @@ newsRoute.openapi(
 		const response: Response = await fetchWithTimeout(apiUrl, {}, 10000);
 
 		if (!response.ok) {
+			if (cachedData?.data) {
+				console.warn(
+					"Serving stale news videos from KV after YouTube API failure",
+					response.status,
+				);
+				return c.json(
+					{
+						success: true as const,
+						data: cachedData.data,
+					},
+					200,
+				);
+			}
+			console.warn(
+				"YouTube API unavailable and no cached videos; returning empty list",
+				response.status,
+			);
 			return c.json(
 				{
-					success: false as const,
-					error: "External API error",
-					details: [
-						{
-							field: "youtube_api",
-							message: `YouTube API returned status ${response.status}`,
-							code: "external_api_error",
-						},
-					],
+					success: true as const,
+					data: {
+						videos: [],
+					},
 				},
-				502,
+				200,
 			);
 		}
 

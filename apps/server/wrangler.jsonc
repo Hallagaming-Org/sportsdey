@@ -53,7 +53,7 @@
 				"NODE_ENV": "staging",
 				
 				
-				"BETTER_AUTH_URL": "https://stagingweb.sportsdey.com",
+				"BETTER_AUTH_URL": "https://staging-api.sportsdey.com",
 				"FRONTEND_URL": "https://stagingweb.sportsdey.com",
 				"SERVER_URL": "https://staging-api.sportsdey.com",
 				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
@@ -98,7 +98,7 @@
 			"vars": {
 				"NODE_ENV": "production",
 				
-				"BETTER_AUTH_URL": "https://sportsdey.com",
+				"BETTER_AUTH_URL": "https://api.sportsdey.com",
 				"FRONTEND_URL": "https://sportsdey.com",
 				"SERVER_URL": "https://api.sportsdey.com",
 				"CORS_ORIGIN": "https://sportsdey.com",

@@ -12,6 +12,7 @@ import { SESSION_TTL_MS } from "@/constants/session";
 import * as schema from "@/db/schema";
 import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
+import { isD1CapacityError } from "@/utils/d1-errors";
 import {
 	normalizeNigerianPhone,
 	phoneNumberLookupValues,
@@ -142,7 +143,11 @@ function generateOtp(): string {
 }
 
 function createSessionToken(): string {
-	return crypto.randomBytes(64).toString("hex");
+	const bytes = new Uint8Array(64);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "hex")).join(
+		"",
+	);
 }
 
 function verificationId(): string {
@@ -159,17 +164,31 @@ async function findUserByPhone(db: PhoneDb, phoneNumber: string) {
 	const phoneLookup = phoneNumberLookupValues(phoneNumber);
 	const phoneDigits = phoneNumber.replace(/\D/g, "");
 	const placeholderEmail = buildPhonePlaceholderEmail(phoneDigits);
-	const [existingByPhone] = await db
-		.select()
+	const matches = await db
+		.select({
+			user: schema.user,
+			credentialPassword: schema.account.password,
+		})
 		.from(schema.user)
+		.leftJoin(
+			schema.account,
+			and(
+				eq(schema.account.userId, schema.user.id),
+				eq(schema.account.providerId, "credential"),
+			),
+		)
 		.where(
 			or(
 				inArray(schema.user.mobileNumber, phoneLookup),
 				eq(schema.user.email, placeholderEmail),
 			),
 		)
-		.limit(1);
-	return existingByPhone ?? null;
+		.orderBy(desc(schema.user.updatedAt));
+
+	if (matches.length === 0) return null;
+
+	const withPassword = matches.find((row) => row.credentialPassword);
+	return (withPassword ?? matches[0])?.user ?? null;
 }
 
 async function upsertCredentialPassword(
@@ -249,9 +268,14 @@ async function issuePhoneSession(
 		username: signedInUser.name || signedInUser.email || signedInUser.id,
 	});
 
+	const authSecret = c.env.BETTER_AUTH_SECRET?.trim();
+	if (!authSecret) {
+		throw new Error("BETTER_AUTH_SECRET is missing or empty");
+	}
+
 	const sessionCookie = await createSignedSessionCookieString(
 		token,
-		c.env.BETTER_AUTH_SECRET,
+		authSecret,
 		{
 			nodeEnv: c.env.NODE_ENV,
 			authUrl: c.env.BETTER_AUTH_URL,
@@ -697,62 +721,89 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 });
 
 phoneAuthRoute.openapi(loginRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber, password } = c.req.valid("json");
-	const phoneNumber = normalizePhone(rawPhoneNumber);
-	if (!phoneNumber) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Invalid Nigerian phone number",
-			},
-			400,
-		);
+	try {
+		const { phoneNumber: rawPhoneNumber, password } = c.req.valid("json");
+		const phoneNumber = normalizePhone(rawPhoneNumber);
+		if (!phoneNumber) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Invalid Nigerian phone number",
+				},
+				400,
+			);
+		}
+
+		const db = drizzle(c.env.DB, { schema });
+		const signedInUser = await findUserByPhone(db, phoneNumber);
+		if (!signedInUser) {
+			return c.json(
+				{ success: false as const, error: "Invalid phone number or password" },
+				401,
+			);
+		}
+
+		const [credential] = await db
+			.select()
+			.from(schema.account)
+			.where(
+				and(
+					eq(schema.account.userId, signedInUser.id),
+					eq(schema.account.providerId, "credential"),
+				),
+			)
+			.limit(1);
+
+		if (!credential?.password) {
+			return c.json(
+				{
+					success: false as const,
+					error:
+						"This account has no password yet. Use Forgot password to set one.",
+				},
+				401,
+			);
+		}
+
+		let passwordOk = false;
+		try {
+			passwordOk = await verifyPassword({
+				hash: credential.password,
+				password,
+			});
+		} catch (error) {
+			console.error("phone-auth/login password verify error", {
+				userId: signedInUser.id,
+				error,
+			});
+			return c.json(
+				{ success: false as const, error: "Invalid phone number or password" },
+				401,
+			);
+		}
+
+		if (!passwordOk) {
+			return c.json(
+				{ success: false as const, error: "Invalid phone number or password" },
+				401,
+			);
+		}
+
+		const sessionData = await issuePhoneSession(c, db, signedInUser, false);
+		return c.json({ success: true as const, data: sessionData }, 200);
+	} catch (error) {
+		if (isD1CapacityError(error)) {
+			console.error("phone-auth/login D1 capacity error", error);
+			return c.json(
+				{
+					success: false as const,
+					error: "Service temporarily unavailable. Please try again shortly.",
+				},
+				503,
+			);
+		}
+		throw error;
 	}
-
-	const db = drizzle(c.env.DB, { schema });
-	const signedInUser = await findUserByPhone(db, phoneNumber);
-	if (!signedInUser) {
-		return c.json(
-			{ success: false as const, error: "Invalid phone number or password" },
-			401,
-		);
-	}
-
-	const [credential] = await db
-		.select()
-		.from(schema.account)
-		.where(
-			and(
-				eq(schema.account.userId, signedInUser.id),
-				eq(schema.account.providerId, "credential"),
-			),
-		)
-		.limit(1);
-
-	if (!credential?.password) {
-		return c.json(
-			{
-				success: false as const,
-				error:
-					"This account has no password yet. Use Forgot password to set one.",
-			},
-			401,
-		);
-	}
-
-	const passwordOk = await verifyPassword({
-		hash: credential.password,
-		password,
-	});
-	if (!passwordOk) {
-		return c.json(
-			{ success: false as const, error: "Invalid phone number or password" },
-			401,
-		);
-	}
-
-	const sessionData = await issuePhoneSession(c, db, signedInUser, false);
-	return c.json({ success: true as const, data: sessionData }, 200);
 });
 
 phoneAuthRoute.openapi(setPasswordRoute, async (c) => {

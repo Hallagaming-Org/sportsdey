@@ -1,17 +1,8 @@
-const resolveApiBaseUrl = () => {
-	if (typeof window !== "undefined") {
-		const hostname = window.location.hostname;
-		if (hostname === "stagingweb.sportsdey.com") {
-			return "https://staging-api.sportsdey.com/";
-		}
-		if (hostname === "sportsdey.com" || hostname === "www.sportsdey.com") {
-			return "https://api.sportsdey.com/";
-		}
-	}
-	return import.meta.env.VITE_SERVER_URL || "";
-};
+import { resolveServerUrl } from "@/lib/server-url";
 
-const API_BASE_URL = resolveApiBaseUrl();
+function apiBaseUrl(): string {
+	return `${resolveServerUrl()}/`;
+}
 
 export type KycStatus =
 	| "not_verified"
@@ -61,7 +52,7 @@ export class KycError extends Error {
 }
 
 export async function getKycStatus(): Promise<KycInfo | null> {
-	const response = await fetch(`${API_BASE_URL}kyc`, {
+	const response = await fetch(`${apiBaseUrl()}kyc`, {
 		method: "GET",
 		credentials: "include",
 		headers: {
@@ -88,7 +79,7 @@ export async function submitKyc(params: KycSubmitParams): Promise<KycInfo> {
 	formData.append("frontDocument", params.frontDocument);
 	formData.append("backDocument", params.backDocument);
 
-	const response = await fetch(`${API_BASE_URL}kyc`, {
+	const response = await fetch(`${apiBaseUrl()}kyc`, {
 		method: "POST",
 		credentials: "include",
 		body: formData,

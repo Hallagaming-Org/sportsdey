@@ -63,7 +63,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				name: "description",
 				content:
-					"Get Live Football & Basketball Scores plus News, and Real-Time Results with Sportsdey! Everything Sports Dey here! Click now!",
+					"Nigeria's all-in-one gaming platform. Enjoy Sportsbetting, Casino, Prediction Markets, Binary trading, Esports, News and much more in one place",
 			},
 			{
 				title: "sportsdey",

@@ -1,14 +1,10 @@
 import { resolveServerUrl } from "@/lib/server-url";
 
-const DEFAULT_API_BASE_URL = "https://staging-api.sportsdey.com/";
 const API_REQUEST_TIMEOUT_MS = 10_000;
 
-const resolveApiBaseUrl = () => {
-	const serverUrl = resolveServerUrl();
-	return serverUrl ? `${serverUrl}/` : DEFAULT_API_BASE_URL;
-};
-
-const API_BASE_URL = resolveApiBaseUrl();
+function apiBaseUrl(): string {
+	return `${resolveServerUrl()}/`;
+}
 
 type ApiErrorDetail = {
 	field: string;
@@ -71,7 +67,7 @@ export async function apiRequest<T>(
 	endpoint: string,
 	options: RequestInit = {},
 ): Promise<T> {
-	const url = `${API_BASE_URL}${endpoint}`;
+	const url = `${apiBaseUrl()}${endpoint}`;
 
 	const controller = new AbortController();
 	const timeoutId = setTimeout(
@@ -150,7 +146,7 @@ export async function apiRequestFull<T>(
 	endpoint: string,
 	options: RequestInit = {},
 ): Promise<T> {
-	const url = `${API_BASE_URL}${endpoint}`;
+	const url = `${apiBaseUrl()}${endpoint}`;
 
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -236,7 +232,7 @@ export async function apiUploadFile({
 	file: File;
 	fields: Record<string, string>;
 }): Promise<UploadedFile> {
-	const url = `${API_BASE_URL}${endpoint}`;
+	const url = `${apiBaseUrl()}${endpoint}`;
 	const formData = new FormData();
 	formData.append("file", file);
 	for (const [key, value] of Object.entries(fields)) {
