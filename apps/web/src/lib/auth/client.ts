@@ -13,6 +13,38 @@ export const authClient = createAuthClient({
 
 export const { signIn, signUp, useSession, getSession, changeEmail } = authClient;
 
+/** Start Google OAuth — explicit redirect (Better Auth fetch plugin can miss in some browsers). */
+export async function signInWithGoogle(callbackURL: string): Promise<void> {
+	const response = await fetch(`${resolveServerUrl()}/auth/sign-in/social`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify({ provider: "google", callbackURL }),
+	});
+
+	let data: { url?: string; message?: string; error?: string } | null = null;
+	try {
+		data = (await response.json()) as typeof data;
+	} catch {
+		// ignore parse errors
+	}
+
+	if (!response.ok) {
+		throw new Error(
+			data?.message ||
+				data?.error ||
+				"Failed to sign in with Google. Please try again.",
+		);
+	}
+
+	if (data?.url) {
+		window.location.assign(data.url);
+		return;
+	}
+
+	throw new Error("Failed to sign in with Google. Please try again.");
+}
+
 export async function signOut(
 	...args: Parameters<typeof authClient.signOut>
 ) {

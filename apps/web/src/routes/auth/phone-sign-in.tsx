@@ -7,14 +7,13 @@ import {
 	loginWithPhone,
 	PENDING_PHONE_PASSWORD_KEY,
 	requestPhoneOtp,
-	signIn,
+	signInWithGoogle,
 } from "@/lib/auth/client";
 import {
 	normalizeNigerianPhone,
 	toNigerianNationalInput,
 } from "@/lib/auth/nigerian-phone";
 import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
-import { showAppleFacebookLogin } from "@/lib/auth/social-logins";
 import { buildPublicUrl } from "@/lib/public-url";
 import {
 	loginWebengageUser,
@@ -133,24 +132,18 @@ function PhoneSignInPage() {
 		? buildPublicUrl(`/auth/callback?returnTo=${encodeURIComponent(returnTo)}`)
 		: buildPublicUrl("/auth/callback");
 
-	const handleSocialSignIn = async (
-		provider: "google" | "apple" | "facebook",
-	) => {
-		if (provider !== "google" && !showAppleFacebookLogin()) return;
+	const handleGoogleSignIn = async () => {
 		setError("");
 		setIsLoading(true);
-		trackWebengageLoginInitiated(provider);
+		trackWebengageLoginInitiated("google");
 		try {
-			const result = await signIn.social({
-				provider,
-				callbackURL,
-			});
-			if (result?.error) {
-				setError(result.error.message || `Failed to sign in with ${provider}`);
-			}
-		} catch {
-			setError(`Failed to sign in with ${provider}`);
-		} finally {
+			await signInWithGoogle(callbackURL);
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: "Failed to sign in with Google. Please try again.",
+			);
 			setIsLoading(false);
 		}
 	};
@@ -174,7 +167,7 @@ function PhoneSignInPage() {
 				</div>
 
 				<div className="flex flex-col gap-4">
-					<div className="flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors focus-within:border-[#17b000]">
+					<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors focus-within:border-[#17b000]">
 						<div className="flex items-center gap-3 pr-4">
 							<span className="text-xl">🇳🇬</span>
 							<span className="font-medium text-[#6f7471] text-base">+234</span>
@@ -196,7 +189,7 @@ function PhoneSignInPage() {
 					</div>
 
 					<div>
-						<div className="flex h-[91px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors focus-within:border-[#17b000]">
+						<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors focus-within:border-[#17b000]">
 							<Lock className="shrink-0 text-[#9a9d9a]" size={20} />
 							<input
 								type={showPassword ? "text" : "password"}
@@ -311,11 +304,11 @@ function PhoneSignInPage() {
 					<p className="mb-4 font-medium text-[#6f7471] text-sm">
 						Other login methods
 					</p>
-					<div className="flex items-center justify-center gap-5">
+					<div className="flex items-center justify-center">
 						<button
 							type="button"
 							disabled={isLoading}
-							onClick={() => void handleSocialSignIn("google")}
+							onClick={() => void handleGoogleSignIn()}
 							className="flex h-11 w-11 items-center justify-center rounded-full border border-gray-100 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition-transform hover:scale-105 disabled:opacity-50"
 						>
 							<svg className="h-6 w-6" viewBox="0 0 24 24">
@@ -337,30 +330,6 @@ function PhoneSignInPage() {
 								/>
 							</svg>
 						</button>
-						{showAppleFacebookLogin() ? (
-							<>
-								<button
-									type="button"
-									disabled={isLoading}
-									onClick={() => void handleSocialSignIn("apple")}
-									className="flex h-11 w-11 items-center justify-center rounded-full bg-black transition-transform hover:scale-105 disabled:opacity-50"
-								>
-									<svg className="h-6 w-6" fill="white" viewBox="0 0 24 24">
-										<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-									</svg>
-								</button>
-								<button
-									type="button"
-									disabled={isLoading}
-									onClick={() => void handleSocialSignIn("facebook")}
-									className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1877F2] transition-transform hover:scale-105 disabled:opacity-50"
-								>
-									<svg className="h-6 w-6" fill="white" viewBox="0 0 24 24">
-										<path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-									</svg>
-								</button>
-							</>
-						) : null}
 					</div>
 				</div>
 

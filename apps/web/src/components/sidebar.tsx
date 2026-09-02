@@ -14,7 +14,6 @@ import { SPORTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
-import PredictionMarket from "@/logos/PredictionMarket";
 import PredictionMarketIcon from "@/logos/PredictionMarketIcon";
 import PVPIcon from "@/logos/PVPIcon";
 import Soccer from "@/logos/Soccer";
@@ -179,19 +178,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Home,
 			isActive: isItemActive("home", isHomeActive),
 			onClick: goToHome,
-		},
-                {
-			id: "prediction",
-			label: "Prediction Market",
-			icon: Trading,
-			isActive: isItemActive("prediction", false),
-			onClick: () => {
-				setActiveOverride("prediction");
-				window.open(
-					"https://prediction.sportsdey.com/",
-					"_blank",
-				);
-			},
 		},
 		{
 			id: "betting",
