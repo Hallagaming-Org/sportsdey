@@ -176,7 +176,7 @@ export default function Header(
 							) : (
 								<div className="flex gap-x-1.5">
 									<Link
-										to="/auth/sign-in"
+										to="/auth/phone-sign-in"
 										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[10px] text-black text-secondary leading-tight transition-colors"
 									>
@@ -359,7 +359,7 @@ export default function Header(
 							) : (
 								<div className="flex justify-center gap-x-2">
 									<Link
-										to="/auth/sign-in"
+										to="/auth/phone-sign-in"
 										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer rounded-full bg-white px-3 py-1.5 text-black text-secondary text-xs transition-colors"
 									>

@@ -4,9 +4,6 @@ type MissionsErrorProps = {
 	error: unknown;
 };
 
-/**
- * Non-preview API failure message for the missions list.
- */
 export function MissionsError({ error }: MissionsErrorProps) {
 	return (
 		<div className="flex justify-center py-12 text-red-400">

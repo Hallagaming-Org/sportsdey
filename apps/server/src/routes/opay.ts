@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { createCashierOrder } from "@/lib/opay/client";
+import { createCashierOrder, queryCashierOrderStatus } from "@/lib/opay/client";
 import { verifyCallbackSignature } from "@/lib/opay/signature";
+import { trackWebengageEvent } from "@/lib/webengage";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const opayRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -25,6 +27,75 @@ const ErrorSchema = z.object({
 	success: z.literal(false),
 	error: z.string(),
 });
+
+function opayConfig(env: CloudflareBindings) {
+	return {
+		env: env.NODE_ENV === "production" ? ("production" as const) : ("sandbox" as const),
+		merchantId: env.OPAY_MERCHANT_ID,
+		publicKey: env.OPAY_PUBLIC_KEY,
+		privateKey: env.OPAY_PRIVATE_KEY,
+	};
+}
+
+function normalizeStatus(status: string): "success" | "pending" | "failed" {
+	const normalized = status.toUpperCase();
+	if (["SUCCESS", "SUCCESSFUL", "COMPLETED", "PAID"].includes(normalized)) return "success";
+	if (["PENDING", "PROCESSING", "INITIATED"].includes(normalized)) return "pending";
+	return "failed";
+}
+
+function safeCallbackRecord(payload: Record<string, unknown>) {
+	return JSON.stringify({
+		reference: typeof payload.reference === "string" ? payload.reference : undefined,
+		orderNo: typeof payload.orderNo === "string" ? payload.orderNo : undefined,
+		status: typeof payload.status === "string" ? payload.status : undefined,
+	});
+}
+
+async function settleOpayTransaction(
+	env: CloudflareBindings,
+	transaction: { id: string; userId: string; amount: number; reference: string; status: string },
+	providerStatus: string,
+	payload?: Record<string, unknown>,
+) {
+	const status = normalizeStatus(providerStatus);
+	const callbackRecord = payload ? safeCallbackRecord(payload) : null;
+	const now = Date.now();
+
+	if (status === "success") {
+		await env.DB.batch([
+			env.DB.prepare("UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM wallet_transaction WHERE reference = ? AND status = 'pending')").bind(transaction.amount, transaction.userId, transaction.reference),
+			env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(transaction.userId, transaction.reference),
+			env.DB.prepare("UPDATE opay_transaction SET status = 'success', raw_callback_payload = COALESCE(?, raw_callback_payload), updated_at = ? WHERE id = ? AND status != 'success'").bind(callbackRecord, now, transaction.id),
+		]);
+		return status;
+	}
+
+	const db = drizzle(env.DB, { schema });
+	await db.update(schema.opayTransaction).set({
+		status,
+		...(callbackRecord ? { rawCallbackPayload: callbackRecord } : {}),
+	}).where(and(eq(schema.opayTransaction.id, transaction.id), eq(schema.opayTransaction.status, "initiated")));
+	if (status === "failed") {
+		await db.update(schema.walletTransaction).set({ status: "failed" }).where(and(eq(schema.walletTransaction.reference, transaction.reference), eq(schema.walletTransaction.status, "pending")));
+	}
+	return status;
+}
+
+function getWalletRedirectOrigin(env: CloudflareBindings): string | null {
+	for (const configuredOrigin of [
+		env.FRONTEND_URL,
+		env.CORS_ORIGIN,
+		env.BETTER_AUTH_URL,
+	]) {
+		if (!configuredOrigin?.trim()) continue;
+		try {
+			return new URL(configuredOrigin).origin;
+		} catch {
+		}
+	}
+	return null;
+}
 
 const initiateRoute = createRoute({
 	method: "post",
@@ -59,11 +130,29 @@ opayRoute.openapi(initiateRoute, async (c) => {
 
 	const parsed = InitiateSchema.safeParse(await c.req.json());
 	if (!parsed.success) {
-		return c.json({ success: false as const, error: "Invalid request body" }, 400);
+		return c.json(
+			{ success: false as const, error: "Invalid request body" },
+			400,
+		);
 	}
 
-	if (!c.env.OPAY_MERCHANT_ID || !c.env.OPAY_PUBLIC_KEY || !c.env.OPAY_PRIVATE_KEY) {
-		return c.json({ success: false as const, error: "OPay is not configured" }, 500);
+	if (
+		!c.env.OPAY_MERCHANT_ID ||
+		!c.env.OPAY_PUBLIC_KEY ||
+		!c.env.OPAY_PRIVATE_KEY
+	) {
+		return c.json(
+			{ success: false as const, error: "OPay is not configured" },
+			500,
+		);
+	}
+
+	const walletRedirectOrigin = getWalletRedirectOrigin(c.env);
+	if (!walletRedirectOrigin) {
+		return c.json(
+			{ success: false as const, error: "Wallet redirect URL is not configured" },
+			500,
+		);
 	}
 
 	const db = drizzle(c.env.DB, { schema });
@@ -71,34 +160,75 @@ opayRoute.openapi(initiateRoute, async (c) => {
 	const amountKobo = Math.round(parsed.data.amount * 100);
 
 	try {
+		const [opayTxn] = await db
+			.insert(schema.opayTransaction)
+			.values({
+				id: `opaytxn_${crypto.randomUUID()}`,
+				userId: user.id,
+				reference,
+				amount: amountKobo,
+				status: "initiated",
+			})
+			.returning({ id: schema.opayTransaction.id });
+
+		if (!opayTxn?.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Failed to record deposit transaction",
+				},
+				500,
+			);
+		}
+
+		const [wallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, user.id))
+			.limit(1);
+
+		await db.insert(schema.walletTransaction).values({
+			id: `wtxn_${crypto.randomUUID()}`,
+			userId: user.id,
+			amount: amountKobo,
+			type: "credit",
+			reference,
+			status: "pending",
+			paymentMethod: "opay",
+			balance: wallet?.balance ?? null,
+			metadata: JSON.stringify({ provider: "opay" }),
+			createdAt: new Date(),
+		});
+
 		const result = await createCashierOrder(
-			{
-				env: c.env.NODE_ENV === "production" ? "production" : "sandbox",
-				merchantId: c.env.OPAY_MERCHANT_ID,
-				publicKey: c.env.OPAY_PUBLIC_KEY,
-				privateKey: c.env.OPAY_PRIVATE_KEY,
-			},
+			opayConfig(c.env),
 			{
 				reference,
 				amountKobo,
-				returnUrl: `${c.env.BETTER_AUTH_URL}/wallet?deposit=success`,
+				returnUrl: `${walletRedirectOrigin}/wallet?deposit=processing&reference=${encodeURIComponent(reference)}`,
 				callbackUrl: `${c.env.SERVER_URL}/opay/callback`,
-				cancelUrl: `${c.env.BETTER_AUTH_URL}/wallet?deposit=cancelled`,
+				cancelUrl: `${walletRedirectOrigin}/wallet?deposit=cancelled&reference=${encodeURIComponent(reference)}`,
 				userEmail: user.email,
 				userMobile: user.mobileNumber ?? "",
 				userName: user.name,
 			},
 		);
 
-		await db.insert(schema.opayTransaction).values({
-			id: `opaytxn_${crypto.randomUUID()}`,
-			userId: user.id,
-			reference,
-			orderNo: result.orderNo,
-			amount: amountKobo,
-			status: "initiated",
-			cashierUrl: result.cashierUrl,
-		});
+		const [updatedTxn] = await db
+			.update(schema.opayTransaction)
+			.set({ orderNo: result.orderNo, cashierUrl: result.cashierUrl })
+			.where(eq(schema.opayTransaction.id, opayTxn.id))
+			.returning({ id: schema.opayTransaction.id });
+
+		if (!updatedTxn?.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Failed to update deposit transaction",
+				},
+				500,
+			);
+		}
 
 		return c.json(
 			{
@@ -108,10 +238,71 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			200,
 		);
 	} catch (err) {
-		
-		console.error("OPay initiate failed:", err instanceof Error ? err.message : err);
-		return c.json({ success: false as const, error: "Failed to initiate deposit" }, 500);
+		const [updatedTxn] = await db
+			.update(schema.opayTransaction)
+			.set({ status: "failed" })
+			.where(eq(schema.opayTransaction.reference, reference))
+			.returning({ id: schema.opayTransaction.id });
+		if (!updatedTxn?.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Failed to update deposit transaction",
+				},
+				500,
+			);
+		}
+		await db
+			.update(schema.walletTransaction)
+			.set({ status: "failed" })
+			.where(eq(schema.walletTransaction.reference, reference));
+		console.error("OPay deposit initiation failed", {
+			operation: "create_cashier_order",
+			reason: err instanceof Error ? err.name : "UnknownError",
+		});
+		return c.json(
+			{ success: false as const, error: "Failed to initiate deposit" },
+			500,
+		);
 	}
+});
+
+const statusRoute = createRoute({
+	method: "get",
+	path: "/status/{reference}",
+	tags: ["OPay"],
+	summary: "Confirm an OPay deposit status",
+	security: [{ BearerAuth: [] }],
+	request: { params: z.object({ reference: z.string().min(1) }) },
+	responses: { 200: { description: "Current deposit status" }, 401: { description: "Unauthorized" }, 404: { description: "Deposit not found" } },
+});
+
+opayRoute.openapi(statusRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	const { reference } = c.req.valid("param");
+	const db = drizzle(c.env.DB, { schema });
+	const [transaction] = await db.select({
+		id: schema.opayTransaction.id,
+		userId: schema.opayTransaction.userId,
+		amount: schema.opayTransaction.amount,
+		reference: schema.opayTransaction.reference,
+		orderNo: schema.opayTransaction.orderNo,
+		status: schema.opayTransaction.status,
+	}).from(schema.opayTransaction).where(and(eq(schema.opayTransaction.reference, reference), eq(schema.opayTransaction.userId, user.id))).limit(1);
+	if (!transaction) return c.json({ success: false as const, error: "Deposit not found" }, 404);
+
+	if (transaction.status !== "success" && transaction.orderNo && c.env.OPAY_MERCHANT_ID && c.env.OPAY_PUBLIC_KEY && c.env.OPAY_PRIVATE_KEY) {
+		try {
+			const remote = await queryCashierOrderStatus(opayConfig(c.env), { reference, orderNo: transaction.orderNo });
+			await settleOpayTransaction(c.env, transaction, remote.status, { reference, orderNo: transaction.orderNo, status: remote.status });
+		} catch (error) {
+			console.error("OPay deposit reconciliation failed", { operation: "query_order_status", reason: error instanceof Error ? error.name : "UnknownError" });
+		}
+	}
+
+	const [updated] = await db.select({ status: schema.opayTransaction.status }).from(schema.opayTransaction).where(eq(schema.opayTransaction.id, transaction.id)).limit(1);
+	return c.json({ success: true as const, data: { status: updated?.status ?? transaction.status } }, 200);
 });
 
 const callbackRoute = createRoute({
@@ -131,78 +322,129 @@ opayRoute.openapi(callbackRoute, async (c) => {
 	}
 
 	const rawBody = await c.req.text();
+	let parsedBody: unknown;
 
-	const { valid, payload } = await verifyCallbackSignature(rawBody, c.env.OPAY_PRIVATE_KEY);
-
-	if (!valid || !payload) {
-		console.error("Verification failed");
-		return c.json({ success: false as const, error: "Invalid" }, 400);
+	try {
+		parsedBody = JSON.parse(rawBody);
+	} catch {
+		return c.json({ success: false, error: "Invalid JSON" }, 400);
 	}
 
-	const reference = payload.reference as string | undefined;
-	const status = payload.status as string | undefined;
+	let payload: Record<string, unknown> | undefined;
+	let reference: string | undefined;
+	let status: string | undefined;
+	let isValid = false;
 
-	if (!reference || !status) {
-		return c.json({ success: false as const, error: "Malformed payload" }, 400);
+	if (
+		typeof parsedBody === "object" &&
+		parsedBody !== null &&
+		"payload" in parsedBody &&
+		"sha512" in parsedBody
+	) {
+		const body = parsedBody as {
+			payload?: Record<string, unknown>;
+			sha512?: string;
+		};
+
+		if (body.payload && typeof body.sha512 === "string") {
+			const { valid, payload: signedPayload } = await verifyCallbackSignature(
+				rawBody,
+				c.env.OPAY_PRIVATE_KEY,
+			);
+
+			if (valid && signedPayload) {
+				isValid = true;
+				payload = signedPayload;
+				reference = signedPayload.reference as string;
+				status = signedPayload.status as string;
+			}
+		}
+	}
+
+	if (!isValid || !payload || !reference || !status) {
+		console.error("Callback verification failed");
+		return c.json({ success: false, error: "Invalid" }, 400);
 	}
 
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingTxn] = await db
-		.select()
+		.select({
+			id: schema.opayTransaction.id,
+			userId: schema.opayTransaction.userId,
+			amount: schema.opayTransaction.amount,
+			reference: schema.opayTransaction.reference,
+			status: schema.opayTransaction.status,
+		})
 		.from(schema.opayTransaction)
 		.where(eq(schema.opayTransaction.reference, reference))
 		.limit(1);
 
 	if (!existingTxn) {
-
-		console.error("OPay callback for unknown reference:", reference);
-		return c.json({ success: false as const, error: "Unknown reference" }, 400);
+		console.error("OPay callback did not match a recorded transaction");
+		return c.json({ success: false, error: "Unknown reference" }, 400);
 	}
-
 
 	if (existingTxn.status === "success") {
-		return c.json({ success: true as const }, 200);
+		return c.json({ success: true }, 200);
 	}
 
-	await db
-		.update(schema.opayTransaction)
-		.set({
-			status: status === "SUCCESS" ? "success" : "failed",
-			rawCallbackPayload: JSON.stringify(payload),
-		})
-		.where(eq(schema.opayTransaction.id, existingTxn.id));
+	const dbStatus = await settleOpayTransaction(c.env, existingTxn, status, payload);
 
-	if (status === "SUCCESS") {
+	if (dbStatus === "success") {
 		const [walletRow] = await db
-			.select()
+			.select({
+				id: schema.wallet.id,
+				balance: schema.wallet.balance,
+			})
 			.from(schema.wallet)
 			.where(eq(schema.wallet.userId, existingTxn.userId))
 			.limit(1);
 
 		if (walletRow) {
-			const newBalance = walletRow.balance + existingTxn.amount;
+			const newBalance = walletRow.balance;
+			trackWebengageEvent(
+				c.env,
+				{
+					userId: existingTxn.userId,
+					eventName: "deposit_completed",
+					eventData: {
+						amount: existingTxn.amount / 100,
+						currency: "NGN",
+						payment_method: "opay",
+						transaction_id: existingTxn.reference,
+						type: "credit",
+						wallet_balance_after: newBalance / 100,
+					},
+				},
+				c.executionCtx,
+			);
 
-			await db.insert(schema.walletTransaction).values({
-				id: `wtxn_${crypto.randomUUID()}`,
-				userId: existingTxn.userId,
-				amount: existingTxn.amount,
-				type: "credit",
-				reference: existingTxn.reference,
-				status: "success",
-				paymentMethod: "opay",
-				balance: newBalance,
-				createdAt: new Date(),
-			});
-
-			await db
-				.update(schema.wallet)
-				.set({ balance: newBalance })
-				.where(eq(schema.wallet.id, walletRow.id));
+			await syncWebengageUserProfile(c.env, existingTxn.userId, c.executionCtx);
 		}
+	} else if (dbStatus === "failed") {
+		const [failedWallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, existingTxn.userId))
+			.limit(1);
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: existingTxn.userId,
+				eventName: "deposit_failed",
+				eventData: {
+					amount: existingTxn.amount / 100,
+					payment_method: "opay",
+					failure_reason: status || "Payment failed",
+					wallet_balance_after: (failedWallet?.balance ?? 0) / 100,
+				},
+			},
+			c.executionCtx,
+		);
 	}
 
-	return c.json({ success: true as const }, 200);
+	return c.json({ success: true }, 200);
 });
 
 export default opayRoute;

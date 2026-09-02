@@ -41,8 +41,10 @@ import { Route as PromotionsIndexRouteImport } from './routes/promotions.index'
 import { Route as NotificationsIndexRouteImport } from './routes/notifications.index'
 import { Route as NewsIndexRouteImport } from './routes/news.index'
 import { Route as MissionsIndexRouteImport } from './routes/missions.index'
+import { Route as LoyaltyIndexRouteImport } from './routes/loyalty.index'
 import { Route as KycIndexRouteImport } from './routes/kyc.index'
 import { Route as BoxingIndexRouteImport } from './routes/boxing.index'
+import { Route as BonusesIndexRouteImport } from './routes/bonuses.index'
 import { Route as BasketballIndexRouteImport } from './routes/basketball.index'
 import { Route as WalletTransactionsRouteImport } from './routes/wallet.transactions'
 import { Route as TennisMatchesRouteImport } from './routes/tennis.matches'
@@ -234,6 +236,11 @@ const MissionsIndexRoute = MissionsIndexRouteImport.update({
   path: '/missions/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoyaltyIndexRoute = LoyaltyIndexRouteImport.update({
+  id: '/loyalty/',
+  path: '/loyalty/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const KycIndexRoute = KycIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -243,6 +250,11 @@ const BoxingIndexRoute = BoxingIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => BoxingRoute,
+} as any)
+const BonusesIndexRoute = BonusesIndexRouteImport.update({
+  id: '/bonuses/',
+  path: '/bonuses/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const BasketballIndexRoute = BasketballIndexRouteImport.update({
   id: '/',
@@ -450,8 +462,10 @@ export interface FileRoutesByFullPath {
   '/tennis/matches': typeof TennisMatchesRoute
   '/wallet/transactions': typeof WalletTransactionsRoute
   '/basketball/': typeof BasketballIndexRoute
+  '/bonuses/': typeof BonusesIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
+  '/loyalty/': typeof LoyaltyIndexRoute
   '/missions/': typeof MissionsIndexRoute
   '/news/': typeof NewsIndexRoute
   '/notifications/': typeof NotificationsIndexRoute
@@ -508,8 +522,10 @@ export interface FileRoutesByTo {
   '/tennis/matches': typeof TennisMatchesRoute
   '/wallet/transactions': typeof WalletTransactionsRoute
   '/basketball': typeof BasketballIndexRoute
+  '/bonuses': typeof BonusesIndexRoute
   '/boxing': typeof BoxingIndexRoute
   '/kyc': typeof KycIndexRoute
+  '/loyalty': typeof LoyaltyIndexRoute
   '/missions': typeof MissionsIndexRoute
   '/news': typeof NewsIndexRoute
   '/notifications': typeof NotificationsIndexRoute
@@ -575,8 +591,10 @@ export interface FileRoutesById {
   '/tennis/matches': typeof TennisMatchesRoute
   '/wallet/transactions': typeof WalletTransactionsRoute
   '/basketball/': typeof BasketballIndexRoute
+  '/bonuses/': typeof BonusesIndexRoute
   '/boxing/': typeof BoxingIndexRoute
   '/kyc/': typeof KycIndexRoute
+  '/loyalty/': typeof LoyaltyIndexRoute
   '/missions/': typeof MissionsIndexRoute
   '/news/': typeof NewsIndexRoute
   '/notifications/': typeof NotificationsIndexRoute
@@ -643,8 +661,10 @@ export interface FileRouteTypes {
     | '/tennis/matches'
     | '/wallet/transactions'
     | '/basketball/'
+    | '/bonuses/'
     | '/boxing/'
     | '/kyc/'
+    | '/loyalty/'
     | '/missions/'
     | '/news/'
     | '/notifications/'
@@ -701,8 +721,10 @@ export interface FileRouteTypes {
     | '/tennis/matches'
     | '/wallet/transactions'
     | '/basketball'
+    | '/bonuses'
     | '/boxing'
     | '/kyc'
+    | '/loyalty'
     | '/missions'
     | '/news'
     | '/notifications'
@@ -767,8 +789,10 @@ export interface FileRouteTypes {
     | '/tennis/matches'
     | '/wallet/transactions'
     | '/basketball/'
+    | '/bonuses/'
     | '/boxing/'
     | '/kyc/'
+    | '/loyalty/'
     | '/missions/'
     | '/news/'
     | '/notifications/'
@@ -823,6 +847,8 @@ export interface RootRouteChildren {
   IndexMatchesRoute: typeof IndexMatchesRoute
   PlayGameNameRoute: typeof PlayGameNameRoute
   PromotionsIdRoute: typeof PromotionsIdRoute
+  BonusesIndexRoute: typeof BonusesIndexRoute
+  LoyaltyIndexRoute: typeof LoyaltyIndexRoute
   MissionsIndexRoute: typeof MissionsIndexRoute
   PromotionsIndexRoute: typeof PromotionsIndexRoute
   IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute
@@ -1054,6 +1080,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MissionsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/loyalty/': {
+      id: '/loyalty/'
+      path: '/loyalty'
+      fullPath: '/loyalty/'
+      preLoaderRoute: typeof LoyaltyIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/kyc/': {
       id: '/kyc/'
       path: '/'
@@ -1067,6 +1100,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/boxing/'
       preLoaderRoute: typeof BoxingIndexRouteImport
       parentRoute: typeof BoxingRoute
+    }
+    '/bonuses/': {
+      id: '/bonuses/'
+      path: '/bonuses'
+      fullPath: '/bonuses/'
+      preLoaderRoute: typeof BonusesIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/basketball/': {
       id: '/basketball/'
@@ -1474,6 +1514,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexMatchesRoute: IndexMatchesRoute,
   PlayGameNameRoute: PlayGameNameRoute,
   PromotionsIdRoute: PromotionsIdRoute,
+  BonusesIndexRoute: BonusesIndexRoute,
+  LoyaltyIndexRoute: LoyaltyIndexRoute,
   MissionsIndexRoute: MissionsIndexRoute,
   PromotionsIndexRoute: PromotionsIndexRoute,
   IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,

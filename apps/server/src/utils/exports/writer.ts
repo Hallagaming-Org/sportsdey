@@ -11,7 +11,14 @@ import {
 } from "docx";
 import ExcelJS from "exceljs";
 import { Zip, ZipPassThrough } from "fflate";
-import PDFDocument from "pdfkit";
+import {
+	PageSizes,
+	PDFDocument,
+	type PDFFont,
+	type PDFPage,
+	rgb,
+	StandardFonts,
+} from "pdf-lib";
 import type { ExportFormat, ExportTable } from "@/types/exports";
 
 type RenderedExport = { bytes: Uint8Array; contentType: string };
@@ -51,7 +58,7 @@ async function renderXlsx(table: ExportTable): Promise<Uint8Array> {
 		fgColor: { argb: "FF1F4E78" },
 	};
 	header.alignment = { vertical: "middle", wrapText: true };
-	for (const row of table.rows) sheet.addRow(row.map(spreadsheetCell));
+	sheet.addRows(table.rows.map((row) => row.map(spreadsheetCell)));
 	sheet.autoFilter = {
 		from: { row: 1, column: 1 },
 		to: {
@@ -117,110 +124,125 @@ async function renderDocx(table: ExportTable): Promise<Uint8Array> {
 	return new Uint8Array(await Packer.toBuffer(document));
 }
 
-async function renderPdf(table: ExportTable): Promise<Uint8Array> {
-	const document = new PDFDocument({
-		autoFirstPage: false,
-		bufferPages: true,
-		layout: table.headers.length > 8 ? "landscape" : "portrait",
-		margin: 28,
-		size: "A4",
-	});
-	const chunks: Uint8Array[] = [];
-	document.on("data", (chunk: Uint8Array) =>
-		chunks.push(new Uint8Array(chunk)),
-	);
-	const finished = new Promise<Uint8Array>((resolve, reject) => {
-		document.on("end", () => {
-			const size = chunks.reduce((total, chunk) => total + chunk.length, 0);
-			const result = new Uint8Array(size);
-			let offset = 0;
-			for (const chunk of chunks) {
-				result.set(chunk, offset);
-				offset += chunk.length;
-			}
-			resolve(result);
-		});
-		document.on("error", reject);
-	});
+function pdfSafe(value: string): string {
+	return value.replace(/[^\x20-\x7E]/g, "?");
+}
 
-	const rowHeight = 24;
-	const drawHeader = () => {
-		const width =
-			document.page.width -
-			document.page.margins.left -
-			document.page.margins.right;
-		const columnWidth = width / table.headers.length;
-		const y = document.page.margins.top;
-		document
-			.save()
-			.fillColor("#1F4E78")
-			.rect(document.page.margins.left, y, width, rowHeight)
-			.fill()
-			.restore();
-		document.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(7);
-		table.headers.forEach((header, index) => {
-			document.text(
-				header,
-				document.page.margins.left + index * columnWidth + 3,
-				y + 5,
-				{ width: columnWidth - 6, height: rowHeight - 6, ellipsis: true },
-			);
-		});
-		return y + rowHeight;
-	};
-	let y = 0;
-	const addPage = () => {
-		document.addPage();
-		y = drawHeader();
-	};
-	addPage();
-	for (const row of table.rows) {
-		if (
-			y + rowHeight >
-			document.page.height - document.page.margins.bottom - 16
-		)
-			addPage();
-		const width =
-			document.page.width -
-			document.page.margins.left -
-			document.page.margins.right;
-		const columnWidth = width / table.headers.length;
-		document.fillColor("#000000").font("Helvetica").fontSize(7);
-		row.forEach((value, index) => {
-			document.text(
-				String(cellValue(value)),
-				document.page.margins.left + index * columnWidth + 3,
-				y + 5,
-				{ width: columnWidth - 6, height: rowHeight - 6, ellipsis: true },
-			);
-		});
-		document
-			.strokeColor("#D9E2F3")
-			.rect(document.page.margins.left, y, width, rowHeight)
-			.stroke();
-		y += rowHeight;
+function fitPdfText(
+	text: string,
+	font: PDFFont,
+	size: number,
+	maxWidth: number,
+): string {
+	const safe = pdfSafe(text);
+	if (font.widthOfTextAtSize(safe, size) <= maxWidth) return safe;
+	let lo = 0;
+	let hi = safe.length;
+	while (lo < hi) {
+		const mid = Math.floor((lo + hi + 1) / 2);
+		if (font.widthOfTextAtSize(`${safe.slice(0, mid)}...`, size) <= maxWidth) {
+			lo = mid;
+		} else {
+			hi = mid - 1;
+		}
 	}
-	const range = document.bufferedPageRange();
-	for (let index = range.start; index < range.start + range.count; index++) {
-		document.switchToPage(index);
-		document
-			.fillColor("#666666")
-			.fontSize(7)
-			.text(
-				`Page ${index + 1} of ${range.count}`,
-				document.page.margins.left,
-				document.page.height - 20,
+	return lo ? `${safe.slice(0, lo)}...` : "";
+}
+
+async function renderPdf(table: ExportTable): Promise<Uint8Array> {
+	const landscape = table.headers.length > 8;
+	const document = await PDFDocument.create();
+	const font = await document.embedFont(StandardFonts.Helvetica);
+	const fontBold = await document.embedFont(StandardFonts.HelveticaBold);
+	const pageSize = landscape
+		? ([PageSizes.A4[1], PageSizes.A4[0]] as [number, number])
+		: PageSizes.A4;
+	const margin = 28;
+	const rowHeight = 24;
+	const fontSize = 7;
+	const headerFill = rgb(0x1f / 255, 0x4e / 255, 0x78 / 255);
+	const grid = rgb(0xd9 / 255, 0xe2 / 255, 0xf3 / 255);
+	const pages: PDFPage[] = [];
+
+	const addPage = () => {
+		const page = document.addPage(pageSize);
+		pages.push(page);
+		const { width, height } = page.getSize();
+		const tableWidth = width - margin * 2;
+		const columnWidth = tableWidth / Math.max(1, table.headers.length);
+		const headerBottom = height - margin - rowHeight;
+		page.drawRectangle({
+			x: margin,
+			y: headerBottom,
+			width: tableWidth,
+			height: rowHeight,
+			color: headerFill,
+		});
+		table.headers.forEach((header, index) => {
+			page.drawText(fitPdfText(header, fontBold, fontSize, columnWidth - 6), {
+				x: margin + index * columnWidth + 3,
+				y: headerBottom + 8,
+				size: fontSize,
+				font: fontBold,
+				color: rgb(1, 1, 1),
+			});
+		});
+		return {
+			page,
+			width,
+			height,
+			tableWidth,
+			columnWidth,
+			y: headerBottom,
+		};
+	};
+
+	let current = addPage();
+	for (const row of table.rows) {
+		if (current.y - rowHeight < margin + 16) current = addPage();
+		current.y -= rowHeight;
+		current.page.drawRectangle({
+			x: margin,
+			y: current.y,
+			width: current.tableWidth,
+			height: rowHeight,
+			borderColor: grid,
+			borderWidth: 0.5,
+		});
+		row.forEach((value, index) => {
+			current.page.drawText(
+				fitPdfText(
+					String(cellValue(value)),
+					font,
+					fontSize,
+					current.columnWidth - 6,
+				),
 				{
-					align: "center",
-					width:
-						document.page.width -
-						document.page.margins.left -
-						document.page.margins.right,
+					x: margin + index * current.columnWidth + 3,
+					y: current.y + 8,
+					size: fontSize,
+					font,
+					color: rgb(0, 0, 0),
 				},
 			);
+		});
 	}
-	document.end();
-	return finished;
+
+	const total = pages.length;
+	pages.forEach((page, index) => {
+		const { width } = page.getSize();
+		const label = `Page ${index + 1} of ${total}`;
+		const labelWidth = font.widthOfTextAtSize(label, fontSize);
+		page.drawText(label, {
+			x: (width - labelWidth) / 2,
+			y: 12,
+			size: fontSize,
+			font,
+			color: rgb(0.4, 0.4, 0.4),
+		});
+	});
+
+	return document.save();
 }
 
 export async function renderExportChunk(

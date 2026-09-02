@@ -8,9 +8,6 @@ import type { BonusEngineApiResult } from "./bonus-engine.service.type";
 import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
 import { signBonusEngineBody } from "./crypto";
 
-/**
- * Extracts a human-readable message from Bonus Engine JSON error bodies.
- */
 export function extractBonusEngineMessage(
 	parsed: unknown,
 	fallback: string,
@@ -35,10 +32,19 @@ export function extractBonusEngineMessage(
 }
 
 /**
- * Sends a signed JSON POST to Bonus Engine.
- * Serializes the body once, signs those exact bytes, and sends the same string.
- * Optionally attaches a JWT `Token` header for feature routes.
+ * True when Bonus Engine JSON 404 means "no rows". HTML/Express 404s are
+ * misconfigured hosts, not empty collections.
  */
+export function isBonusEngineJsonNotFound(
+	result: BonusEngineApiResult<unknown>,
+): boolean {
+	if (result.ok || result.status !== 404) return false;
+	const error = (result.error ?? "").trim();
+	if (!error) return true;
+	if (error.startsWith("<") || /cannot post/i.test(error)) return false;
+	return !error.includes("<!DOCTYPE");
+}
+
 export async function bonusEngineRequest<T = unknown>(payload: {
 	env: CloudflareBindings;
 	path: string;

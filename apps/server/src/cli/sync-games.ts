@@ -66,8 +66,14 @@ for (const arg of args) {
 	}
 }
 
-const envFile = env === "production" ? ".env.production" : ".env.staging";
-dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+const envFileCandidates = [
+	env === "production" ? ".env.production" : ".env.staging",
+	".env",
+	".dev.vars",
+];
+for (const envFile of envFileCandidates) {
+	dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+}
 
 const rawMerchantKey = process.env.SLOTITEGRATION_MERCHANT_KEY;
 const rawMerchantId = process.env.SLOTITEGRATION_MERCHANT_ID;
@@ -156,17 +162,58 @@ async function fetchGames(
 		env === "production" ? "slotegrator" : "slotegrator-staging";
 
 	const url = `${proxyUrl}/${slotegratorProxyPath}/games/index?filter[is_mobile]=1&${queryString}`;
+	const requestHeaders = {
+		"X-Merchant-Id": merchantId,
+		"X-Timestamp": timestamp,
+		"X-Nonce": nonce,
+		"X-Sign": xSign,
+		"Content-Type": "application/x-www-form-urlencoded",
+		"x-proxy-auth": proxySecret,
+	};
+
+	console.log("Slotegrator sync games request", {
+		params: {
+			page,
+			perPage,
+			queryParams,
+			allParams,
+			queryString,
+			allQueryString,
+		},
+		proxy: {
+			url,
+			method: "GET",
+			headers: {
+				...requestHeaders,
+				"X-Sign": "[REDACTED]",
+				"x-proxy-auth": "[REDACTED]",
+			},
+		},
+	});
 
 	const response = await fetch(url, {
 		method: "GET",
-		headers: {
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": xSign,
-			"Content-Type": "application/x-www-form-urlencoded",
-			"x-proxy-auth": proxySecret,
-		},
+		headers: requestHeaders,
+	});
+
+	const responseText = await response.text();
+	let responseBody: unknown = responseText;
+	if (responseText) {
+		try {
+			responseBody = JSON.parse(responseText);
+		} catch {
+			// Keep non-JSON proxy responses as text for diagnostics.
+		}
+	}
+
+	console.log("Slotegrator sync games proxy result", {
+		url: response.url,
+		upstreamUrl: response.headers.get("x-proxy-upstream-url"),
+		status: response.status,
+		statusText: response.statusText,
+		ok: response.ok,
+		headers: Object.fromEntries(response.headers.entries()),
+		body: responseBody,
 	});
 
 	if (!response.ok) {
@@ -175,55 +222,9 @@ async function fetchGames(
 		);
 	}
 
-	const data = (await response.json()) as GamesApiResponse;
+	const data = responseBody as GamesApiResponse;
 
 	return data;
-}
-
-async function getExistingGameIds(): Promise<Set<string>> {
-	console.log("Fetching existing game IDs from database...");
-
-	const dbName = env === "production" ? "sportsdey_db" : "staging-db";
-
-	const process = await import("node:child_process");
-
-	return new Promise((resolve) => {
-		process.exec(
-			`npx wrangler d1 execute ${dbName} --json --command "SELECT id FROM game" ${remote ? "--remote" : "--local"} --env ${env}`,
-			{ maxBuffer: 64 * 1024 * 1024 },
-			(error, stdout, _stderr) => {
-				if (error) {
-					console.log(
-						"Could not fetch existing games, proceeding without duplicate check",
-					);
-					console.log("Error:", error.message);
-					resolve(new Set());
-					return;
-				}
-
-				const ids = new Set<string>();
-				try {
-					const parsed = JSON.parse(stdout) as Array<{
-						results?: Array<{ id?: string }>;
-					}>;
-					for (const block of parsed) {
-						for (const row of block.results ?? []) {
-							if (typeof row.id === "string" && row.id.length > 0) {
-								ids.add(row.id);
-							}
-						}
-					}
-				} catch {
-					// Fallback: plain hex ids (older wrangler output)
-					for (const line of stdout.trim().split("\n")) {
-						if (/^[a-f0-9]{32,}$/i.test(line)) ids.add(line);
-					}
-				}
-				console.log(`Found ${ids.size} existing games in database`);
-				resolve(ids);
-			},
-		);
-	});
 }
 
 async function main() {
@@ -265,50 +266,32 @@ async function main() {
 
 	console.log(`\nTotal games fetched: ${allGames.length}`);
 
-	const existingIds = await getExistingGameIds();
-
 	const resolvedJsonPath = jsonPath ?? defaultJsonPath;
-
-	const newGames = allGames.filter(
-		(game) => !existingIds.has(game.uuid) || existingIds.size === 0,
-	);
-
-	console.log(`New games to insert: ${newGames.length}`);
-
-	if (newGames.length === 0 && !categorize) {
-		console.log("\nNo new games to insert.");
-		return;
-	}
-
-	const batchSize = 100;
-	const timestamp = Date.now();
 	const usedDbName =
 		dbName || (env === "production" ? "sportsdey_db" : "staging-db");
+	const wranglerEnv = env === "production" ? "production" : "staging";
+	const now = Date.now();
+	const batchSize = 80;
+	const totalBatches = Math.ceil(allGames.length / batchSize);
 
-	const totalBatches = Math.ceil(newGames.length / batchSize);
 	console.log(
-		`\nTotal games: ${newGames.length}, ${totalBatches} batches of ${batchSize}`,
+		`\nUpserting ${allGames.length} games with provider metadata (${totalBatches} batches)`,
 	);
 	console.log(`Running on database: ${usedDbName}`);
 
 	const { exec } = await import("node:child_process");
-	let inserted = 0;
-	for (let i = 0; i < newGames.length; i += batchSize) {
-		const batch = newGames.slice(i, i + batchSize);
-		const batchValues = batch
-			.map(
-				(game) =>
-					`(${sqlEscape(game.uuid)}, ${sqlEscape(game.name)}, ${sqlEscape(game.uuid)}, ${sqlEscape(game.image)}, 1, ${timestamp}, ${timestamp})`,
-			)
-			.join(",\n");
-		const batchSql = `INSERT OR IGNORE INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${batchValues};`;
+	let upserted = 0;
+	let failed = 0;
+	for (let i = 0; i < allGames.length; i += batchSize) {
+		const batch = allGames.slice(i, i + batchSize);
 		const batchNum = Math.floor(i / batchSize) + 1;
-
-		const tempFile = path.join(
-			os.tmpdir(),
-			`sync-games-${timestamp}-${batchNum}.sql`,
-		);
-		fs.writeFileSync(tempFile, batchSql);
+		const statements = batch.map((game) => {
+			const isLiveGame =
+				/\blive\b/i.test(game.type) || /\blive\b/i.test(game.label) ? 1 : 0;
+			return `INSERT INTO game (id, name, code, image_url, provider_id, provider_name, is_live_game, free_spin, enabled, created_at, updated_at) VALUES (${sqlEscape(game.uuid)}, ${sqlEscape(game.name)}, ${sqlEscape(game.uuid)}, ${sqlEscape(game.image)}, ${sqlEscape(String(game.provider_id))}, ${sqlEscape(game.provider)}, ${isLiveGame}, ${game.has_freespins ? 1 : 0}, 1, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, code = excluded.code, image_url = COALESCE(excluded.image_url, game.image_url), provider_id = excluded.provider_id, provider_name = excluded.provider_name, is_live_game = excluded.is_live_game, free_spin = excluded.free_spin, enabled = 1, updated_at = excluded.updated_at;`;
+		});
+		const tempFile = path.join(os.tmpdir(), `sync-games-${now}-${batchNum}.sql`);
+		fs.writeFileSync(tempFile, `${statements.join("\n")}\n`);
 
 		const maxAttempts = 3;
 		let batchOk = false;
@@ -316,8 +299,9 @@ async function main() {
 		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 			try {
 				await new Promise((resolve, reject) => {
-					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}" ${remote ? "--remote" : "--local"} --env ${env}`;
-					exec(cmd, { timeout: 180000 }, (error, stdout, _stderr) => {
+					const remoteFlag = remote ? " --remote" : "";
+					const cmd = `npx wrangler d1 execute ${usedDbName} --file "${tempFile}"${remoteFlag} --env ${wranglerEnv}`;
+					exec(cmd, { timeout: 180000 }, (error, stdout) => {
 						if (error) {
 							reject(error);
 						} else {
@@ -342,18 +326,17 @@ async function main() {
 			fs.unlinkSync(tempFile);
 		} catch {}
 		if (batchOk) {
-			inserted += batch.length;
+			upserted += batch.length;
 			console.log(
-				`Batch ${batchNum}/${totalBatches}: ${inserted} games inserted`,
+				`Batch ${batchNum}/${totalBatches}: ${upserted}/${allGames.length} upserted`,
 			);
 		} else {
+			failed += 1;
 			console.error(`Batch ${batchNum} failed after retries:`, lastErr);
 		}
 	}
 
-	if (inserted > 0) {
-		console.log(`\nDone! Inserted ${inserted} games.`);
-	}
+	console.log(`\nDone. upserted=${upserted} batches_failed=${failed}`);
 
 	if (categorize) {
 		console.log("\nRunning categorization from JSON...");
@@ -365,3 +348,4 @@ main().catch((error) => {
 	console.error("Error:", error);
 	process.exit(1);
 });
+

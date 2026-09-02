@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Mail, User } from "lucide-react";
+import { Mail, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+import { DobPicker } from "@/components/dob-picker";
 import {
 	clearPendingReferralCode,
 	getPendingReferralCode,
@@ -13,7 +14,7 @@ import { authClient, useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
 import {
 	loginWebengageUser,
-	setWebengageUserAttributes,
+	setWebengageSdkUserProfile,
 	trackWebengageEvent,
 } from "@/lib/webengage";
 
@@ -77,10 +78,12 @@ function CompleteProfilePage() {
 			const patchBody: {
 				name: string;
 				email: string;
+				dob: string;
 				mobileNumber?: string;
 			} = {
 				name: fullName.trim(),
 				email: email.trim(),
+				dob: dob.trim(),
 			};
 			const phoneToPersist = (sessionUser?.mobileNumber || phone || "").trim();
 			if (phoneToPersist) {
@@ -97,11 +100,12 @@ function CompleteProfilePage() {
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
 			const userMobile = sessionUser?.mobileNumber || phone || "";
-			setWebengageUserAttributes({
-				we_first_name: firstName,
-				we_last_name: lastName,
-				we_email: email.trim(),
-				we_phone: userMobile,
+			setWebengageSdkUserProfile({
+				email: email.trim(),
+				firstName,
+				lastName,
+				phone: userMobile,
+				dateOfBirth: dob.trim(),
 			});
 
 			const pendingReferral =
@@ -128,7 +132,6 @@ function CompleteProfilePage() {
 				"First Name": firstName,
 				"Last Name": lastName,
 				Mobile: userMobile,
-				Country: "",
 				"Reference Id": pendingReferral,
 			});
 
@@ -194,16 +197,12 @@ function CompleteProfilePage() {
 						/>
 					</label>
 
-					<label className="flex items-center gap-3 rounded-3xl border border-[#bdbdbd] bg-[#efefef] px-2 py-1.5">
-						<CalendarDays className="h-5 w-5 text-[#8f8f8f]" />
-						<input
-							type="text"
-							value={dob}
-							onChange={(event) => setDob(event.target.value)}
-							placeholder="DD/MM/YYYY"
-							className="w-full bg-transparent text-[#666] text-sm outline-none placeholder:text-[#8d8d8d]"
-						/>						
-					</label>
+					<DobPicker
+						value={dob}
+						onChange={setDob}
+						placeholder="Date of birth"
+						triggerClassName="rounded-3xl border border-[#bdbdbd] bg-[#efefef] px-2 py-1.5 text-sm text-[#666]"
+					/>
 				</div>
 				{error ? (
 					<div className="mt-6 rounded-2xl bg-red-50 px-4 py-3 text-left text-red-700 text-sm">

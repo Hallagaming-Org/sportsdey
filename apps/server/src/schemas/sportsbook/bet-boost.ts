@@ -19,27 +19,6 @@ export const BetBoostCreateSchema = z.object({
 	maximumWin: z.number().optional(),
 });
 
-/** Params shared across Databet calculation strategies (static / steps / margin). */
-const BetBoostStrategyParamsSchema = z
-	.object({
-		multiplier: z.string().optional(),
-		min_selections: z.number().optional(),
-		selections_per_step: z.number().optional(),
-		multiplier_per_step: z.string().optional(),
-		max_multiplier: z.string().optional(),
-		min_marge_ratio: z.string().optional(),
-		max_marge_ratio: z.string().optional(),
-	})
-	.passthrough();
-
-const BetBoostCalculationStrategySchema = z.object({
-	type: z.enum(["static", "steps", "margin"]),
-	strategy: z.object({
-		conditions: z.array(z.any()).optional(),
-		params: BetBoostStrategyParamsSchema.optional(),
-	}),
-});
-
 export const AccumulatorPresetSchema = z.object({
 	sport: z.enum(["football", "basketball", "tennis"]),
 	selections: z.number().int().min(2).max(50),
@@ -67,10 +46,8 @@ export const AccumulatorBonusTableResponseSchema = z.object({
 		}),
 		maxSelections: z.number(),
 		program: z.object({
-			strategy: z.literal("steps"),
-			selectionsPerStep: z.number(),
-			multiplierPerStep: z.string(),
-			maxMultiplier: z.string(),
+			strategy: z.literal("static"),
+			boostCount: z.number(),
 		}),
 		rows: z.array(
 			z.object({
@@ -91,6 +68,19 @@ export const AccumulatorProgramGrantSchema = z.object({
 	expires_at: z.string().optional(),
 });
 
+export const AccumulatorProgramSyncResponseSchema = z.object({
+	success: z.literal(true),
+	data: z.union([
+		z.object({
+			synced: z.literal(true),
+		}),
+		z.object({
+			skipped: z.literal(true),
+			reason: z.enum(["already_done", "sync_in_progress"]),
+		}),
+	]),
+});
+
 export const AccumulatorProgramGrantResponseSchema = z.object({
 	success: z.literal(true),
 	data: z.object({
@@ -98,13 +88,23 @@ export const AccumulatorProgramGrantResponseSchema = z.object({
 		created: z.array(
 			z.object({
 				sport: z.enum(["football", "basketball", "tennis"]),
+				selections: z.number().int(),
+				dataBetBoostId: z.string(),
+			}),
+		),
+		repaired: z.array(
+			z.object({
+				sport: z.enum(["football", "basketball", "tennis"]),
+				selections: z.number().int(),
 				dataBetBoostId: z.string(),
 			}),
 		),
 		skipped: z.array(z.enum(["football", "basketball", "tennis"])),
+		removedLegacy: z.array(z.string()),
 		failed: z.array(
 			z.object({
 				sport: z.enum(["football", "basketball", "tennis"]),
+				selections: z.number().int(),
 				error: z.string(),
 			}),
 		),
@@ -145,6 +145,30 @@ export const BetBoostGetResponseSchema = z.object({
 	success: z.literal(true),
 	data: BetBoostItemSchema,
 });
+
+export const BetBoostCalculationStrategySchema = z.discriminatedUnion("type", [
+	z.object({
+		type: z.literal("static"),
+		strategy: z.object({
+			conditions: z.array(z.unknown()),
+			params: z.object({
+				multiplier: z.string(),
+				min_selections: z.number().int().optional(),
+			}),
+		}),
+	}),
+	z.object({
+		type: z.literal("steps"),
+		strategy: z.object({
+			conditions: z.array(z.unknown()),
+			params: z.object({
+				selections_per_step: z.number().int(),
+				multiplier_per_step: z.string(),
+				max_multiplier: z.string(),
+			}),
+		}),
+	}),
+]);
 
 export const BetBoostUpdateSchema = z.object({
 	player_id: z.string(),

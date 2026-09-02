@@ -26,6 +26,7 @@ export interface BannerData {
 	_id: string;
 	imageUrl: string;
 	url: string;
+	title?: string;
 	alt?: string;
 }
 

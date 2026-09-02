@@ -1,4 +1,3 @@
-// src/components/deposit-modal.tsx
 import { ChevronLeft, Copy, Info, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -8,11 +7,14 @@ import KudaIcon from "@/logos/kuda.svg?react";
 import MastercardIcon from "@/logos/mastercard.svg?react";
 import OpayIcon from "@/logos/opay.svg?react";
 import PaystackIcon from "@/logos/paystack.svg?react";
+import PalmPayLogo from "@/logos/palmpay.svg?react";
 import VerveIcon from "@/logos/verve.svg?react";
 import VisaIcon from "@/logos/visa.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
 type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
+export type DepositProvider = "paystack" | "opay" | "kuda" | "palmpay";
+
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
 
@@ -26,6 +28,7 @@ const BANKS = [
 	{ key: "opay", name: "Opay", Icon: OpayIcon },
 	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
 	{ key: "kuda", name: "Kuda", Icon: KudaIcon },
+	{ key: "palmpay", name: "PalmPay", Icon: PalmPayLogo },
 ];
 
 /** Order matches deposit Figma: Bank Transfer → Card → Crypto → Direct Banking */
@@ -42,17 +45,25 @@ type BankTransferDetails = {
 	feeRange: string;
 };
 
+export type KudaDepositInstructions = {
+	reference: string;
+	virtualAccountNumber: string;
+	accountName: string;
+	bankName: string;
+	amount: number;
+};
+
 interface DepositModalProps {
 	isOpen: boolean;
 	onClose: () => void;
 	amount: string;
 	onAmountChange: (value: string) => void;
-	onSubmit: () => void;
+	onSubmit: (provider: DepositProvider) => void;
 	isPending: boolean;
 	error: string;
 	walletBalance?: number;
-
 	bankTransferDetails?: BankTransferDetails;
+	kudaDepositInstructions?: KudaDepositInstructions | null;
 }
 
 const DEFAULT_BANK_TRANSFER_DETAILS: BankTransferDetails = {
@@ -72,6 +83,7 @@ export function DepositModal({
 	error,
 	walletBalance,
 	bankTransferDetails = DEFAULT_BANK_TRANSFER_DETAILS,
+	kudaDepositInstructions,
 }: DepositModalProps) {
 	const [activeMethod, setActiveMethod] =
 		useState<DepositMethod>("bank_transfer");
@@ -100,12 +112,42 @@ export function DepositModal({
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
-		onSubmit();
+		if (activeMethod === "bank_transfer" || activeMethod === "crypto") {
+			return;
+		}
+
+		if (activeMethod === "card") {
+			onSubmit("paystack");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "opay") {
+			onSubmit("opay");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "paystack") {
+			onSubmit("paystack");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "kuda") {
+			onSubmit("kuda");
+			return;
+		}
+
+		if (activeMethod === "direct_banking" && selectedBank === "palmpay") onSubmit("palmpay");
 	};
 
 	const handleCopyAccountNumber = () => {
 		navigator.clipboard.writeText(bankTransferDetails.accountNumber);
 		toast.success("Account number copied");
+	};
+
+	const handleCopyKudaAccountNumber = () => {
+		if (!kudaDepositInstructions) return;
+		navigator.clipboard.writeText(kudaDepositInstructions.virtualAccountNumber);
+		toast.success("Kuda account number copied");
 	};
 
 	return (
@@ -140,6 +182,20 @@ export function DepositModal({
 				</div>
 
 				<div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+					{kudaDepositInstructions ? (
+						<div>
+							<p className="font-semibold text-lg text-white">Transfer to complete your deposit</p>
+							<p className="mt-2 text-sm text-[#8C8F8F]">Send exactly ₦{kudaDepositInstructions.amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}. Your wallet will update after Kuda confirms the transfer.</p>
+							<div className="mt-6 divide-y divide-[#1B2722] rounded-2xl bg-[#040E0A] px-5">
+								<div className="flex items-center justify-between py-4"><span className="text-sm text-[#8C8F8F]">Account Number:</span><span className="flex items-center gap-2 font-semibold text-white">{kudaDepositInstructions.virtualAccountNumber}<button type="button" onClick={handleCopyKudaAccountNumber} aria-label="Copy Kuda account number" className="text-[#17b000] hover:opacity-80"><Copy className="h-4 w-4" /></button></span></div>
+								<div className="flex items-center justify-between py-4"><span className="text-sm text-[#8C8F8F]">Account Name:</span><span className="font-semibold text-white">{kudaDepositInstructions.accountName}</span></div>
+								<div className="flex items-center justify-between py-4"><span className="text-sm text-[#8C8F8F]">Bank:</span><span className="font-semibold text-white">{kudaDepositInstructions.bankName}</span></div>
+								<div className="flex items-center justify-between py-4"><span className="text-sm text-[#8C8F8F]">Reference:</span><span className="font-semibold text-white">{kudaDepositInstructions.reference}</span></div>
+							</div>
+							<button type="button" onClick={onClose} className="mt-6 w-full rounded-lg bg-accent py-4 font-bold text-white">Done</button>
+						</div>
+					) : (
+						<>
 					{/* Deposit Method tabs */}
 					<div>
 						<p className="mb-3 font-semibold text-base text-white sm:text-lg">
@@ -396,11 +452,11 @@ export function DepositModal({
 
 								<button
 									type="submit"
-									disabled={isPending}
+									disabled={isPending || (activeMethod === "direct_banking" && !selectedBank)}
 									className="justify-center  mt-6 w-full  cursor-pointer rounded-lg bg-accent py-4 font-bold text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
 								>
 									{isPending
-										? "Processing..." 
+										? "Processing..."
 										: activeMethod === "direct_banking" && selectedBankName
 											? `Deposit via "${selectedBankName}"`
 											: "Top up now"}
@@ -409,6 +465,8 @@ export function DepositModal({
 						)}
 
 					</form>
+						</>
+					)}
 				</div>
 			</div>
 		</div>

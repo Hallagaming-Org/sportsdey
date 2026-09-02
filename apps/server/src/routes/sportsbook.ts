@@ -15,6 +15,7 @@ import {
 	AccumulatorBonusTableResponseSchema,
 	AccumulatorProgramGrantResponseSchema,
 	AccumulatorProgramGrantSchema,
+	AccumulatorProgramSyncResponseSchema,
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -37,20 +38,32 @@ import {
 	TournamentsResponseSchema,
 } from "@/schemas/sportsbook";
 import {
-	ACCUMULATOR_MAX_MULTIPLIER,
+	BONUS_ENGINE_DEFAULT_CURRENCY,
+	BONUS_ENGINE_PRODUCT_TYPE,
+	extractSportsbookBetReportIds,
+	reportBonusEngineBet,
+	runBonusEngineBackground,
+} from "@/services/bonus-engine";
+import {
 	ACCUMULATOR_MAX_SELECTIONS,
 	ACCUMULATOR_MIN_SELECTIONS,
-	ACCUMULATOR_MULTIPLIER_PER_STEP,
-	ACCUMULATOR_PROGRAM_QUANTITY,
 	ACCUMULATOR_SPORTS,
 	type AccumulatorSport,
-	boostCoversAccumulatorSport,
-	buildAccumulatorBoostPayload,
-	defaultAccumulatorProgramExpiry,
 	getAccumulatorBonusTable,
-	listAccumulatorStepsBoostPayloads,
+	listAccumulatorFoldBoostPayloads,
 } from "@/sportsbook/accumulator-bonus";
+import {
+	ensureAccumulatorProgramBoosts,
+	runAccumulatorProgramSync,
+} from "@/sportsbook/accumulator-boost-sync";
 import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
+import { databetFetch } from "@/utils/databet-fetch";
+import { asEventNumber } from "@/utils/webengage-event";
+import { scheduleWebengageUserProfileSync } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const BET_TYPE_LABELS: Record<number, string> = {
@@ -96,173 +109,6 @@ function selectionLeague(selection: SportsbookSelection | undefined): string {
 function selectionMatchId(selection: SportsbookSelection | undefined): string {
 	const value = selection?.match_id;
 	return value == null ? "" : String(value);
-}
-
-async function databetFetch(
-	env: CloudflareBindings,
-	path: string,
-	options: {
-		method?: string;
-		body?: unknown;
-		query?: Record<string, string | string[] | undefined>;
-		headers?: Record<string, string>;
-	} = {},
-): Promise<Response> {
-	const proxyUrl = env.PROXY_URL?.trim();
-	const proxySecret = env.PROXY_SECRET?.trim();
-
-	if (!proxyUrl) {
-		throw new Error("PROXY_URL not configured");
-	}
-	if (!proxySecret) {
-		throw new Error("PROXY_SECRET not configured");
-	}
-
-	const searchParams = new URLSearchParams();
-	if (options.query) {
-		for (const [key, value] of Object.entries(options.query)) {
-			if (value === undefined) {
-				continue;
-			}
-			for (const item of Array.isArray(value) ? value : [value]) {
-				searchParams.append(Array.isArray(value) ? `${key}[]` : key, item);
-			}
-		}
-	}
-
-	const baseUrl = `${proxyUrl.replace(/\/+$/, "")}/${env.NODE_ENV === "staging" ? "sportsbook-staging" : "sportsbook"}${path.startsWith("/") ? path : `/${path}`}`;
-	const url =
-		searchParams.size > 0 ? `${baseUrl}?${searchParams.toString()}` : baseUrl;
-	const headers: Record<string, string> = {
-		"Content-Type": "application/json",
-		"X-Proxy-Auth": proxySecret,
-		...options.headers,
-	};
-
-	try {
-		return await fetch(url, {
-			method: options.method || "GET",
-			headers,
-			body: options.body ? JSON.stringify(options.body) : undefined,
-		});
-	} catch (error) {
-		console.error("Sportsbook proxy request threw", {
-			path,
-			nodeEnv: env.NODE_ENV,
-			proxyTarget: url,
-			hasProxyUrl: Boolean(proxyUrl),
-			hasProxySecret: Boolean(proxySecret),
-			// DATABET_CERT is documented at the architecture level, but current
-			// sportsbook traffic is actually proxied through apps/proxy, where the
-			// mTLS cert is attached by nginx rather than the Worker fetch itself.
-			hasDatabetCertBinding: Boolean(
-				(env as unknown as Record<string, unknown>).DATABET_CERT,
-			),
-			error:
-				error instanceof Error
-					? {
-							name: error.name,
-							message: error.message,
-							stack: error.stack,
-						}
-					: String(error),
-		});
-		throw error;
-	}
-}
-
-type DatabetBoostRecord = {
-	id: string;
-	calculation_strategy?: { type?: string };
-	required_conditions?: Array<{
-		bet_details?: Array<{
-			data?: { sport?: { sport_ids?: string[] } };
-		}>;
-	}>;
-};
-
-async function listPlayerBetBoosts(
-	env: CloudflareBindings,
-	playerId: string,
-): Promise<DatabetBoostRecord[]> {
-	const response = await databetFetch(
-		env,
-		`/bet-boosts?player_id=${encodeURIComponent(playerId)}`,
-	);
-	if (!response.ok) return [];
-	const data = (await response.json()) as DatabetBoostRecord[] | unknown;
-	if (!Array.isArray(data)) return [];
-	return data.filter((boost) => typeof boost?.id === "string");
-}
-
-async function ensureAccumulatorProgramBoosts(
-	env: CloudflareBindings,
-	input: {
-		playerId: string;
-		currency?: string;
-		initialQuantity?: number;
-		expiresAt?: string;
-	},
-): Promise<{
-	created: Array<{ sport: AccumulatorSport; dataBetBoostId: string }>;
-	skipped: AccumulatorSport[];
-	failed: Array<{ sport: AccumulatorSport; error: string }>;
-}> {
-	const created: Array<{ sport: AccumulatorSport; dataBetBoostId: string }> =
-		[];
-	const skipped: AccumulatorSport[] = [];
-	const failed: Array<{ sport: AccumulatorSport; error: string }> = [];
-	const existing = await listPlayerBetBoosts(env, input.playerId);
-	const expiresAt = input.expiresAt ?? defaultAccumulatorProgramExpiry();
-	const initialQuantity =
-		input.initialQuantity ?? ACCUMULATOR_PROGRAM_QUANTITY;
-
-	for (const preset of listAccumulatorStepsBoostPayloads()) {
-		if (existing.some((boost) => boostCoversAccumulatorSport(boost, preset.sport))) {
-			skipped.push(preset.sport);
-			continue;
-		}
-
-		const response = await databetFetch(env, "/bet-boosts", {
-			method: "POST",
-			body: {
-				idempotence_id: crypto.randomUUID(),
-				player_id: input.playerId,
-				currency_code: input.currency ?? "NGN",
-				initial_quantity: initialQuantity,
-				applicable_conditions: preset.applicable_conditions,
-				required_conditions: preset.required_conditions,
-				calculation_strategy: preset.calculation_strategy,
-				expires_at: expiresAt,
-			},
-		});
-
-		if (!response.ok) {
-			failed.push({
-				sport: preset.sport,
-				error: `${response.status} ${await response.text()}`,
-			});
-			continue;
-		}
-
-		const raw = (await response.json()) as
-			| { id: string }
-			| Array<{ id: string }>;
-		const createdBoost = Array.isArray(raw) ? raw[0] : raw;
-		if (!createdBoost?.id) {
-			failed.push({
-				sport: preset.sport,
-				error: "No boost created",
-			});
-			continue;
-		}
-		created.push({
-			sport: preset.sport,
-			dataBetBoostId: createdBoost.id,
-		});
-	}
-
-	return { created, skipped, failed };
 }
 
 const createTokenRoute = createRoute({
@@ -436,25 +282,7 @@ sportsbookRoute.openapi(createTokenRoute, async (c) => {
 	}
 
 	if (user) {
-		try {
-			const grant = await ensureAccumulatorProgramBoosts(c.env, {
-				playerId: user.id,
-			});
-			if (grant.failed.length > 0) {
-				console.error("Accumulator program grant failed on token create", {
-					playerId: user.id,
-					failed: grant.failed,
-				});
-			}
-		} catch (error) {
-			console.error("Accumulator program grant threw on token create", {
-				playerId: user.id,
-				error:
-					error instanceof Error
-						? { name: error.name, message: error.message }
-						: String(error),
-			});
-		}
+		scheduleWebengageUserProfileSync(c.env, user.id, c.executionCtx);
 	}
 
 	return c.json(
@@ -811,11 +639,12 @@ sportsbookRoute.openapi(betPlaceRoute, async (c) => {
 				bet_type:
 					BET_TYPE_LABELS[result.data.bet_type ? result.data.bet_type : 1] ??
 					String(result.data.bet_type),
-				stake_amount: result.data.bet_stake,
-				odds_total: result.data.total_odds_value,
+				stake_amount: asEventNumber(result.data.bet_stake),
+				odds_total: asEventNumber(result.data.total_odds_value),
 				potential_payout:
 					potentialPayout !== null ? potentialPayout / 100 : null,
 				odds: JSON.stringify(result.data.bet_odds),
+				wallet_id: wallet.id,
 			},
 		},
 		c.executionCtx,
@@ -1167,6 +996,48 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
+
+	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
+
+	const stakeMajor =
+		typeof bet.stake === "number" && Number.isFinite(bet.stake)
+			? bet.stake / 100
+			: Number.parseFloat(result.data.bet_stake);
+	if (Number.isFinite(stakeMajor) && stakeMajor > 0) {
+		const reportIds = extractSportsbookBetReportIds(selections);
+		const reportPromise = reportBonusEngineBet({
+			env: c.env,
+			bet: {
+				userId: bet.userId,
+				betId: result.data.bet_id,
+				amount: stakeMajor,
+				productType: BONUS_ENGINE_PRODUCT_TYPE.SPORTSBOOK,
+				currency: BONUS_ENGINE_DEFAULT_CURRENCY,
+				...(reportIds.sportId ? { sportId: reportIds.sportId } : {}),
+				...(reportIds.eventId ? { eventId: reportIds.eventId } : {}),
+				...(reportIds.leagueId ? { leagueId: reportIds.leagueId } : {}),
+			},
+		})
+			.then((reportResult) => {
+				if (!reportResult.ok) {
+					console.error("Bonus Engine sportsbook bet report failed", {
+						betId: result.data.bet_id,
+						userId: bet.userId,
+						status: reportResult.status,
+						error: reportResult.error,
+					});
+				}
+			})
+			.catch((error: unknown) => {
+				console.error("Bonus Engine sportsbook bet report error", {
+					betId: result.data.bet_id,
+					userId: bet.userId,
+					error,
+				});
+			});
+
+		await runBonusEngineBackground(c.executionCtx, reportPromise);
+	}
 
 	return c.body(null, 204);
 });
@@ -1751,15 +1622,17 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 			eventName: "bet_settled",
 			eventData: {
 				bet_id: result.data.bet_id,
-				payout_amount: result.data.settle_amount,
+				payout_amount: settleAmount / 100,
 				outcome: settleTypeLabel,
-				net_pnl: Number.parseFloat(result.data.settle_amount) * 100 - bet.stake,
+				net_pnl: (settleAmount - bet.stake) / 100,
 				sport: selectionSport(settleFirstOdds),
 				league: selectionLeague(settleFirstOdds),
 			},
 		},
 		c.executionCtx,
 	);
+
+	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
 
 	return c.body(null, 204);
 });
@@ -2285,6 +2158,8 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		);
 	}
 
+	// WebEngage `bet_cashout_requested`: Databet calls this after the player
+	// taps Cash Out in Sportsbook (My Bets) and the cash-out is accepted.
 	trackWebengageEvent(
 		c.env,
 		{
@@ -2292,15 +2167,18 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 			eventName: "bet_cashout_requested",
 			eventData: {
 				bet_id: result.data.bet_id,
-				cashout_value: result.data.refund_amount,
-				original_stake: bet.stake,
-				refund_amount: result.data.refund_amount,
-				cashout_rate: bet.stake - Number.parseFloat(result.data.refund_amount),
-				original_potential_payout: result.data.amount,
+				cashout_value: asEventNumber(result.data.refund_amount),
+				original_stake: bet.stake / 100,
+				refund_amount: asEventNumber(result.data.refund_amount),
+				cashout_rate:
+					bet.stake / 100 - (asEventNumber(result.data.refund_amount) ?? 0),
+				original_potential_payout: asEventNumber(result.data.amount),
 			},
 		},
 		c.executionCtx,
 	);
+
+	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
 
 	return c.body(null, 204);
 });
@@ -3826,7 +3704,7 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 			id: string;
 		};
 
-		console.log("responseData", data)
+		console.log("responseData", data);
 
 		const createdBoost = data;
 		if (!createdBoost) {
@@ -3890,6 +3768,12 @@ sportsbookRoute.openapi(betBoostCreateRoute, async (c) => {
 				: {}),
 		});
 	}
+
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.createPromotion,
+	);
 
 	return c.json(
 		{
@@ -4073,10 +3957,8 @@ sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
 				minSelections: ACCUMULATOR_MIN_SELECTIONS,
 				maxSelections: ACCUMULATOR_MAX_SELECTIONS,
 				program: {
-					strategy: "steps" as const,
-					selectionsPerStep: 1,
-					multiplierPerStep: ACCUMULATOR_MULTIPLIER_PER_STEP,
-					maxMultiplier: ACCUMULATOR_MAX_MULTIPLIER,
+					strategy: "static" as const,
+					boostCount: listAccumulatorFoldBoostPayloads().length,
 				},
 				rows: getAccumulatorBonusTable(),
 			},
@@ -4085,13 +3967,98 @@ sportsbookRoute.openapi(accumulatorBonusTableRoute, async (c) => {
 	);
 });
 
+const accumulatorProgramSyncRoute = createRoute({
+	method: "post",
+	path: "/bet-boost/accumulator/sync",
+	tags: ["Sportsbook"],
+	summary: "Sync accumulator bonus program for the logged-in player",
+	description:
+		"Lists, repairs, and creates DataBet static accumulator boosts for the authenticated user. Skips when the program is already synced in KV.",
+	security: [{ BearerAuth: [] }],
+	responses: {
+		200: {
+			description: "Sync completed or skipped",
+			content: {
+				"application/json": {
+					schema: AccumulatorProgramSyncResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: {
+				"application/json": {
+					schema: SportsbookTokenErrorSchema,
+				},
+			},
+		},
+		503: {
+			description: "DataBet boost list unavailable",
+			content: {
+				"application/json": {
+					schema: SportsbookTokenErrorSchema,
+				},
+			},
+		},
+	},
+});
+
+sportsbookRoute.openapi(accumulatorProgramSyncRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	try {
+		const result = await runAccumulatorProgramSync(
+			databetFetch,
+			c.env,
+			user.id,
+			c.executionCtx,
+		);
+		return c.json({ success: true as const, data: result }, 200);
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "accumulator sync failed";
+		if (message === "accumulator boost list unavailable") {
+			return c.json(
+				{
+					success: false as const,
+					error: "Unable to list bet boosts",
+					details: null,
+				},
+				503,
+			);
+		}
+		console.error("Accumulator program sync failed", {
+			playerId: user.id,
+			error,
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Accumulator sync failed",
+				details: message,
+			},
+			500,
+		);
+	}
+});
+
 const accumulatorProgramGrantRoute = createRoute({
 	method: "post",
 	path: "/bet-boost/accumulator",
 	tags: ["Sportsbook"],
 	summary: "Grant accumulator bonus program",
 	description:
-		"Create the football, basketball, and tennis DataBet steps boosts for a player. Bonus grows as they add more games. Skips sports that already have a steps boost.",
+		"Create one DataBet static boost per published sport × fold (football 3–50, basketball/tennis 2–50). Deletes the legacy steps program first so the player has only the static table.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -4137,11 +4104,12 @@ sportsbookRoute.openapi(accumulatorProgramGrantRoute, async (c) => {
 	}
 
 	const result = c.req.valid("json");
-	const grant = await ensureAccumulatorProgramBoosts(c.env, {
+	const grant = await ensureAccumulatorProgramBoosts(databetFetch, c.env, {
 		playerId: result.player_id,
 		currency: result.currency,
 		initialQuantity: result.initial_quantity,
 		expiresAt: result.expires_at,
+		force: true,
 	});
 
 	return c.json(
@@ -4403,6 +4371,11 @@ sportsbookRoute.openapi(betBoostUpdateRoute, async (c) => {
 	}
 
 	const data = (await response.json()) as { id: string };
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.updatePromotion,
+	);
 
 	return c.json(
 		{
@@ -4524,6 +4497,12 @@ sportsbookRoute.openapi(betBoostDeleteRoute, async (c) => {
 				.where(eq(schema.sportsbookPromotion.id, promotionId));
 		}
 	}
+
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.deletePromotion,
+	);
 
 	return c.json({ success: true as const }, 200);
 });

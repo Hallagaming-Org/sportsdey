@@ -12,9 +12,19 @@ const STATIC_ALLOWED_ORIGINS = [
 	"https://stagingweb.sportsdey.com",
 ] as const;
 
-export const CORS_ALLOW_METHODS = "GET, POST, PATCH, OPTIONS, DELETE";
-export const CORS_ALLOW_HEADERS =
-	"Authorization, Content-Type, X-WebEngage-Secret";
+export const CORS_ALLOW_METHODS = [
+	"GET",
+	"POST",
+	"PATCH",
+	"OPTIONS",
+	"DELETE",
+	"PUT",
+];
+export const CORS_ALLOW_HEADERS = [
+	"Authorization",
+	"Content-Type",
+	"X-WebEngage-Secret",
+];
 
 /** Build the allowlist for browser + native app origins. */
 export function getAllowedCorsOrigins(corsOriginEnv?: string): Set<string> {

@@ -81,11 +81,11 @@ export async function createCashierOrder(
 	try {
 		json = JSON.parse(rawText);
 	} catch {
-		throw new Error(`OPay returned non-JSON response (${response.status}): ${rawText}`);
+		throw new Error(`OPay returned a non-JSON response (${response.status})`);
 	}
 
 	if (json.code !== "00000" || !json.data) {
-		throw new Error(`OPay cashier create failed: ${json.code} ${json.message}`);
+		throw new Error(`OPay cashier creation failed (${json.code ?? response.status})`);
 	}
 
 	return {
@@ -121,11 +121,11 @@ export async function queryCashierOrderStatus(
 	try {
 		json = JSON.parse(rawText);
 	} catch {
-		throw new Error(`OPay returned non-JSON response (${response.status}): ${rawText}`);
+		throw new Error(`OPay returned a non-JSON response (${response.status})`);
 	}
 
 	if (json.code !== "00000" || !json.data) {
-		throw new Error(`OPay status query failed: ${json.code} ${json.message}`);
+		throw new Error(`OPay status query failed (${json.code ?? response.status})`);
 	}
 
 	return { status: json.data.status };

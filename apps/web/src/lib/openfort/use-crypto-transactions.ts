@@ -1,6 +1,7 @@
 import { useEthereumEmbeddedWallet } from "@openfort/react/ethereum";
 import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
+import { OPENFORT_EVM_CHAIN_ID } from "@/lib/openfort/config";
 import {
 	cryptoTransferToWalletTx,
 	fetchIncomingCryptoTransfers,
@@ -21,7 +22,7 @@ export function useCryptoIncomingTransactions(): {
 		evm.activeWallet?.address) as Address | undefined;
 
 	const query = useQuery({
-		queryKey: ["crypto-incoming-transfers", address],
+		queryKey: ["crypto-incoming-transfers", OPENFORT_EVM_CHAIN_ID, address],
 		queryFn: () => fetchIncomingCryptoTransfers(address as Address),
 		enabled: Boolean(address),
 		staleTime: 60_000,

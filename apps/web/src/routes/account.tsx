@@ -1,8 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Camera, Edit, Loader2, User } from "lucide-react";
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+	type ChangeEvent,
+	type FormEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
+import { DobPicker } from "@/components/dob-picker";
 import { Input } from "@/components/ui/input";
 import { syncAffnookRegistrationReferral } from "@/lib/affnook";
 import { apiRequest, apiUploadFile } from "@/lib/api";
@@ -10,6 +17,7 @@ import { useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
 import {
 	loginWebengageUser,
+	setWebengageSdkUserProfile,
 	trackWebengageEvent,
 } from "@/lib/webengage";
 
@@ -22,6 +30,13 @@ const PROFILE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const PROFILE_ADMIN_EMAIL = "support@sportsdey.com";
 const PROFILE_EDIT_LOCKED_MESSAGE = `You've already updated your profile. Contact admin at ${PROFILE_ADMIN_EMAIL} if you need any further changes.`;
 
+function dobToDisplay(value: string | null | undefined): string {
+	if (!value) return "";
+	const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+	return value;
+}
+
 type UserProfile = {
 	id: string;
 	name: string;
@@ -30,6 +45,7 @@ type UserProfile = {
 	image: string | null;
 	country: string | null;
 	mobileNumber: string | null;
+	dob: string | null;
 	createdAt: string;
 	updatedAt: string;
 	canEditProfile?: boolean;
@@ -45,6 +61,7 @@ function AccountPage() {
 	const [formState, setFormState] = useState({
 		fullName: "",
 		email: "",
+		dob: "",
 		country: "",
 		mobileNumbers: "",
 		referralCode: "",
@@ -76,16 +93,26 @@ function AccountPage() {
 			...prev,
 			fullName: profile.name ?? "",
 			email: profile.email ?? "",
+			dob: dobToDisplay(profile.dob),
 			country: profile.country ?? "",
 			mobileNumbers: profile.mobileNumber ?? "",
 		}));
 		setPreviewImage(null);
+		const nameParts = (profile.name ?? "").trim().split(/\s+/);
+		setWebengageSdkUserProfile({
+			email: profile.email,
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
+			phone: profile.mobileNumber,
+			dateOfBirth: profile.dob,
+		});
 	}, [profile]);
 
 	const updateUserMutation = useMutation({
 		mutationFn: async (data: {
 			name: string;
 			email?: string;
+			dob?: string;
 			country?: string;
 			mobileNumber?: string;
 			referralCode?: string;
@@ -99,6 +126,9 @@ function AccountPage() {
 			const nextEmail = data.email?.trim();
 			if (nextEmail && !isPhonePlaceholderEmail(nextEmail)) {
 				payload.email = nextEmail;
+			}
+			if (data.dob?.trim()) {
+				payload.dob = data.dob.trim();
 			}
 			if (data.country?.trim()) {
 				payload.country = data.country.trim();
@@ -137,6 +167,7 @@ function AccountPage() {
 				...prev,
 				fullName: user.name,
 				email: user.email,
+				dob: dobToDisplay(user.dob),
 				country: user.country ?? "",
 				mobileNumbers: user.mobileNumber ?? "",
 				referralId: referralSynced
@@ -147,12 +178,19 @@ function AccountPage() {
 			const nameParts = user.name.trim().split(/\s+/);
 			const firstName = nameParts[0] || "";
 			const lastName = nameParts.slice(1).join(" ") || "";
+			setWebengageSdkUserProfile({
+				email: user.email,
+				firstName,
+				lastName,
+				phone: user.mobileNumber,
+				dateOfBirth: user.dob,
+			});
 			trackWebengageEvent("Profile Completed", {
 				userId: session?.user?.id ?? "",
 				"First Name": firstName,
 				"Last Name": lastName,
 				Mobile: user.mobileNumber ?? "",
-				Country: user.country ?? "",
+				Country: user.country ?? formState.country,
 				"Reference Id": formState.referralCode || formState.referralId || "",
 			});
 			if (referralSynced) {
@@ -277,6 +315,7 @@ function AccountPage() {
 		updateUserMutation.mutate({
 			name: formState.fullName,
 			email: formState.email.trim() || undefined,
+			dob: formState.dob.trim() || undefined,
 			country: formState.country,
 			mobileNumber: formState.mobileNumbers.trim() || undefined,
 			referralCode: formState.referralCode || undefined,
@@ -290,6 +329,7 @@ function AccountPage() {
 	const inputIds = {
 		fullName: "account-full-name",
 		email: "account-email",
+		dob: "account-dob",
 		country: "account-country",
 		mobileNumbers: "account-mobile",
 		referralCode: "account-referral-code",
@@ -353,7 +393,7 @@ function AccountPage() {
 						</div>
 
 						{/* Profile photo - centered circle */}
-						<div className="mb-3 mt-6 flex justify-center">
+						<div className="mt-6 mb-3 flex justify-center">
 							<input
 								ref={fileInputRef}
 								type="file"
@@ -389,7 +429,7 @@ function AccountPage() {
 							</button>
 						</div>
 						<div className="mb-10 flex justify-center">
-							<p className="text-[10px] md:text-sm text-gray-500 dark:text-[#8C8F8F]">
+							<p className="text-[10px] text-gray-500 md:text-sm dark:text-[#8C8F8F]">
 								{displayName}
 							</p>
 						</div>
@@ -449,6 +489,25 @@ function AccountPage() {
 										}
 										disabled={!isEditing}
 										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+									/>
+								</div>
+
+								{/* Date of birth */}
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+									<label
+										htmlFor={inputIds.dob}
+										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+									>
+										Date of birth:
+									</label>
+									<DobPicker
+										id={inputIds.dob}
+										value={formState.dob}
+										onChange={(next) => updateField("dob", next)}
+										disabled={!isEditing}
+										placeholder="Select date of birth"
+										className="flex-1"
+										triggerClassName="h-[42px] rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-sm shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
 									/>
 								</div>
 

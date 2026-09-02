@@ -24,6 +24,12 @@ export const bannerType = defineType({
 			],
 		}),
 		defineField({
+			name: "title",
+			title: "Banner Name",
+			type: "string",
+			description: "Shown as Banner Name in analytics. Do not use the image filename.",
+		}),
+		defineField({
 			name: "url",
 			title: "Link URL",
 			type: "url",

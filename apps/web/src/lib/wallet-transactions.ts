@@ -42,7 +42,9 @@ const MONTH_NAMES = [
 	"December",
 ];
 
-export function formatTransactionDate(value: string | null | undefined): string {
+export function formatTransactionDate(
+	value: string | null | undefined,
+): string {
 	if (!value) return "Recent";
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return "Recent";
@@ -74,7 +76,10 @@ export function getTransactionDetails(
 	const typeLower = (transaction.type || "").toLowerCase();
 	const statusLower = (transaction.status || "").toLowerCase();
 	const methodLower = (transaction.paymentMethod || "").toLowerCase();
-	const meta = transaction.metadata as Record<string, string | undefined> | null;
+	const meta = transaction.metadata as Record<
+		string,
+		string | undefined
+	> | null;
 
 	let title = "Transaction";
 	let iconType: TransactionDetails["iconType"] = "default";
@@ -178,10 +183,15 @@ export function getTransactionDetails(
 	return { title, iconType, statusText, statusColor };
 }
 
-export function getTransactionTypeLabel(transaction: WalletTransaction): string {
+export function getTransactionTypeLabel(
+	transaction: WalletTransaction,
+): string {
 	const typeLower = (transaction.type || "").toLowerCase();
 	const methodLower = (transaction.paymentMethod || "").toLowerCase();
-	const meta = transaction.metadata as Record<string, string | undefined> | null;
+	const meta = transaction.metadata as Record<
+		string,
+		string | undefined
+	> | null;
 	const isCredit = typeLower === "credit" || (transaction.amount ?? 0) > 0;
 	const isDebit = typeLower === "debit" || (transaction.amount ?? 0) < 0;
 
@@ -196,9 +206,11 @@ export function getTransactionTypeLabel(transaction: WalletTransaction): string 
 		"hashcodex",
 	]);
 	const sportsbookPaymentMethods = new Set(["sportsbook"]);
+	const depositPaymentMethods = new Set(["opay", "kuda", "palmpay"]);
 
 	if (methodLower === "wallet_transfer") {
-		const transferDebit = typeLower === "debit" || (transaction.amount && transaction.amount < 0);
+		const transferDebit =
+			typeLower === "debit" || (transaction.amount && transaction.amount < 0);
 		if (meta?.transferType === "to_game_wallet") {
 			return "Transfer to game";
 		}
@@ -208,6 +220,10 @@ export function getTransactionTypeLabel(transaction: WalletTransaction): string 
 	if (methodLower === "crypto") {
 		const asset = meta?.asset ? String(meta.asset) : "Crypto";
 		return isCredit ? `Crypto Deposit · ${asset}` : `Crypto Send · ${asset}`;
+	}
+
+	if (isCredit && depositPaymentMethods.has(methodLower)) {
+		return `Deposit - ${transaction.paymentMethod}`;
 	}
 
 	if (
@@ -220,8 +236,14 @@ export function getTransactionTypeLabel(transaction: WalletTransaction): string 
 		return isCredit ? "Deposit" : "Withdrawal";
 	}
 
-	if (meta?.serviceCategory || meta?.service || methodLower === "bill_payment") {
-		const serviceCategory = String(meta?.serviceCategory || meta?.service || "").toLowerCase();
+	if (
+		meta?.serviceCategory ||
+		meta?.service ||
+		methodLower === "bill_payment"
+	) {
+		const serviceCategory = String(
+			meta?.serviceCategory || meta?.service || "",
+		).toLowerCase();
 		const biller = meta?.billerName || "";
 		const customerId = meta?.customerId || "";
 		if (serviceCategory === "airtime") {
@@ -278,16 +300,17 @@ function formatNairaAmount(amount: number, signed = false): string {
 }
 
 /** Receipt rows matching the Figma Transaction Details modal. */
-export function getWalletReceiptDetails(
-	tx: WalletTransaction,
-): Array<{
+export function getWalletReceiptDetails(tx: WalletTransaction): Array<{
 	label: string;
 	value: string;
 	copyable?: boolean;
 	copyValue?: string;
 }> {
 	const { iconType } = getTransactionDetails(tx);
-	const meta = (tx.metadata ?? {}) as Record<string, string | number | undefined>;
+	const meta = (tx.metadata ?? {}) as Record<
+		string,
+		string | number | undefined
+	>;
 	const methodLower = (tx.paymentMethod || "").toLowerCase();
 	const txId = String(tx.reference || tx.id);
 	const details: Array<{
@@ -306,7 +329,7 @@ export function getWalletReceiptDetails(
 		details.push({ label: "Asset", value: String(meta.asset || "Crypto") });
 		details.push({
 			label: "Network",
-			value: String(meta.network || "Polygon Amoy"),
+			value: String(meta.network || "Crypto"),
 		});
 		if (meta.from) {
 			const from = String(meta.from);
@@ -378,7 +401,7 @@ export function getWalletReceiptDetails(
 		});
 		details.push({
 			label: "Amount",
-			value: formatNairaAmount(-(Math.abs(tx.amount || 0)), true),
+			value: formatNairaAmount(-Math.abs(tx.amount || 0), true),
 		});
 		details.push({ label: "Fee", value: "₦0" });
 		details.push({
@@ -420,7 +443,7 @@ export function getWalletReceiptDetails(
 		details.push({ label: "Transaction Type", value: "Debit (Withdrawal)" });
 		details.push({
 			label: "Amount",
-			value: formatNairaAmount(-(Math.abs(tx.amount || 0)), true),
+			value: formatNairaAmount(-Math.abs(tx.amount || 0), true),
 		});
 		details.push({ label: "Fee", value: "₦0" });
 		details.push({

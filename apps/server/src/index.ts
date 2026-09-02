@@ -12,13 +12,8 @@ import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 } from "./constants/session";
-import {
-	deleteExpiredExports,
-	processExportMessage,
-	requeueStaleChunks,
-} from "./utils/exports/service";
-import type { ExportQueueMessage } from "./types/exports";
 import adminRoute from "./routes/admin";
+import adminActivityRoute from "./routes/admin-activity";
 import adminCmsRoute from "./routes/admin-cms";
 import adminExportsRoute from "./routes/admin-exports";
 import adminLogNotesRoute from "./routes/admin-log-notes";
@@ -32,11 +27,27 @@ import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
 import type { CloudflareBindings } from "./types";
+import type { ExportQueueMessage } from "./types/exports";
+import {
+	deleteExpiredExports,
+	processExportMessage,
+	requeueStaleChunks,
+} from "./utils/exports/service";
+import { isD1CapacityError } from "./utils/d1-errors";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 app.onError((err, c) => {
 	console.error("Unhandled error:", err.message, err.stack);
+	if (isD1CapacityError(err)) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Service temporarily unavailable. Please try again shortly.",
+			},
+			503,
+		);
+	}
 	return c.json(
 		{
 			error: {
@@ -48,7 +59,7 @@ app.onError((err, c) => {
 	);
 });
 
-let authCache: ReturnType<typeof createAuth> | null = null;
+const authCache: ReturnType<typeof createAuth> | null = null;
 
 function getAuth(env: CloudflareBindings) {
 	return createAuth(env);
@@ -106,23 +117,23 @@ app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
 		"Enter the session token from /auth/sign-in/email or /auth/sign-in/oauth",
 });
 
-app.use("*", async (c, next) => {
-	if (c.req.method === "OPTIONS") {
-		const origin = c.req.header("origin") || "";
-		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
+// app.use("*", async (c, next) => {
+// 	if (c.req.method === "OPTIONS") {
+// 		const origin = c.req.header("origin") || "";
+// 		const allowedOrigins = getAllowedCorsOrigins(c.env.CORS_ORIGIN);
 
-		if (allowedOrigins.has(origin)) {
-			return c.body(null, 204, {
-				"Access-Control-Allow-Origin": origin,
-				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
-				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
-				"Access-Control-Allow-Credentials": "true",
-			});
-		}
-		return c.body(null, 204);
-	}
-	await next();
-});
+// 		if (allowedOrigins.has(origin)) {
+// 			return c.body(null, 204, {
+// 				"Access-Control-Allow-Origin": origin,
+// 				"Access-Control-Allow-Methods": CORS_ALLOW_METHODS,
+// 				"Access-Control-Allow-Headers": CORS_ALLOW_HEADERS,
+// 				"Access-Control-Allow-Credentials": "true",
+// 			});
+// 		}
+// 		return c.body(null, 204);
+// 	}
+// 	await next();
+// });
 
 app.use(logger());
 app.use(
@@ -133,8 +144,8 @@ app.use(
 			const allowedOrigins = getAllowedCorsOrigins(c?.env?.CORS_ORIGIN);
 			return allowedOrigins.has(origin) ? origin : "";
 		},
-		allowMethods: ["GET", "POST", "PATCH", "OPTIONS", "DELETE"],
-			allowHeaders: ["Authorization", "Content-Type", "X-WebEngage-Secret"],
+		allowMethods: CORS_ALLOW_METHODS,
+		allowHeaders: CORS_ALLOW_HEADERS,
 		credentials: true,
 	}),
 );
@@ -198,7 +209,10 @@ app.use("*", async (c, next) => {
 		path.startsWith("/admin") ||
 		path.startsWith("/bonus-engine/callback/") ||
 		path.startsWith("/gamification/callback/") ||
-		path.startsWith("/bem/api/BonusEngine/")
+		path.startsWith("/bem/api/BonusEngine/") ||
+		path.startsWith("/opay/callback") ||
+		path.startsWith("/kuda/webhook") ||
+		path.startsWith("/palmpay/webhook")
 	) {
 		return next();
 	}
@@ -221,6 +235,7 @@ app.route("/admin", adminTicketOverviewRoute);
 app.route("/admin", adminPromotionsRoute);
 app.route("/admin", adminLogNotesRoute);
 app.route("/admin", adminNotificationsRoute);
+app.route("/admin", adminActivityRoute);
 app.route("/admin", adminOverviewRoute);
 app.route("/cms", adminCmsRoute);
 app.route("/cms", cmsRoute);

@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Lock, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+import { authClient, setPhonePassword } from "@/lib/auth/client";
 
 const resetPasswordSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
 	token: z.string().optional().catch(""),
+	error: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/auth/reset-password")({
@@ -33,7 +35,7 @@ function getPasswordStrength(pass: string): {
 }
 
 function ResetPasswordPage() {
-	Route.useSearch();
+	const { token, error: searchError } = Route.useSearch();
 	const navigate = useNavigate();
 
 	const [newPassword, setNewPassword] = useState("");
@@ -41,7 +43,7 @@ function ResetPasswordPage() {
 	const [showNewPassword, setShowNewPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState("");
+	const [error, setError] = useState(searchError || "");
 
 	const strength = useMemo(
 		() => getPasswordStrength(newPassword),
@@ -74,8 +76,21 @@ function ResetPasswordPage() {
 		setIsLoading(true);
 
 		try {
-			// Simulate updating password / calling API
-			await new Promise((resolve) => setTimeout(resolve, 800));
+			if (token) {
+				const result = await authClient.resetPassword({
+					newPassword,
+					token,
+				});
+				if (result?.error) {
+					setError(
+						result.error.message ||
+							"Failed to reset password. Please try again.",
+					);
+					return;
+				}
+			} else {
+				await setPhonePassword(newPassword);
+			}
 			toast.success("Password updated successfully! Please log in.");
 			navigate({
 				to: "/auth/phone-sign-in",
@@ -102,13 +117,12 @@ function ResetPasswordPage() {
 						Create New Password
 					</h1>
 					<p className="mt-2 font-medium text-[#6f7471] text-sm">
-						Step 2 of 2
+						Step 3 of 3
 					</p>
 				</div>
 
 				<div className="flex flex-col gap-4">
-					{/* New Password Input */}
-					<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+					<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors focus-within:border-[#17b000]">
 						<Lock className="mr-3 shrink-0 text-[#9a9d9a]" size={20} />
 						<input
 							type={showNewPassword ? "text" : "password"}
@@ -126,8 +140,7 @@ function ResetPasswordPage() {
 						</button>
 					</div>
 
-					{/* Confirm Password Input */}
-					<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 transition-colors focus-within:border-[#17b000] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+					<div className="flex h-[80px] items-center rounded-[20px] border border-[#dbdbdb] bg-white px-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-colors focus-within:border-[#17b000]">
 						<Lock className="mr-3 shrink-0 text-[#9a9d9a]" size={20} />
 						<input
 							type={showConfirmPassword ? "text" : "password"}
@@ -145,8 +158,7 @@ function ResetPasswordPage() {
 						</button>
 					</div>
 
-					{/* Password Strength Meter */}
-					{newPassword && (
+					{newPassword ? (
 						<div className="flex flex-col gap-1.5 px-1">
 							<div className="flex items-center justify-between text-xs">
 								<span className="text-[#6f7471]">
@@ -167,7 +179,7 @@ function ResetPasswordPage() {
 								))}
 							</div>
 						</div>
-					)}
+					) : null}
 				</div>
 
 				{error ? (
@@ -180,7 +192,7 @@ function ResetPasswordPage() {
 					type="button"
 					onClick={handleUpdatePassword}
 					disabled={!isValid || isLoading}
-					className="mt-8 w-full cursor-pointer rounded-2xl bg-[#17b000] py-[18px] font-semibold text-lg text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-60 hover:opacity-90"
+					className="mt-8 w-full cursor-pointer rounded-2xl bg-[#17b000] py-[18px] font-semibold text-lg text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
 				>
 					{isLoading ? "Updating..." : "Update Password"}
 				</button>

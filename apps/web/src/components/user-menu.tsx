@@ -9,6 +9,8 @@ import {
 	User,
 	UserRound,
 	Wallet,
+	Medal,
+	TicketPercent,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
@@ -27,7 +29,9 @@ const userMenuItems: UserMenuItem[] = [
 	{ label: "Wallet", icon: Wallet, path: "/wallet" },
 	{ label: "KYC Documents", icon: FileText, path: "/kyc" },
 	{ label: "Bet history", icon: Clock3, path: "/bet-history" },  
-	// { label: "Engage", icon: Star },
+	{ label: "Loyalty points", icon: Medal, path: "/loyalty" },
+	{ label: "Bonuses", icon: TicketPercent, path: "/bonuses" },  
+	// { label: "Engage", icon: Star },	
 	// { label: "Settings", icon: Settings },
 ];
 
@@ -161,8 +165,8 @@ export function UserMenu() {
 
 	return (
 		<Link
-			to="/auth/sign-in"
-			search={{ returnTo: location.href }}
+			to="/auth/phone-sign-in"
+			search={{ returnTo: location.href, mode: "login" }}
 			aria-label="Sign In"
 			className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
 		>

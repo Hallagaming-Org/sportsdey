@@ -9,6 +9,7 @@ import {
 	useMatches,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { useEffect, useRef } from "react";
 import { Provider } from "react-redux";
 import z from "zod";
 import DesktopFooter from "@/components/desktop-footer";
@@ -21,9 +22,13 @@ import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
-
 import { cn } from "@/lib/utils";
+import {
+	loginWebengageUser,
+	setWebengageSdkUserProfile,
+} from "@/lib/webengage";
 import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
@@ -58,7 +63,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				name: "description",
 				content:
-					"Get Live Football & Basketball Scores plus News, and Real-Time Results with Sportsdey! Everything Sports Dey here! Click now!",
+					"Nigeria's all-in-one gaming platform. Enjoy Sportsbetting, Casino, Prediction Markets, Binary trading, Esports, News and much more in one place",
 			},
 			{
 				title: "sportsdey",
@@ -79,6 +84,35 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 
 	component: RootDocument,
 });
+
+function WebengageIdentity() {
+	const { data: session } = useSession();
+	const syncedUserId = useRef<string | null>(null);
+
+	useEffect(() => {
+		const user = session?.user as
+			| {
+					id?: string;
+					name?: string | null;
+					email?: string | null;
+					mobileNumber?: string | null;
+			  }
+			| undefined;
+		if (!user?.id) return;
+		if (syncedUserId.current === user.id) return;
+		syncedUserId.current = user.id;
+		loginWebengageUser(user.id);
+		const nameParts = (user.name || "").trim().split(/\s+/);
+		setWebengageSdkUserProfile({
+			email: user.email,
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
+			phone: user.mobileNumber,
+		});
+	}, [session?.user]);
+
+	return null;
+}
 
 function RootDocument() {
 	const location = useLocation();
@@ -138,6 +172,10 @@ function RootDocument() {
 		"/promotions/$id",
 		"/missions",
 		"/missions/",
+		"/bonuses",
+		"/bonuses/",
+		"/loyalty",
+		"/loyalty/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);
@@ -196,6 +234,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
+									<WebengageIdentity />
 									<ScrollToTop />
 									{isAuthRoute ? (
 										<div className="flex h-svh flex-col overflow-clip">
@@ -203,7 +242,10 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 												<Header />
 											</header>
 
-											<main id="app-main-content" className="no-scrollbar flex-1 overflow-y-auto">
+											<main
+												id="app-main-content"
+												className="no-scrollbar flex-1 overflow-y-auto"
+											>
 												<Outlet />
 											</main>
 										</div>
@@ -223,11 +265,15 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 											>
 												<div
 													className={cn(
-														isGameRoute ? "" : "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
+														isGameRoute
+															? ""
+															: "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
 														!isGameRoute && shouldShowSidebar
 															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
-															: (!isGameRoute ? "lg:grid-cols-1" : ""),
-														isGameRoute && "h-full flex-1"
+															: !isGameRoute
+																? "lg:grid-cols-1"
+																: "",
+														isGameRoute && "h-full flex-1",
 													)}
 												>
 													{!isGameRoute && shouldShowSidebar && (
@@ -235,7 +281,12 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 															<Sidebar />
 														</aside>
 													)}
-													<section className={cn("min-w-0", isGameRoute && "h-full flex-1")}>
+													<section
+														className={cn(
+															"min-w-0",
+															isGameRoute && "h-full flex-1",
+														)}
+													>
 														<Outlet />
 													</section>
 												</div>

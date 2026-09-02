@@ -2,16 +2,22 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gt, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
+import { parseDobInput } from "@/utils/dob";
 import {
 	isDefaultPhoneUserName,
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const PROFILE_CHANGE_CONTACT_EMAIL = "support@sportsdey.com";
@@ -67,10 +73,16 @@ const UpdateUserSchema = z
 			description: "User's country",
 			example: "Nigeria",
 		}),
-		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
-			description:
-				"User's mobile number. Omit or leave empty to keep the existing number.",
-			example: "08012345678",
+		mobileNumber: z
+			.preprocess(emptyToUndefined, z.string().optional())
+			.openapi({
+				description:
+					"User's mobile number. Omit or leave empty to keep the existing number.",
+				example: "08012345678",
+			}),
+		dob: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
+			description: "Date of birth (YYYY-MM-DD or DD/MM/YYYY)",
+			example: "1998-04-12",
 		}),
 		accountEdit: z.boolean().optional().openapi({
 			description:
@@ -107,6 +119,11 @@ const SelfUserResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "User's mobile number" }),
+		dob: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "Date of birth (YYYY-MM-DD)" }),
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
@@ -114,13 +131,10 @@ const SelfUserResponseSchema = z
 			.string()
 			.optional()
 			.openapi({ description: "Verification status" }),
-		canEditProfile: z
-			.boolean()
-			.optional()
-			.openapi({
-				description:
-					"Whether the player may still make their one self-serve profile edit",
-			}),
+		canEditProfile: z.boolean().optional().openapi({
+			description:
+				"Whether the player may still make their one self-serve profile edit",
+		}),
 	})
 	.openapi("SelfUserResponse");
 
@@ -213,7 +227,9 @@ const GetAllUsersResponseSchema = z
 				total: z.number().openapi({ description: "Total number of users" }),
 				page: z.number().openapi({ description: "Current page" }),
 				limit: z.number().openapi({ description: "Items in this response" }),
-				totalPages: z.number().openapi({ description: "Total number of pages" }),
+				totalPages: z
+					.number()
+					.openapi({ description: "Total number of pages" }),
 			})
 			.openapi({ description: "Response data" }),
 	})
@@ -357,6 +373,7 @@ userRoute.openapi(getUserRoute, async (c) => {
 				image: existingUser.image,
 				country: existingUser.country,
 				mobileNumber: existingUser.mobileNumber,
+				dob: existingUser.dob ?? null,
 				suspended: existingUser.suspended,
 				createdAt: toIsoTimestamp(existingUser.createdAt),
 				updatedAt: toIsoTimestamp(existingUser.updatedAt),
@@ -381,8 +398,19 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const { name, email, image, country, mobileNumber, accountEdit } =
+	const { name, email, image, country, mobileNumber, dob, accountEdit } =
 		c.req.valid("json");
+	const parsedDob = parseDobInput(dob);
+	if (!parsedDob.ok) {
+		return c.json(
+			{
+				success: false as const,
+				error: parsedDob.error,
+				details: null,
+			},
+			400,
+		);
+	}
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingUser] = await db
@@ -408,22 +436,32 @@ userRoute.openapi(updateUserRoute, async (c) => {
 			? rawEmail
 			: undefined;
 	const nextCountry =
-		country !== undefined ? (country.trim() ? country.trim() : null) : undefined;
+		country !== undefined
+			? country.trim()
+				? country.trim()
+				: null
+			: undefined;
 	const nextMobile =
 		mobileNumber !== undefined && mobileNumber.trim() !== ""
 			? mobileNumber.trim()
 			: undefined;
+	const nextDob = parsedDob.value === undefined ? undefined : parsedDob.value;
 	const identityChanged =
 		name.trim() !== existingUser.name.trim() ||
 		Boolean(nextEmail && nextEmail !== existingUser.email.toLowerCase()) ||
 		(nextCountry !== undefined &&
 			nextCountry !== (existingUser.country ?? null)) ||
 		(nextMobile !== undefined &&
-			nextMobile !== (existingUser.mobileNumber ?? null));
+			nextMobile !== (existingUser.mobileNumber ?? null)) ||
+		(nextDob !== undefined && nextDob !== (existingUser.dob ?? null));
 	const countsTowardOneEdit =
 		accountEdit === true && !isOnboardingProfile(existingUser);
 
-	if (identityChanged && existingUser.profileSelfEditedAt && countsTowardOneEdit) {
+	if (
+		identityChanged &&
+		existingUser.profileSelfEditedAt &&
+		countsTowardOneEdit
+	) {
 		return c.json(
 			{
 				success: false as const,
@@ -438,6 +476,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		name: string;
 		country?: string | null;
 		mobileNumber?: string | null;
+		dob?: string | null;
 		email?: string;
 		emailVerified?: boolean;
 		image?: string | null;
@@ -452,6 +491,9 @@ userRoute.openapi(updateUserRoute, async (c) => {
 	}
 	if (nextMobile !== undefined) {
 		updates.mobileNumber = nextMobile;
+	}
+	if (nextDob !== undefined) {
+		updates.dob = nextDob;
 	}
 	if (image !== undefined) {
 		updates.image = image.trim() ? image.trim() : null;
@@ -504,21 +546,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
-	const firstName = nameParts[0] || "";
-	const lastName = nameParts.slice(1).join(" ") || "";
-
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: updatedUser.id,
-			email: updatedUser.email ?? "",
-			firstName,
-			lastName,
-			phone: updatedUser.mobileNumber ?? undefined,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, updatedUser.id, c.executionCtx);
 
 	return c.json(
 		{
@@ -531,6 +559,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 				image: updatedUser.image,
 				country: updatedUser.country,
 				mobileNumber: updatedUser.mobileNumber,
+				dob: updatedUser.dob ?? null,
 				suspended: updatedUser.suspended,
 				createdAt: toIsoTimestamp(updatedUser.createdAt),
 				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
@@ -586,9 +615,9 @@ const getAllUsersRoute = createRoute({
 	},
 });
 
-async function requireUserListAdmin(c: Parameters<
-	Parameters<typeof userRoute.openapi>[1]
->[0]) {
+async function requireUserListAdmin(
+	c: Parameters<Parameters<typeof userRoute.openapi>[1]>[0],
+) {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -639,9 +668,9 @@ async function requireUserListAdmin(c: Parameters<
 	return null;
 }
 
-async function loadFilteredAdminUsers(c: Parameters<
-	Parameters<typeof userRoute.openapi>[1]
->[0]) {
+async function loadFilteredAdminUsers(
+	c: Parameters<Parameters<typeof userRoute.openapi>[1]>[0],
+) {
 	const db = drizzle(c.env.DB, { schema });
 
 	const sort = c.req.query("sort") === "desc" ? "desc" : "asc";
@@ -737,7 +766,10 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 
 	const filtered = await loadFilteredAdminUsers(c);
 	const total = filtered.length;
-	const page = Math.max(1, Number.parseInt(c.req.query("page") || "1", 10) || 1);
+	const page = Math.max(
+		1,
+		Number.parseInt(c.req.query("page") || "1", 10) || 1,
+	);
 	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
 	const limit = Math.min(
 		100,
@@ -978,6 +1010,14 @@ userRoute.openapi(
 			);
 		}
 
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.createUser,
+		);
+
+		await syncWebengageUserProfile(c.env, newUser.id, c.executionCtx);
+
 		return c.json(
 			{
 				success: true as const,
@@ -1012,6 +1052,10 @@ const UserProfileResponseSchema = z
 			.nullable()
 			.openapi({ description: "User's mobile number" }),
 		country: z.string().nullable().openapi({ description: "User's country" }),
+		dob: z
+			.string()
+			.nullable()
+			.openapi({ description: "Date of birth (YYYY-MM-DD)" }),
 		verificationStatus: z
 			.string()
 			.openapi({ description: "Verification status" }),
@@ -1164,6 +1208,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 			image: schema.user.image,
 			mobileNumber: schema.user.mobileNumber,
 			country: schema.user.country,
+			dob: schema.user.dob,
 			verificationStatus: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
 			createdAt: schema.user.createdAt,
@@ -1233,6 +1278,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 				image: existingUser.image,
 				mobileNumber: existingUser.mobileNumber,
 				country: existingUser.country,
+				dob: existingUser.dob ?? null,
 				verificationStatus: existingUser.verificationStatus,
 				suspended: existingUser.suspended,
 				createdAt: toWAT(existingUser.createdAt),
@@ -1258,8 +1304,20 @@ const AdminUpdateUserSchema = z
 		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()),
 		phone: z.preprocess(emptyToUndefined, z.string().optional()),
 		mobile: z.preprocess(emptyToUndefined, z.string().optional()),
+		dob: z.preprocess(emptyToUndefined, z.string().optional()),
+		dateOfBirth: z.preprocess(emptyToUndefined, z.string().optional()),
 	})
 	.passthrough();
+
+type AdminUpdateUserBody = z.infer<typeof AdminUpdateUserSchema>;
+type AdminUpdateUserContext = Context<
+	{ Bindings: CloudflareBindings },
+	string,
+	{
+		in: { json: AdminUpdateUserBody };
+		out: { json: AdminUpdateUserBody };
+	}
+>;
 
 const adminUpdateUserResponses = {
 	200: {
@@ -1350,9 +1408,7 @@ const updateUserProfileRoute = createRoute({
 	responses: adminUpdateUserResponses,
 });
 
-async function handleAdminUpdateUserProfile(c: Parameters<
-	Parameters<typeof userRoute.openapi>[1]
->[0]) {
+async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -1420,6 +1476,17 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 	const image = body.image;
 	const country = body.country;
 	const mobileNumber = body.mobileNumber ?? body.phone ?? body.mobile;
+	const parsedDob = parseDobInput(body.dob ?? body.dateOfBirth);
+	if (!parsedDob.ok) {
+		return c.json(
+			{
+				success: false as const,
+				error: parsedDob.error,
+				details: null,
+			},
+			400,
+		);
+	}
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingUser] = await db
@@ -1448,6 +1515,7 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 		name?: string;
 		country?: string | null;
 		mobileNumber?: string | null;
+		dob?: string | null;
 		email?: string;
 		emailVerified?: boolean;
 		image?: string | null;
@@ -1465,6 +1533,9 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 	}
 	if (image !== undefined) {
 		updates.image = image.trim() ? image.trim() : null;
+	}
+	if (parsedDob.value !== undefined) {
+		updates.dob = parsedDob.value;
 	}
 
 	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
@@ -1489,7 +1560,7 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 		updates.emailVerified = false;
 	}
 
-	const updatedUser = (
+	const updatedUser =
 		Object.keys(updates).length === 0
 			? existingUser
 			: (
@@ -1498,8 +1569,7 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 						.set(updates)
 						.where(eq(schema.user.id, userId))
 						.returning()
-				)[0]
-	);
+				)[0];
 
 	if (!updatedUser) {
 		return c.json(
@@ -1512,21 +1582,15 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 		);
 	}
 
-	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
-	const firstName = nameParts[0] || "";
-	const lastName = nameParts.slice(1).join(" ") || "";
+	if (Object.keys(updates).length > 0) {
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.updateUser,
+		);
+	}
 
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: updatedUser.id,
-			email: updatedUser.email ?? "",
-			firstName,
-			lastName,
-			phone: updatedUser.mobileNumber ?? undefined,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, updatedUser.id, c.executionCtx);
 
 	return c.json(
 		{
@@ -1539,6 +1603,7 @@ async function handleAdminUpdateUserProfile(c: Parameters<
 				image: updatedUser.image,
 				country: updatedUser.country,
 				mobileNumber: updatedUser.mobileNumber,
+				dob: updatedUser.dob ?? null,
 				suspended: updatedUser.suspended,
 				createdAt: toIsoTimestamp(updatedUser.createdAt),
 				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
@@ -1696,6 +1761,14 @@ userRoute.openapi(
 		if (!updatedUser) {
 			return c.json({ success: false as const, error: "User not found" }, 404);
 		}
+
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			updatedUser.suspended
+				? adminActivityActions.suspendUser
+				: adminActivityActions.reactivateUser,
+		);
 
 		return c.json(
 			{
@@ -2031,6 +2104,8 @@ const ManualTransactionSchema = z
 		type: z.enum(["credit", "debit"]),
 		amount: z.number().positive(),
 		reason: z.string().min(1),
+		/** Client-generated key; retries with the same key must not double-credit. */
+		idempotencyKey: z.string().min(8).max(128).optional(),
 	})
 	.openapi("ManualTransaction");
 
@@ -2043,6 +2118,33 @@ const ManualTransactionResponseSchema = z
 		}),
 	})
 	.openapi("ManualTransactionResponse");
+
+function isUniqueConstraintError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let i = 0; i < 5 && current; i++) {
+		const message = current instanceof Error ? current.message : String(current);
+		if (
+			message.includes("UNIQUE constraint failed") ||
+			(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
+		) {
+			return true;
+		}
+		current =
+			current instanceof Error && "cause" in current
+				? current.cause
+				: undefined;
+	}
+	return false;
+}
+
+function manualReferenceFromKey(idempotencyKey: string | undefined): string {
+	if (idempotencyKey) {
+		return idempotencyKey.startsWith("manual_")
+			? idempotencyKey
+			: `manual_${idempotencyKey}`;
+	}
+	return `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
 
 const postManualTransactionRoute = createRoute({
 	method: "post",
@@ -2079,6 +2181,10 @@ const postManualTransactionRoute = createRoute({
 		},
 		400: {
 			description: "Invalid request",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		500: {
+			description: "Server error before money moved",
 			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
@@ -2120,6 +2226,7 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const userId = c.req.param("userId");
 	const body = c.req.valid("json");
 	const db = drizzle(c.env.DB, { schema });
+	const reference = manualReferenceFromKey(body.idempotencyKey);
 
 	const [existingUser] = await db
 		.select({ id: schema.user.id })
@@ -2142,40 +2249,157 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	}
 
 	const amountInKobo = Math.round(body.amount * 100);
+	const oldBalanceKobo = walletRow.balance;
 
-	const updatedWallet =
-		body.type === "credit"
-			? await creditWallet(db, userId, amountInKobo)
-			: await debitWallet(db, userId, amountInKobo);
-	if (!updatedWallet) {
+	const [existingByRef] = await db
+		.select({
+			id: schema.walletTransaction.id,
+			balance: schema.walletTransaction.balance,
+			status: schema.walletTransaction.status,
+		})
+		.from(schema.walletTransaction)
+		.where(eq(schema.walletTransaction.reference, reference))
+		.limit(1);
+
+	if (existingByRef?.status === "success") {
+		const [liveWallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, userId))
+			.limit(1);
 		return c.json(
 			{
-				success: false as const,
-				error: "Insufficient balance or wallet update failed",
+				success: true as const,
+				data: {
+					transactionId: existingByRef.id,
+					newBalance:
+						(liveWallet?.balance ?? existingByRef.balance ?? oldBalanceKobo) /
+						100,
+				},
 			},
-			400,
+			200,
 		);
 	}
-	const committedBalance = updatedWallet.balance;
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const provisionalBalance =
+		body.type === "credit"
+			? oldBalanceKobo + amountInKobo
+			: oldBalanceKobo - amountInKobo;
 
-	await db.insert(schema.walletTransaction).values({
-		id: txnId,
-		userId,
-		amount: amountInKobo,
-		type: body.type,
-		reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-		status: "success",
-		paymentMethod: "manual",
-		balance: committedBalance,
-		metadata: JSON.stringify({
-			reason: body.reason,
-			processedBy: session.adminId,
-			description: `Manual ${body.type} - ${body.reason}`,
-		}),
-		createdAt: new Date(),
-	});
+	try {
+		await db.insert(schema.walletTransaction).values({
+			id: txnId,
+			userId,
+			amount: amountInKobo,
+			type: body.type,
+			reference,
+			status: "pending",
+			paymentMethod: "manual",
+			balance: provisionalBalance,
+			metadata: JSON.stringify({
+				reason: body.reason,
+				processedBy: session.adminId,
+				description: `Manual ${body.type} - ${body.reason}`,
+				idempotencyKey: body.idempotencyKey ?? null,
+			}),
+			createdAt: new Date(),
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			const [raced] = await db
+				.select({
+					id: schema.walletTransaction.id,
+					balance: schema.walletTransaction.balance,
+					status: schema.walletTransaction.status,
+				})
+				.from(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.reference, reference))
+				.limit(1);
+			if (raced?.status === "success") {
+				const [liveWallet] = await db
+					.select({ balance: schema.wallet.balance })
+					.from(schema.wallet)
+					.where(eq(schema.wallet.userId, userId))
+					.limit(1);
+				return c.json(
+					{
+						success: true as const,
+						data: {
+							transactionId: raced.id,
+							newBalance:
+								(liveWallet?.balance ?? raced.balance ?? oldBalanceKobo) / 100,
+						},
+					},
+					200,
+				);
+			}
+			// Another request holds the claim and may not have settled yet.
+			return c.json(
+				{
+					success: false as const,
+					error: "Transaction already in progress. Try again shortly.",
+				},
+				500,
+			);
+		}
+		throw error;
+	}
+
+	let updatedWallet: { balance: number } | undefined;
+	try {
+		updatedWallet =
+			body.type === "credit"
+				? await creditWallet(db, userId, amountInKobo)
+				: await debitWallet(db, userId, amountInKobo);
+		if (!updatedWallet) {
+			await db
+				.delete(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.id, txnId));
+			return c.json(
+				{
+					success: false as const,
+					error: "Insufficient balance or wallet update failed",
+				},
+				400,
+			);
+		}
+	} catch (error) {
+		try {
+			await db
+				.delete(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.id, txnId));
+		} catch {
+			// Keep the wallet error; the claim must not block a later retry.
+		}
+		throw error;
+	}
+
+	const committedBalance = updatedWallet.balance;
+	await db
+		.update(schema.walletTransaction)
+		.set({
+			status: "success",
+			balance: committedBalance,
+		})
+		.where(eq(schema.walletTransaction.id, txnId));
+
+	// Money already moved under a unique reference; never flip this into a 500.
+	try {
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			body.type === "credit"
+				? adminActivityActions.manualCredit
+				: adminActivityActions.manualDebit,
+		);
+	} catch (error) {
+		console.error("Failed to record admin activity after manual wallet txn", {
+			reference,
+			txnId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
 
 	return c.json(
 		{

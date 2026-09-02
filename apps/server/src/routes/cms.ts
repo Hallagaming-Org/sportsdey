@@ -49,6 +49,7 @@ const NewsDetailSchema = z
 		_id: z.string(),
 		title: z.string(),
 		publishedAt: z.string(),
+		category: z.string().optional(),
 		image: ImageSizesSchema,
 		slug: z.object({ current: z.string() }).nullable().optional(),
 		body: z.any().nullable().optional(),
@@ -95,6 +96,7 @@ const BannerSchema = z
 		_id: z.string(),
 		imageUrl: z.string(),
 		url: z.string(),
+		title: z.string().optional(),
 		alt: z.string().optional(),
 	})
 	.openapi("Banner");
@@ -160,6 +162,7 @@ type SanityBanner = {
 	_id: string;
 	image?: unknown;
 	url?: string;
+	title?: string;
 	alt?: string;
 };
 
@@ -206,6 +209,7 @@ function mapNewsDetail(env: CloudflareBindings, n: SanityNews) {
 		_id: n._id,
 		title: n.title,
 		publishedAt: n.publishedAt,
+		category: n.category,
 		image: toImageSizes(env, n.image),
 		slug: n.slug?.current ? { current: n.slug.current } : null,
 		body: n.body ?? null,
@@ -315,6 +319,7 @@ cmsRoute.openapi(
 				_id,
 				title,
 				publishedAt,
+				category,
 				image,
 				slug,
 				body,
@@ -361,6 +366,7 @@ cmsRoute.openapi(
 				_id,
 				title,
 				publishedAt,
+				category,
 				image,
 				slug,
 				body,
@@ -673,7 +679,8 @@ cmsRoute.openapi(
 				_id,
 				image,
 				url,
-				alt
+				title,
+				"alt": coalesce(alt, image.alt)
 			}`,
 		);
 		if (!data || !Array.isArray(data) || data.length === 0) {
@@ -685,6 +692,7 @@ cmsRoute.openapi(
 				_id: b._id,
 				imageUrl: toImageSizes(c.env, b.image)?.hero ?? "",
 				url: b.url ?? "",
+				title: b.title,
 				alt: b.alt,
 			}));
 		return c.json({ success: true as const, data: banners }, 200);

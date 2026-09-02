@@ -14,7 +14,15 @@ import {
 	retryAdminExport,
 } from "@/utils/exports/admin-export-handlers";
 
-const route = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+const route = new OpenAPIHono<{ Bindings: CloudflareBindings }>({
+	defaultHook: (result, c) => {
+		if (result.success) return;
+		return c.json(
+			{ success: false, error: "Invalid export request", details: null },
+			400,
+		);
+	},
+});
 
 const createRouteDefinition = createRoute({
 	method: "post",

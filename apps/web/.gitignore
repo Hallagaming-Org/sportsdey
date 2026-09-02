@@ -46,6 +46,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Accidental tsc emit next to the WebEngage source
+src/lib/webengage.js
+src/lib/webengage.d.ts
+
 # IDE
 .vscode/*
 !.vscode/extensions.json

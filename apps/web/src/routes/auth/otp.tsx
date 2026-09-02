@@ -9,9 +9,18 @@ import {
 } from "react";
 import z from "zod";
 import { storePendingReferralCode } from "@/lib/affnook";
-import { authClient, requestPhoneOtp, verifyPhoneOtp } from "@/lib/auth/client";
+import {
+	authClient,
+	PENDING_PHONE_PASSWORD_KEY,
+	requestPhoneOtp,
+	setPhonePassword,
+	verifyPhoneOtp,
+} from "@/lib/auth/client";
 import { needsPhoneProfileCompletion } from "@/lib/auth/phone-user";
-import { loginWebengageUser } from "@/lib/webengage";
+import {
+	loginWebengageUser,
+	setWebengageSdkUserProfile,
+} from "@/lib/webengage";
 
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
@@ -29,7 +38,10 @@ export const Route = createFileRoute("/auth/otp")({
 function OtpPage() {
 	const navigate = useNavigate();
 	const { phone, referralCode, flow } = Route.useSearch();
-	const isResetPasswordFlow = flow === "reset-password" || flow === "forgot-password";
+	const isResetPasswordFlow =
+		flow === "reset-password" || flow === "forgot-password";
+	const isSignUpFlow = flow === "signup";
+	const showStepLabel = isResetPasswordFlow || isSignUpFlow;
 	const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 	const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
 	const [error, setError] = useState("");
@@ -74,7 +86,14 @@ function OtpPage() {
 		if (!canResend) return;
 		if (!phone) {
 			setError("Phone number missing. Please start again.");
-			navigate({ to: "/auth/phone-sign-in" });
+			navigate({
+				to: isResetPasswordFlow
+					? "/auth/forgot-password"
+					: "/auth/phone-sign-in",
+				search: isResetPasswordFlow
+					? {}
+					: { mode: isSignUpFlow ? "signup" : "login" },
+			});
 			return;
 		}
 
@@ -100,7 +119,14 @@ function OtpPage() {
 		if (!canVerify) return;
 		if (!phone) {
 			setError("Phone number missing. Please start again.");
-			navigate({ to: "/auth/phone-sign-in" });
+			navigate({
+				to: isResetPasswordFlow
+					? "/auth/forgot-password"
+					: "/auth/phone-sign-in",
+				search: isResetPasswordFlow
+					? {}
+					: { mode: isSignUpFlow ? "signup" : "login" },
+			});
 			return;
 		}
 
@@ -119,6 +145,20 @@ function OtpPage() {
 			authClient.$store.notify("$sessionSignal");
 
 			loginWebengageUser(data.user.id);
+			setWebengageSdkUserProfile({
+				phone,
+				firstName: data.user.name?.trim().split(/\s+/)[0],
+			});
+
+			if (isSignUpFlow) {
+				const pendingPassword = sessionStorage.getItem(
+					PENDING_PHONE_PASSWORD_KEY,
+				);
+				if (pendingPassword) {
+					await setPhonePassword(pendingPassword);
+					sessionStorage.removeItem(PENDING_PHONE_PASSWORD_KEY);
+				}
+			}
 
 			const trimmedReferral = referralCode?.trim();
 			if (trimmedReferral) {
@@ -168,10 +208,8 @@ function OtpPage() {
 				<div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-white shadow-sm">
 					<Mail className="h-8 w-8 text-[#17b000]" />
 				</div>
-				{isResetPasswordFlow && (
-					<p className="mt-4 font-medium text-[#6f7471] text-sm">
-						Step 2 of 3
-					</p>
+				{showStepLabel && (
+					<p className="mt-4 font-medium text-[#6f7471] text-sm">Step 2 of 3</p>
 				)}
 				<h1 className="mt-4 font-bold text-2xl text-[#0a0f0d]">
 					Enter OTP Code
@@ -225,9 +263,7 @@ function OtpPage() {
 							{isResending ? "Sending..." : "Resend code"}
 						</button>
 					) : (
-						<span>
-							Resend code in 0:{String(secondsLeft).padStart(2, "0")}
-						</span>
+						<span>Resend code in 0:{String(secondsLeft).padStart(2, "0")}</span>
 					)}
 					<div className="h-px flex-1 bg-[#b7b7b7]" />
 				</div>

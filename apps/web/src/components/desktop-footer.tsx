@@ -3,7 +3,7 @@ import { Apple, GooglePlay } from "iconsax-reactjs";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import DiscordFooter from "@/logos/DiscordFooter";
 import FacebookFooterIcon from "@/logos/FacebookFooterIcon";
-import FlutterwaveLogo from "@/logos/flutterwave.png";
+// import FlutterwaveLogo from "@/logos/flutterwave.png";
 import InstagramFooter from "@/logos/InstagramFooter";
 import KudaLogo from "@/logos/kuda.png";
 import MastercardLogo from "@/logos/mastercard.png";
@@ -112,12 +112,12 @@ export default function DesktopFooter() {
 							</li>
 							<li>
 								<a
-									href="https://wa.link/25tnk8"
+									href="https://partners.sportsdey.com"
 									target="_blank"
 									rel="noopener noreferrer"
 									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 								>
-									Become a Partner
+									Become an affiliate
 								</a>
 							</li>
 						</ul>
@@ -127,13 +127,14 @@ export default function DesktopFooter() {
 						<h3 className="mb-6 font-bold text-base text-white">Our Ecosystem</h3>
 						<ul className="space-y-4 text-sm">
 							<li>
-								<Link
-									to="/betting"
-									search={{ type: "jackpots" } as any}
-									className="cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								<a
+									href="https://prediction.sportsdey.com/"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 								>
 									Prediction Market
-								</Link>
+								</a>
 							</li>
 							<li>
 								<a
@@ -152,7 +153,7 @@ export default function DesktopFooter() {
 									rel="noopener noreferrer"
 									className="text-[#A0A0A0] transition-colors hover:text-white block"
 								>
-									Esports Tournaments
+									Tournaments
 								</a>
 							</li>
 
@@ -284,7 +285,7 @@ export default function DesktopFooter() {
 						{ name: "Monnify", logo: MonnifyLogo },
 						{ name: "Mastercard", logo: MastercardLogo },
 						{ name: "Kuda", logo: KudaLogo },
-						{ name: "Flutterwave", logo: FlutterwaveLogo },
+						// { name: "Flutterwave", logo: FlutterwaveLogo },
 					].map((provider) => (
 						<div
 							key={provider.name}

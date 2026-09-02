@@ -51,6 +51,7 @@ export const adminSession = sqliteTable(
 export const adminRelations = relations(admin, ({ many }) => ({
 	sessions: many(adminSession),
 	logNotes: many(adminLogNote),
+	activityLogs: many(adminActivityLog),
 }));
 
 export const adminSessionRelations = relations(adminSession, ({ one }) => ({
@@ -111,3 +112,34 @@ export const adminLogNoteRelations = relations(adminLogNote, ({ one }) => ({
 		references: [admin.id],
 	}),
 }));
+
+export const adminActivityLog = sqliteTable(
+	"admin_activity_log",
+	{
+		id: text("id").primaryKey(),
+		adminId: text("admin_id")
+			.notNull()
+			.references(() => admin.id, { onDelete: "cascade" }),
+		adminName: text("admin_name").notNull(),
+		adminEmail: text("admin_email").notNull(),
+		adminRole: text("admin_role").notNull(),
+		action: text("action").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("admin_activity_log_createdAt_idx").on(table.createdAt),
+		index("admin_activity_log_adminId_idx").on(table.adminId),
+	],
+);
+
+export const adminActivityLogRelations = relations(
+	adminActivityLog,
+	({ one }) => ({
+		admin: one(admin, {
+			fields: [adminActivityLog.adminId],
+			references: [admin.id],
+		}),
+	}),
+);

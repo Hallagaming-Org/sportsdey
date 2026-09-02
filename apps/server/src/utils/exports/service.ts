@@ -17,7 +17,7 @@ const MAX_QUEUE_ATTEMPTS = 3;
 const STALE_CHUNK_MS = 15 * 60 * 1000;
 
 export function chunkSizeFor(format: ExportFormat): number {
-	return format === "pdf" ? 2_000 : 10_000;
+	return format === "pdf" ? 5_000 : 20_000;
 }
 
 export function exportBucket(
@@ -70,9 +70,10 @@ export async function createExportJob(
 	const size = chunkSizeFor(input.format);
 	const filters = { ...input.filters, snapshotAt: snapshotAt.toISOString() };
 	const snapshot = await rowsForSource(input.source, env, filters, 0, 0);
-	const chunkCount = Math.ceil(snapshot.total / size);
+	const rowCount = Number(snapshot.total) || 0;
+	const chunkCount = rowCount === 0 ? 0 : Math.ceil(rowCount / size);
 
-	const insertedJob = await db
+	const [insertedJob] = await db
 		.insert(schema.exportJob)
 		.values({
 			id: jobId,
@@ -81,7 +82,7 @@ export async function createExportJob(
 			filters: JSON.stringify(filters),
 			status: chunkCount === 0 ? "completed" : "queued",
 			requestedBy: input.requestedBy,
-			rowCount: snapshot.total,
+			rowCount,
 			chunkCount,
 			chunksDone: 0,
 			chunksFailed: 0,
@@ -90,8 +91,7 @@ export async function createExportJob(
 			expiresAt:
 				chunkCount === 0 ? new Date(snapshotAt.getTime() + RETENTION_MS) : null,
 		})
-		.returning({ id: schema.exportJob.id })
-		.get();
+		.returning({ id: schema.exportJob.id });
 	if (!insertedJob) throw new Error("Failed to create export job");
 
 	if (chunkCount === 0) return { jobId, rowCount: 0, chunkCount: 0 };
@@ -104,13 +104,9 @@ export async function createExportJob(
 		status: "queued" as const,
 	}));
 	for (let offset = 0; offset < chunks.length; offset += 50) {
-		const insertedChunks = await db
+		await db
 			.insert(schema.exportChunk)
-			.values(chunks.slice(offset, offset + 50))
-			.returning({ id: schema.exportChunk.id });
-		if (insertedChunks.length !== chunks.slice(offset, offset + 50).length) {
-			throw new Error("Failed to create all export chunks");
-		}
+			.values(chunks.slice(offset, offset + 50));
 	}
 	try {
 		for (let offset = 0; offset < chunks.length; offset += 100) {
@@ -137,7 +133,7 @@ export async function createExportJob(
 			.where(eq(schema.exportJob.id, jobId));
 		throw error;
 	}
-	return { jobId, rowCount: snapshot.total, chunkCount };
+	return { jobId, rowCount, chunkCount };
 }
 
 async function refreshJobStatus(
@@ -245,6 +241,7 @@ export async function processExportMessage(
 			parseFilters(job.filters),
 			chunk.startOffset,
 			chunk.rowLimit,
+			{ skipCount: true },
 		);
 		const rendered = await renderExportChunk(format, table.table);
 		const r2Key = `exports/${job.id}/part-${String(chunk.chunkIndex + 1).padStart(3, "0")}.${format}`;

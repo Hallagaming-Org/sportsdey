@@ -1,16 +1,23 @@
-import { z } from "@hono/zod-openapi";
+import type { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
-import { CreateExportSchema, JobResponseSchema } from "@/schemas/admin-exports";
+import {
+	CreateExportSchema,
+	type JobResponseSchema,
+} from "@/schemas/admin-exports";
 import type { CloudflareBindings } from "@/types";
+import type { exportFormats, exportSources } from "@/types/exports";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import {
 	createExportJob,
 	exportBucket,
 	getOwnedExportJob,
 	retryExportJob,
 } from "./service";
-import { exportFormats, exportSources } from "@/types/exports";
 import { createZipStream } from "./writer";
 
 type AdminExportContext = Context<{ Bindings: CloudflareBindings }>;
@@ -33,6 +40,8 @@ function permissionForSource(source: (typeof exportSources)[number]) {
 			return "post_upload_content" as const;
 		case "admins":
 			return "view_other_admins" as const;
+		case "kyc":
+			return "view_kyc_document" as const;
 	}
 }
 
@@ -50,7 +59,13 @@ export async function createAdminExport(c: AdminExportContext) {
 			{ success: false, error: "Unauthorized", details: null },
 			401,
 		);
-	const body = CreateExportSchema.safeParse(await c.req.json());
+	let raw: unknown;
+	try {
+		raw = c.req.valid("json");
+	} catch {
+		raw = await c.req.json();
+	}
+	const body = CreateExportSchema.safeParse(raw);
 	if (!body.success)
 		return c.json(
 			{ success: false, error: "Invalid export request", details: null },
@@ -66,7 +81,26 @@ export async function createAdminExport(c: AdminExportContext) {
 			...body.data,
 			requestedBy: session.adminId,
 		});
-		return c.json({ success: true, data: job }, 202);
+		try {
+			await recordActivityForSession(
+				c.env,
+				session.adminId,
+				adminActivityActions.exportFile,
+			);
+		} catch (error) {
+			console.error("Failed to record export activity", error);
+		}
+		return c.json(
+			{
+				success: true,
+				data: {
+					jobId: job.jobId,
+					rowCount: Number(job.rowCount) || 0,
+					chunkCount: Number(job.chunkCount) || 0,
+				},
+			},
+			202,
+		);
 	} catch (error) {
 		console.error("Failed to create export job", error);
 		return c.json(
@@ -159,17 +193,33 @@ export async function downloadAdminExportZip(
 			]).stream(),
 		});
 	}
-	for (const chunk of completed) {
-		const object = await bucket.get(chunk.r2Key);
-		if (!object?.body)
-			return c.json(
-				{ success: false, error: "An export file is missing", details: null },
-				500,
-			);
-		files.push({
-			name: chunk.r2Key.split("/").pop() ?? `part-${chunk.chunkIndex + 1}`,
-			body: object.body as unknown as ReadableStream,
-		});
+	let objects: Array<{
+		index: number;
+		name: string;
+		body: ReadableStream;
+	}>;
+	try {
+		objects = await Promise.all(
+			completed.map(async (chunk) => {
+				const object = await bucket.get(chunk.r2Key);
+				if (!object?.body) {
+					throw new Error("An export file is missing");
+				}
+				return {
+					index: chunk.chunkIndex,
+					name: chunk.r2Key.split("/").pop() ?? `part-${chunk.chunkIndex + 1}`,
+					body: object.body as unknown as ReadableStream,
+				};
+			}),
+		);
+	} catch {
+		return c.json(
+			{ success: false, error: "An export file is missing", details: null },
+			500,
+		);
+	}
+	for (const object of objects.sort((a, b) => a.index - b.index)) {
+		files.push({ name: object.name, body: object.body });
 	}
 	return new Response(createZipStream(files), {
 		status: 200,

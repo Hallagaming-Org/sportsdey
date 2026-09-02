@@ -17,7 +17,9 @@ export type Tabs =
 	| "games"
 	| "match-scores"
 	| "promotions"
-	| "missions";
+	| "missions"
+	| "bonuses"
+	| "loyalty";
 
 type ActiveTabContextType = {
 	tab: Tabs;
@@ -50,6 +52,10 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 			setTab("promotions");
 		} else if (path.startsWith("/missions")) {
 			setTab("missions");
+		} else if (path.startsWith("/bonuses")) {
+			setTab("bonuses");
+		} else if (path.startsWith("/loyalty")) {
+			setTab("loyalty");
 		} else if (path.includes("/matches")) {
 			setTab("match-scores");
 		} else {

@@ -10,10 +10,6 @@ function createBonusEngineDb(env: CloudflareBindings): BonusEngineDb {
 	return drizzle(env.DB, { schema });
 }
 
-/**
- * Records a callback event once. Returns whether this delivery is new.
- * Duplicate idempotency keys yield `isNew: false` so handlers can ACK without re-applying.
- */
 export async function recordBonusEngineCallbackEvent(payload: {
 	env: CloudflareBindings;
 	eventType: string;
@@ -45,10 +41,6 @@ export async function recordBonusEngineCallbackEvent(payload: {
 	}
 }
 
-/**
- * Upserts the local loyalty points/level snapshot for a player.
- * Omit `totalPoints` to update only the VIP level (level-up callbacks).
- */
 export async function upsertBonusEngineLoyaltySnapshot(payload: {
 	env: CloudflareBindings;
 	userId: string;
@@ -79,9 +71,29 @@ export async function upsertBonusEngineLoyaltySnapshot(payload: {
 	});
 }
 
-/**
- * Upserts mission progress (and optional completion metadata) for a player.
- */
+export async function listBonusEngineMissionProgressForUser(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<
+	Array<{
+		missionId: string;
+		progressPercentage: number;
+		completedAt: Date | null;
+		rewardJson: string | null;
+	}>
+> {
+	const db = createBonusEngineDb(payload.env);
+	const rows = await db.query.bonusEngineMissionProgress.findMany({
+		where: eq(schema.bonusEngineMissionProgress.userId, payload.userId),
+	});
+	return rows.map((row) => ({
+		missionId: row.missionId,
+		progressPercentage: row.progressPercentage,
+		completedAt: row.completedAt ?? null,
+		rewardJson: row.rewardJson ?? null,
+	}));
+}
+
 export async function upsertBonusEngineMissionProgress(payload: {
 	env: CloudflareBindings;
 	userId: string;
@@ -101,10 +113,14 @@ export async function upsertBonusEngineMissionProgress(payload: {
 	});
 
 	if (existing) {
+		const nextPercentage = Math.max(
+			existing.progressPercentage,
+			payload.progressPercentage,
+		);
 		await db
 			.update(schema.bonusEngineMissionProgress)
 			.set({
-				progressPercentage: payload.progressPercentage,
+				progressPercentage: nextPercentage,
 				completedAt: payload.completedAt ?? existing.completedAt,
 				rewardJson: payload.rewardJson ?? existing.rewardJson,
 				updatedAt: new Date(),
@@ -122,9 +138,6 @@ export async function upsertBonusEngineMissionProgress(payload: {
 	});
 }
 
-/**
- * Loads real (main wallet) and bonus (game wallet) balances in major currency units.
- */
 export async function getBonusEngineWalletBalances(payload: {
 	env: CloudflareBindings;
 	userId: string;
@@ -143,4 +156,140 @@ export async function getBonusEngineWalletBalances(payload: {
 		realWalletBalance: (mainWallet?.balance ?? 0) / 100,
 		bonusWalletBalance: (gameWalletRow?.balance ?? 0) / 100,
 	};
+}
+
+export type BonusEngineUserBonusSnapshot = {
+	bonusId: string;
+	status: string;
+	payloadJson: string;
+};
+
+/**
+ * Returns SportsDey wallet figures plus display name for Bonus Engine
+ * callback ACKs. Missing wallets read as 0; missing users get an empty name.
+ */
+export async function getBonusEngineCallbackWalletView(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<{
+	userId: string;
+	username: string;
+	realWalletBalance: number;
+	bonusWalletBalance: number;
+	timestamp: string;
+}> {
+	const db = createBonusEngineDb(payload.env);
+	const [userRow, balances] = await Promise.all([
+		db.query.user.findFirst({
+			where: eq(schema.user.id, payload.userId),
+		}),
+		getBonusEngineWalletBalances(payload),
+	]);
+
+	return {
+		userId: payload.userId,
+		username: userRow?.name?.trim() ?? "",
+		realWalletBalance: balances.realWalletBalance,
+		bonusWalletBalance: balances.bonusWalletBalance,
+		timestamp: new Date().toISOString(),
+	};
+}
+
+/**
+ * Loads local bonus snapshots for a player so list/activate can overlay
+ * allocation and status callbacks onto the engine assignment list.
+ */
+export async function listBonusEngineUserBonusSnapshots(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<BonusEngineUserBonusSnapshot[]> {
+	try {
+		const db = createBonusEngineDb(payload.env);
+		const rows = await db.query.bonusEngineUserBonus.findMany({
+			where: eq(schema.bonusEngineUserBonus.userId, payload.userId),
+		});
+		return rows.map((row) => ({
+			bonusId: row.bonusId,
+			status: row.status,
+			payloadJson: row.payloadJson,
+		}));
+	} catch (error: unknown) {
+		console.error("Bonus snapshot list failed", {
+			userId: payload.userId,
+			error,
+		});
+		return [];
+	}
+}
+
+/**
+ * Upserts a player bonus snapshot from allocation or status callbacks.
+ * Status from the callback wins; payload keeps the richest JSON we have.
+ */
+export async function upsertBonusEngineUserBonus(payload: {
+	env: CloudflareBindings;
+	userId: string;
+	bonusId: string;
+	status: string;
+	payloadJson: string;
+}): Promise<void> {
+	const db = createBonusEngineDb(payload.env);
+	const bonusKey = and(
+		eq(schema.bonusEngineUserBonus.userId, payload.userId),
+		eq(schema.bonusEngineUserBonus.bonusId, payload.bonusId),
+	);
+	const existing = await db.query.bonusEngineUserBonus.findFirst({
+		where: bonusKey,
+	});
+
+	if (existing) {
+		await db
+			.update(schema.bonusEngineUserBonus)
+			.set({
+				status: payload.status || existing.status,
+				payloadJson: mergeBonusEnginePayloadJson(
+					existing.payloadJson,
+					payload.payloadJson,
+				),
+				updatedAt: new Date(),
+			})
+			.where(bonusKey);
+		return;
+	}
+
+	await db.insert(schema.bonusEngineUserBonus).values({
+		userId: payload.userId,
+		bonusId: payload.bonusId,
+		status: payload.status,
+		payloadJson: payload.payloadJson,
+	});
+}
+
+/**
+ * Merges assignment JSON with a later status callback so updateBonus does
+ * not wipe campaign fields stored from bonusAllocation.
+ */
+function mergeBonusEnginePayloadJson(
+	existingJson: string,
+	incomingJson: string,
+): string {
+	if (!incomingJson) return existingJson;
+	if (!existingJson) return incomingJson;
+	try {
+		const existingParsed = JSON.parse(existingJson) as unknown;
+		const incomingParsed = JSON.parse(incomingJson) as unknown;
+		if (
+			typeof existingParsed === "object" &&
+			existingParsed !== null &&
+			!Array.isArray(existingParsed) &&
+			typeof incomingParsed === "object" &&
+			incomingParsed !== null &&
+			!Array.isArray(incomingParsed)
+		) {
+			return JSON.stringify({ ...existingParsed, ...incomingParsed });
+		}
+	} catch {
+		return incomingJson;
+	}
+	return incomingJson;
 }

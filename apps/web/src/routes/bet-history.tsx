@@ -9,12 +9,19 @@ import { ChevronDown, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api";
+import Trophy from "@/logos/trophy.svg?react";
 
 export const Route = createFileRoute("/bet-history")({
 	component: BetHistoryPage,
 });
 
 type BetStatus = "success" | "pending" | "failed";
+
+type BetSelectionSummary = {
+	home: string;
+	away: string;
+	market: string;
+};
 
 type BetHistoryItem = {
 	id: string;
@@ -28,6 +35,9 @@ type BetHistoryItem = {
 	potentialWin?: number | null;
 	actualPayout?: number | null;
 	settledAt?: string | null;
+	betType?: string | null;
+	selections?: BetSelectionSummary[];
+	totalSelections?: number;
 };
 
 type BetHistoryResponse = {
@@ -42,7 +52,7 @@ type TimePeriod = "All time" | "Today" | "Last 7 days" | "Last 30 days";
 
 const STATUS_STYLES: Record<BetStatus, { label: string; className: string }> = {
 	success: {
-		label: "Success",
+		label: "Won",
 		className: "bg-[#17351F] text-[#3DD26A]",
 	},
 	pending: {
@@ -50,7 +60,7 @@ const STATUS_STYLES: Record<BetStatus, { label: string; className: string }> = {
 		className: "bg-[#3A3312] text-[#E8C547]",
 	},
 	failed: {
-		label: "Failed",
+		label: "Lost",
 		className: "bg-[#3A1420] text-[#F0668A]",
 	},
 };
@@ -70,6 +80,10 @@ function formatDateTime(iso: string) {
 		hour12: true,
 	});
 	return { datePart, timePart };
+}
+
+function formatMoney(value: number) {
+	return value.toLocaleString("en-NG", { minimumFractionDigits: 2 });
 }
 
 function formatAmount(value: number) {
@@ -112,7 +126,7 @@ async function fetchBetHistory(params: {
 	});
 }
 
-/** Mobile-only */
+/** Mobile-only card */
 function MobileBetCard({
 	bet,
 	onOpen,
@@ -120,48 +134,88 @@ function MobileBetCard({
 	bet: BetHistoryItem;
 	onOpen: () => void;
 }) {
-	const { datePart, timePart } = formatDateTime(bet.placedAt);
-	const status = STATUS_STYLES[bet.status];
+	const { timePart } = formatDateTime(bet.placedAt);
+	const isWon = bet.status === "success";
+	const isPending = bet.status === "pending";
+
+	const visibleSelections = bet.selections?.slice(0, 3) ?? [];
+	const hasSelections = visibleSelections.length > 0;
+
+	const remainingCount =
+		bet.totalSelections !== undefined
+			? Math.max(0, bet.totalSelections - visibleSelections.length)
+			: 0;
 
 	return (
 		<button
 			type="button"
 			onClick={onOpen}
-			className="w-full rounded-2xl border border-[#1C1D1F] bg-[#0A0A0A] px-4 py-3 text-left"
+			className={`relative w-full overflow-hidden rounded-2xl text-left transition-colors ${isWon
+				? "bg-gradient-to-b from-[#051C01] via-[#04100B] to-[#04100B]"
+				: "border border-[#1B2A17] bg-black"
+				}`}
 		>
-			<div className="flex items-center justify-between">
-				<div>
-					<div className="text-white text-sm">{datePart}</div>
-					<div className="text-[#6B6E6C] text-xs">{timePart}</div>
-				</div>
-				<span
-					className={`inline-flex rounded-full px-3 py-1 font-medium text-xs ${status.className}`}
-				>
-					{status.label}
-				</span>
-			</div>
+			{isWon && <span className="absolute inset-x-0 top-0 h-1 bg-[#23BF09]" />}
 
-			<div className="mt-3 space-y-1.5 text-sm">
-				<div className="flex items-center justify-between">
-					<span className="text-[#8C8F8F]">Ticket ID</span>
-					<span className="text-[#B5B7B5]">{bet.ticketId}</span>
+			<div className="px-4 py-3">
+				<div className="flex items-center justify-between ">
+					<span className="text-sm">
+						<span className="text-[#8C8F8F]">{timePart}</span>{" "}
+						<span className="font-bold text-white">
+							{bet.betType ?? bet.type.replace(/^Bets - /, "")}
+						</span>
+					</span>
+					{isWon && (
+						<span className="flex items-center gap-1.5 font-semibold text-[#23BF09] text-sm">
+							<Trophy className="h-4 w-4" fill="#FF9500" stroke="#FF9500" />
+							Won
+						</span>
+					)}
+					{isPending && (
+						<span className="font-semibold text-[#E8C547] text-sm">Pending</span>
+					)}
+					{!isWon && !isPending && (
+						<span className="font-medium text-[#8C8F8F] text-sm">Lost</span>
+					)}
 				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-[#8C8F8F]">Type</span>
-					<span className="text-[#B5B7B5]">{bet.type}</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-[#8C8F8F]">Amount</span>
-					<span className="font-medium text-white">{formatAmount(bet.amount)}</span>
-				</div>
-				<div className="flex items-center justify-between">
-					<span className="text-[#8C8F8F]">Multiplier</span>
-					<span className="text-[#B5B7B5]">{bet.multiplier.toFixed(2)}x</span>
-				</div>
-			</div>
 
-			<div className="mt-3 border-[#1C1D1F] border-t pt-2 text-center text-accent text-xs">
-				View ticket details
+				<div className="mt-3 space-y-1.5">
+					{hasSelections ? (
+						visibleSelections.map((sel, i) => (
+							<div key={i} className="flex items-center justify-between text-sm">
+								<span className="flex items-center gap-2 text-white">
+									<span>{sel.home}</span>
+									<span className="text-[#6B6E6C] text-xs">vs</span>
+									<span>{sel.away}</span>
+								</span>
+								<span className="text-[#8C8F8F] text-xs">({sel.market})</span>
+							</div>
+						))
+					) : (
+						<div className="text-[#B5B7B5] text-sm">{bet.type}</div>
+					)}
+
+					{hasSelections && remainingCount > 0 && (
+						<div className="text-[#5A5D5B] text-xs">
+							And {remainingCount} other selection...
+						</div>
+					)}
+				</div>
+
+				<div className="mt-3 space-y-1 border-[#1B2A17] border-t pt-3">
+					<div className="flex items-center justify-between text-sm">
+						<span className="text-[#8C8F8F]">Stake</span>
+						<span className="font-medium text-white">{formatMoney(bet.amount)}</span>
+					</div>
+					{isWon && bet.actualPayout != null && (
+						<div className="flex items-center justify-between text-sm">
+							<span className="text-[#8C8F8F]">Total Return</span>
+							<span className="font-semibold text-[#23BF09]">
+								{formatMoney(bet.actualPayout)}
+							</span>
+						</div>
+					)}
+				</div>
 			</div>
 		</button>
 	);
@@ -212,7 +266,12 @@ function BetHistoryPage() {
 	}, []);
 
 	const categories = useMemo(() => {
-		const unique = new Set(baseRows.map((item) => item.type.split(" - ")[0]));
+		const unique = new Set(
+			baseRows.map((item) => {
+				const parts = item.type.split(" - ");
+				return parts[0] || item.type;
+			}),
+		);
 		return ["All categories", ...Array.from(unique)];
 	}, [baseRows]);
 
@@ -232,6 +291,18 @@ function BetHistoryPage() {
 			return true;
 		});
 	}, [baseRows, selectedCategory, selectedPeriod, search]);
+
+	// Group rows by date for the mobile 
+	const groupedByDate = useMemo(() => {
+		const groups = new Map<string, BetHistoryItem[]>();
+		for (const bet of filteredRows) {
+			const { datePart } = formatDateTime(bet.placedAt);
+			const existing = groups.get(datePart) ?? [];
+			existing.push(bet);
+			groups.set(datePart, existing);
+		}
+		return Array.from(groups.entries());
+	}, [filteredRows]);
 
 	const totalPages = data?.totalPages ?? 1;
 	const tabCounts = data?.counts;
@@ -278,20 +349,18 @@ function BetHistoryPage() {
 											setActiveTab(tab.key);
 											setPage(1);
 										}}
-										className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors ${
-											isActive
-												? "bg-accent text-white"
-												: "bg-[#141514] text-[#8C8F8F] hover:text-white"
-										}`}
+										className={`flex items-center gap-2 rounded-lg px-4 py-2 font-medium text-sm transition-colors ${isActive
+											? "bg-accent text-white"
+											: "bg-[#141514] text-[#8C8F8F] hover:text-white"
+											}`}
 									>
 										{tab.label}
 										{typeof tab.count === "number" && (
 											<span
-												className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs ${
-													isActive
-														? "bg-[#2A2B2A]  text-white"
-														: "bg-[#2A2B2A] text-[#8C8F8F]"
-												}`}
+												className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs ${isActive
+													? "bg-[#2A2B2A]  text-white"
+													: "bg-[#2A2B2A] text-[#8C8F8F]"
+													}`}
 											>
 												{tab.count}
 											</span>
@@ -301,7 +370,7 @@ function BetHistoryPage() {
 							})}
 						</div>
 
-						<div className="flex items-center gap-2">
+						<div className="hidden items-center gap-2 sm:flex">
 							<div ref={categoryRef} className="relative">
 								<button
 									type="button"
@@ -325,9 +394,8 @@ function BetHistoryPage() {
 													setIsCategoryOpen(false);
 													setPage(1);
 												}}
-												className={`block w-full px-4 py-2 text-left text-sm hover:bg-[#1C1D1F] ${
-													cat === selectedCategory ? "text-white" : "text-[#B5B7B5]"
-												}`}
+												className={`block w-full px-4 py-2 text-left text-sm hover:bg-[#1C1D1F] ${cat === selectedCategory ? "text-white" : "text-[#B5B7B5]"
+													}`}
 											>
 												{cat}
 											</button>
@@ -359,9 +427,8 @@ function BetHistoryPage() {
 													setIsPeriodOpen(false);
 													setPage(1);
 												}}
-												className={`block w-full px-4 py-2 text-left text-sm hover:bg-[#1C1D1F] ${
-													period === selectedPeriod ? "text-white" : "text-[#B5B7B5]"
-												}`}
+												className={`block w-full px-4 py-2 text-left text-sm hover:bg-[#1C1D1F] ${period === selectedPeriod ? "text-white" : "text-[#B5B7B5]"
+													}`}
 											>
 												{period}
 											</button>
@@ -431,9 +498,8 @@ function BetHistoryPage() {
 											return (
 												<tr
 													key={bet.id}
-													className={`border-[#1C1D1F] border-b last:border-none hover:bg-[#151F19] ${
-														index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent"
-													}`}
+													className={`border-[#1C1D1F] border-b last:border-none hover:bg-[#151F19] ${index % 2 === 0 ? "bg-[#0F1A13]" : "bg-transparent"
+														}`}
 												>
 													<td className="px-6 py-4 text-sm">
 														<div className="text-white">{datePart}</div>
@@ -479,7 +545,7 @@ function BetHistoryPage() {
 																		}}
 																		className="block w-full px-4 py-2 text-left text-sm text-[#B5B7B5] hover:bg-[#1C1D1F] hover:text-white"
 																	>
-																		View transaction info
+																		View Ticket
 																	</button>
 																</div>
 															)}
@@ -517,8 +583,8 @@ function BetHistoryPage() {
 						</div>
 					</div>
 
-					{/* MOBILE: card list, mirrors desktop table columns */}
-					<div className="space-y-3 md:hidden">
+					{/* MOBILE: Figma-matched card list, grouped by date */}
+					<div className="space-y-5 md:hidden">
 						{loading && (
 							<div className="py-10 text-center text-[#6B6E6C] text-sm">
 								Loading your bet history...
@@ -548,12 +614,21 @@ function BetHistoryPage() {
 
 						{!loading &&
 							!errored &&
-							filteredRows.map((bet) => (
-								<MobileBetCard
-									key={bet.id}
-									bet={bet}
-									onOpen={() => goToTicket(bet.ticketId)}
-								/>
+							groupedByDate.map(([dateLabel, bets]) => (
+								<div key={dateLabel}>
+									<div className="mb-3 text-center text-[#6B6E6C] text-xs">
+										{dateLabel}
+									</div>
+									<div className="space-y-3">
+										{bets.map((bet) => (
+											<MobileBetCard
+												key={bet.id}
+												bet={bet}
+												onOpen={() => goToTicket(bet.ticketId)}
+											/>
+										))}
+									</div>
+								</div>
 							))}
 
 						{!loading && !errored && filteredRows.length > 0 && (

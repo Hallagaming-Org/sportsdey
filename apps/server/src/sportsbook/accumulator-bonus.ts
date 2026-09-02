@@ -6,6 +6,10 @@
  *
  * Football has no Doubles (2-fold) bonus. Basketball and tennis start at 3%.
  * From Trebles (3-fold) onward all three sports share the same scale, up to 50-fold.
+ *
+ * Grants POST one DataBet `static` boost per sport × fold so the published
+ * percentages apply exactly. Legacy `steps` boosts are deleted on grant so
+ * the player is left with only the static table.
  */
 
 export const ACCUMULATOR_SPORTS = ["football", "basketball", "tennis"] as const;
@@ -20,8 +24,8 @@ export const ACCUMULATOR_MIN_SELECTIONS: Record<AccumulatorSport, number> = {
 export const ACCUMULATOR_MAX_SELECTIONS = 50;
 
 /**
- * DataBet rejects steps scales longer than 8:
- * (max_multiplier - 1) / multiplier_per_step must be <= 8.
+ * Legacy `steps` program (no longer POSTed). Kept so we can recognise
+ * players who already have that boost and leave them unchanged.
  */
 export const ACCUMULATOR_MAX_STEPS = 8;
 /** DataBet `steps` increment: +5% odds per extra eligible selection. */
@@ -215,26 +219,37 @@ export function buildAccumulatorBoostPayload(input: {
 			},
 		},
 		required_conditions: conditions,
-		applicable_conditions: [
-			{
-				type: "bet_details",
-				bet_details: [
-					{
-						type: "express",
-						data: {
-							sport: {
-								type: "sport",
-								match_all_odds: true,
-								sport_ids: [input.sport],
-							},
-						},
-					},
-				],
-			},
-		],
+		// Must mirror required_conditions (including exact odds_count). Sport-only
+		// applicable rules make every fold boost eligible on any acca of that sport,
+		// so Databet can latch onto the 50-fold x6.00 boost on a 3-leg ~30x slip.
+		applicable_conditions: conditions,
 		bonusPercent,
 		multiplier,
 	};
+}
+
+export type AccumulatorFoldBoostPayload = NonNullable<
+	ReturnType<typeof buildAccumulatorBoostPayload>
+> & {
+	sport: AccumulatorSport;
+	selections: number;
+};
+
+/** One static DataBet boost per published sport × fold (skips football doubles). */
+export function listAccumulatorFoldBoostPayloads(): AccumulatorFoldBoostPayload[] {
+	const payloads: AccumulatorFoldBoostPayload[] = [];
+	for (const sport of ACCUMULATOR_SPORTS) {
+		for (
+			let selections = 2;
+			selections <= ACCUMULATOR_MAX_SELECTIONS;
+			selections++
+		) {
+			const payload = buildAccumulatorBoostPayload({ sport, selections });
+			if (!payload) continue;
+			payloads.push({ sport, selections, ...payload });
+		}
+	}
+	return payloads;
 }
 
 export type AccumulatorStepsBoostPayload = {
@@ -256,11 +271,7 @@ export type AccumulatorStepsBoostPayload = {
 	applicable_conditions: unknown[];
 };
 
-/**
- * One DataBet `steps` boost per sport.
- * Shown as soon as the slip hits the sport's min fold; multiplier grows as
- * the player adds more eligible games (accumulator boost structure).
- */
+/** Legacy linear `steps` boost — not granted for new players. */
 export function buildAccumulatorStepsBoostPayload(
 	sport: AccumulatorSport,
 ): AccumulatorStepsBoostPayload {
@@ -339,21 +350,161 @@ export function defaultAccumulatorProgramExpiry(): string {
 	return expires.toISOString();
 }
 
-type DatabetBoostLike = {
+type BetDetailData = {
+	sport?: { sport_ids?: string[] };
+	odds_count?: { min?: number; max?: number };
+};
+
+export type DatabetBoostLike = {
+	id?: string;
 	calculation_strategy?: { type?: string };
 	required_conditions?: Array<{
 		bet_details?: Array<{
-			data?: { sport?: { sport_ids?: string[] } };
+			data?: BetDetailData;
+		}>;
+	}>;
+	applicable_conditions?: Array<{
+		bet_details?: Array<{
+			data?: BetDetailData;
 		}>;
 	}>;
 };
 
+function requiredBetDetail(boost: DatabetBoostLike): BetDetailData | undefined {
+	return boost.required_conditions?.[0]?.bet_details?.[0]?.data;
+}
+
+function applicableBetDetail(boost: DatabetBoostLike): BetDetailData | undefined {
+	return boost.applicable_conditions?.[0]?.bet_details?.[0]?.data;
+}
+
+function accumulatorFoldFromRequired(
+	data: BetDetailData,
+): { sport: AccumulatorSport; selections: number } | null {
+	const sport = ACCUMULATOR_SPORTS.find((candidate) =>
+		data.sport?.sport_ids?.includes(candidate),
+	);
+	if (!sport) return null;
+	const min = Number(data.odds_count?.min);
+	const max = Number(data.odds_count?.max ?? data.odds_count?.min);
+	if (!Number.isInteger(min) || min !== max || min < 2 || min > ACCUMULATOR_MAX_SELECTIONS) {
+		return null;
+	}
+	return { sport, selections: min };
+}
+
+/**
+ * True when list payload includes applicable_conditions and they are sport-only
+ * (or wrong fold). When the list omits applicable_conditions entirely we cannot
+ * verify eligibility — caller must not infer "needs repair" from absence alone.
+ */
+export function boostHasLooseApplicableConditions(boost: DatabetBoostLike): boolean {
+	if (boost.calculation_strategy?.type !== "static") return false;
+	const required = requiredBetDetail(boost);
+	if (!required) return false;
+	const fold = accumulatorFoldFromRequired(required);
+	if (!fold) return false;
+	if (boost.applicable_conditions === undefined) return false;
+	if (
+		!Array.isArray(boost.applicable_conditions) ||
+		boost.applicable_conditions.length === 0
+	) {
+		return false;
+	}
+	const applicable = applicableBetDetail(boost);
+	if (!applicable?.odds_count) return true;
+	const appMin = Number(applicable.odds_count.min);
+	const appMax = Number(applicable.odds_count.max ?? applicable.odds_count.min);
+	return appMin !== fold.selections || appMax !== fold.selections;
+}
+
+/** Whether DataBet included applicable_conditions on list items (shape probe). */
+export function betBoostListIncludesApplicable(
+	boosts: DatabetBoostLike[],
+): boolean {
+	return boosts.some((boost) => boost.applicable_conditions !== undefined);
+}
+
+export type AccumulatorFoldBoostRepair = {
+	boostId: string;
+	sport: AccumulatorSport;
+	selections: number;
+	applicable_conditions: unknown[];
+};
+
+/** PATCH targets for boosts granted before applicable_conditions matched required. */
+export function planAccumulatorFoldRepairs(
+	existing: DatabetBoostLike[],
+	options: { skipBoostIds?: ReadonlySet<string> } = {},
+): AccumulatorFoldBoostRepair[] {
+	const repairs: AccumulatorFoldBoostRepair[] = [];
+	for (const boost of existing) {
+		if (!boost.id || options.skipBoostIds?.has(boost.id)) continue;
+		if (!boostHasLooseApplicableConditions(boost)) continue;
+		const required = requiredBetDetail(boost);
+		if (!required) continue;
+		const fold = accumulatorFoldFromRequired(required);
+		if (!fold) continue;
+		const payload = buildAccumulatorBoostPayload(fold);
+		if (!payload) continue;
+		repairs.push({
+			boostId: boost.id,
+			sport: fold.sport,
+			selections: fold.selections,
+			applicable_conditions: payload.applicable_conditions,
+		});
+	}
+	return repairs;
+}
+
+/** True when the player already has the legacy linear `steps` program for this sport. */
 export function boostCoversAccumulatorSport(
 	boost: DatabetBoostLike,
 	sport: AccumulatorSport,
 ): boolean {
 	if (boost.calculation_strategy?.type !== "steps") return false;
-	const sportIds =
-		boost.required_conditions?.[0]?.bet_details?.[0]?.data?.sport?.sport_ids;
+	const sportIds = requiredBetDetail(boost)?.sport?.sport_ids;
 	return Array.isArray(sportIds) && sportIds.includes(sport);
+}
+
+/** True when the player already has a static boost for this exact sport × fold. */
+export function boostCoversAccumulatorFold(
+	boost: DatabetBoostLike,
+	sport: AccumulatorSport,
+	selections: number,
+): boolean {
+	if (boost.calculation_strategy?.type !== "static") return false;
+	const data = requiredBetDetail(boost);
+	const sportIds = data?.sport?.sport_ids;
+	if (!Array.isArray(sportIds) || !sportIds.includes(sport)) return false;
+	const min = Number(data?.odds_count?.min);
+	const max = Number(data?.odds_count?.max ?? data?.odds_count?.min);
+	return min === selections && max === selections;
+}
+
+export function planAccumulatorFoldGrants(existing: DatabetBoostLike[]): {
+	toCreate: AccumulatorFoldBoostPayload[];
+	blockedLegacySports: AccumulatorSport[];
+	legacyStepsBoostIds: string[];
+} {
+	const legacyStepsBoostIds = existing
+		.filter((boost) =>
+			ACCUMULATOR_SPORTS.some((sport) =>
+				boostCoversAccumulatorSport(boost, sport),
+			),
+		)
+		.map((boost) => boost.id)
+		.filter((id): id is string => typeof id === "string" && id.length > 0);
+
+	const blockedLegacySports = ACCUMULATOR_SPORTS.filter((sport) =>
+		existing.some((boost) => boostCoversAccumulatorSport(boost, sport)),
+	);
+
+	const toCreate = listAccumulatorFoldBoostPayloads().filter((preset) => {
+		if (blockedLegacySports.includes(preset.sport)) return false;
+		return !existing.some((boost) =>
+			boostCoversAccumulatorFold(boost, preset.sport, preset.selections),
+		);
+	});
+	return { toCreate, blockedLegacySports, legacyStepsBoostIds };
 }

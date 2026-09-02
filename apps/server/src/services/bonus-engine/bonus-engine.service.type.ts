@@ -35,6 +35,24 @@ export type BonusEngineLoginInput = {
 	deviceType?: string;
 };
 
+export type BonusEngineLoyaltyScopedBody = {
+	client_id: string;
+	project_id: string;
+	user_id: string;
+};
+
+export type BonusEngineLoyaltyProjectBody = {
+	client_id: string;
+	project_id: string;
+};
+
+export type BonusEngineLoyaltyRedeemBody = BonusEngineLoyaltyScopedBody & {
+	points_to_redeem: number;
+	loyalty_id?: string;
+};
+
+export type BonusEngineLoyaltyCampaignItem = Record<string, unknown>;
+
 export type BonusEngineLoyaltyPointsData = {
 	player_id?: string;
 	total_points?: number;
@@ -60,6 +78,27 @@ export type BonusEngineLoyaltyHistoryItem = {
 
 export type BonusEngineMissionListItem = Record<string, unknown>;
 
+export type BonusEngineBonusCampaignItem = Record<string, unknown>;
+
+export type BonusEngineUserBonusItem = Record<string, unknown>;
+
+export type BonusEngineListCampaignsBody = {
+	client_id: string;
+	project_id: string;
+	user_id: string;
+	bonus_type: string;
+};
+
+export type BonusEngineUserBonusActionBody = BonusEngineLoyaltyScopedBody & {
+	userbonus_id: string;
+};
+
+export type BonusEngineBonusWalletData = {
+	user_id?: string;
+	real_wallet_balance?: number;
+	bonus_wallet_balance?: number;
+};
+
 export type BonusEngineReportDepositInput = {
 	userId: string;
 	amount: number;
@@ -75,6 +114,9 @@ export type BonusEngineReportBetInput = {
 	currency?: string;
 	providerId?: string;
 	gameId?: string;
+	sportId?: string;
+	eventId?: string;
+	leagueId?: string;
 };
 
 export type BonusEngineLoyaltyPointsUpdatePayload = {

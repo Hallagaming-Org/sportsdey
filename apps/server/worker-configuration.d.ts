@@ -12,6 +12,7 @@ declare namespace Cloudflare {
 		CLOUDFLARE_D1_TOKEN: string;
 		BETTER_AUTH_SECRET: string;
 		BETTER_AUTH_URL: string;
+		FRONTEND_URL: string;
 		CORS_ORIGIN: string;
 		COOKIE_DOMAIN: string;
 		YOUTUBE_API_KEY: string;
@@ -69,6 +70,15 @@ declare namespace Cloudflare {
 		WEBENGAGE_LICENSE_CODE: string;
 		WEBENGAGE_HOST: string;
 		WEBENGAGE_DSN_URL: string;
+		KUDA_ENV?: "uat" | "production";
+		KUDA_API_KEY: string;
+		KUDA_BUSINESS_EMAIL: string;
+		KUDA_WEBHOOK_USERNAME: string;
+		KUDA_WEBHOOK_PASSWORD: string;
+		PALMPAY_ENV?: "sandbox" | "production";
+		PALMPAY_APP_ID: string;
+		PALMPAY_MERCHANT_PRIVATE_KEY: string;
+		PALMPAY_PLATFORM_PUBLIC_KEY: string;
 		AT_DLR_SECRET: string;
 		AFFNOOK_API_KEY: string;
 		AFFNOOK_BASE_URL: string;

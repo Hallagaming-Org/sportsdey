@@ -11,6 +11,7 @@ import {
 	listBonusEngineSportCategories,
 	listBonusEngineSportEvents,
 	listBonusEngineSports,
+	syncCasinoCatalogFromSlotegrator,
 	verifyBonusEngineSecureDataHeader,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
@@ -93,6 +94,50 @@ referenceDataRoute.openapi(gameProvidersRoute, async (c) => {
 	if (rejected) return rejected;
 	const data = await listBonusEngineGameProviders(c.env);
 	return c.json(data, 200);
+});
+
+const syncCasinoCatalogRoute = createRoute({
+	method: "post",
+	path: "/casino/sync-catalog",
+	tags: ["Bonus Engine Reference Data"],
+	summary: "Sync casino games + providers from Slotegrator into D1",
+	description:
+		"Upserts the Slotegrator mobile games catalog so Admin game-providers/games GETs return real provider ids.",
+	request: { headers: SecureDataHeaderSchema },
+	responses: {
+		200: {
+			description: "Catalog synced",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(true),
+						data: z.object({
+							fetched: z.number(),
+							upserted: z.number(),
+							providers: z.number(),
+						}),
+					}),
+				},
+			},
+		},
+		413: { description: "Invalid X-Secure-Data" },
+		502: { description: "Slotegrator upstream error" },
+		503: { description: "Bonus Engine / Slotegrator not configured" },
+	},
+});
+
+referenceDataRoute.openapi(syncCasinoCatalogRoute, async (c) => {
+	const rejected = await requireSecureData(c);
+	if (rejected) return rejected;
+	try {
+		const data = await syncCasinoCatalogFromSlotegrator(c.env);
+		return c.json({ success: true as const, data }, 200);
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "Casino catalog sync failed";
+		console.error("Casino catalog sync failed", { message });
+		return c.json({ success: false as const, error: message }, 502);
+	}
 });
 
 const gamesRoute = createRoute({
@@ -214,7 +259,8 @@ const championshipRoute = createRoute({
 	path: "/sportsbook/championship",
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets the list of championships",
-	description: "Returns a list of championships.",
+	description:
+		"Returns the top 6 European football championships. Championship IDs match Data.Bet tournament ids when the sportsbook proxy is configured.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({
@@ -230,7 +276,7 @@ const championshipRoute = createRoute({
 				"application/json": {
 					schema: z.array(
 						z.object({
-							championshipId: z.number(),
+							championshipId: z.union([z.number(), z.string()]),
 							name: z.string(),
 						}),
 					),
@@ -246,7 +292,7 @@ referenceDataRoute.openapi(championshipRoute, async (c) => {
 	const rejected = await requireSecureData(c);
 	if (rejected) return rejected;
 	const query = c.req.valid("query");
-	return c.json(listBonusEngineChampionships(query), 200);
+	return c.json(await listBonusEngineChampionships({ ...query, env: c.env }), 200);
 });
 
 const eventsRoute = createRoute({
@@ -254,7 +300,8 @@ const eventsRoute = createRoute({
 	path: "/sportsbook/events",
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets the list of sport events",
-	description: "Returns a list of events.",
+	description:
+		"Returns an empty list. Sports missions and bonuses are scoped to league/championship, not individual fixtures.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({
@@ -294,7 +341,8 @@ const eventMarketsRoute = createRoute({
 	path: "/sportsbook/events/markets",
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets event markets",
-	description: "Returns a list of markets for a given sport event.",
+	description:
+		"Returns an empty list. Fixture markets are not catalogued for Bonus Engine Admin.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({

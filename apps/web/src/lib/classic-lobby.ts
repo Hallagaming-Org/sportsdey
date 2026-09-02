@@ -1,5 +1,11 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
+import { canonicalLobbySlug } from "@/lib/lobby-categories";
+import {
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
+	CLASSIC_THUNDR_CODES,
+} from "@/lib/classic-lobby-codes";
+import { isScorpioStoredCode } from "@/lib/lobby-games";
 import { resolveServerUrl } from "@/lib/server-url";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
 import BlocksLogo from "@/logos/blocks.svg?react";
@@ -28,35 +34,56 @@ export type ClassicLobbyGame = {
 
 export const CLASSIC_CATEGORIES = [
 	"popular",
-	"crash-games",
+	"crash",
 	"original",
 	"pvp",
+	"arcade",
 	"slots",
 	"tablecardgames",
-	"arcade",
 	"classic",
 	"bingo",
 	"dice",
 	"jackpot",
 	"lottery",
+	"virtuals",
 	"others",
 	"roulette",
 	"scratch",
 ] as const;
 
+export const CLASSIC_CATEGORY_LABELS: Record<string, string> = {
+	popular: "Popular",
+	crash: "Crash",
+	original: "Original",
+	pvp: "PvP",
+	arcade: "Arcade",
+	slots: "Slots",
+	tablecardgames: "Table/Card Games",
+	classic: "Classic",
+	bingo: "Bingo",
+	dice: "Dice",
+	jackpot: "Jackpot",
+	lottery: "Lottery",
+	virtuals: "Virtuals",
+	others: "Others",
+	roulette: "Roulette",
+	scratch: "Scratch",
+};
+
 export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	popular: "🔥",
-	"crash-games": "🚀",
+	crash: "🚀",
 	original: "🎯",
 	pvp: "⚔️",
+	arcade: "🕹️",
 	slots: "🎰",
 	tablecardgames: "🃏",
-	arcade: "🕹️",
 	classic: "👑",
 	bingo: "🎱",
 	dice: "🎲",
 	jackpot: "💰",
 	lottery: "🎟️",
+	virtuals: "⚽",
 	others: "🧩",
 	roulette: "🎡",
 	scratch: "🎫",
@@ -84,7 +111,6 @@ export const HOT_CASINO_GAME_NAMES = [
 	"Football Crash",
 	"Mines",
 	"Keno",
-	"Plinko",
 ];
 
 /** @deprecated Use HOT_CASINO_GAME_NAMES */
@@ -108,14 +134,10 @@ export const CLASSIC_PRIORITY_GAMES = [
 	"spin_and_win",
 ];
 
-export const CLASSIC_THUNDR_CODES = [
-	"solitaire",
-	"blocks",
-	"twentyone",
-	"blackjack",
-	"slots",
-	"plinko",
-];
+export {
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
+	CLASSIC_THUNDR_CODES,
+} from "@/lib/classic-lobby-codes";
 
 export const CLASSIC_ORIGINALS_CODES = [
 	"LAGOSRUSH",
@@ -132,7 +154,23 @@ const HALLA_LAUNCH_PATHS: Record<string, string> = {
 	HALLAMETRONITE: "/halla/metronite/launcher",
 };
 
-export const CLASSIC_SPECIAL_CATEGORIES = ["popular", "pvp", "original"];
+/** Virtual sports titles (Slotegrator) — shown on the Virtuals tab even if D1 still tags them as Others. */
+export const VIRTUALS_GAME_NAMES = [
+	"Virtual football pro",
+	"Virtual soccer",
+	"Virtual champions",
+	"Spin greyhounds",
+	"Spin horses",
+	"Spin cricket",
+	"Instant soccer",
+] as const;
+
+export const CLASSIC_SPECIAL_CATEGORIES = [
+	"popular",
+	"pvp",
+	"original",
+	"virtuals",
+];
 
 export const CLASSIC_KNOWN_GAMES: Record<
 	string,
@@ -196,7 +234,7 @@ export const CLASSIC_KNOWN_GAMES: Record<
 	},
 	LAGOSRUSH: {
 		subtitle: "fulfilling games",
-		image: "/lagos-rush.png",
+		image: "/lagos-rush-v2.png",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
 	HALLABOMB: {
@@ -219,12 +257,33 @@ export const CLASSIC_KNOWN_GAMES: Record<
 		image: "/sportsdey-crash.jpeg",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
-	"spin_and_win": {
+	spin_and_win: {
 		subtitle: "sportsdey original",
-		image: "/spin-and-win.png",
+		image: "/spin-and-win-v3.jpg",
 		gradient: "linear-gradient(to bottom, #e91e63, #9c27b0, #673ab7)",
 	},
 };
+
+const KNOWN_GAME_BY_NAME: Record<string, string> = {
+	"lagos rush": "LAGOSRUSH",
+};
+
+/** Prefer our R2 art, then static originals, then provider thumbnails. */
+export function resolveKnownLobbyImage(game: {
+	code: string;
+	name: string;
+	imageUrl?: string | null;
+}): string | null {
+	if (game.imageUrl?.includes("bucket.sportsdey.com")) {
+		return game.imageUrl;
+	}
+	const byCode = CLASSIC_KNOWN_GAMES[game.code]?.image;
+	if (byCode) return byCode;
+	const alias = KNOWN_GAME_BY_NAME[game.name.toLowerCase().trim()];
+	const byName = alias ? CLASSIC_KNOWN_GAMES[alias]?.image : undefined;
+	if (byName) return byName;
+	return game.imageUrl ?? null;
+}
 
 const SPORTSDEY_CRASH_URL =
 	"https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino";
@@ -302,12 +361,7 @@ export function filterClassicGames(
 					break;
 				case "pvp":
 					filtered = allGames.filter((g) =>
-						CLASSIC_THUNDR_CODES.includes(g.code),
-					);
-					break;
-				case "crash-games":
-					filtered = allGames.filter((g) =>
-						g.name.toLowerCase().includes("aviator"),
+						(CLASSIC_THUNDR_CODES as readonly string[]).includes(g.code),
 					);
 					break;
 				case "original":
@@ -315,12 +369,21 @@ export function filterClassicGames(
 						CLASSIC_ORIGINALS_CODES.includes(g.code),
 					);
 					break;
+				case "virtuals":
+					filtered = pickGamesByOrderedNames(
+						allGames,
+						VIRTUALS_GAME_NAMES,
+					);
+					break;
 				default:
 					break;
 			}
 		} else {
 			filtered = allGames.filter((g) =>
-				g.categories?.some((c) => c.slug === selectedCategory),
+				g.categories?.some(
+					(c) =>
+						canonicalLobbySlug(c.slug) === canonicalLobbySlug(selectedCategory),
+				),
 			);
 		}
 	}
@@ -349,12 +412,7 @@ export function classicCategoryCounts(
 					break;
 				case "pvp":
 					acc[cat] = allGames.filter((g) =>
-						CLASSIC_THUNDR_CODES.includes(g.code),
-					).length;
-					break;
-				case "crash-games":
-					acc[cat] = allGames.filter((g) =>
-						g.name.toLowerCase().includes("aviator"),
+						(CLASSIC_THUNDR_CODES as readonly string[]).includes(g.code),
 					).length;
 					break;
 				case "original":
@@ -362,12 +420,20 @@ export function classicCategoryCounts(
 						CLASSIC_ORIGINALS_CODES.includes(g.code),
 					).length;
 					break;
+				case "virtuals":
+					acc[cat] = pickGamesByOrderedNames(
+						allGames,
+						VIRTUALS_GAME_NAMES,
+					).length;
+					break;
 				default:
 					acc[cat] = 0;
 			}
 		} else {
 			acc[cat] = allGames.filter((g) =>
-				g.categories?.some((c) => c.slug === cat),
+				g.categories?.some(
+					(c) => canonicalLobbySlug(c.slug) === canonicalLobbySlug(cat),
+				),
 			).length;
 		}
 		return acc;
@@ -382,6 +448,7 @@ type LaunchResponse = {
 
 /** Slotegrator catalog games (uuid codes) — support Try Demo + Play Now. */
 export function isSlotegratorLobbyGame(game: Pick<ClassicLobbyGame, "code">) {
+	if (isScorpioStoredCode(game.code)) return false;
 	return game.code !== "sportsdey-crash" && !CLASSIC_KNOWN_GAMES[game.code];
 }
 
@@ -398,6 +465,10 @@ export async function launchClassicGame(
 	game: ClassicLobbyGame,
 	options?: { mode?: ClassicLaunchMode },
 ): Promise<string | null> {
+	if (isScorpioStoredCode(game.code)) {
+		throw new Error("Game not found");
+	}
+
 	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
 		window.open(SPORTSDEY_CRASH_URL, "_blank");
 		return null;
@@ -426,8 +497,7 @@ export async function launchClassicGame(
 		}
 	} else {
 		const mode = options?.mode ?? "demo";
-		path =
-			mode === "real" ? "/slotegrator/launch" : "/slotegrator/launch-demo";
+		path = mode === "real" ? "/slotegrator/launch" : "/slotegrator/launch-demo";
 		body = {
 			game_uuid: game.code,
 			// Bare exit page — avoids nesting the full casino lobby in the game iframe

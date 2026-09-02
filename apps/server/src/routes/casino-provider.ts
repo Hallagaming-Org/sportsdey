@@ -20,6 +20,126 @@ import type { CloudflareBindings } from "../types";
 
 const casinoProviderRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
+export function isUniqueConstraintError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let i = 0; i < 5 && current; i++) {
+		const message = current instanceof Error ? current.message : String(current);
+		if (
+			message.includes("UNIQUE constraint failed") ||
+			(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
+		) {
+			return true;
+		}
+		current =
+			current instanceof Error && "cause" in current
+				? current.cause
+				: undefined;
+	}
+	return false;
+}
+
+export function rollbackLedgerTxId(originalProviderTxId: string): string {
+	return `rollback_${originalProviderTxId}`;
+}
+
+function toProviderUnits(kobo: number | null | undefined): number {
+	return (kobo ?? 0) * 10;
+}
+
+function newOperatorTxId(): string {
+	return `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
+type GameTxRow = typeof schema.gameTransactions.$inferSelect;
+type CasinoDb = ReturnType<typeof drizzle<typeof schema>>;
+
+async function findGameTxByProviderId(
+	db: CasinoDb,
+	providerTxId: string,
+): Promise<GameTxRow | undefined> {
+	const [row] = await db
+		.select()
+		.from(schema.gameTransactions)
+		.where(eq(schema.gameTransactions.providerTxId, providerTxId))
+		.limit(1);
+	return row;
+}
+
+async function claimGameTx(
+	db: CasinoDb,
+	values: typeof schema.gameTransactions.$inferInsert,
+): Promise<{ claimed: true; id: string } | { claimed: false; existing: GameTxRow }> {
+	try {
+		await db.insert(schema.gameTransactions).values(values);
+		return { claimed: true, id: values.id };
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			const existing = await findGameTxByProviderId(db, values.providerTxId);
+			if (existing) return { claimed: false, existing };
+		}
+		throw error;
+	}
+}
+
+async function releaseClaimedGameTx(db: CasinoDb, providerTxId: string) {
+	await db
+		.delete(schema.gameTransactions)
+		.where(eq(schema.gameTransactions.providerTxId, providerTxId));
+}
+
+/** Credit/debit after a unique claim. On any failure, drop the claim so a retry can settle. */
+async function settleClaimedWallet(
+	db: CasinoDb,
+	providerTxId: string,
+	mutate: () => Promise<{ balance: number } | undefined>,
+): Promise<{ balance: number } | undefined> {
+	try {
+		const updated = await mutate();
+		if (!updated) {
+			await releaseClaimedGameTx(db, providerTxId);
+		}
+		return updated;
+	} catch (error) {
+		try {
+			await releaseClaimedGameTx(db, providerTxId);
+		} catch {
+			// Keep the wallet error; the claim must not block a later retry.
+		}
+		throw error;
+	}
+}
+
+async function recordLuckyWalletTx(
+	db: CasinoDb,
+	input: {
+		userId: string;
+		amount: number;
+		type: "debit" | "credit" | "refund";
+		balance: number;
+		game: string;
+		sessionToken: string;
+		providerTxId: string;
+		action: string;
+	},
+): Promise<void> {
+	await db.insert(schema.walletTransaction).values({
+		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+		userId: input.userId,
+		amount: input.amount,
+		type: input.type,
+		reference: null,
+		status: "success",
+		paymentMethod: "lucky games",
+		balance: input.balance,
+		metadata: JSON.stringify({
+			game: input.game,
+			sessionToken: input.sessionToken,
+			providerTxId: input.providerTxId,
+			action: input.action,
+		}),
+	});
+}
+
 const authRoute = createRoute({
 	method: "post",
 	path: "/auth",
@@ -178,6 +298,14 @@ const depositRoute = createRoute({
 				},
 			},
 		},
+		500: {
+			description: "Failed to update wallet",
+			content: {
+				"application/json": {
+					schema: CasinoProviderErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -223,6 +351,22 @@ const rollbackRoute = createRoute({
 		},
 		404: {
 			description: "Transaction not found",
+			content: {
+				"application/json": {
+					schema: CasinoProviderErrorSchema,
+				},
+			},
+		},
+		402: {
+			description: "Insufficient funds",
+			content: {
+				"application/json": {
+					schema: CasinoProviderErrorSchema,
+				},
+			},
+		},
+		500: {
+			description: "Failed to update wallet",
 			content: {
 				"application/json": {
 					schema: CasinoProviderErrorSchema,
@@ -394,24 +538,26 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		provider_tx_id,
 		session_token,
 		game,
-		action,
 		currency,
 		provider,
 	} = result.data;
 
-	const [existingTx] = await db
-		.select()
-		.from(schema.gameTransactions)
-		.where(eq(schema.gameTransactions.providerTxId, provider_tx_id))
-		.limit(1);
-
+	const existingTx = await findGameTxByProviderId(db, provider_tx_id);
 	if (existingTx) {
 		return c.json(
 			{
-				code: 409,
-				error: "Duplicate transaction",
+				code: 200,
+				data: {
+					user_id,
+					provider,
+					provider_tx_id,
+					old_balance: toProviderUnits(existingTx.balanceBefore),
+					new_balance: toProviderUnits(existingTx.balanceAfter),
+					operator_tx_id: existingTx.id,
+					currency,
+				},
 			},
-			409,
+			200,
 		);
 	}
 
@@ -459,11 +605,10 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		.where(eq(schema.wallet.userId, user_id))
 		.limit(1);
 
-	const balanceKobo = wallet?.balance ?? 0;
-	const oldBalanceKobo = balanceKobo;
+	const oldBalanceKobo = wallet?.balance ?? 0;
 	const amountKobo = Math.round(amount / 10);
 
-	if (!wallet || balanceKobo < amountKobo) {
+	if (!wallet || oldBalanceKobo < amountKobo) {
 		return c.json(
 			{
 				code: 402,
@@ -473,62 +618,74 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		);
 	}
 
-	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const operatorTxId = newOperatorTxId();
+	const claimed = await claimGameTx(db, {
+		id: operatorTxId,
+		userId: user_id,
+		providerTxId: provider_tx_id,
+		type: "BET",
+		amount: amountKobo,
+		balanceBefore: oldBalanceKobo,
+		balanceAfter: oldBalanceKobo - amountKobo,
+		sessionToken: session_token,
+		game,
+	});
 
-	const updatedWallet = await debitWallet(db, user_id, amountKobo);
+	if (!claimed.claimed) {
+		return c.json(
+			{
+				code: 200,
+				data: {
+					user_id,
+					provider,
+					provider_tx_id,
+					old_balance: toProviderUnits(claimed.existing.balanceBefore),
+					new_balance: toProviderUnits(claimed.existing.balanceAfter),
+					operator_tx_id: claimed.existing.id,
+					currency,
+				},
+			},
+			200,
+		);
+	}
+
+	const updatedWallet = await settleClaimedWallet(db, provider_tx_id, () =>
+		debitWallet(db, user_id, amountKobo),
+	);
 
 	if (!updatedWallet) {
-		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		return c.json(
+			{
+				code: 402,
+				error: "Insufficient funds",
+			},
+			402,
+		);
 	}
 	const newBalanceKobo = updatedWallet.balance;
 
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+	await db
+		.update(schema.gameTransactions)
+		.set({
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
+		})
+		.where(eq(schema.gameTransactions.providerTxId, provider_tx_id));
+
+	try {
+		await recordLuckyWalletTx(db, {
 			userId: user_id,
 			amount: amountKobo,
 			type: "debit",
-			reference: null,
-			status: "success",
-			paymentMethod: "lucky games",
 			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game,
-				sessionToken: session_token,
-				providerTxId: provider_tx_id,
-				action: "bet",
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [betTxn] = await db
-		.insert(schema.gameTransactions)
-		.values({
-			id: operatorTxId,
-			userId: user_id,
-			providerTxId: provider_tx_id,
-			type: "BET",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			sessionToken: session_token,
 			game,
-		})
-		.returning();
-
-	if (!betTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record bet transaction" },
-			500,
-		);
+			sessionToken: session_token,
+			providerTxId: provider_tx_id,
+			action: "bet",
+		});
+	} catch {
+		// Ledger already claimed; do not 500 or LuckyWorld will retry and we
+		// must not reverse a completed debit.
 	}
 
 	return c.json(
@@ -573,19 +730,23 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		currency,
 	} = result.data;
 
-	const [existingTx] = await db
-		.select()
-		.from(schema.gameTransactions)
-		.where(eq(schema.gameTransactions.providerTxId, provider_tx_id))
-		.limit(1);
-
+	const existingTx = await findGameTxByProviderId(db, provider_tx_id);
 	if (existingTx) {
 		return c.json(
 			{
-				code: 409,
-				error: "Duplicate transaction",
+				code: 200,
+				data: {
+					user_id,
+					provider_tx_id,
+					operator_tx_id: existingTx.id,
+					amount,
+					provider,
+					currency,
+					old_balance: toProviderUnits(existingTx.balanceBefore),
+					new_balance: toProviderUnits(existingTx.balanceAfter),
+				},
 			},
-			409,
+			200,
 		);
 	}
 
@@ -633,65 +794,77 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		.where(eq(schema.wallet.userId, user_id))
 		.limit(1);
 
-	const balanceKobo = wallet?.balance ?? 0;
-	const oldBalanceKobo = balanceKobo;
+	const oldBalanceKobo = wallet?.balance ?? 0;
 	const amountKobo = Math.round(amount / 10);
-	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const operatorTxId = newOperatorTxId();
 
-	const updatedWallet = await creditWallet(db, user_id, amountKobo);
+	const claimed = await claimGameTx(db, {
+		id: operatorTxId,
+		userId: user_id,
+		providerTxId: provider_tx_id,
+		type: "WIN",
+		amount: amountKobo,
+		balanceBefore: oldBalanceKobo,
+		balanceAfter: oldBalanceKobo + amountKobo,
+		sessionToken: session_token,
+		game,
+	});
+
+	if (!claimed.claimed) {
+		return c.json(
+			{
+				code: 200,
+				data: {
+					user_id,
+					provider_tx_id,
+					operator_tx_id: claimed.existing.id,
+					amount,
+					provider,
+					currency,
+					old_balance: toProviderUnits(claimed.existing.balanceBefore),
+					new_balance: toProviderUnits(claimed.existing.balanceAfter),
+				},
+			},
+			200,
+		);
+	}
+
+	const updatedWallet = await settleClaimedWallet(db, provider_tx_id, () =>
+		creditWallet(db, user_id, amountKobo),
+	);
 
 	if (!updatedWallet) {
-		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		return c.json(
+			{
+				code: 500,
+				error: "Failed to update wallet",
+			},
+			500,
+		);
 	}
 	const newBalanceKobo = updatedWallet.balance;
 
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+	await db
+		.update(schema.gameTransactions)
+		.set({
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
+		})
+		.where(eq(schema.gameTransactions.providerTxId, provider_tx_id));
+
+	try {
+		await recordLuckyWalletTx(db, {
 			userId: user_id,
 			amount: amountKobo,
 			type: "credit",
-			reference: null,
-			status: "success",
-			paymentMethod: "lucky games",
 			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game,
-				sessionToken: session_token,
-				providerTxId: provider_tx_id,
-				action: "win",
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [winTxn] = await db
-		.insert(schema.gameTransactions)
-		.values({
-			id: operatorTxId,
-			userId: user_id,
-			providerTxId: provider_tx_id,
-			type: "WIN",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			sessionToken: session_token,
 			game,
-		})
-		.returning();
-
-	if (!winTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record win transaction" },
-			500,
-		);
+			sessionToken: session_token,
+			providerTxId: provider_tx_id,
+			action: "win",
+		});
+	} catch {
+		// Ledger already claimed; returning 500 would reprint the win on retry.
 	}
 
 	return c.json(
@@ -736,11 +909,28 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		game,
 	} = result.data;
 
-	const [existingTx] = await db
-		.select()
-		.from(schema.gameTransactions)
-		.where(eq(schema.gameTransactions.providerTxId, rollback_provider_tx_id))
-		.limit(1);
+	const rollbackTxId = rollbackLedgerTxId(rollback_provider_tx_id);
+
+	const existingRollback = await findGameTxByProviderId(db, rollbackTxId);
+	if (existingRollback) {
+		return c.json(
+			{
+				code: 200,
+				data: {
+					user_id,
+					provider,
+					provider_tx_id: rollback_provider_tx_id,
+					old_balance: toProviderUnits(existingRollback.balanceBefore),
+					new_balance: toProviderUnits(existingRollback.balanceAfter),
+					operator_tx_id: existingRollback.id,
+					currency: "NGN",
+				},
+			},
+			200,
+		);
+	}
+
+	const existingTx = await findGameTxByProviderId(db, rollback_provider_tx_id);
 
 	if (!existingTx) {
 		return c.json(
@@ -796,69 +986,94 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		.where(eq(schema.wallet.userId, user_id))
 		.limit(1);
 
-	const balanceKobo = wallet?.balance ?? 0;
-	const oldBalanceKobo = balanceKobo;
+	const oldBalanceKobo = wallet?.balance ?? 0;
 	const amountKobo = Math.round(amount / 10);
 	const adjustment = existingTx.type === "BET" ? amountKobo : -amountKobo;
-	const operatorTxId = `gtxn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const operatorTxId = newOperatorTxId();
 
-	const updatedWallet =
-		existingTx.type === "BET"
-			? await creditWallet(db, user_id, amountKobo)
-			: await debitWallet(db, user_id, amountKobo);
+	if (existingTx.type !== "BET" && (!wallet || oldBalanceKobo < amountKobo)) {
+		return c.json(
+			{
+				code: 402,
+				error: "Insufficient funds",
+			},
+			402,
+		);
+	}
+
+	const claimed = await claimGameTx(db, {
+		id: operatorTxId,
+		userId: user_id,
+		providerTxId: rollbackTxId,
+		type: "ROLLBACK",
+		amount: amountKobo,
+		balanceBefore: oldBalanceKobo,
+		balanceAfter: oldBalanceKobo + adjustment,
+		sessionToken: session_token,
+		game,
+	});
+
+	if (!claimed.claimed) {
+		// Another request holds this claim and may not have credited yet.
+		// 200 here would let LuckyWorld stop retrying if that credit later fails.
+		return c.json(
+			{
+				code: 500,
+				error: "Failed to update wallet",
+			},
+			500,
+		);
+	}
+
+	let updatedWallet: { balance: number } | undefined;
+	try {
+		updatedWallet = await settleClaimedWallet(db, rollbackTxId, () =>
+			existingTx.type === "BET"
+				? creditWallet(db, user_id, amountKobo)
+				: debitWallet(db, user_id, amountKobo),
+		);
+	} catch {
+		return c.json(
+			{
+				code: 500,
+				error: "Failed to update wallet",
+			},
+			500,
+		);
+	}
 
 	if (!updatedWallet) {
-		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+		return c.json(
+			{
+				code: 500,
+				error: "Failed to update wallet",
+			},
+			500,
+		);
 	}
 	const newBalanceKobo = updatedWallet.balance;
 
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+	await db
+		.update(schema.gameTransactions)
+		.set({
+			balanceBefore: oldBalanceKobo,
+			balanceAfter: newBalanceKobo,
+		})
+		.where(eq(schema.gameTransactions.providerTxId, rollbackTxId));
+
+	try {
+		await recordLuckyWalletTx(db, {
 			userId: user_id,
 			amount: adjustment,
 			type: "refund",
-			reference: null,
-			status: "success",
-			paymentMethod: "lucky games",
 			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game,
-				sessionToken: session_token,
-				providerTxId: provider_tx_id,
-				action: "rollback",
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [rollbackTxn] = await db
-		.insert(schema.gameTransactions)
-		.values({
-			id: operatorTxId,
-			userId: user_id,
-			providerTxId: `rollback_${rollback_provider_tx_id}`,
-			type: "ROLLBACK",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			sessionToken: session_token,
 			game,
-		})
-		.returning();
-
-	if (!rollbackTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record rollback transaction" },
-			500,
-		);
+			sessionToken: session_token,
+			providerTxId: rollback_provider_tx_id,
+			action: "rollback",
+		});
+	} catch {
+		// Money already moved under a unique rollback id; 500 would reprint it.
 	}
 
 	return c.json(

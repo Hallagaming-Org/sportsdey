@@ -11,6 +11,7 @@ import {
 	SESSION_MAX_AGE_SECONDS,
 } from "@/constants/session";
 import * as schema from "@/db/schema";
+import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../../worker-configuration";
 
 const HMAC_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
@@ -92,8 +93,21 @@ export async function signSessionToken(
 	return `${token}.${signatureB64}`;
 }
 
+function oauthCredentials(clientId?: string, clientSecret?: string) {
+	const id = clientId?.trim() ?? "";
+	const secret = clientSecret?.trim() ?? "";
+	if (!id || !secret) return undefined;
+	return { clientId: id, clientSecret: secret };
+}
+
 export const createAuth = (env: CloudflareBindings) => {
 	const db = drizzle(env.DB, { schema });
+	const google = oauthCredentials(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
+	const facebook = oauthCredentials(
+		env.FACEBOOK_CLIENT_ID,
+		env.FACEBOOK_CLIENT_SECRET,
+	);
+	const apple = oauthCredentials(env.APPLE_CLIENT_ID, env.APPLE_CLIENT_SECRET);
 	const toOrigin = (value?: string) => {
 		if (!value) return "";
 		try {
@@ -110,6 +124,7 @@ export const createAuth = (env: CloudflareBindings) => {
 				"https://stagingweb.sportsdey.com",
 				"https://sportsdey.com",
 				"https://binary.sportsdey.com",
+				"https://appleid.apple.com",
 				"sportsdey-mobile://",
 				"exp://**",
 				"https://admin.sportsdey.com",
@@ -128,16 +143,18 @@ export const createAuth = (env: CloudflareBindings) => {
 	return betterAuth({
 		basePath: "/auth",
 		database: drizzleAdapter(db, { provider: "sqlite" }),
-		emailAndPassword: { enabled: true },
+		emailAndPassword: {
+			enabled: true,
+			sendResetPassword: async ({ user, url }) => {
+				console.info(
+					`[auth] Password reset requested for ${user.email}: ${url}`,
+				);
+			},
+		},
 		socialProviders: {
-			google: {
-				clientId: env.GOOGLE_CLIENT_ID || "",
-				clientSecret: env.GOOGLE_CLIENT_SECRET || "",
-			},
-			facebook: {
-				clientId: env.FACEBOOK_CLIENT_ID || "",
-				clientSecret: env.FACEBOOK_CLIENT_SECRET || "",
-			},
+			...(google ? { google } : {}),
+			...(facebook ? { facebook } : {}),
+			...(apple ? { apple } : {}),
 		},
 		plugins: [expo(), openAPI(), bearer()],
 		user: {
@@ -153,6 +170,11 @@ export const createAuth = (env: CloudflareBindings) => {
 					type: "string",
 					required: false,
 					fieldName: "mobile_number",
+					returned: true,
+				},
+				dob: {
+					type: "string",
+					required: false,
 					returned: true,
 				},
 				verificationStatus: {
@@ -188,13 +210,25 @@ export const createAuth = (env: CloudflareBindings) => {
 		},
 		hooks: {
 			after: createAuthMiddleware(async (ctx) => {
-				const userId = ctx.context.newSession?.user?.id;
-				const ipAddress = ctx.context.newSession?.session?.ipAddress;
+				const newSession = ctx.context.newSession;
+				const userId = newSession?.user?.id;
+				const ipAddress = newSession?.session?.ipAddress;
 				if (userId && ipAddress) {
 					await db
 						.update(schema.user)
 						.set({ lastLoginIp: ipAddress })
 						.where(eq(schema.user.id, userId));
+				}
+				if (userId) {
+					const username =
+						newSession?.user?.name ||
+						newSession?.user?.email ||
+						userId;
+					await syncBonusEnginePlayerOnAppLogin({
+						env,
+						userId,
+						username,
+					});
 				}
 			}),
 		},

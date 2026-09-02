@@ -34,7 +34,7 @@ const GAMES: SeedGame[] = [
 		categories: ["table-card-games", "classic"],
 	},
 	{ name: "Slots", code: "slots", categories: ["slots"] },
-	{ name: "Plinko", code: "plinko", categories: ["classic", "crash-games"] },
+	{ name: "Plinko", code: "plinko", categories: ["arcade"] },
 	{ name: "Xcape", code: "XCAPEHB", categories: ["popular", "slots"] },
 	{ name: "Eagle", code: "EAGLEHB", categories: ["popular", "crash-games"] },
 	{ name: "Lucky Rise", code: "LUCKYRISEHB", categories: ["popular", "slots"] },

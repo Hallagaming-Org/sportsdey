@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import affnookRoute from "./affnook";
 import basketballRoute from "./basketball";
+import bonusRoute from "./bonus";
 import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
 import bonusEngineReferenceDataRoute from "./bonus-engine-reference-data";
 import casinoRoute from "./casino";
@@ -28,9 +29,12 @@ import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
 import webengageSmsRoute from "./webengage-sms";
+import webengageEventsRoute from "./webengage-events";
 import africastalkingDlrRoute from "./africastalking-dlr";
 import betHistoryRoute from "./bet-history";
 import opayRoute from "./opay";
+import kudaRoute from "./kuda";
+import palmpayRoute from "./palmpay";
 
 const routes = new OpenAPIHono();
 
@@ -45,6 +49,7 @@ routes.route("/tennis", tennisRoute);
 routes.route("/news", newsRoute);
 routes.route("/notifications", notificationsRoute);
 routes.route("/webhooks/webengage", webengageSmsRoute);
+routes.route("/webengage", webengageEventsRoute);
 routes.route("/webhooks/africastalking", africastalkingDlrRoute);
 routes.route("/phone-auth", phoneAuthRoute);
 routes.route("/wallet", walletRoute);
@@ -66,8 +71,11 @@ routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
 routes.route("/bet-history", betHistoryRoute);
 routes.route("/opay", opayRoute);
+routes.route("/kuda", kudaRoute);
+routes.route("/palmpay", palmpayRoute);
 routes.route("/loyalty", loyaltyRoute);
 routes.route("/mission", missionRoute);
+routes.route("/bonus", bonusRoute);
 routes.route(
 	"/bem/api/BonusEngine/bonus-engine",
 	bonusEngineReferenceDataRoute,

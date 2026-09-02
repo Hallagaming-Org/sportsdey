@@ -1,31 +1,33 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Navigate,
 	Outlet,
 	useLocation,
 } from "@tanstack/react-router";
-import { Check, Copy, Loader2, X } from "lucide-react";
-import { type FormEvent, lazy, Suspense, useEffect, useState } from "react";
+import { Check, Copy, Loader2 } from "lucide-react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BillPaymentModal } from "@/components/bill-payment-modal";
+import {
+	DepositModal,
+	type DepositProvider,
+	type KudaDepositInstructions,
+} from "@/components/deposit-modal";
 import { TransferModal } from "@/components/transfer-modal";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WalletRecentTransactions } from "@/components/wallet-recent-transactions";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { OpenfortWalletScope } from "@/lib/openfort/scope";
 import { formatAmount } from "@/lib/utils";
-import { trackWebengageEvent } from "@/lib/webengage";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
-import AeroplaneIcon from "@/logos/aeroplane.svg?react";
+import { trackWebengageEvent } from "@/lib/webengage";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
-import { DepositModal } from "@/components/deposit-modal";
-import { OpenfortWalletScope } from "@/lib/openfort/scope";
 
 const OpenfortCryptoWallet = lazy(() =>
 	import("@/components/openfort-crypto-wallet").then((mod) => ({
@@ -36,8 +38,10 @@ const OpenfortCryptoWallet = lazy(() =>
 export const Route = createFileRoute("/wallet")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { openDeposit?: boolean } => ({
+	): { openDeposit?: boolean; deposit?: string; reference?: string } => ({
 		openDeposit: search.openDeposit ? Boolean(search.openDeposit) : undefined,
+		deposit: typeof search.deposit === "string" ? search.deposit : undefined,
+		reference: typeof search.reference === "string" ? search.reference : undefined,
 	}),
 	component: WalletPage,
 });
@@ -54,6 +58,16 @@ type FundWalletResponse = {
 	reference: string;
 };
 
+type OpayDepositResponse = {
+	cashierUrl: string;
+	reference: string;
+};
+
+type KudaDepositResponse = {
+	success: true;
+	data: KudaDepositInstructions;
+};
+
 const MIN_DEPOSIT_AMOUNT = 100;
 const MAX_DEPOSIT_AMOUNT = 9_999_999;
 
@@ -64,9 +78,10 @@ function WalletPage() {
 	const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 	const [depositAmount, setDepositAmount] = useState("");
 	const [depositError, setDepositError] = useState("");
+	const [kudaDepositInstructions, setKudaDepositInstructions] =
+		useState<KudaDepositInstructions | null>(null);
 	const [shouldRedirectToSignIn, setShouldRedirectToSignIn] = useState(false);
 	const [isBillPaymentOpen, setIsBillPaymentOpen] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<"withdraw" | null>(null);
 	const [walletIdCopied, setWalletIdCopied] = useState(false);
 	const [billPaymentCategory, setBillPaymentCategory] = useState<{
 		code: string;
@@ -74,6 +89,7 @@ function WalletPage() {
 	} | null>(null);
 	const location = useLocation();
 	const search = Route.useSearch();
+	const queryClient = useQueryClient();
 	const isWalletRoot = location.pathname === "/wallet";
 	useEffect(() => {
 		if (search.openDeposit) {
@@ -104,15 +120,44 @@ function WalletPage() {
 			refetchOnMount: "always",
 			refetchOnWindowFocus: true,
 		});
+	const { data: opayStatus } = useQuery({
+		queryKey: ["opay-deposit-status", search.reference],
+		queryFn: () => apiRequest<{ success: true; data: { status: string } }>(`opay/status/${encodeURIComponent(search.reference ?? "")}`, { credentials: "include" }),
+		enabled: !!session?.user && search.deposit === "processing" && !!search.reference?.startsWith("opay_"),
+		refetchInterval: (query) => {
+			const status = query.state.data?.data.status;
+			return status === "success" || status === "failed" ? false : 3_000;
+		},
+	});
+	useEffect(() => {
+		if (opayStatus?.data.status === "success" || opayStatus?.data.status === "failed") {
+			void queryClient.invalidateQueries({ queryKey: ["wallet"] });
+			void queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
+		}
+	}, [opayStatus?.data.status, queryClient]);
 	const depositMutation = useMutation({
-		mutationFn: (amount: number) =>
-			apiRequest<FundWalletResponse>("wallet/fund", {
-				method: "POST",
-				credentials: "include",
-				body: JSON.stringify({ amount }),
-			}),
+		mutationFn: ({ amount, provider }: { amount: number; provider: DepositProvider }) =>
+			apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse>(
+				provider === "opay"
+					? "opay/initiate"
+					: provider === "kuda"
+						? "kuda/deposit/initiate"
+						: provider === "palmpay"
+							? "palmpay/initiate"
+						: "wallet/fund",
+				{
+					method: "POST",
+					credentials: "include",
+					body: JSON.stringify({ amount }),
+				},
+			),
 		onSuccess: (data) => {
-			window.location.href = data.authorizationUrl;
+			if ("data" in data) {
+				setKudaDepositInstructions(data.data);
+				setDepositError("");
+				return;
+			}
+			window.location.href = "authorizationUrl" in data ? data.authorizationUrl : data.cashierUrl;
 			setIsDepositModalOpen(false);
 			setDepositAmount("");
 			setDepositError("");
@@ -154,8 +199,7 @@ function WalletPage() {
 		return "";
 	};
 
-	const handleDepositSubmit = (event: FormEvent<HTMLFormElement>) => {
-		event.preventDefault();
+	const handleDepositSubmit = (provider: DepositProvider) => {
 		const amount = Number(depositAmount);
 		const error = validateDepositAmount(amount);
 		if (error) {
@@ -164,7 +208,12 @@ function WalletPage() {
 		}
 
 		setDepositError("");
-		depositMutation.mutate(amount);
+		setKudaDepositInstructions(null);
+		trackWebengageEvent("deposit_initiated", {
+			amount,
+			currency: "NGN",
+		});
+		depositMutation.mutate({ amount, provider });
 	};
 
 	return (
@@ -246,7 +295,10 @@ function WalletPage() {
 								<div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
 									<button
 										type="button"
-										onClick={() => setIsDepositModalOpen(true)}
+										onClick={() => {
+											setKudaDepositInstructions(null);
+											setIsDepositModalOpen(true);
+										}}
 										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Deposit
@@ -262,7 +314,7 @@ function WalletPage() {
 									</button>
 									<button
 										type="button"
-										onClick={() => setBlockedModal("withdraw")}
+										onClick={() => setIsWithdrawModalOpen(true)}
 										className="w-full cursor-pointer rounded-xl border border-[#1B2722] bg-[#04100B] px-4 py-3 font-medium text-sm text-white transition-colors hover:border-[#2A3A34] hover:bg-[#0A1A14]"
 									>
 										Withdraw
@@ -342,12 +394,14 @@ function WalletPage() {
 				onClose={() => {
 					setIsDepositModalOpen(false);
 					setDepositError("");
+					setKudaDepositInstructions(null);
 				}}
 				amount={depositAmount}
 				onAmountChange={setDepositAmount}
-				onSubmit={()=>handleDepositSubmit}
+				onSubmit={handleDepositSubmit}
 				isPending={depositMutation.isPending}
 				error={depositError}
+				kudaDepositInstructions={kudaDepositInstructions}
 				walletBalance={walletData?.balance ?? undefined}
 			/>
 
@@ -363,40 +417,6 @@ function WalletPage() {
 				onUnauthorized={() => setShouldRedirectToSignIn(true)}
 				walletBalance={walletData?.balance ?? 0}
 			/>
-			{blockedModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
-						<div className="flex items-center justify-between">
-							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								Withdraw
-							</h2>
-							<button
-								type="button"
-								onClick={() => setBlockedModal(null)}
-								aria-label="Close"
-								className="cursor-pointer rounded-md px-2 py-1 text-primary text-sm dark:text-white"
-							>
-								<X className="h-4 w-4" />
-							</button>
-						</div>
-						<div className="mt-6 flex justify-center">
-							<AeroplaneIcon className="animate-plane-fly-in h-20 w-20 text-white" />
-						</div>
-						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
-							Pilot mode boss.
-							<br />
-							Withdrawals are currently blocked
-						</p>
-						<button
-							type="button"
-							onClick={() => setBlockedModal(null)}
-							className="mt-6 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white"
-						>
-							Close
-						</button>
-					</div>
-				</div>
-			)}
 			{billPaymentCategory && (
 				<BillPaymentModal
 					isOpen={isBillPaymentOpen}
