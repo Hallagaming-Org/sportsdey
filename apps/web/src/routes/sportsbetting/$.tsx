@@ -16,6 +16,16 @@ import {
 } from "@/lib/sportsbook";
 
 export const Route = createFileRoute("/sportsbetting/$")({
+	validateSearch: (search: Record<string, unknown>) => ({
+		sportTypeSlug:
+			typeof search.sportTypeSlug === "string"
+				? search.sportTypeSlug
+				: undefined,
+		sportEventStatusSlug:
+			typeof search.sportEventStatusSlug === "string"
+				? search.sportEventStatusSlug
+				: undefined,
+	}),
 	component: SportsbookPage,
 });
 
