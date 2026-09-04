@@ -198,6 +198,24 @@ describe("scorpio seamless wallet smoke (in-memory, no live money)", () => {
 		assert.equal(missing.statusCode, "ERR_INVALID_PLAYER_ID");
 	});
 
+	it("resolves balance via wallet userId when user row is absent", async () => {
+		const { sqlite, db } = createSmokeDb();
+		const orphanId = "orphan-wallet-user-id";
+		sqlite
+			.prepare(
+				`INSERT INTO wallet (id, user_id, balance, frozen_balance, created_at, updated_at)
+				 VALUES (?, ?, ?, 0, 0, 0)`,
+			)
+			.run("wallet-orphan", orphanId, 5_000);
+
+		const result = await runCallback(db, {
+			command: "balance",
+			playerId: orphanId,
+			currency: "NGN",
+		});
+		assert.deepEqual(result, { balance: 50, statusCode: "OK" });
+	});
+
 	it("debits a bet, credits a win, and is idempotent on replay", async () => {
 		const { db } = createSmokeDb();
 

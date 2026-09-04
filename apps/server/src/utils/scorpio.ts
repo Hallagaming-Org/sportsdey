@@ -2,7 +2,12 @@ import { fetchWithTimeout, isTimeoutError } from "@/utils/fetch-with-timeout";
 import {
 	assertScorpioSettings,
 	loadScorpioSettings,
+	normalizeScorpioCallbackUrl,
+	type ScorpioSettings,
 } from "@/utils/scorpio-config";
+
+/** Per-isolate cache so we do not hit operator/info on every launch. */
+let syncedCallbackUrl: string | null = null;
 
 export const SCORPIO_ERROR_CODES = [
 	"UNDER_MAINTENANCE",
@@ -256,6 +261,54 @@ export function updateOperator(
 		"/v1/operator/update",
 		{ body },
 	);
+}
+
+/**
+ * Keep Scorpio operator callbackURL aligned with SCORPIO_CALLBACK_URL.
+ * A wrong/staging URL makes balance callbacks hit the wrong D1 → ERR_INVALID_PLAYER_ID
+ * and Amusnet "connection lost" after a successful launch.
+ *
+ * Staging and production share one Scorpio operator — only sync intentionally
+ * (see `cli/sync-scorpio-callback.ts`), not on every launch.
+ */
+export async function ensureScorpioOperatorCallback(
+	env: {
+		SCORPIO_API_URL?: string;
+		SCORPIO_BASE_URL?: string;
+		SCORPIO_API_TOKEN?: string;
+		SCORPIO_CALLBACK_URL?: string;
+		SCORPIO_SERVER_IP?: string;
+		SCORPIO_ALLOWED_IPS?: string;
+	},
+	options: { force?: boolean } = {},
+): Promise<{ synced: boolean; from?: string; to?: string }> {
+	const settings: ScorpioSettings = loadScorpioSettings(env);
+	if (!settings.callbackUrl) {
+		return { synced: false };
+	}
+	const desired = normalizeScorpioCallbackUrl(settings.callbackUrl);
+	if (!options.force && syncedCallbackUrl === desired) {
+		return { synced: false };
+	}
+
+	const config = getScorpioConfig(env);
+	const info = await getOperatorInfo(config);
+	const currentRaw = String(
+		info.callbackURL ?? info.callbackUrl ?? info.callback_url ?? "",
+	);
+	const current = normalizeScorpioCallbackUrl(currentRaw);
+	if (current === desired) {
+		syncedCallbackUrl = desired;
+		return { synced: false, from: current, to: desired };
+	}
+
+	await updateOperator(config, { callbackURL: desired });
+	syncedCallbackUrl = desired;
+	console.log("scorpio operator callbackURL synced", {
+		from: current || currentRaw || null,
+		to: desired,
+	});
+	return { synced: true, from: current || currentRaw, to: desired };
 }
 
 /** Player */

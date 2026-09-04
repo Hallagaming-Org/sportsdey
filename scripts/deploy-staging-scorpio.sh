@@ -71,4 +71,7 @@ do
   echo "  $code  $url"
 done
 
+echo "Note: Scorpio operator has a single callbackURL shared by staging+prod."
+echo "  Keep it on prod unless intentionally testing staging seamless wallet:"
+echo "  pnpm exec tsx src/cli/sync-scorpio-callback.ts production"
 echo "Done. Open https://stagingweb.sportsdey.com/games"
