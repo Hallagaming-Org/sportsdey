@@ -200,7 +200,7 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			createdAt: new Date(),
 		});
 
-		trackWebengageEvent(
+		await trackWebengageEvent(
 			c.env,
 			{
 				userId: user.id,

@@ -74,7 +74,7 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 			updatedAt: new Date(),
 		}).where(eq(schema.kudaTransactions.reference, reference));
 
-		trackWebengageEvent(
+		await trackWebengageEvent(
 			c.env,
 			{
 				userId: user.id,

@@ -335,7 +335,11 @@ function TicketDetailsPage() {
 	const handleOpenSportsbookCashOut = () => {
 		navigate({
 			to: "/sportsbetting/$",
-			params: { _splat: "my-bets" },
+			params: { _splat: "bethistory" },
+			search: {
+				sportTypeSlug: "all",
+				sportEventStatusSlug: "prematch",
+			},
 		});
 	};
 

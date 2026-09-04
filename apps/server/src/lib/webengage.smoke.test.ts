@@ -318,6 +318,7 @@ describe("WebEngage audit smoke", () => {
 		assert.equal(transferModal.includes("transfer_funds_completed"), false);
 		assert.ok(wallet.includes('eventName: "transfer_funds_initiated"'));
 		assert.ok(wallet.includes('eventName: "transfer_funds_completed"'));
+		assert.ok(wallet.includes('await trackWebengageEvent('));
 		assert.ok(wallet.includes('eventName: "deposit_initiated"'));
 		assert.ok(wallet.includes("account_number: accountNumber"));
 		assert.ok(withdrawals.includes("account_number: accountNumber"));
@@ -334,7 +335,17 @@ describe("WebEngage audit smoke", () => {
 		);
 		assert.ok(
 			readRepo("apps/server/src/routes/opay.ts").includes(
+				'await trackWebengageEvent(',
+			),
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/opay.ts").includes(
 				'eventName: "deposit_initiated"',
+			),
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/kuda.ts").includes(
+				'await trackWebengageEvent(',
 			),
 		);
 		assert.ok(
@@ -344,6 +355,16 @@ describe("WebEngage audit smoke", () => {
 		);
 		assert.ok(
 			readRepo("apps/server/src/routes/kuda.ts").includes(
+				'eventName: "deposit_completed"',
+			),
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/palmpay.ts").includes(
+				'eventName: "deposit_initiated"',
+			),
+		);
+		assert.ok(
+			readRepo("apps/server/src/routes/palmpay.ts").includes(
 				'eventName: "deposit_completed"',
 			),
 		);
