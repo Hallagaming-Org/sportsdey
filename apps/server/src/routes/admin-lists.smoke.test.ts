@@ -1,8 +1,10 @@
+
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { describe, it } from "node:test";
 import adminRoute from "./admin";
 import adminTicketsRoute from "./admin-tickets";
+import userRoute from "./user";
 
 const ADMIN_TOKEN = "admin-list-smoke-token";
 const USER_ID = "admin-list-smoke-user";
@@ -316,6 +318,71 @@ async function adminGet(
 }
 
 describe("admin paginated lists smoke (in-memory, real handlers)", () => {
+	it("shows every user wallet movement with its debit amount, purpose, and balance", async () => {
+		const { env, sqlite } = createListEnv();
+		sqlite
+			.prepare(
+				`INSERT INTO wallet_transaction
+				 (id, user_id, amount, type, reference, status, payment_method, balance, metadata, created_at)
+				 VALUES (?, ?, 2500, 'debit', 'manual-debit', 'success', 'manual', 2500, ?, ?)`,
+			)
+			.run(
+				"manual-debit",
+				USER_ID,
+				JSON.stringify({
+					reason: "Duplicate deposit correction",
+					processedBy: "admin-id-not-exposed-in-purpose",
+				}),
+				NOW + 1,
+			);
+
+		const response = await adminGet(
+			userRoute,
+			`/${USER_ID}/wallet/transactions?page=1&limit=50`,
+			env,
+		);
+		const body = (await response.json()) as {
+			success: boolean;
+			data: {
+				transactions: Array<{
+					id: string;
+					direction: string;
+					amount: number;
+					walletEffect: number;
+					balanceAfter: number | null;
+					purpose: string;
+					paymentMethod: string;
+				}>;
+				total: number;
+			};
+		};
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data.total, 27);
+
+		const sportsbookDebit = body.data.transactions.find(
+			(transaction) => transaction.id === "wtx-sportsbook",
+		);
+		assert.equal(sportsbookDebit?.id, "wtx-sportsbook");
+		assert.equal(sportsbookDebit?.direction, "debit");
+		assert.equal(sportsbookDebit?.amount, 5);
+		assert.equal(sportsbookDebit?.walletEffect, -5);
+		assert.equal(sportsbookDebit?.balanceAfter, 5);
+		assert.equal(sportsbookDebit?.purpose, "Sportsbook wallet debit");
+		assert.equal(sportsbookDebit?.paymentMethod, "sportsbook");
+
+		const manualDebit = body.data.transactions.find(
+			(transaction) => transaction.id === "manual-debit",
+		);
+		assert.equal(manualDebit?.direction, "debit");
+		assert.equal(manualDebit?.amount, 25);
+		assert.equal(
+			manualDebit?.purpose,
+			"Manual debit: Duplicate deposit correction",
+		);
+	});
+
 	it("pages wallet transactions without loading excluded sportsbook rows", async () => {
 		const { env } = createListEnv();
 
@@ -328,7 +395,12 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 			success: boolean;
 			data: {
 				transactions: Array<{ payment_method: string }>;
-				pagination: { page: number; limit: number; total: number; totalPages: number };
+				pagination: {
+					page: number;
+					limit: number;
+					total: number;
+					totalPages: number;
+				};
 			};
 		};
 		assert.equal(page1.status, 200, JSON.stringify(page1Body));
@@ -337,7 +409,9 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 		assert.equal(page1Body.data.pagination.total, 25);
 		assert.equal(page1Body.data.pagination.totalPages, 3);
 		assert.equal(
-			page1Body.data.transactions.some((tx) => tx.payment_method === "sportsbook"),
+			page1Body.data.transactions.some(
+				(tx) => tx.payment_method === "sportsbook",
+			),
 			false,
 		);
 
@@ -383,7 +457,12 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 			success: boolean;
 			data: {
 				tickets: unknown[];
-				pagination: { page: number; limit: number; total: number; totalPages: number };
+				pagination: {
+					page: number;
+					limit: number;
+					total: number;
+					totalPages: number;
+				};
 			};
 		};
 		assert.equal(page1.status, 200, JSON.stringify(page1Body));
