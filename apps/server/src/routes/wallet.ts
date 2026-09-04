@@ -658,8 +658,9 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		);
 	}
 
-	// Server-side initiated so WE receives it before deposit_completed (webhook).
-	trackWebengageEvent(
+	// Await so WE records initiated before this request ends (and before
+	// deposit_completed from the later Paystack webhook).
+	await trackWebengageEvent(
 		c.env,
 		{
 			userId: user.id,
