@@ -1,4 +1,3 @@
-
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { describe, it } from "node:test";
@@ -482,6 +481,82 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 		assert.equal(allBody.data.tickets.length, 15);
 		assert.equal(allBody.data.pagination.page, 1);
 		assert.equal(allBody.data.pagination.total, 15);
+	});
+
+	it("returns a display bet type and the real sportsbook selection count", async () => {
+		const { env, sqlite } = createListEnv();
+		sqlite
+			.prepare(
+				`UPDATE sportsbook_bet
+				 SET bet_type = ?, bet_data = ?
+				 WHERE id = ?`,
+			)
+			.run(
+				2,
+				JSON.stringify({
+					bet_odds: [
+						{
+							match_id: "event-one",
+							market_id: "20",
+							odd_id: "1",
+							odd_ratio: "1.50",
+						},
+						{
+							match_id: "event-two",
+							market_id: "201",
+							odd_id: "2",
+							odd_ratio: "2.00",
+						},
+					],
+				}),
+				"bet-0",
+			);
+
+		const response = await adminGet(adminTicketsRoute, "/tickets/bet-0", env);
+		const body = (await response.json()) as {
+			success: boolean;
+			data: {
+				betType: string;
+				betTypeCode: number | null;
+				selectionCount: number;
+				selection: number;
+				selections: Array<{ market: string | null; pick: string | null }>;
+			};
+		};
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data.betType, "Multiple");
+		assert.equal(body.data.betTypeCode, 2);
+		assert.equal(body.data.selectionCount, 2);
+		assert.equal(body.data.selection, 2);
+		assert.equal(body.data.selections.length, 2);
+		const firstSelection = body.data.selections.at(0);
+		assert.equal(firstSelection != null && "market" in firstSelection, true);
+		assert.equal(firstSelection != null && "pick" in firstSelection, true);
+	});
+
+	it("accepts an encoded sportsbook ticket ID that contains a slash", async () => {
+		const { env, sqlite } = createListEnv();
+		const ticketId = "dWk/75ecRHmF5hYEMVZ2FGqdhUUH0JEAACm7TwJL";
+		sqlite
+			.prepare(
+				`INSERT INTO sportsbook_bet
+				 (id, user_id, stake, status, created_at, updated_at)
+				 VALUES (?, ?, 1000, 'accepted', ?, ?)`,
+			)
+			.run(ticketId, USER_ID, NOW, NOW);
+
+		const response = await adminGet(
+			adminTicketsRoute,
+			`/tickets/${encodeURIComponent(ticketId)}`,
+			env,
+		);
+		const body = (await response.json()) as { success: boolean; data?: { id: string } };
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data?.id, ticketId);
 	});
 
 	it("type=all still queries casino tables without failing", async () => {
