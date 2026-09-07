@@ -30,18 +30,39 @@ export function normalizeNigerianPhone(raw: string): string | null {
 /** Formats that may already exist on a user row from older writes or account edits. */
 export function phoneNumberLookupValues(e164Phone: string): string[] {
 	const digits = e164Phone.replace(/\D/g, "");
-	const local =
+	const national =
 		digits.startsWith("234") && digits.length === 13
-			? `0${digits.slice(3)}`
-			: null;
+			? digits.slice(3)
+			: digits.length === 10
+				? digits
+				: null;
+	const local = national ? `0${national}` : null;
 	return Array.from(
 		new Set(
 			[
 				e164Phone,
 				digits,
+				national,
 				local,
 				digits.startsWith("234") ? `+${digits}` : null,
 			].filter((value): value is string => Boolean(value)),
+		),
+	);
+}
+
+/**
+ * Placeholder emails historically used either E.164 digits (`234…`) or local
+ * (`080…` / `80…`). Signup duplicate checks must try all of them.
+ */
+export function phonePlaceholderEmailLookupValues(e164Phone: string): string[] {
+	const variants = phoneNumberLookupValues(e164Phone).map((value) =>
+		value.replace(/\D/g, ""),
+	);
+	return Array.from(
+		new Set(
+			variants
+				.filter((digits) => digits.length >= 10)
+				.map((digits) => `phone_${digits}@sportsdey.local`),
 		),
 	);
 }

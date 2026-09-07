@@ -91,6 +91,7 @@ export type PhoneOtpUser = {
 	name: string;
 	email: string;
 	mobileNumber: string | null;
+	createdAt?: string;
 };
 
 export type PhoneAuthSuccess = {

@@ -14,7 +14,7 @@ export function isDefaultPhoneUserName(name: string): boolean {
 /**
  * Phone OTP users who still need onboarding.
  * Prefer the server `needsProfileCompletion` flag when present.
- * A real display name means returning users skip complete-profile.
+ * Only first-time signup should force complete-profile — not returning logins.
  */
 export function needsPhoneProfileCompletion(user: {
 	name?: string | null;
@@ -26,14 +26,6 @@ export function needsPhoneProfileCompletion(user: {
 		return user.needsProfileCompletion;
 	}
 
-	const name = user.name?.trim() ?? "";
-	if (name.length > 1 && !isDefaultPhoneUserName(name)) {
-		return false;
-	}
-
-	return (
-		Boolean(user.isFirstTimeSignIn) ||
-		name.length <= 1 ||
-		isDefaultPhoneUserName(name)
-	);
+	// Fallback when older API responses omit the flag: only first-time signup.
+	return Boolean(user.isFirstTimeSignIn);
 }

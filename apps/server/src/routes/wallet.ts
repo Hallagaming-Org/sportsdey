@@ -46,6 +46,7 @@ import {
 	verifyAccountNumber,
 	verifyTransaction,
 } from "@/utils/paystack";
+import { isPhonePlaceholderEmail } from "@/utils/phone-user";
 import {
 	getClientIp,
 	getDeviceInfo,
@@ -57,6 +58,18 @@ import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+/** Paystack rejects `.local` placeholder emails used by phone OTP accounts. */
+function paystackCustomerEmail(user: {
+	email: string;
+	mobileNumber?: string | null;
+}): string {
+	if (!isPhonePlaceholderEmail(user.email)) {
+		return user.email;
+	}
+	const digits = (user.mobileNumber || user.email).replace(/\D/g, "");
+	return `phone_${digits || "user"}@users.sportsdey.com`;
+}
 
 const fundWalletRoute = createRoute({
 	method: "post",
@@ -677,15 +690,26 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 
 	let paystackResult: Awaited<ReturnType<typeof initializeTransaction>>;
 	try {
+		const serverUrl = c.env.SERVER_URL?.trim();
+		if (!serverUrl) {
+			throw new Error("SERVER_URL is not configured on this Worker");
+		}
+		if (!c.env.PAYSTACK_SECRET_KEY?.trim()) {
+			throw new Error("PAYSTACK_SECRET_KEY is not configured on this Worker");
+		}
+
 		paystackResult = await initializeTransaction(
 			c.env.PAYSTACK_SECRET_KEY,
 			amount,
-			user.email,
+			paystackCustomerEmail({
+				email: user.email,
+				mobileNumber: user.mobileNumber,
+			}),
 			{
 				userId: user.id,
 				type: "wallet_funding",
 			},
-			`${c.env.SERVER_URL}/wallet/callback`,
+			`${serverUrl.replace(/\/$/, "")}/wallet/callback`,
 			c.env.PROXY_URL,
 			c.env.PROXY_SECRET,
 			reference,
