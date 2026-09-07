@@ -354,17 +354,17 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				<PVPIcon className={className} height={24} width={24} />
 			),
 			isActive: isItemActive("esports", isPvpPath),
-			isActive: isItemActive(
-				"p2p",
-				location.pathname.startsWith("/games") && search.category === "pvp",
-			),
+			// isActive: isItemActive(
+			// 	"p2p",
+			// 	location.pathname.startsWith("/games") && search.category === "pvp",
+			// ),
 			subItems: [
 				{
 					id: "pvp-casino",
 					label: "PvP Games",
 					isActive: isPvpPath,
-					isActive:
-						location.pathname.startsWith("/games") && search.category === "pvp",
+					// isActive:
+					// 	location.pathname.startsWith("/games") && search.category === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({
@@ -405,16 +405,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			},
 		},
 		{
-			id: "scores",
-			label: "Scores",
-			icon: ScoresIcon,
-			isActive: isItemActive(
-				"scores",
-				location.pathname.includes("matches"),
-			),
-			onClick: goToScores,
-		},
-		{
 			id: "news",
 			label: "News",
 			icon: Newspaper,
@@ -439,26 +429,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: () => {
 				setActiveOverride("tournament");
 				window.open(TOURNAMENTS_URL, "_blank");
-			},
-		},
-		{
-			id: "prediction",
-			label: "Prediction Market",
-			icon: PredictionMarketIcon,
-			isActive: isItemActive("prediction", false),
-			onClick: launchPredictionMarket,
-		},
-		{
-			id: "trading",
-			label: "Trading",
-			icon: Trading,
-			isActive: isItemActive("trading", false),
-			onClick: () => {
-				setActiveOverride("trading");
-				window.open(
-					"https://binary.sportsdey.com/sportsdayApi/connectSportsDay",
-					"_blank",
-				);
 			},
 		},
 		{
