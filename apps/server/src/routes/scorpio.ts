@@ -341,15 +341,21 @@ mountScorpioRoute(launchRoute, async (c: ScorpioContext) => {
 
 		const playerCode = await ensureScorpioPlayer(db, config, user.id);
 
-		// Amusnet / Scorpio allow one active session per player. A second Play without
-		// ending the first returns a launch URL that then shows NO CONNECTION / 0.00.
+		// Amusnet / Scorpio allow one active session per player. Switching games
+		// without ending the previous session causes "NO CONNECTION" / technical errors.
+		let endedPriorSession = false;
 		try {
 			await kickPlayer(config, user.id);
+			endedPriorSession = true;
 		} catch (error) {
 			console.log("scorpio pre-launch kick skipped", {
 				userId: user.id,
 				error: error instanceof Error ? error.message : "unknown",
 			});
+		}
+		// Give the provider a beat to tear down GS websockets before init.
+		if (endedPriorSession) {
+			await new Promise((resolve) => setTimeout(resolve, 800));
 		}
 
 		const launched = await launchGame(config, {

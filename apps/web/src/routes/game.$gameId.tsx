@@ -95,8 +95,8 @@ function GamePage() {
 							This game could not start
 						</p>
 						<p className="max-w-md text-sm text-white/65">
-							The provider closed the session before the game loaded (common for
-							titles not fully enabled on the Slotegrator contract yet).
+							The provider closed the session before the game loaded. Use Back
+							to Games and press Play again — do not use Reload on this screen.
 						</p>
 						<button
 							type="button"

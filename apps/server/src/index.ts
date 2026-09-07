@@ -147,6 +147,7 @@ app.use(
 		},
 		allowMethods: CORS_ALLOW_METHODS,
 		allowHeaders: CORS_ALLOW_HEADERS,
+		exposeHeaders: ["set-auth-token"],
 		credentials: true,
 	}),
 );

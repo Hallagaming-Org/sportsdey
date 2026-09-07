@@ -364,6 +364,14 @@ function GamesPage() {
 					returnUrl: `${window.location.origin}/games`,
 				});
 				gameUrl = launch.url;
+				navigate({
+					to: "/game/$gameId",
+					params: { gameId: game.code },
+					search: {
+						category: selectedCategory || undefined,
+					},
+					state: { gameUrl, casinoProvider: "scorpio" } as never,
+				});
 			} else {
 				const stored = parseScorpioStoredCode(game.code);
 				if (stored) {
@@ -373,21 +381,27 @@ function GamesPage() {
 						returnUrl: `${window.location.origin}/games`,
 					});
 					gameUrl = launch.url;
+					navigate({
+						to: "/game/$gameId",
+						params: { gameId: game.code },
+						search: {
+							category: selectedCategory || undefined,
+						},
+						state: { gameUrl, casinoProvider: "scorpio" } as never,
+					});
 				} else {
 					gameUrl = await launchClassicGame(game, { mode });
 					if (!gameUrl) return;
+					navigate({
+						to: "/game/$gameId",
+						params: { gameId: game.code },
+						search: {
+							category: selectedCategory || undefined,
+						},
+						state: { gameUrl, casinoProvider: "classic" } as never,
+					});
 				}
-			}
-
-			navigate({
-				to: "/game/$gameId",
-				params: { gameId: game.code },
-				search: {
-					category: selectedCategory || undefined,
-				},
-				state: { gameUrl } as never,
-			});
-		} catch (err) {
+			}		} catch (err) {
 			const status =
 				err instanceof ApiError
 					? err.status

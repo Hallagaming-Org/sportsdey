@@ -40,7 +40,7 @@ function ForgotPasswordPage() {
 		setError("");
 		setIsLoading(true);
 		try {
-			await requestPhoneOtp(normalized);
+			await requestPhoneOtp(normalized, "reset");
 			navigate({
 				to: "/auth/otp",
 				search: {

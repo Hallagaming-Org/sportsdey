@@ -34,13 +34,22 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_REQUESTS_PER_WINDOW = 5;
 
+const PhoneAuthPurposeSchema = z
+	.enum(["signup", "login", "reset"])
+	.optional()
+	.openapi({ example: "signup" });
+
 const RequestOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
+	/** When `signup`, reject numbers that already have an account. */
+	purpose: PhoneAuthPurposeSchema,
 });
 
 const VerifyOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
 	otp: z.string().length(6).openapi({ example: "123456" }),
+	/** When `signup`, reject numbers that already have an account. */
+	purpose: PhoneAuthPurposeSchema,
 });
 
 const PhonePasswordSchema = z.object({
@@ -63,6 +72,8 @@ const VerifySuccessSchema = z.object({
 	success: z.literal(true),
 	data: z.object({
 		message: z.string(),
+		/** Raw Better Auth session token — send as `Authorization: Bearer <token>`. */
+		token: z.string(),
 		expiresAt: z.string(),
 		user: z.object({
 			id: z.string(),
@@ -84,6 +95,9 @@ const ErrorSchema = z.object({
 function normalizePhone(phone: string): string | null {
 	return normalizeNigerianPhone(phone);
 }
+
+const PHONE_ALREADY_REGISTERED_ERROR =
+	"This phone number is already registered. Please log in instead.";
 
 /**
  * Complete-profile is only for users who still have the generated `User ####` name.
@@ -290,8 +304,13 @@ async function issuePhoneSession(
 	);
 	c.header("Set-Cookie", hashCookie, { append: true });
 
+	// Parity with Better Auth `bearer` plugin (used by mobile / cross-origin clients).
+	c.header("set-auth-token", token);
+	c.header("Access-Control-Expose-Headers", "set-auth-token");
+
 	return {
 		message: "Sign-in successful.",
+		token,
 		expiresAt: expiresAt.toISOString(),
 		user: {
 			id: signedInUser.id,
@@ -319,6 +338,10 @@ const requestOtpRoute = createRoute({
 		},
 		400: {
 			description: "Bad request",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		409: {
+			description: "Phone already registered (signup)",
 			content: { "application/json": { schema: ErrorSchema } },
 		},
 		429: {
@@ -355,6 +378,10 @@ const verifyOtpRoute = createRoute({
 		},
 		401: {
 			description: "Invalid OTP",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		409: {
+			description: "Phone already registered (signup)",
 			content: { "application/json": { schema: ErrorSchema } },
 		},
 		429: {
@@ -417,7 +444,7 @@ const setPasswordRoute = createRoute({
 });
 
 phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber } = c.req.valid("json");
+	const { phoneNumber: rawPhoneNumber, purpose } = c.req.valid("json");
 	const phoneNumber = normalizePhone(rawPhoneNumber);
 	if (!phoneNumber) {
 		return c.json(
@@ -437,6 +464,20 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+
+	if (purpose === "signup") {
+		const existing = await findUserByPhone(db, phoneNumber);
+		if (existing) {
+			return c.json(
+				{
+					success: false as const,
+					error: PHONE_ALREADY_REGISTERED_ERROR,
+				},
+				409,
+			);
+		}
+	}
+
 	const identifier = `phone_login:${phoneNumber}`;
 	const now = new Date();
 
@@ -537,7 +578,7 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 });
 
 phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber, otp } = c.req.valid("json");
+	const { phoneNumber: rawPhoneNumber, otp, purpose } = c.req.valid("json");
 	const phoneNumber = normalizePhone(rawPhoneNumber);
 	if (!phoneNumber) {
 		return c.json(
@@ -550,6 +591,20 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+
+	if (purpose === "signup") {
+		const existing = await findUserByPhone(db, phoneNumber);
+		if (existing) {
+			return c.json(
+				{
+					success: false as const,
+					error: PHONE_ALREADY_REGISTERED_ERROR,
+				},
+				409,
+			);
+		}
+	}
+
 	const identifier = `phone_login:${phoneNumber}`;
 
 	const [otpRecord] = await db
@@ -808,19 +863,44 @@ phoneAuthRoute.openapi(loginRoute, async (c) => {
 
 phoneAuthRoute.openapi(setPasswordRoute, async (c) => {
 	const auth = createAuth(c.env);
-	const sessionResult = await auth.api.getSession({
-		headers: c.req.raw.headers,
-	});
-	if (!sessionResult?.user?.id) {
+	const db = drizzle(c.env.DB, { schema });
+
+	let userId = (
+		await auth.api.getSession({
+			headers: c.req.raw.headers,
+		})
+	)?.user?.id;
+
+	// Phone clients may send the raw session token as Bearer when cookies do not stick.
+	if (!userId) {
+		const authHeader = c.req.header("authorization") || "";
+		if (authHeader.toLowerCase().startsWith("bearer ")) {
+			const rawToken = authHeader.slice(7).trim().split(".")[0];
+			if (rawToken) {
+				const [row] = await db
+					.select({ userId: schema.session.userId })
+					.from(schema.session)
+					.where(
+						and(
+							eq(schema.session.token, rawToken),
+							gt(schema.session.expiresAt, new Date()),
+						),
+					)
+					.limit(1);
+				userId = row?.userId;
+			}
+		}
+	}
+
+	if (!userId) {
 		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 	}
 
 	const { password } = c.req.valid("json");
-	const db = drizzle(c.env.DB, { schema });
 	const [user] = await db
 		.select()
 		.from(schema.user)
-		.where(eq(schema.user.id, sessionResult.user.id))
+		.where(eq(schema.user.id, userId))
 		.limit(1);
 
 	if (!user) {
