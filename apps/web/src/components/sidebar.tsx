@@ -568,7 +568,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 											!isLast &&
 											!hasOpenGroup &&
 											"border-b border-gray-300 dark:border-[#2F3033]",
-											"border-gray-300 border-b dark:border-[#2F3033]",
 										!isMobile &&
 											item.isActive &&
 											!item.subItems &&
@@ -577,7 +576,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 											item.isActive &&
 											item.subItems &&
 											"text-accent",
-											"bg-accent text-white shadow-accent/15 shadow-md",
 										!isMobile &&
 											!item.isActive &&
 											"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
@@ -604,10 +602,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 												isMobile &&
 													item.isActive &&
 													"text-accent fill-accent stroke-accent opacity-100",
-													"fill-white stroke-white text-white opacity-100 [filter:brightness(0)_invert(1)]",
-												isMobile &&
-													item.isActive &&
-													"fill-accent stroke-accent text-accent opacity-100",
 												isMobile &&
 													!item.isActive &&
 													"text-gray-500 dark:text-[#8C8F8F]",
