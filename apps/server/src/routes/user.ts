@@ -2340,7 +2340,12 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const reference = manualReferenceFromKey(body.idempotencyKey);
 
 	const [existingUser] = await db
-		.select({ id: schema.user.id })
+		.select({
+			id: schema.user.id,
+			name: schema.user.name,
+			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
+		})
 		.from(schema.user)
 		.where(eq(schema.user.id, userId))
 		.limit(1);
@@ -2495,7 +2500,6 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 		})
 		.where(eq(schema.walletTransaction.id, txnId));
 
-	// Money already moved under a unique reference; never flip this into a 500.
 	try {
 		await recordActivityForSession(
 			c.env,
@@ -2503,6 +2507,22 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 			body.type === "credit"
 				? adminActivityActions.manualCredit
 				: adminActivityActions.manualDebit,
+			{
+				targetUser: {
+					id: existingUser.id,
+					name: existingUser.name,
+					email: existingUser.email,
+					username: existingUser.mobileNumber,
+				},
+				details: {
+					transactionType: body.type,
+					amount: body.amount,
+					currency: "NGN",
+					reason: body.reason,
+					transactionId: txnId,
+					balanceAfter: committedBalance / 100,
+				},
+			},
 		);
 	} catch (error) {
 		console.error("Failed to record admin activity after manual wallet txn", {

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { describe, it } from "node:test";
 import adminRoute from "./admin";
+import adminActivityRoute from "./admin-activity";
 import adminTicketsRoute from "./admin-tickets";
 import userRoute from "./user";
+import { recordActivityForSession } from "@/utils/admin-activity-log";
 
 const ADMIN_TOKEN = "admin-list-smoke-token";
 const USER_ID = "admin-list-smoke-user";
@@ -116,6 +118,20 @@ function createListEnv() {
 			device_name text,
 			browser text,
 			admin_id text NOT NULL
+		);
+		CREATE TABLE admin_activity_log (
+			id text PRIMARY KEY NOT NULL,
+			admin_id text NOT NULL,
+			admin_name text NOT NULL,
+			admin_email text NOT NULL,
+			admin_role text NOT NULL,
+			action text NOT NULL,
+			target_user_id text,
+			target_user_name text,
+			target_user_email text,
+			target_user_username text,
+			details text,
+			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE wallet_transaction (
 			id text PRIMARY KEY NOT NULL,
@@ -305,7 +321,10 @@ function createListEnv() {
 }
 
 async function adminGet(
-	route: typeof adminRoute | typeof adminTicketsRoute,
+	route:
+		| typeof adminRoute
+		| typeof adminActivityRoute
+		| typeof adminTicketsRoute,
 	path: string,
 	env: { DB: D1Database },
 ) {
@@ -317,6 +336,55 @@ async function adminGet(
 }
 
 describe("admin paginated lists smoke (in-memory, real handlers)", () => {
+	it("records the admin actor and target user for a manual wallet adjustment", async () => {
+		const { env } = createListEnv();
+		await recordActivityForSession(
+			env,
+			"admin-list-smoke",
+			"Manually debited user wallet",
+			{
+				targetUser: {
+					id: USER_ID,
+					name: "List Smoke",
+					email: "list-smoke@example.com",
+					username: "+2348000000000",
+				},
+				details: {
+					transactionType: "debit",
+					amount: 250,
+					currency: "NGN",
+					reason: "Manual correction",
+					transactionId: "manual-txn-1",
+					balanceAfter: 750,
+				},
+			},
+		);
+
+		const response = await adminGet(adminActivityRoute, "/activity", env);
+		const body = (await response.json()) as {
+			success: boolean;
+			data: {
+				activities: Array<{
+					userId: string;
+					fullName: string;
+					status: string;
+					targetUser: { id: string; email: string | null } | null;
+					details: { amount?: number; transactionType?: string } | null;
+				}>;
+			};
+		};
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		const [activity] = body.data.activities;
+		assert.equal(activity?.userId, "admin-list-smoke");
+		assert.equal(activity?.fullName, "Admin");
+		assert.equal(activity?.status, "online");
+		assert.equal(activity?.targetUser?.id, USER_ID);
+		assert.equal(activity?.targetUser?.email, "list-smoke@example.com");
+		assert.equal(activity?.details?.transactionType, "debit");
+		assert.equal(activity?.details?.amount, 250);
+	});
+
 	it("shows every user wallet movement with its debit amount, purpose, and balance", async () => {
 		const { env, sqlite } = createListEnv();
 		sqlite

@@ -14,7 +14,36 @@ const ActivityLogSchema = z.object({
 	adminName: z.string(),
 	adminEmail: z.string(),
 	adminRole: z.string(),
+	userId: z.string(),
+	fullName: z.string(),
+	emailAddress: z.string(),
+	role: z.string(),
+	username: z.string().nullable(),
+	avatar: z.string().nullable(),
+	status: z.enum(["online", "offline"]),
 	action: z.string(),
+	targetUserId: z.string().nullable(),
+	targetUserName: z.string().nullable(),
+	targetUserEmail: z.string().nullable(),
+	targetUserUsername: z.string().nullable(),
+	targetUser: z
+		.object({
+			id: z.string(),
+			name: z.string().nullable(),
+			email: z.string().nullable(),
+			username: z.string().nullable(),
+		})
+		.nullable(),
+	details: z
+		.object({
+			transactionType: z.enum(["credit", "debit"]).optional(),
+			amount: z.number().optional(),
+			currency: z.literal("NGN").optional(),
+			reason: z.string().optional(),
+			transactionId: z.string().optional(),
+			balanceAfter: z.number().optional(),
+		})
+		.nullable(),
 	createdAt: z.string(),
 });
 
