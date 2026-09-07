@@ -21,6 +21,8 @@ declare namespace Cloudflare {
 		PROXY_SECRET: string;
 		STATSCORE_TOKEN: string;
 		DB: D1Database;
+		PREDICTION_SPORTSDEY_CLIENT_ID: string;
+		PREDICTION_SPORTSDEY_CLIENT_SECRET: string;
 		GOOGLE_CLIENT_ID: string;
 		GOOGLE_CLIENT_SECRET: string;
 		APPLE_CLIENT_ID: string;

@@ -12,14 +12,23 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FaHandshakeAngle } from "react-icons/fa6";
+import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
+import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
+import {
+	buildPredictionLaunchUrl,
+	exchangeSsoCode,
+	PredictionSsoError,
+	requestHandoffCode,
+} from "@/lib/prediction-market";
 import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
 import PredictionMarketIcon from "@/logos/PredictionMarketIcon";
 import PVPIcon from "@/logos/PVPIcon";
 import ScoresIcon from "@/logos/scores.svg?react";
+import Soccer from "@/logos/Soccer";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import Video from "@/logos/Video";
@@ -55,6 +64,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const location = useLocation();
 	const search = (location.search || {}) as Record<string, any>;
 	const currentSport = useCurrentSport();
+	const { data: session, isPending: isSessionLoading } = useSession();
+	const [isPredictionLaunching, setIsPredictionLaunching] = useState(false);
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
@@ -165,6 +176,70 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		});
 	};
 
+	const showComingSoon = (feature: string) => {
+		toast.info(`${feature} is coming soon!`);
+	};
+
+	/**
+	 * SSO into Prediction Market:
+	 *   /handoff/code -> GET /users/auth/sso -> store session -> open the app.
+	 *
+	 * Nothing is stored and the tab never leaves about:blank until the SSO call
+	 * returns 200 with a user and a token, so the user is never dropped on
+	 * Prediction Market unauthenticated. On failure the tab is closed.
+	 *
+	 * The tab itself is opened synchronously inside the click so the browser
+	 * keeps the user activation; opening it after the two awaits would be
+	 * blocked as a popup. It stays blank until the exchange succeeds.
+	 */
+	const launchPredictionMarket = async () => {
+		if (isSessionLoading || isPredictionLaunching) return;
+		if (!session?.user) {
+			navigate({
+				to: "/auth/phone-sign-in",
+				search: { returnTo: location.href, mode: "login" } as any,
+			});
+			return;
+		}
+
+		setActiveOverride("prediction");
+		setIsPredictionLaunching(true);
+
+		const predictionTab = window.open("about:blank", "_blank");
+		if (!predictionTab) {
+			setIsPredictionLaunching(false);
+			toast.error(
+				"Please allow pop-ups for this site to open Prediction Market.",
+			);
+			return;
+		}
+
+		try {
+			const { code, hashedClientId } = await requestHandoffCode();
+
+			// Blocks until the SSO endpoint answers; anything but 200 throws.
+			const { token } = await exchangeSsoCode(code, hashedClientId);
+
+			// Nothing is stored on this origin. The token is handed to the tab,
+			// which fetches /users/profile and stores the session itself.
+			const launchUrl = buildPredictionLaunchUrl(token);
+			if (predictionTab.closed) {
+				window.open(launchUrl, "_blank", "noopener");
+			} else {
+				predictionTab.location.replace(launchUrl);
+			}
+		} catch (error) {
+			predictionTab.close();
+			toast.error(
+				error instanceof PredictionSsoError
+					? error.message
+					: "Could not open Prediction Market. Please try again.",
+			);
+		} finally {
+			setIsPredictionLaunching(false);
+		}
+	};
+
 	// const handleSubscribe = (e: React.FormEvent) => {
 	// 	e.preventDefault();
 	// 	if (!email || !email.includes("@")) {
@@ -235,6 +310,13 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToSportsbook,
 		},
 		{
+			id: "scores",
+			label: "Scores",
+			icon: ScoresIcon,
+			isActive: isItemActive("scores", location.pathname.includes("matches")),
+			onClick: goToScores,
+		},
+		{
 			id: "casino",
 			label: "Casino",
 			icon: Gamepad2,
@@ -271,11 +353,17 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				<PVPIcon className={className} height={24} width={24} />
 			),
 			isActive: isItemActive("esports", isPvpPath),
+			isActive: isItemActive(
+				"p2p",
+				location.pathname.startsWith("/games") && search.category === "pvp",
+			),
 			subItems: [
 				{
 					id: "pvp-casino",
 					label: "PvP Games",
 					isActive: isPvpPath,
+					isActive:
+						location.pathname.startsWith("/games") && search.category === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({
@@ -350,6 +438,23 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: () => {
 				setActiveOverride("tournament");
 				window.open(TOURNAMENTS_URL, "_blank");
+			id: "prediction",
+			label: "Prediction Market",
+			icon: PredictionMarketIcon,
+			isActive: isItemActive("prediction", false),
+			onClick: launchPredictionMarket,
+		},
+		{
+			id: "trading",
+			label: "Trading",
+			icon: Trading,
+			isActive: isItemActive("trading", false),
+			onClick: () => {
+				setActiveOverride("trading");
+				window.open(
+					"https://binary.sportsdey.com/sportsdayApi/connectSportsDay",
+					"_blank",
+				);
 			},
 		},
 		{
@@ -390,6 +495,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			),
 			onClick: goToVipProgram,
 		},
+		},
 		{
 			id: "partner",
 			label: "Become an Affiliate",
@@ -400,6 +506,33 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				window.open("https://partners.sportsdey.com", "_blank");
 			},
 		},
+
+		// {
+		// 	id: "lottery",
+		// 	label: "Lottery",
+		// 	icon: Ticket,
+		// 	isActive: false,
+		// 	onClick: () => showComingSoon("Lottery"),
+		// },
+		// {
+		// 	id: "jackpots",
+		// 	label: "Jackpots",
+		// 	icon: Coins,
+		// 	isActive:
+		// 		location.pathname.startsWith("/betting") &&
+		// 		params.get("type") === "jackpots",
+		// 	onClick: () => {
+		// 		setTab("betting");
+		// 		navigate({ to: "/betting", search: { type: "jackpots" } });
+		// 	},
+		// },
+		// {
+		// 	id: "refer",
+		// 	label: "Refer & Earn",
+		// 	icon: Users,
+		// 	isActive: false,
+		// 	onClick: () => showComingSoon("Refer & Earn"),
+		// },
 		{
 			id: "support",
 			label: "Live support",
@@ -462,6 +595,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 											!isLast &&
 											!hasOpenGroup &&
 											"border-b border-gray-300 dark:border-[#2F3033]",
+											"border-gray-300 border-b dark:border-[#2F3033]",
 										!isMobile &&
 											item.isActive &&
 											!item.subItems &&
@@ -470,6 +604,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 											item.isActive &&
 											item.subItems &&
 											"text-accent",
+											"bg-accent text-white shadow-accent/15 shadow-md",
 										!isMobile &&
 											!item.isActive &&
 											"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
@@ -496,6 +631,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 												isMobile &&
 													item.isActive &&
 													"text-accent fill-accent stroke-accent opacity-100",
+													"fill-white stroke-white text-white opacity-100 [filter:brightness(0)_invert(1)]",
+												isMobile &&
+													item.isActive &&
+													"fill-accent stroke-accent text-accent opacity-100",
 												isMobile &&
 													!item.isActive &&
 													"text-gray-500 dark:text-[#8C8F8F]",
@@ -513,7 +652,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 									)}
 								</button>
 								{item.subItems && isExpanded && (
-									<div className="flex flex-col gap-1 px-4 pb-2 pl-11">
+									<div className="flex flex-col gap-1 py-2 pr-4 pl-11">
 										{item.subItems.map((sub) => (
 											<button
 												key={sub.id}
@@ -581,6 +720,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			</div>*/}
 		</div>
 	);
-}
+};
 
 export default Sidebar;

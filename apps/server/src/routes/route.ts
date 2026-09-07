@@ -1,24 +1,29 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import affnookRoute from "./affnook";
+import africastalkingDlrRoute from "./africastalking-dlr";
 import basketballRoute from "./basketball";
+import betHistoryRoute from "./bet-history";
 import bonusRoute from "./bonus";
 import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
 import bonusEngineReferenceDataRoute from "./bonus-engine-reference-data";
 import casinoRoute from "./casino";
-import hashcodexRoute from "./hashcodex";
 import casinoProviderRoute from "./casino-provider";
 import cmsRoute from "./cms";
 import filesRoute from "./files";
 import footballRoute from "./football";
 import gamesRoute from "./games";
-import kycRoute from "./kyc";
 import hallaRoute from "./halla";
+import handoffRoute, { handoffPublicRoute } from "./handoff";
+import hashcodexRoute from "./hashcodex";
+import kudaRoute from "./kuda";
+import kycRoute from "./kyc";
 import lagosRushRoute from "./lagos-rush";
 import loyaltyRoute from "./loyalty";
 import missionRoute from "./mission";
 import monnifyRoute from "./monnify";
 import newsRoute from "./news";
 import notificationsRoute from "./notifications";
+import opayRoute from "./opay";
 import phoneAuthRoute from "./phone-auth";
 import pocketsRoute from "./pockets";
 import scorpioRoute from "./scorpio";
@@ -28,19 +33,11 @@ import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
 import userRoute from "./user";
 import walletRoute from "./wallet";
-import webengageSmsRoute from "./webengage-sms";
 import webengageEventsRoute from "./webengage-events";
-import africastalkingDlrRoute from "./africastalking-dlr";
-import betHistoryRoute from "./bet-history";
-import opayRoute from "./opay";
-import kudaRoute from "./kuda";
 import palmpayRoute from "./palmpay";
+import webengageSmsRoute from "./webengage-sms";
 
 const routes = new OpenAPIHono();
-
-
-
-
 
 routes.route("/affnook", affnookRoute);
 routes.route("/football", footballRoute);
@@ -66,6 +63,8 @@ routes.route("/account", casinoProviderRoute);
 routes.route("/bills", monnifyRoute);
 routes.route("/files", filesRoute);
 routes.route("/games", gamesRoute);
+routes.route("/handoff", handoffRoute);
+routes.route("/public/handoff", handoffPublicRoute);
 routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);

@@ -213,6 +213,9 @@ app.use("*", async (c, next) => {
 		path.startsWith("/opay/callback") ||
 		path.startsWith("/kuda/webhook") ||
 		path.startsWith("/palmpay/webhook")
+		path.startsWith("/opay/callback") ||
+		// Public server-to-server SSO exchange — authorized by code + token, not a session.
+		path.startsWith("/public/handoff/exchange")
 	) {
 		return next();
 	}
