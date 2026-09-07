@@ -182,11 +182,12 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	/**
 	 * SSO into Prediction Market:
-	 *   /handoff/code -> GET /users/auth/sso -> store session -> open the app.
+	 *   /handoff/code -> GET /users/auth/sso -> open the app with the token.
 	 *
-	 * Nothing is stored and the tab never leaves about:blank until the SSO call
-	 * returns 200 with a user and a token, so the user is never dropped on
-	 * Prediction Market unauthenticated. On failure the tab is closed.
+	 * Nothing is stored on this origin — localStorage is partitioned per origin,
+	 * so only the Prediction Market app can persist the session it reads. The
+	 * tab never leaves about:blank until the SSO call returns 200 with a token,
+	 * so the user is never dropped there unauthenticated; on failure it closes.
 	 *
 	 * The tab itself is opened synchronously inside the click so the browser
 	 * keeps the user activation; opening it after the two awaits would be
@@ -220,8 +221,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			// Blocks until the SSO endpoint answers; anything but 200 throws.
 			const { token } = await exchangeSsoCode(code, hashedClientId);
 
-			// Nothing is stored on this origin. The token is handed to the tab,
-			// which fetches /users/profile and stores the session itself.
+			// The token is handed to the tab as ?sso_token=..; the Prediction
+			// Market app reads it, strips it, and stores the session itself.
 			const launchUrl = buildPredictionLaunchUrl(token);
 			if (predictionTab.closed) {
 				window.open(launchUrl, "_blank", "noopener");
@@ -438,6 +439,9 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: () => {
 				setActiveOverride("tournament");
 				window.open(TOURNAMENTS_URL, "_blank");
+			},
+		},
+		{
 			id: "prediction",
 			label: "Prediction Market",
 			icon: PredictionMarketIcon,
@@ -494,7 +498,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				location.pathname.startsWith("/loyalty"),
 			),
 			onClick: goToVipProgram,
-		},
 		},
 		{
 			id: "partner",
