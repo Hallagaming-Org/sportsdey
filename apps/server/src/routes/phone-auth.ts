@@ -16,6 +16,7 @@ import { isD1CapacityError } from "@/utils/d1-errors";
 import {
 	normalizeNigerianPhone,
 	phoneNumberLookupValues,
+	phonePlaceholderEmailLookupValues,
 } from "@/utils/nigerian-phone";
 import {
 	buildPhonePlaceholderEmail,
@@ -34,13 +35,22 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_REQUESTS_PER_WINDOW = 5;
 
+const PhoneAuthPurposeSchema = z
+	.enum(["signup", "login", "reset"])
+	.optional()
+	.openapi({ example: "signup" });
+
 const RequestOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
+	/** When `signup`, reject numbers that already have an account. */
+	purpose: PhoneAuthPurposeSchema,
 });
 
 const VerifyOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
 	otp: z.string().length(6).openapi({ example: "123456" }),
+	/** When `signup`, reject numbers that already have an account. */
+	purpose: PhoneAuthPurposeSchema,
 });
 
 const PhonePasswordSchema = z.object({
@@ -63,12 +73,16 @@ const VerifySuccessSchema = z.object({
 	success: z.literal(true),
 	data: z.object({
 		message: z.string(),
+		/** Raw Better Auth session token — send as `Authorization: Bearer <token>`. */
+		token: z.string(),
 		expiresAt: z.string(),
 		user: z.object({
 			id: z.string(),
 			name: z.string(),
 			email: z.string(),
 			mobileNumber: z.string().nullable(),
+			/** Account registration timestamp (ISO 8601). */
+			createdAt: z.string(),
 		}),
 		isFirstTimeSignIn: z.boolean().optional(),
 		needsProfileCompletion: z.boolean().optional(),
@@ -85,16 +99,10 @@ function normalizePhone(phone: string): string | null {
 	return normalizeNigerianPhone(phone);
 }
 
-/**
- * Complete-profile is only for users who still have the generated `User ####` name.
- * Once they set a real name, returning logins should skip onboarding even if email
- * is still the phone placeholder.
- */
-function needsProfileCompletion(user: { name: string }): boolean {
-	const name = user.name.trim();
-	return name.length <= 1 || isDefaultPhoneUserName(name);
-}
+const PHONE_ALREADY_REGISTERED_ERROR =
+	"This phone number is already registered. Please log in instead.";
 
+/** Phone-OTP rows that still look like unresolved placeholders (name + email). */
 function isUnresolvedPhonePlaceholder(user: {
 	name: string;
 	email: string;
@@ -162,8 +170,7 @@ type PhoneDb = ReturnType<typeof drizzle<typeof schema>>;
 
 async function findUserByPhone(db: PhoneDb, phoneNumber: string) {
 	const phoneLookup = phoneNumberLookupValues(phoneNumber);
-	const phoneDigits = phoneNumber.replace(/\D/g, "");
-	const placeholderEmail = buildPhonePlaceholderEmail(phoneDigits);
+	const placeholderEmails = phonePlaceholderEmailLookupValues(phoneNumber);
 	const matches = await db
 		.select({
 			user: schema.user,
@@ -180,7 +187,7 @@ async function findUserByPhone(db: PhoneDb, phoneNumber: string) {
 		.where(
 			or(
 				inArray(schema.user.mobileNumber, phoneLookup),
-				eq(schema.user.email, placeholderEmail),
+				inArray(schema.user.email, placeholderEmails),
 			),
 		)
 		.orderBy(desc(schema.user.updatedAt));
@@ -290,17 +297,27 @@ async function issuePhoneSession(
 	);
 	c.header("Set-Cookie", hashCookie, { append: true });
 
+	// Parity with Better Auth `bearer` plugin (used by mobile / cross-origin clients).
+	c.header("set-auth-token", token);
+	c.header("Access-Control-Expose-Headers", "set-auth-token");
+
 	return {
 		message: "Sign-in successful.",
+		token,
 		expiresAt: expiresAt.toISOString(),
 		user: {
 			id: signedInUser.id,
 			name: signedInUser.name,
 			email: signedInUser.email,
 			mobileNumber: signedInUser.mobileNumber,
+			createdAt:
+				signedInUser.createdAt instanceof Date
+					? signedInUser.createdAt.toISOString()
+					: new Date(signedInUser.createdAt).toISOString(),
 		},
 		isFirstTimeSignIn,
-		needsProfileCompletion: needsProfileCompletion(signedInUser),
+		// Only first-time phone signup should force complete-profile — not logins.
+		needsProfileCompletion: isFirstTimeSignIn,
 	};
 }
 
@@ -319,6 +336,10 @@ const requestOtpRoute = createRoute({
 		},
 		400: {
 			description: "Bad request",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		409: {
+			description: "Phone already registered (signup)",
 			content: { "application/json": { schema: ErrorSchema } },
 		},
 		429: {
@@ -355,6 +376,10 @@ const verifyOtpRoute = createRoute({
 		},
 		401: {
 			description: "Invalid OTP",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		409: {
+			description: "Phone already registered (signup)",
 			content: { "application/json": { schema: ErrorSchema } },
 		},
 		429: {
@@ -417,7 +442,7 @@ const setPasswordRoute = createRoute({
 });
 
 phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber } = c.req.valid("json");
+	const { phoneNumber: rawPhoneNumber, purpose } = c.req.valid("json");
 	const phoneNumber = normalizePhone(rawPhoneNumber);
 	if (!phoneNumber) {
 		return c.json(
@@ -437,6 +462,30 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+	const existing = await findUserByPhone(db, phoneNumber);
+
+	// Missing purpose is treated as signup so mobile clients that omit it
+	// cannot re-OTP registered numbers.
+	if (purpose === "login" || purpose === "reset") {
+		if (!existing) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No account found for this phone number. Please sign up.",
+				},
+				404,
+			);
+		}
+	} else if (existing) {
+		return c.json(
+			{
+				success: false as const,
+				error: PHONE_ALREADY_REGISTERED_ERROR,
+			},
+			409,
+		);
+	}
+
 	const identifier = `phone_login:${phoneNumber}`;
 	const now = new Date();
 
@@ -537,7 +586,7 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 });
 
 phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber, otp } = c.req.valid("json");
+	const { phoneNumber: rawPhoneNumber, otp, purpose } = c.req.valid("json");
 	const phoneNumber = normalizePhone(rawPhoneNumber);
 	if (!phoneNumber) {
 		return c.json(
@@ -550,6 +599,29 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+	const existingForPurpose = await findUserByPhone(db, phoneNumber);
+
+	if (purpose === "login" || purpose === "reset") {
+		if (!existingForPurpose) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No account found for this phone number. Please sign up.",
+				},
+				404,
+			);
+		}
+	} else if (existingForPurpose) {
+		// signup or omitted purpose — never allow another registration OTP/verify
+		return c.json(
+			{
+				success: false as const,
+				error: PHONE_ALREADY_REGISTERED_ERROR,
+			},
+			409,
+		);
+	}
+
 	const identifier = `phone_login:${phoneNumber}`;
 
 	const [otpRecord] = await db
@@ -616,7 +688,7 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 
 	const phoneDigits = phoneNumber.replace(/\D/g, "");
 	const phoneLookup = phoneNumberLookupValues(phoneNumber);
-	const placeholderEmail = buildPhonePlaceholderEmail(phoneDigits);
+	const placeholderEmails = phonePlaceholderEmailLookupValues(phoneNumber);
 
 	const [existingByPhone] = await db
 		.select()
@@ -624,49 +696,33 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		.where(
 			or(
 				inArray(schema.user.mobileNumber, phoneLookup),
-				eq(schema.user.email, placeholderEmail),
+				inArray(schema.user.email, placeholderEmails),
 			),
 		)
 		.limit(1);
 
-	const recoverableOrphan = await findRecoverablePhoneOrphan(db);
-
 	let signedInUser = existingByPhone ?? null;
 	let isFirstTimeSignIn = false;
+	const isSignupFlow = purpose !== "login" && purpose !== "reset";
 
-	// A newer incomplete phone row can shadow the real profile after mobile_number
-	// was wiped by a bad PATCH. Prefer the completed orphan and drop the duplicate.
-	if (
-		signedInUser &&
-		isUnresolvedPhonePlaceholder(signedInUser) &&
-		recoverableOrphan &&
-		recoverableOrphan.id !== signedInUser.id
-	) {
-		await db
-			.delete(schema.session)
-			.where(eq(schema.session.userId, signedInUser.id));
-		await db.delete(schema.user).where(eq(schema.user.id, signedInUser.id));
-		signedInUser = null;
-	}
+	if (isSignupFlow) {
+		if (signedInUser) {
+			return c.json(
+				{
+					success: false as const,
+					error: PHONE_ALREADY_REGISTERED_ERROR,
+				},
+				409,
+			);
+		}
 
-	if (!signedInUser && recoverableOrphan) {
-		const [reattached] = await db
-			.update(schema.user)
-			.set({ mobileNumber: phoneNumber })
-			.where(eq(schema.user.id, recoverableOrphan.id))
-			.returning();
-		signedInUser = reattached ?? recoverableOrphan;
-	}
-
-	if (!signedInUser) {
 		isFirstTimeSignIn = true;
-
 		const [newUser] = await db
 			.insert(schema.user)
 			.values({
 				id: userId(),
 				name: buildPhonePlaceholderName(phoneDigits),
-				email: placeholderEmail,
+				email: buildPhonePlaceholderEmail(phoneDigits),
 				emailVerified: false,
 				mobileNumber: phoneNumber,
 				verificationStatus: "pending_verification",
@@ -679,14 +735,52 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 			);
 		}
 		signedInUser = newUser;
-	} else if (signedInUser.mobileNumber !== phoneNumber) {
-		const [updatedUser] = await db
-			.update(schema.user)
-			.set({ mobileNumber: phoneNumber })
-			.where(eq(schema.user.id, signedInUser.id))
-			.returning();
-		if (updatedUser) {
-			signedInUser = updatedUser;
+	} else {
+		const recoverableOrphan = await findRecoverablePhoneOrphan(db);
+
+		// A newer incomplete phone row can shadow the real profile after mobile_number
+		// was wiped by a bad PATCH. Prefer the completed orphan and drop the duplicate.
+		if (
+			signedInUser &&
+			isUnresolvedPhonePlaceholder(signedInUser) &&
+			recoverableOrphan &&
+			recoverableOrphan.id !== signedInUser.id
+		) {
+			await db
+				.delete(schema.session)
+				.where(eq(schema.session.userId, signedInUser.id));
+			await db.delete(schema.user).where(eq(schema.user.id, signedInUser.id));
+			signedInUser = null;
+		}
+
+		if (!signedInUser && recoverableOrphan) {
+			const [reattached] = await db
+				.update(schema.user)
+				.set({ mobileNumber: phoneNumber })
+				.where(eq(schema.user.id, recoverableOrphan.id))
+				.returning();
+			signedInUser = reattached ?? recoverableOrphan;
+		}
+
+		if (!signedInUser) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No account found for this phone number. Please sign up.",
+				},
+				404,
+			);
+		}
+
+		if (signedInUser.mobileNumber !== phoneNumber) {
+			const [updatedUser] = await db
+				.update(schema.user)
+				.set({ mobileNumber: phoneNumber })
+				.where(eq(schema.user.id, signedInUser.id))
+				.returning();
+			if (updatedUser) {
+				signedInUser = updatedUser;
+			}
 		}
 	}
 
@@ -808,19 +902,44 @@ phoneAuthRoute.openapi(loginRoute, async (c) => {
 
 phoneAuthRoute.openapi(setPasswordRoute, async (c) => {
 	const auth = createAuth(c.env);
-	const sessionResult = await auth.api.getSession({
-		headers: c.req.raw.headers,
-	});
-	if (!sessionResult?.user?.id) {
+	const db = drizzle(c.env.DB, { schema });
+
+	let userId = (
+		await auth.api.getSession({
+			headers: c.req.raw.headers,
+		})
+	)?.user?.id;
+
+	// Phone clients may send the raw session token as Bearer when cookies do not stick.
+	if (!userId) {
+		const authHeader = c.req.header("authorization") || "";
+		if (authHeader.toLowerCase().startsWith("bearer ")) {
+			const rawToken = authHeader.slice(7).trim().split(".")[0];
+			if (rawToken) {
+				const [row] = await db
+					.select({ userId: schema.session.userId })
+					.from(schema.session)
+					.where(
+						and(
+							eq(schema.session.token, rawToken),
+							gt(schema.session.expiresAt, new Date()),
+						),
+					)
+					.limit(1);
+				userId = row?.userId;
+			}
+		}
+	}
+
+	if (!userId) {
 		return c.json({ success: false as const, error: "Unauthorized" }, 401);
 	}
 
 	const { password } = c.req.valid("json");
-	const db = drizzle(c.env.DB, { schema });
 	const [user] = await db
 		.select()
 		.from(schema.user)
-		.where(eq(schema.user.id, sessionResult.user.id))
+		.where(eq(schema.user.id, userId))
 		.limit(1);
 
 	if (!user) {

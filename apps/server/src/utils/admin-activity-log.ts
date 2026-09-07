@@ -1,8 +1,29 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { admin, adminActivityLog } from "@/db/schema/admin";
+import { admin, adminActivityLog, adminSession } from "@/db/schema/admin";
 import type { CloudflareBindings } from "../types";
+
+export type AdminActivityTargetUser = {
+	id: string;
+	name: string | null;
+	email: string | null;
+	username: string | null;
+};
+
+export type AdminActivityDetails = {
+	transactionType?: "credit" | "debit";
+	amount?: number;
+	currency?: "NGN";
+	reason?: string;
+	transactionId?: string;
+	balanceAfter?: number;
+};
+
+type AdminActivityContext = {
+	targetUser?: AdminActivityTargetUser;
+	details?: AdminActivityDetails;
+};
 
 export async function getAdminActivityActor(
 	env: CloudflareBindings,
@@ -30,6 +51,7 @@ export async function recordAdminActivity(
 		role: string;
 	},
 	action: string,
+	context: AdminActivityContext = {},
 ): Promise<void> {
 	const db = drizzle(env.DB, { schema });
 	const [result] = await db
@@ -41,6 +63,11 @@ export async function recordAdminActivity(
 			adminEmail: actor.email,
 			adminRole: actor.role,
 			action,
+			targetUserId: context.targetUser?.id,
+			targetUserName: context.targetUser?.name,
+			targetUserEmail: context.targetUser?.email,
+			targetUserUsername: context.targetUser?.username,
+			details: context.details ? JSON.stringify(context.details) : null,
 		})
 		.returning({ id: adminActivityLog.id });
 
@@ -76,14 +103,15 @@ export const adminActivityActions = {
 	updateUser: "Updated user",
 	suspendUser: "Suspended user",
 	reactivateUser: "Reactivated user",
-	manualCredit: "Credited user wallet",
-	manualDebit: "Debited user wallet",
+	manualCredit: "Manually credited user wallet",
+	manualDebit: "Manually debited user wallet",
 } as const;
 
 export async function recordActivityForSession(
 	env: CloudflareBindings,
 	adminId: string,
 	action: string,
+	context: AdminActivityContext = {},
 ): Promise<void> {
 	const actor = await getAdminActivityActor(env, adminId);
 	if (!actor) {
@@ -93,7 +121,7 @@ export async function recordActivityForSession(
 		});
 		return;
 	}
-	await recordAdminActivity(env, actor, action);
+	await recordAdminActivity(env, actor, action, context);
 }
 
 export async function listAdminActivity(
@@ -112,17 +140,69 @@ export async function listAdminActivity(
 				adminEmail: adminActivityLog.adminEmail,
 				adminRole: adminActivityLog.adminRole,
 				action: adminActivityLog.action,
+				targetUserId: adminActivityLog.targetUserId,
+				targetUserName: adminActivityLog.targetUserName,
+				targetUserEmail: adminActivityLog.targetUserEmail,
+				targetUserUsername: adminActivityLog.targetUserUsername,
+				details: adminActivityLog.details,
+				username: admin.mobileNumber,
+				avatar: admin.image,
 				createdAt: adminActivityLog.createdAt,
 			})
 			.from(adminActivityLog)
+			.leftJoin(admin, eq(adminActivityLog.adminId, admin.id))
 			.orderBy(desc(adminActivityLog.createdAt))
 			.limit(limit)
 			.offset(offset),
-		db.select({ count: sql<number>`COUNT(*)` }).from(adminActivityLog),
+		 db.select({ count: sql<number>`COUNT(*)` }).from(adminActivityLog),
 	]);
 
+	const adminIds = [...new Set(rows.map((row) => row.adminId))];
+	const onlineAdminIds = new Set(
+		adminIds.length === 0
+			? []
+			: (
+					await db
+						.select({ adminId: adminSession.adminId })
+						.from(adminSession)
+						.where(
+							and(
+								inArray(adminSession.adminId, adminIds),
+								gt(adminSession.expiresAt, new Date()),
+							),
+						)
+				).map((session) => session.adminId),
+	);
+
 	return {
-		rows,
+		rows: rows.map((row) => {
+			let details: AdminActivityDetails | null = null;
+			if (row.details) {
+				try {
+					const parsed = JSON.parse(row.details) as AdminActivityDetails;
+					if (parsed && typeof parsed === "object") details = parsed;
+				} catch {
+				}
+			}
+
+			return {
+				...row,
+				details,
+				userId: row.adminId,
+				fullName: row.adminName,
+				emailAddress: row.adminEmail,
+				role: row.adminRole,
+				status: onlineAdminIds.has(row.adminId) ? "online" : "offline",
+				targetUser: row.targetUserId
+					? {
+							id: row.targetUserId,
+							name: row.targetUserName,
+							email: row.targetUserEmail,
+							username: row.targetUserUsername,
+						}
+					: null,
+			};
+		}),
 		total: Number(countResult[0]?.count ?? 0),
 	};
 }

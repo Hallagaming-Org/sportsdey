@@ -189,6 +189,7 @@ export default defineConfig(({ command, mode }) => {
 				"/halla": proxyToLocalApi(),
 				"/thndr": proxyToLocalApi(),
 				"/kyc": proxyToLocalApi(),
+				"/handoff": proxyToLocalApi(),
 				"/bills": proxyToLocalApi(),
 				"/loyalty": proxyLoyaltyApiToLocalApi(),
 				"/mission": proxyMissionApiToLocalApi(),

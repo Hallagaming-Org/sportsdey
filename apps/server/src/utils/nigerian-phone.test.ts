@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
 	normalizeNigerianPhone,
 	phoneNumberLookupValues,
+	phonePlaceholderEmailLookupValues,
 } from "./nigerian-phone";
 
 describe("normalizeNigerianPhone", () => {
@@ -32,10 +33,20 @@ describe("normalizeNigerianPhone", () => {
 });
 
 describe("phoneNumberLookupValues", () => {
-	it("includes E.164, digits, and local forms", () => {
+	it("includes E.164, digits, national, and local forms", () => {
 		const values = phoneNumberLookupValues("+2348012345678");
 		assert.ok(values.includes("+2348012345678"));
 		assert.ok(values.includes("2348012345678"));
+		assert.ok(values.includes("8012345678"));
 		assert.ok(values.includes("08012345678"));
+	});
+});
+
+describe("phonePlaceholderEmailLookupValues", () => {
+	it("covers historical placeholder email digit forms", () => {
+		const values = phonePlaceholderEmailLookupValues("+2348012345678");
+		assert.ok(values.includes("phone_2348012345678@sportsdey.local"));
+		assert.ok(values.includes("phone_08012345678@sportsdey.local"));
+		assert.ok(values.includes("phone_8012345678@sportsdey.local"));
 	});
 });

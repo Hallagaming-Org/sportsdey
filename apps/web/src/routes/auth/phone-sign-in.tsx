@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import z from "zod";
 import {
 	authClient,
+	getSessionAfterPhoneAuth,
 	loginWithPhone,
 	PENDING_PHONE_PASSWORD_KEY,
 	requestPhoneOtp,
@@ -67,7 +68,7 @@ function PhoneSignInPage() {
 		try {
 			if (isSignUp) {
 				sessionStorage.setItem(PENDING_PHONE_PASSWORD_KEY, password);
-				await requestPhoneOtp(phone);
+				await requestPhoneOtp(phone, "signup");
 				navigate({
 					to: "/auth/otp",
 					search: {
@@ -80,7 +81,7 @@ function PhoneSignInPage() {
 			}
 
 			const data = await loginWithPhone(phone, password);
-			const session = await authClient.getSession();
+			const session = await getSessionAfterPhoneAuth(data.token);
 			if (!session?.data?.session) {
 				throw new Error(
 					"Sign-in succeeded but session was not established. Please try again.",

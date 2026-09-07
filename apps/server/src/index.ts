@@ -33,6 +33,7 @@ import {
 	processExportMessage,
 	requeueStaleChunks,
 } from "./utils/exports/service";
+import { extractBearerToken }  from "./utils/webengage-sms-auth";
 import { isD1CapacityError } from "./utils/d1-errors";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -146,6 +147,7 @@ app.use(
 		},
 		allowMethods: CORS_ALLOW_METHODS,
 		allowHeaders: CORS_ALLOW_HEADERS,
+		exposeHeaders: ["set-auth-token"],
 		credentials: true,
 	}),
 );
@@ -212,7 +214,9 @@ app.use("*", async (c, next) => {
 		path.startsWith("/bem/api/BonusEngine/") ||
 		path.startsWith("/opay/callback") ||
 		path.startsWith("/kuda/webhook") ||
-		path.startsWith("/palmpay/webhook")
+		path.startsWith("/palmpay/webhook") ||
+		// Public server-to-server SSO exchange — authorized by code + token, not a session.
+		path.startsWith("/public/handoff/exchange")
 	) {
 		return next();
 	}

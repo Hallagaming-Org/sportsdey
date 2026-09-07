@@ -19,6 +19,12 @@ import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
 import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
+import type { StoredBetOdd } from "@/utils/ticket-selection-labels";
+import {
+	formatTicketSelection,
+	loadMarketDefinitions,
+	parseMarketId,
+} from "@/utils/ticket-selection-labels";
 import type { CloudflareBindings } from "../types";
 
 const adminTicketsRoute = new OpenAPIHono<{
@@ -27,6 +33,22 @@ const adminTicketsRoute = new OpenAPIHono<{
 
 /** Safety cap for unpaginated list responses (Workers memory / response size). */
 const MAX_UNPAGINATED_ROWS = 10_000;
+
+const BET_TYPE_LABELS: Record<number, string> = {
+	1: "Single",
+	2: "Multiple",
+	3: "System",
+	4: "Chain",
+	5: "Conditional",
+	6: "Multi-single",
+	7: "Multi-accumulator",
+	8: "Live series",
+	9: "Live accumulator",
+};
+
+function sportsbookBetTypeLabel(betType: number | null): string {
+	return betType ? (BET_TYPE_LABELS[betType] ?? "Sportsbook") : "Sportsbook";
+}
 
 function formatAmount(amount: number): string {
 	return `₦${(amount / 100).toLocaleString("en-NG")}`;
@@ -208,6 +230,10 @@ const TicketSelectionSchema = z
 		match: z.string().openapi({ example: "Arsenal vs Chelsea" }),
 		marketId: z.string().nullable().openapi({ example: "20" }),
 		oddId: z.string().nullable().openapi({ example: "1" }),
+		market: z.string().nullable().openapi({ example: "1x2" }),
+		pick: z.string().nullable().openapi({ example: "Arsenal" }),
+		marketLabel: z.string().nullable().openapi({ example: "1x2" }),
+		pickLabel: z.string().nullable().openapi({ example: "Arsenal" }),
 		odds: z.string().nullable().openapi({ example: "1.75" }),
 		oddStatus: z.number().nullable().openapi({ example: 1 }),
 	})
@@ -243,7 +269,10 @@ const TicketDetailSchema = z
 		id: z.string(),
 		gameType: z.enum(["Sportsbook", "Casino"]),
 		status: z.string(),
-		betType: z.number().nullable(),
+		betType: z.string(),
+		betTypeCode: z.number().nullable(),
+		selectionCount: z.number(),
+		selection: z.number(),
 		outcome: z.enum(["Won", "Active", "Lost", "Declined"]),
 		stake: z.string().openapi({ example: "₦50,000" }),
 		potentialWin: z.string().nullable().openapi({ example: "₦225,000" }),
@@ -511,7 +540,10 @@ const handleGetTicketsList = async (
 					balanceAfter: number | null;
 				}>
 			>();
-			const betRows = new Map<(typeof sbResults)[number]["id"], (typeof sbResults)[number]>();
+			const betRows = new Map<
+				(typeof sbResults)[number]["id"],
+				(typeof sbResults)[number]
+			>();
 			for (const r of sbResults) {
 				if (!betRows.has(r.id)) betRows.set(r.id, r);
 				if (r.eventType == null) continue;
@@ -1069,7 +1101,10 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				balanceAfter: number | null;
 			}>
 		>();
-		const betRows = new Map<(typeof sbResults)[number]["id"], (typeof sbResults)[number]>();
+		const betRows = new Map<
+			(typeof sbResults)[number]["id"],
+			(typeof sbResults)[number]
+		>();
 		for (const r of sbResults) {
 			if (!betRows.has(r.id)) betRows.set(r.id, r);
 			if (r.eventType == null) continue;
@@ -1396,24 +1431,25 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		const balanceBefore = events[0]?.balanceBefore ?? null;
 		const balanceAfter = events[events.length - 1]?.balanceAfter ?? null;
 
-		let rawSelections: Array<Record<string, any>> = [];
-		let rawBetBuilderOdds: Array<Record<string, any>> = [];
-		let rawBetData: any = null;
+		let rawSelections: StoredBetOdd[] = [];
+		let rawBetBuilderOdds: Array<{
+			match_id?: string;
+			ratio?: string;
+			status?: number;
+			odds?: StoredBetOdd[];
+		}> = [];
 		try {
 			if (bet.betData) {
-				rawBetData = JSON.parse(bet.betData);
+				const rawBetData = JSON.parse(bet.betData);
 
 				if (rawBetData && Array.isArray(rawBetData.bet_odds)) {
-					rawSelections = rawBetData.bet_odds;
+					rawSelections = rawBetData.bet_odds as StoredBetOdd[];
 				}
 
 				if (rawBetData && Array.isArray(rawBetData.bet_builder_odds)) {
-					rawBetBuilderOdds = rawBetData.bet_builder_odds;
+					rawBetBuilderOdds =
+						rawBetData.bet_builder_odds as typeof rawBetBuilderOdds;
 				}
-
-				console.log(
-					`[getTicketById] Found ${rawSelections.length} selections, ${rawBetBuilderOdds.length} bet builder odds`,
-				);
 			}
 		} catch (error) {
 			console.error("[getTicketById] Failed to parse betData:", error);
@@ -1429,7 +1465,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			.filter(Boolean);
 		const builderLegMatchIds = rawBetBuilderOdds.flatMap((b) =>
 			Array.isArray(b.odds)
-				? b.odds.map((o: any) => o.match_id).filter(Boolean)
+				? b.odds.map((o) => o.match_id).filter(Boolean)
 				: [],
 		);
 
@@ -1442,48 +1478,71 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		) as string[];
 
 		const titleById = await getFixtureTitlesByIds(c.env, sportEventIds);
+		const marketTypeIds = [
+			...rawSelections,
+			...rawBetBuilderOdds.flatMap((builder) =>
+				Array.isArray(builder.odds) ? builder.odds : [],
+			),
+		]
+			.map((odd) =>
+				typeof odd.market_id === "string"
+					? parseMarketId(odd.market_id).typeId
+					: "",
+			)
+			.filter(Boolean);
+		const marketDefinitions = await loadMarketDefinitions(c.env, marketTypeIds);
 
-		const selections = rawSelections.map((s) => {
-			const matchId = s.match_id;
-			const title = matchId ? titleById.get(matchId) : undefined;
-
+		const formatSelection = (odd: StoredBetOdd) => {
+			const matchId = odd.match_id ?? null;
+			const marketId = odd.market_id ?? null;
+			const matchTitle = matchId ? (titleById.get(matchId) ?? null) : null;
+			const typeId = marketId ? parseMarketId(marketId).typeId : "";
+			const labels = formatTicketSelection({
+				odd,
+				matchTitle,
+				marketDef: typeId ? (marketDefinitions.get(typeId) ?? null) : null,
+			});
 			return {
-				matchId: matchId ?? null,
-				match: matchDisplayName(title, matchId),
-				marketId: s.market_id ?? null,
-				oddId: s.odd_id ?? null,
-				odds: s.odd_ratio ?? null,
-				oddStatus: s.odd_status ?? null,
+				matchId,
+				match: matchDisplayName(matchTitle, matchId),
+				marketId,
+				oddId: odd.odd_id ?? null,
+				market: labels.market,
+				pick: labels.pick,
+				marketLabel: labels.market,
+				pickLabel: labels.pick,
+				odds: labels.odds,
+				oddStatus: odd.odd_status ?? null,
 			};
-		});
+		};
+
+		const selections = rawSelections.map(formatSelection);
 
 		const betBuilderSelections = rawBetBuilderOdds.map((builder) => {
 			const groupMatchId = builder.match_id;
 			const groupTitle = groupMatchId ? titleById.get(groupMatchId) : undefined;
 
 			const legs = Array.isArray(builder.odds)
-				? builder.odds.map((o: any) => {
-						const legMatchId = o.match_id;
-						const legTitle = legMatchId ? titleById.get(legMatchId) : undefined;
-						return {
-							matchId: legMatchId ?? null,
-							match: matchDisplayName(legTitle, legMatchId),
-							marketId: o.market_id ?? null,
-							oddId: o.odd_id ?? null,
-							odds: o.odd_ratio ?? null,
-							oddStatus: o.odd_status ?? null,
-						};
-					})
+				? builder.odds.map(formatSelection)
 				: [];
 
 			return {
-				matchId: groupMatchId ?? null,
-				match: matchDisplayName(groupTitle, groupMatchId),
-				ratio: builder.ratio ?? null,
-				status: builder.status ?? null,
+				matchId: typeof groupMatchId === "string" ? groupMatchId : null,
+				match: matchDisplayName(
+					groupTitle,
+					typeof groupMatchId === "string" ? groupMatchId : null,
+				),
+				ratio: typeof builder.ratio === "string" ? builder.ratio : null,
+				status: typeof builder.status === "number" ? builder.status : null,
 				legs,
 			};
 		});
+		const selectionCount =
+			selections.length +
+			betBuilderSelections.reduce(
+				(count, selection) => count + selection.legs.length,
+				0,
+			);
 
 		const totalOddsNum = bet.totalOdds
 			? Number.parseFloat(bet.totalOdds)
@@ -1498,7 +1557,10 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 				id: bet.id,
 				gameType: "Sportsbook" as const,
 				status: bet.status,
-				betType: bet.betType,
+				betType: sportsbookBetTypeLabel(bet.betType),
+				betTypeCode: bet.betType,
+				selectionCount,
+				selection: selectionCount,
 				outcome: mapSbOutcome(bet.status, bet.settleType),
 				stake: formatAmount(bet.stake),
 				potentialWin:
@@ -1685,7 +1747,10 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					id: row.id,
 					gameType: "Casino" as const,
 					status: row.outcomeType,
-					betType: null,
+					betType: "Casino",
+					betTypeCode: null,
+					selectionCount: 0,
+					selection: 0,
 					outcome: mapCasinoOutcome(row.outcomeType),
 					stake: formatAmount(stakeAmount),
 					potentialWin: null,
@@ -1701,7 +1766,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 							: null,
 					totalOdds: null,
 					cashedOut: false,
-					betTime: formatDate(betCreatedAt ?? row.createdAt),
+					betTime: formatDate(row.createdAt),
 					createdAt: formatDate(row.createdAt),
 					settledAt: formatDate(row.createdAt),
 					player: {

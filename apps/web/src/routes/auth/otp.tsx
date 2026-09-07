@@ -11,6 +11,7 @@ import z from "zod";
 import { storePendingReferralCode } from "@/lib/affnook";
 import {
 	authClient,
+	getSessionAfterPhoneAuth,
 	PENDING_PHONE_PASSWORD_KEY,
 	requestPhoneOtp,
 	setPhonePassword,
@@ -41,6 +42,11 @@ function OtpPage() {
 	const isResetPasswordFlow =
 		flow === "reset-password" || flow === "forgot-password";
 	const isSignUpFlow = flow === "signup";
+	const otpPurpose = isSignUpFlow
+		? ("signup" as const)
+		: isResetPasswordFlow
+			? ("reset" as const)
+			: ("login" as const);
 	const showStepLabel = isResetPasswordFlow || isSignUpFlow;
 	const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 	const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
@@ -100,7 +106,7 @@ function OtpPage() {
 		setError("");
 		setIsResending(true);
 		try {
-			await requestPhoneOtp(phone);
+			await requestPhoneOtp(phone, otpPurpose);
 			setSecondsLeft(OTP_RESEND_COOLDOWN_SECONDS);
 			setOtpDigits(["", "", "", "", "", ""]);
 			inputsRef.current[0]?.focus();
@@ -135,8 +141,8 @@ function OtpPage() {
 
 		try {
 			const otp = otpDigits.join("");
-			const data = await verifyPhoneOtp(phone, otp);
-			const session = await authClient.getSession();
+			const data = await verifyPhoneOtp(phone, otp, otpPurpose);
+			const session = await getSessionAfterPhoneAuth(data.token);
 			if (!session?.data?.session) {
 				throw new Error(
 					"Sign-in succeeded but session was not established. Please try again.",
@@ -155,7 +161,7 @@ function OtpPage() {
 					PENDING_PHONE_PASSWORD_KEY,
 				);
 				if (pendingPassword) {
-					await setPhonePassword(pendingPassword);
+					await setPhonePassword(pendingPassword, data.token);
 					sessionStorage.removeItem(PENDING_PHONE_PASSWORD_KEY);
 				}
 			}

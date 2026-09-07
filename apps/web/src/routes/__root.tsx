@@ -38,6 +38,8 @@ import appCss from "../index.css?url";
 export type RouterAppContext = {
 	historyState?: {
 		gameUrl?: string;
+		/** Set when launch went through Scorpio so /game can kick on exit. */
+		casinoProvider?: "scorpio" | "classic";
 	};
 };
 
