@@ -56,7 +56,7 @@ export default function DesktopFooter() {
 						</div>
 					</div>
 					<p className="max-w-xs text-[#A0A0A0] text-sm leading-relaxed">
-						Your #1 Sports Hub for News, Scores, Tips & More.
+						Nigeria's all-in-one gaming platform.
 					</p>
 
 					<div className="mt-6 flex items-start gap-3">
