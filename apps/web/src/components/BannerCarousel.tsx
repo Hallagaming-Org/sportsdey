@@ -9,6 +9,20 @@ interface BannerCarouselProps {
 	banners: BannerData[];
 }
 
+/** Keep CMS crops but request modern, appropriately-sized images from Sanity. */
+function bannerImageUrl(source: string, width: number): string {
+	try {
+		const url = new URL(source);
+		if (!url.hostname.endsWith("sanity.io")) return source;
+		url.searchParams.set("w", String(width));
+		url.searchParams.set("auto", "format");
+		url.searchParams.set("fit", "max");
+		return url.toString();
+	} catch {
+		return source;
+	}
+}
+
 const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 	if (banners.length === 0) return null;
 
@@ -24,10 +38,9 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 			loop={banners.length > 1}
 			className="w-full rounded-xl"
 		>
-			{banners.map((banner) => {
-				// The backend sometimes returns Sanity URLs with ?rect=...&w=...&h=... which crops the image.
-				// We strip everything after the '?' to force Sanity to load the original, full uncropped image!
-				const originalImageUrl = banner.imageUrl.split("?")[0];
+			{banners.map((banner, index) => {
+				const imageUrl = bannerImageUrl(banner.imageUrl, 1440);
+				const imageSrcSet = `${bannerImageUrl(banner.imageUrl, 640)} 640w, ${bannerImageUrl(banner.imageUrl, 1024)} 1024w, ${imageUrl} 1440w`;
 
 				return (
 					<SwiperSlide key={banner._id}>
@@ -47,8 +60,13 @@ const BannerCarousel = ({ banners }: BannerCarouselProps) => {
 							}
 						>
 							<img
-								src={originalImageUrl}
+								src={imageUrl}
+								srcSet={imageSrcSet}
+								sizes="(min-width: 1024px) 70vw, 100vw"
 								alt={banner.alt || "Banner"}
+								loading={index === 0 ? "eager" : "lazy"}
+								fetchPriority={index === 0 ? "high" : "auto"}
+								decoding="async"
 								className="block h-auto w-full"
 							/>
 						</a>
