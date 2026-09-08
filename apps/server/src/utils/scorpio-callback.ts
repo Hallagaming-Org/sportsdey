@@ -84,6 +84,15 @@ async function resolveScorpioUserId(
 		.limit(1);
 	if (byUser) return byUser.id;
 
+	// Scorpio sends playerExternalId (= our user id). Prefer local mapping even if
+	// the user row lookup somehow misses (still need wallet for balance).
+	const [byScorpioUser] = await db
+		.select({ userId: schema.scorpioPlayers.userId })
+		.from(schema.scorpioPlayers)
+		.where(eq(schema.scorpioPlayers.userId, trimmed))
+		.limit(1);
+	if (byScorpioUser) return byScorpioUser.userId;
+
 	const asCode = Number(trimmed);
 	if (Number.isInteger(asCode) && asCode > 0) {
 		const [byCode] = await db
@@ -93,6 +102,13 @@ async function resolveScorpioUserId(
 			.limit(1);
 		if (byCode) return byCode.userId;
 	}
+
+	const [byWallet] = await db
+		.select({ userId: schema.wallet.userId })
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, trimmed))
+		.limit(1);
+	if (byWallet) return byWallet.userId;
 
 	return null;
 }

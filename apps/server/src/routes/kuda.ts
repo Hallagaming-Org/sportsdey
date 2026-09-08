@@ -7,6 +7,8 @@ import {
 	createDynamicCollectionAccount,
 	queryDynamicCollectionStatus,
 } from "@/lib/kuda/clients";
+import { trackWebengageEvent } from "@/lib/webengage";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -72,6 +74,21 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 			updatedAt: new Date(),
 		}).where(eq(schema.kudaTransactions.reference, reference));
 
+		await trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "deposit_initiated",
+				eventData: {
+					amount: parsed.data.amount,
+					currency: "NGN",
+					payment_method: "kuda",
+					transaction_id: reference,
+				},
+			},
+			c.executionCtx,
+		);
+
 		return c.json({ success: true as const, data: {
 			reference,
 			virtualAccountNumber: account.accountNumber,
@@ -82,6 +99,22 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 	} catch (error) {
 		console.error("Kuda dynamic account creation failed", { operation: "create_dynamic_collection_account", reason: error instanceof Error ? error.name : "UnknownError" });
 		await db.update(schema.kudaTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(schema.kudaTransactions.reference, reference));
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "deposit_failed",
+				eventData: {
+					amount: parsed.data.amount,
+					payment_method: "kuda",
+					failure_reason:
+						error instanceof Error
+							? error.message
+							: "Unable to create a Kuda deposit account",
+				},
+			},
+			c.executionCtx,
+		);
 		return c.json({ success: false as const, error: "Unable to create a Kuda deposit account. Please try again." }, 500);
 	}
 	} catch (error) {
@@ -173,6 +206,25 @@ async function confirmAndCreditDeposit(env: CloudflareBindings, transactionId: s
 			env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE kuda_transactions SET status = 'success', updated_at = ? WHERE id = ?").bind(Date.now(), transaction.id),
 		]);
+
+		const [walletRow] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, transaction.userId))
+			.limit(1);
+		trackWebengageEvent(env, {
+			userId: transaction.userId,
+			eventName: "deposit_completed",
+			eventData: {
+				amount: transaction.amount / 100,
+				currency: "NGN",
+				payment_method: "kuda",
+				transaction_id: transaction.reference,
+				type: "credit",
+				wallet_balance_after: (walletRow?.balance ?? 0) / 100,
+			},
+		});
+		await syncWebengageUserProfile(env, transaction.userId);
 	} catch (error) {
 		console.error("Kuda deposit confirmation failed", { operation: "confirm_dynamic_collection", reason: error instanceof Error ? error.name : "UnknownError" });
 	}

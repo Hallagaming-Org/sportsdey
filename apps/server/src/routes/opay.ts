@@ -200,6 +200,21 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			createdAt: new Date(),
 		});
 
+		await trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "deposit_initiated",
+				eventData: {
+					amount: parsed.data.amount,
+					currency: "NGN",
+					payment_method: "opay",
+					transaction_id: reference,
+				},
+			},
+			c.executionCtx,
+		);
+
 		const result = await createCashierOrder(
 			opayConfig(c.env),
 			{
@@ -256,6 +271,26 @@ opayRoute.openapi(initiateRoute, async (c) => {
 			.update(schema.walletTransaction)
 			.set({ status: "failed" })
 			.where(eq(schema.walletTransaction.reference, reference));
+		const [failedWallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, user.id))
+			.limit(1);
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "deposit_failed",
+				eventData: {
+					amount: parsed.data.amount,
+					payment_method: "opay",
+					failure_reason:
+						err instanceof Error ? err.message : "Failed to initiate deposit",
+					wallet_balance_after: (failedWallet?.balance ?? 0) / 100,
+				},
+			},
+			c.executionCtx,
+		);
 		console.error("OPay deposit initiation failed", {
 			operation: "create_cashier_order",
 			reason: err instanceof Error ? err.name : "UnknownError",

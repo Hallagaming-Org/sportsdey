@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { describe, it } from "node:test";
 import adminRoute from "./admin";
+import adminActivityRoute from "./admin-activity";
 import adminTicketsRoute from "./admin-tickets";
+import userRoute from "./user";
+import { recordActivityForSession } from "@/utils/admin-activity-log";
 
 const ADMIN_TOKEN = "admin-list-smoke-token";
 const USER_ID = "admin-list-smoke-user";
@@ -115,6 +118,24 @@ function createListEnv() {
 			device_name text,
 			browser text,
 			admin_id text NOT NULL
+		);
+		CREATE TABLE admin_activity_log (
+			id text PRIMARY KEY NOT NULL,
+			admin_id text NOT NULL,
+			admin_name text NOT NULL,
+			admin_email text NOT NULL,
+			admin_role text NOT NULL,
+			action text NOT NULL,
+			target_user_id text,
+			target_user_name text,
+			target_user_email text,
+			target_user_username text,
+			details text,
+			session_id text,
+			ip_address text,
+			device text,
+			browser text,
+			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE wallet_transaction (
 			id text PRIMARY KEY NOT NULL,
@@ -252,8 +273,8 @@ function createListEnv() {
 		.run("admin-list-smoke", "admin-list@example.com", "x", "Admin", NOW, NOW);
 	sqlite
 		.prepare(
-			`INSERT INTO admin_session (id, expires_at, token, created_at, updated_at, admin_id)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO admin_session (id, expires_at, token, created_at, updated_at, ip_address, device_name, browser, admin_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.run(
 			"admin-session-list-smoke",
@@ -261,6 +282,9 @@ function createListEnv() {
 			ADMIN_TOKEN,
 			NOW,
 			NOW,
+			"102.88.12.34",
+			"Windows",
+			"Chrome",
 			"admin-list-smoke",
 		);
 
@@ -304,7 +328,10 @@ function createListEnv() {
 }
 
 async function adminGet(
-	route: typeof adminRoute | typeof adminTicketsRoute,
+	route:
+		| typeof adminRoute
+		| typeof adminActivityRoute
+		| typeof adminTicketsRoute,
 	path: string,
 	env: { DB: D1Database },
 ) {
@@ -316,6 +343,142 @@ async function adminGet(
 }
 
 describe("admin paginated lists smoke (in-memory, real handlers)", () => {
+	it("records the admin actor and target user for a manual wallet adjustment", async () => {
+		const { env } = createListEnv();
+		await recordActivityForSession(
+			env,
+			"admin-list-smoke",
+			"Manually debited user wallet",
+			{
+				targetUser: {
+					id: USER_ID,
+					name: "List Smoke",
+					email: "list-smoke@example.com",
+					username: "+2348000000000",
+				},
+				details: {
+					transactionType: "debit",
+					amount: 250,
+					currency: "NGN",
+					reason: "Manual correction",
+					transactionId: "manual-txn-1",
+					balanceAfter: 750,
+				},
+			},
+		);
+
+		const response = await adminGet(adminActivityRoute, "/activity", env);
+		const body = (await response.json()) as {
+			success: boolean;
+			data: {
+				activities: Array<{
+					userId: string;
+					fullName: string;
+					status: string;
+					targetUser: { id: string; email: string | null } | null;
+					details: { amount?: number; transactionType?: string } | null;
+				}>;
+			};
+		};
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		const [activity] = body.data.activities;
+		assert.equal(activity?.userId, "admin-list-smoke");
+		assert.equal(activity?.fullName, "Admin");
+		assert.equal(activity?.status, "online");
+		assert.equal(activity?.targetUser?.id, USER_ID);
+		assert.equal(activity?.targetUser?.email, "list-smoke@example.com");
+		assert.equal(activity?.details?.transactionType, "debit");
+		assert.equal(activity?.details?.amount, 250);
+
+		const detailResponse = await adminGet(
+			adminActivityRoute,
+			`/activity/${activity?.id}`,
+			env,
+		);
+		const detailBody = (await detailResponse.json()) as {
+			success: boolean;
+			data: {
+				activity: {
+					module: string;
+					ipAddress: string | null;
+					device: string | null;
+					browser: string | null;
+				};
+			};
+		};
+		assert.equal(detailResponse.status, 200, JSON.stringify(detailBody));
+		assert.equal(detailBody.data.activity.module, "Wallet");
+		assert.equal(detailBody.data.activity.ipAddress, "102.88.12.34");
+		assert.equal(detailBody.data.activity.device, "Windows");
+		assert.equal(detailBody.data.activity.browser, "Chrome");
+	});
+
+	it("shows every user wallet movement with its debit amount, purpose, and balance", async () => {
+		const { env, sqlite } = createListEnv();
+		sqlite
+			.prepare(
+				`INSERT INTO wallet_transaction
+				 (id, user_id, amount, type, reference, status, payment_method, balance, metadata, created_at)
+				 VALUES (?, ?, 2500, 'debit', 'manual-debit', 'success', 'manual', 2500, ?, ?)`,
+			)
+			.run(
+				"manual-debit",
+				USER_ID,
+				JSON.stringify({
+					reason: "Duplicate deposit correction",
+					processedBy: "admin-id-not-exposed-in-purpose",
+				}),
+				NOW + 1,
+			);
+
+		const response = await adminGet(
+			userRoute,
+			`/${USER_ID}/wallet/transactions?page=1&limit=50`,
+			env,
+		);
+		const body = (await response.json()) as {
+			success: boolean;
+			data: {
+				transactions: Array<{
+					id: string;
+					direction: string;
+					amount: number;
+					walletEffect: number;
+					balanceAfter: number | null;
+					purpose: string;
+					paymentMethod: string;
+				}>;
+				total: number;
+			};
+		};
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data.total, 27);
+
+		const sportsbookDebit = body.data.transactions.find(
+			(transaction) => transaction.id === "wtx-sportsbook",
+		);
+		assert.equal(sportsbookDebit?.id, "wtx-sportsbook");
+		assert.equal(sportsbookDebit?.direction, "debit");
+		assert.equal(sportsbookDebit?.amount, 5);
+		assert.equal(sportsbookDebit?.walletEffect, -5);
+		assert.equal(sportsbookDebit?.balanceAfter, 5);
+		assert.equal(sportsbookDebit?.purpose, "Sportsbook wallet debit");
+		assert.equal(sportsbookDebit?.paymentMethod, "sportsbook");
+
+		const manualDebit = body.data.transactions.find(
+			(transaction) => transaction.id === "manual-debit",
+		);
+		assert.equal(manualDebit?.direction, "debit");
+		assert.equal(manualDebit?.amount, 25);
+		assert.equal(
+			manualDebit?.purpose,
+			"Manual debit: Duplicate deposit correction",
+		);
+	});
+
 	it("pages wallet transactions without loading excluded sportsbook rows", async () => {
 		const { env } = createListEnv();
 
@@ -328,7 +491,12 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 			success: boolean;
 			data: {
 				transactions: Array<{ payment_method: string }>;
-				pagination: { page: number; limit: number; total: number; totalPages: number };
+				pagination: {
+					page: number;
+					limit: number;
+					total: number;
+					totalPages: number;
+				};
 			};
 		};
 		assert.equal(page1.status, 200, JSON.stringify(page1Body));
@@ -337,7 +505,9 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 		assert.equal(page1Body.data.pagination.total, 25);
 		assert.equal(page1Body.data.pagination.totalPages, 3);
 		assert.equal(
-			page1Body.data.transactions.some((tx) => tx.payment_method === "sportsbook"),
+			page1Body.data.transactions.some(
+				(tx) => tx.payment_method === "sportsbook",
+			),
 			false,
 		);
 
@@ -383,7 +553,12 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 			success: boolean;
 			data: {
 				tickets: unknown[];
-				pagination: { page: number; limit: number; total: number; totalPages: number };
+				pagination: {
+					page: number;
+					limit: number;
+					total: number;
+					totalPages: number;
+				};
 			};
 		};
 		assert.equal(page1.status, 200, JSON.stringify(page1Body));
@@ -403,6 +578,82 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 		assert.equal(allBody.data.tickets.length, 15);
 		assert.equal(allBody.data.pagination.page, 1);
 		assert.equal(allBody.data.pagination.total, 15);
+	});
+
+	it("returns a display bet type and the real sportsbook selection count", async () => {
+		const { env, sqlite } = createListEnv();
+		sqlite
+			.prepare(
+				`UPDATE sportsbook_bet
+				 SET bet_type = ?, bet_data = ?
+				 WHERE id = ?`,
+			)
+			.run(
+				2,
+				JSON.stringify({
+					bet_odds: [
+						{
+							match_id: "event-one",
+							market_id: "20",
+							odd_id: "1",
+							odd_ratio: "1.50",
+						},
+						{
+							match_id: "event-two",
+							market_id: "201",
+							odd_id: "2",
+							odd_ratio: "2.00",
+						},
+					],
+				}),
+				"bet-0",
+			);
+
+		const response = await adminGet(adminTicketsRoute, "/tickets/bet-0", env);
+		const body = (await response.json()) as {
+			success: boolean;
+			data: {
+				betType: string;
+				betTypeCode: number | null;
+				selectionCount: number;
+				selection: number;
+				selections: Array<{ market: string | null; pick: string | null }>;
+			};
+		};
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data.betType, "Multiple");
+		assert.equal(body.data.betTypeCode, 2);
+		assert.equal(body.data.selectionCount, 2);
+		assert.equal(body.data.selection, 2);
+		assert.equal(body.data.selections.length, 2);
+		const firstSelection = body.data.selections.at(0);
+		assert.equal(firstSelection != null && "market" in firstSelection, true);
+		assert.equal(firstSelection != null && "pick" in firstSelection, true);
+	});
+
+	it("accepts an encoded sportsbook ticket ID that contains a slash", async () => {
+		const { env, sqlite } = createListEnv();
+		const ticketId = "dWk/75ecRHmF5hYEMVZ2FGqdhUUH0JEAACm7TwJL";
+		sqlite
+			.prepare(
+				`INSERT INTO sportsbook_bet
+				 (id, user_id, stake, status, created_at, updated_at)
+				 VALUES (?, ?, 1000, 'accepted', ?, ?)`,
+			)
+			.run(ticketId, USER_ID, NOW, NOW);
+
+		const response = await adminGet(
+			adminTicketsRoute,
+			`/tickets/${encodeURIComponent(ticketId)}`,
+			env,
+		);
+		const body = (await response.json()) as { success: boolean; data?: { id: string } };
+
+		assert.equal(response.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data?.id, ticketId);
 	});
 
 	it("type=all still queries casino tables without failing", async () => {

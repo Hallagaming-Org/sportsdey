@@ -44,6 +44,110 @@ const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 	"slotegrator games",
 ];
 
+type WalletActivityRow = {
+	type: string;
+	amount: number;
+	paymentMethod: string;
+	metadata: string | null;
+};
+
+function parseWalletActivityMetadata(
+	metadata: string | null,
+): Record<string, unknown> {
+	if (!metadata) return {};
+	try {
+		const parsed = JSON.parse(metadata);
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
+function readableWalletActivityPurpose(row: WalletActivityRow): string {
+	const metadata = parseWalletActivityMetadata(row.metadata);
+	const paymentMethod = row.paymentMethod.toLowerCase();
+	const action = typeof metadata.action === "string" ? metadata.action : "";
+	const game = typeof metadata.game === "string" ? metadata.game : "Casino";
+	const direction = row.type === "debit" ? "debit" : "credit";
+
+	if (paymentMethod === "manual") {
+		const reason =
+			typeof metadata.reason === "string" ? metadata.reason.trim() : "";
+		return reason
+			? `Manual ${direction}: ${reason}`
+			: `Manual wallet ${direction}`;
+	}
+
+	if (paymentMethod === "sportsbook") {
+		const sportsbookActions: Record<string, string> = {
+			bet_accepted: "Sportsbook bet placed",
+			bet_declined: "Sportsbook bet refunded",
+			settled:
+				metadata.settleType === "win"
+					? "Sportsbook winnings"
+					: "Sportsbook bet refunded",
+			unsettled: "Sportsbook settlement reversed",
+			cash_out_accepted: "Sportsbook cash-out",
+			cash_out_declined: "Sportsbook cash-out reversed",
+		};
+		return sportsbookActions[action] ?? `Sportsbook wallet ${direction}`;
+	}
+
+	if (paymentMethod === "wallet_transfer") {
+		if (metadata.transferType === "to_game_wallet")
+			return "Transfer to game wallet";
+		if (metadata.transferType === "incoming") return "Wallet transfer received";
+		return "Wallet transfer sent";
+	}
+
+	if (paymentMethod === "bill_payment") {
+		const biller =
+			typeof metadata.billerName === "string" ? metadata.billerName : "";
+		const product =
+			typeof metadata.productName === "string" ? metadata.productName : "";
+		return [biller, product].filter(Boolean).join(" - ") || "Bill payment";
+	}
+
+	if (
+		[
+			"lucky games",
+			"thndr games",
+			"lagos rush",
+			"halla",
+			"slotegrator games",
+			"hashcodex",
+			"scorpio",
+		].includes(paymentMethod)
+	) {
+		const actionLabel: Record<string, string> = {
+			bet: "bet placed",
+			win: "winnings",
+			refund: "refund",
+			rollback: "rollback",
+			cancel: "bet cancelled",
+			reset: "balance reset",
+			settlement: "settlement",
+		};
+		const provider = game === "Casino" ? paymentMethod : game;
+		return `${provider} ${actionLabel[action] ?? `wallet ${direction}`}`;
+	}
+
+	if (
+		["opay", "kuda", "palmpay", "paystack", "card", "bank_transfer"].includes(
+			paymentMethod,
+		)
+	) {
+		return direction === "credit"
+			? `${row.paymentMethod} wallet deposit`
+			: `${row.paymentMethod} wallet withdrawal`;
+	}
+
+	if (paymentMethod.startsWith("bonus")) return "Bonus wallet adjustment";
+	return `${row.paymentMethod || "Wallet"} ${direction}`;
+}
+
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 const emptyToUndefined = (value: unknown) => {
@@ -184,7 +288,8 @@ const GetAllUsersQuerySchema = z
 			.optional()
 			.openapi({ description: "Filter by tab", example: "all" }),
 		search: z.string().optional().openapi({
-			description: "Search users by name, email, or ID",
+			description:
+				"Search users by name, email, user ID, IP address, or phone number",
 			example: "john",
 		}),
 		fromDate: z.string().optional().openapi({
@@ -693,6 +798,7 @@ async function loadFilteredAdminUsers(
 			id: schema.user.id,
 			name: schema.user.name,
 			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
 			wallet: schema.wallet.balance,
 			status: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
@@ -727,7 +833,33 @@ async function loadFilteredAdminUsers(
 	// filtering and sorting in-memory
 	const rawUsers = await baseQuery.orderBy(orderByClause);
 
-	const users = rawUsers.map((u) => ({
+	const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
+	const searchDigits = search ? normalizePhoneDigits(search) : "";
+
+	// apply search and date filters in memory
+	const filtered = rawUsers.filter((u) => {
+		if (search) {
+			const q = search.toLowerCase();
+			const ip = (u.registeredIpAddress ?? "").toLowerCase();
+			const phone = (u.mobileNumber ?? "").toLowerCase();
+			const phoneDigits = normalizePhoneDigits(u.mobileNumber ?? "");
+			const matches =
+				u.name.toLowerCase().includes(q) ||
+				u.email.toLowerCase().includes(q) ||
+				u.id.toLowerCase().includes(q) ||
+				ip.includes(q) ||
+				phone.includes(q) ||
+				(searchDigits.length >= 7 && phoneDigits.includes(searchDigits));
+			if (!matches) return false;
+		}
+		if (!fromDate && !toDate) return true;
+		const ts = new Date(u.registeredDate).getTime();
+		if (fromDate && ts < fromDate.getTime()) return false;
+		if (toDate && ts > toDate.getTime()) return false;
+		return true;
+	});
+
+	return filtered.map((u) => ({
 		id: u.id,
 		name: u.name,
 		email: u.email,
@@ -737,27 +869,6 @@ async function loadFilteredAdminUsers(
 		registeredDate: toIsoTimestamp(u.registeredDate),
 		registeredIpAddress: u.registeredIpAddress ?? null,
 	}));
-
-	// apply search and date filters in memory
-	const filtered = users.filter((u) => {
-		if (search) {
-			const q = search.toLowerCase();
-			if (
-				!u.name.toLowerCase().includes(q) &&
-				!u.email.toLowerCase().includes(q) &&
-				!u.id.toLowerCase().includes(q)
-			) {
-				return false;
-			}
-		}
-		if (!fromDate && !toDate) return true;
-		const ts = new Date(u.registeredDate).getTime();
-		if (fromDate && ts < fromDate.getTime()) return false;
-		if (toDate && ts > toDate.getTime()) return false;
-		return true;
-	});
-
-	return filtered;
 }
 
 userRoute.openapi(getAllUsersRoute, async (c) => {
@@ -1937,7 +2048,12 @@ userRoute.openapi(getWalletOverviewRoute, async (c) => {
 const WalletTransactionItemSchema = z.object({
 	id: z.string(),
 	type: z.string(),
+	direction: z.enum(["credit", "debit"]),
 	amount: z.number(),
+	walletEffect: z.number(),
+	balanceAfter: z.number().nullable(),
+	purpose: z.string(),
+	paymentMethod: z.string(),
 	referenceId: z.string(),
 	dateTime: z.string(),
 	status: z.string(),
@@ -2037,13 +2153,7 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const filters = [
-		eq(schema.walletTransaction.userId, userId),
-		notInArray(
-			schema.walletTransaction.paymentMethod,
-			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
-		),
-	];
+	const filters = [eq(schema.walletTransaction.userId, userId)];
 	if (fromDate) filters.push(gte(schema.walletTransaction.createdAt, fromDate));
 	if (toDate) filters.push(lte(schema.walletTransaction.createdAt, toDate));
 
@@ -2063,6 +2173,8 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 			reference: schema.walletTransaction.reference,
 			status: schema.walletTransaction.status,
 			paymentMethod: schema.walletTransaction.paymentMethod,
+			balance: schema.walletTransaction.balance,
+			metadata: schema.walletTransaction.metadata,
 			createdAt: schema.walletTransaction.createdAt,
 		})
 		.from(schema.walletTransaction)
@@ -2072,18 +2184,23 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		.offset(offset);
 
 	const transactions = rows.map((row) => {
-		let displayType: string;
-		if (row.type === "credit") {
-			displayType =
-				row.paymentMethod === "manual" ? "manual_credit" : "deposit";
-		} else {
-			displayType =
-				row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
-		}
+		const direction = row.type === "debit" ? "debit" : "credit";
+		const amount = Math.abs(row.amount) / 100;
+		const type =
+			row.paymentMethod === "manual"
+				? `manual_${direction}`
+				: direction === "credit"
+					? "deposit"
+					: "withdrawal";
 		return {
 			id: row.id,
-			type: displayType,
-			amount: row.amount / 100,
+			type,
+			direction,
+			amount,
+			walletEffect: direction === "debit" ? -amount : amount,
+			balanceAfter: row.balance === null ? null : row.balance / 100,
+			purpose: readableWalletActivityPurpose(row),
+			paymentMethod: row.paymentMethod,
 			referenceId: row.reference ?? "",
 			dateTime: toWAT(row.createdAt),
 			status: row.status,
@@ -2122,7 +2239,8 @@ const ManualTransactionResponseSchema = z
 function isUniqueConstraintError(error: unknown): boolean {
 	let current: unknown = error;
 	for (let i = 0; i < 5 && current; i++) {
-		const message = current instanceof Error ? current.message : String(current);
+		const message =
+			current instanceof Error ? current.message : String(current);
 		if (
 			message.includes("UNIQUE constraint failed") ||
 			(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
@@ -2229,7 +2347,12 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const reference = manualReferenceFromKey(body.idempotencyKey);
 
 	const [existingUser] = await db
-		.select({ id: schema.user.id })
+		.select({
+			id: schema.user.id,
+			name: schema.user.name,
+			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
+		})
 		.from(schema.user)
 		.where(eq(schema.user.id, userId))
 		.limit(1);
@@ -2384,7 +2507,6 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 		})
 		.where(eq(schema.walletTransaction.id, txnId));
 
-	// Money already moved under a unique reference; never flip this into a 500.
 	try {
 		await recordActivityForSession(
 			c.env,
@@ -2392,6 +2514,22 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 			body.type === "credit"
 				? adminActivityActions.manualCredit
 				: adminActivityActions.manualDebit,
+			{
+				targetUser: {
+					id: existingUser.id,
+					name: existingUser.name,
+					email: existingUser.email,
+					username: existingUser.mobileNumber,
+				},
+				details: {
+					transactionType: body.type,
+					amount: body.amount,
+					currency: "NGN",
+					reason: body.reason,
+					transactionId: txnId,
+					balanceAfter: committedBalance / 100,
+				},
+			},
 		);
 	} catch (error) {
 		console.error("Failed to record admin activity after manual wallet txn", {

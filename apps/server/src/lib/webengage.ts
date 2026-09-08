@@ -24,7 +24,7 @@ function postWebengage(
 	payload: Record<string, unknown>,
 	label: string,
 	executionCtx?: ExecutionContext,
-) {
+): Promise<void> {
 	const { apiKey, licenseCode, host } = getConfig(env);
 	if (!apiKey || !licenseCode || !host) {
 		console.error("WebEngage skipped: missing API config", {
@@ -34,7 +34,7 @@ function postWebengage(
 			hasLicenseCode: Boolean(licenseCode),
 			hasHost: Boolean(host),
 		});
-		return;
+		return Promise.resolve();
 	}
 
 	const promise = fetch(`${host}/v1/accounts/${licenseCode}/${path}`, {
@@ -57,9 +57,8 @@ function postWebengage(
 
 	if (executionCtx && typeof executionCtx.waitUntil === "function") {
 		executionCtx.waitUntil(promise);
-	} else {
-		promise.catch(() => {});
 	}
+	return promise;
 }
 
 export function trackWebengageEvent(
@@ -71,13 +70,13 @@ export function trackWebengageEvent(
 		eventData?: Record<string, unknown>;
 	},
 	executionCtx?: ExecutionContext,
-) {
+): Promise<void> {
 	if (!hasWebengageConfig(env)) {
 		console.error("WebEngage event skipped: missing API config", {
 			eventName: params.eventName,
 			userId: params.userId,
 		});
-		return;
+		return Promise.resolve();
 	}
 
 	const { userId, eventName, eventTime, eventData } = params;
@@ -88,7 +87,7 @@ export function trackWebengageEvent(
 		if (Object.keys(compact).length > 0) payload.eventData = compact;
 	}
 
-	postWebengage(env, "events", payload, eventName, executionCtx);
+	return postWebengage(env, "events", payload, eventName, executionCtx);
 }
 
 export function setWebengageUserAttributes(

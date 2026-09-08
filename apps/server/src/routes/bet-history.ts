@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, isNotNull, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
@@ -224,12 +224,6 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 
 	// ===== 1. SPORTSBOOK BETS =====
 	const sbFilters: any[] = [eq(schema.sportsbookBet.userId, user.id)];
-	if (filter === "settled") {
-		sbFilters.push(isNotNull(schema.sportsbookBet.settleType));
-	}
-	if (filter === "unsettled") {
-		sbFilters.push(sql`${schema.sportsbookBet.settleType} IS NULL`);
-	}
 	if (search) {
 		sbFilters.push(
 			or(
@@ -258,15 +252,10 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.limit(MAX_PER_SOURCE);
 
 	for (const row of sbRows) {
-		const isSettled = row.settleType !== null;
 		const stakeNaira = row.stake / 100;
 		const oddsValue = row.totalOdds ? Number.parseFloat(row.totalOdds) : 0;
-		const status =
-			row.settleType === 1
-				? "success"
-				: row.settleType === 3
-					? "failed"
-					: "pending";
+		const status = deriveStatus(row.status, row.settleType);
+		const isSettled = status !== "pending";
 
 		const typeLabel = getGameTypeLabel(row.betData, row.betType);
 		const betTypeLabel = row.betType
@@ -333,9 +322,6 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		const isWin = ["WIN", "win", "WON", "won", "CREDIT"].includes(row.type);
 		const status = deriveStatusFromCasino(row.type);
 
-		if (filter === "settled" && !isWin) continue;
-		if (filter === "unsettled" && isWin) continue;
-
 		allItems.push({
 			id: row.id,
 			ticketId: row.id,
@@ -376,9 +362,6 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		const amountNaira = row.amount / 100;
 		const isWin = ["WIN", "win", "WON", "won"].includes(row.type);
 		const status = deriveStatusFromCasino(row.type);
-
-		if (filter === "settled" && !isWin) continue;
-		if (filter === "unsettled" && isWin) continue;
 
 		allItems.push({
 			id: row.id,
@@ -429,9 +412,6 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		const isWin = ["win", "WIN", "WON", "won"].includes(row.type);
 		const status = deriveStatusFromCasino(row.type);
 
-		if (filter === "settled" && !isWin) continue;
-		if (filter === "unsettled" && isWin) continue;
-
 		allItems.push({
 			id: row.id,
 			ticketId: row.id,
@@ -481,9 +461,6 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		const isWin = ["WIN", "win", "WON", "won"].includes(row.type);
 		const status = deriveStatusFromCasino(row.type);
 
-		if (filter === "settled" && !isWin) continue;
-		if (filter === "unsettled" && isWin) continue;
-
 		allItems.push({
 			id: row.id,
 			ticketId: row.id,
@@ -504,15 +481,19 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	// ===== 6. SORT AND PAGINATE =====
 	allItems.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allItems.length;
-	const totalPages = Math.max(1, Math.ceil(total / limit));
-	const paginated = allItems.slice(offset, offset + limit);
+	const settledItems = allItems.filter((item) => item.status !== "pending");
+	const unsettledItems = allItems.filter((item) => item.status === "pending");
+	const filteredItems =
+		filter === "settled"
+			? settledItems
+			: filter === "unsettled"
+				? unsettledItems
+				: allItems;
 
-	// ===== 7. COUNTS =====
-	const settledItems = allItems.filter((item) => item.status === "success");
-	const unsettledItems = allItems.filter(
-		(item) => item.status === "pending" || item.status === "failed",
-	);
+	const total = filteredItems.length;
+	const totalPages = Math.max(1, Math.ceil(total / limit));
+	const paginated = filteredItems.slice(offset, offset + limit);
+
 
 	return c.json(
 		{
@@ -522,7 +503,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 				page,
 				totalPages,
 				counts: {
-					all: total,
+					all: allItems.length,
 					settled: settledItems.length,
 					unsettled: unsettledItems.length,
 				},
@@ -700,7 +681,6 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 
 		const stakeNaira = bet.stake / 100;
 		const oddsValue = bet.totalOdds ? Number.parseFloat(bet.totalOdds) : 0;
-		const potentialWin = oddsValue > 0 ? stakeNaira * oddsValue : 0;
 
 		let rawSelections: Array<Record<string, any>> = [];
 		try {
@@ -757,7 +737,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 					stake: stakeNaira,
 					totalOdds: oddsValue,
 					totalReturn: outcome === "won" ? (bet.settleAmount ?? 0) / 100 : null,
-					potentialCashout: outcome === "pending" ? potentialWin : null,
+					potentialCashout: null,
 					numberOfBets: selections.length,
 					selections,
 					isCasino: false,

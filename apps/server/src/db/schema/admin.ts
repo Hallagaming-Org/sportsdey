@@ -124,6 +124,15 @@ export const adminActivityLog = sqliteTable(
 		adminEmail: text("admin_email").notNull(),
 		adminRole: text("admin_role").notNull(),
 		action: text("action").notNull(),
+		targetUserId: text("target_user_id"),
+		targetUserName: text("target_user_name"),
+		targetUserEmail: text("target_user_email"),
+		targetUserUsername: text("target_user_username"),
+		details: text("details"),
+		sessionId: text("session_id"),
+		ipAddress: text("ip_address"),
+		device: text("device"),
+		browser: text("browser"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),
@@ -131,6 +140,7 @@ export const adminActivityLog = sqliteTable(
 	(table) => [
 		index("admin_activity_log_createdAt_idx").on(table.createdAt),
 		index("admin_activity_log_adminId_idx").on(table.adminId),
+		index("admin_activity_log_targetUserId_idx").on(table.targetUserId),
 	],
 );
 

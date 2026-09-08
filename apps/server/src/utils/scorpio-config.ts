@@ -79,3 +79,15 @@ export function getConfiguredServerIp(settings: ScorpioSettings): string {
 export function getAllowedIps(settings: ScorpioSettings): string[] {
 	return [...settings.allowedIps];
 }
+
+/**
+ * Normalize Scorpio callback URLs for comparison.
+ * Scorpio backoffice has been observed storing `https:/host` (one slash).
+ */
+export function normalizeScorpioCallbackUrl(url: string): string {
+	return url
+		.trim()
+		.replace(/^https:\/(?!\/)/i, "https://")
+		.replace(/^http:\/(?!\/)/i, "http://")
+		.replace(/\/+$/, "");
+}

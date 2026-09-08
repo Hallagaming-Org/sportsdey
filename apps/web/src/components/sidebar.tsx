@@ -1,29 +1,41 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
 	ChevronDown,
+	Crown,
 	Gamepad2,
 	Gift,
+	Glasses,
 	Home,
+	ListChecks,
 	Newspaper,
-	Target,
+	Trophy,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { FaHandshakeAngle } from "react-icons/fa6";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
+import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
+import {
+	buildPredictionLaunchUrl,
+	exchangeSsoCode,
+	PredictionSsoError,
+	requestHandoffCode,
+} from "@/lib/prediction-market";
 import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
-import PredictionMarket from "@/logos/PredictionMarket";
 import PredictionMarketIcon from "@/logos/PredictionMarketIcon";
 import PVPIcon from "@/logos/PVPIcon";
+import ScoresIcon from "@/logos/scores.svg?react";
 import Soccer from "@/logos/Soccer";
-import { FaHandshakeAngle } from "react-icons/fa6";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
-import ScoresIcon from "@/logos/scores.svg?react";
 import Video from "@/logos/Video";
 import { useActiveTab } from "./active-tab-context";
+
+const THREE_X_THREE_SPORTSBOOK_PATH = "esports/live/football-esports";
+const TOURNAMENTS_URL = "https://tournaments.sportsdey.com/";
 
 
 type MenuItem = {
@@ -52,6 +64,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const location = useLocation();
 	const search = (location.search || {}) as Record<string, any>;
 	const currentSport = useCurrentSport();
+	const { data: session, isPending: isSessionLoading } = useSession();
+	const [isPredictionLaunching, setIsPredictionLaunching] = useState(false);
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
@@ -59,10 +73,25 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		{},
 	);
 
+	const isThreeXThreePath =
+		location.pathname.includes("/sportsbetting/") &&
+		location.pathname.includes("football-esports");
+	const isVirtualSportsPath =
+		(location.pathname.startsWith("/games") ||
+			location.pathname.startsWith("/game/")) &&
+		search.category === "virtuals";
+	const isPvpPath =
+		(location.pathname.startsWith("/games") ||
+			location.pathname.startsWith("/game/")) &&
+		search.category === "pvp";
+
 	useEffect(() => {
 		setActiveOverride(null);
-		setExpandedItems({});
-	}, [location.pathname, location.search]);
+		setExpandedItems({
+			virtual: isThreeXThreePath || isVirtualSportsPath,
+			esports: isPvpPath,
+		});
+	}, [location.pathname, location.search, isThreeXThreePath, isVirtualSportsPath, isPvpPath]);
 
 	const isItemActive = (id: string, defaultActive: boolean) => {
 		if (activeOverride) return activeOverride === id;
@@ -151,6 +180,67 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		toast.info(`${feature} is coming soon!`);
 	};
 
+	/**
+	 * SSO into Prediction Market:
+	 *   /handoff/code -> GET /users/auth/sso -> open the app with the token.
+	 *
+	 * Nothing is stored on this origin — localStorage is partitioned per origin,
+	 * so only the Prediction Market app can persist the session it reads. The
+	 * tab never leaves about:blank until the SSO call returns 200 with a token,
+	 * so the user is never dropped there unauthenticated; on failure it closes.
+	 *
+	 * The tab itself is opened synchronously inside the click so the browser
+	 * keeps the user activation; opening it after the two awaits would be
+	 * blocked as a popup. It stays blank until the exchange succeeds.
+	 */
+	const launchPredictionMarket = async () => {
+		if (isSessionLoading || isPredictionLaunching) return;
+		if (!session?.user) {
+			navigate({
+				to: "/auth/phone-sign-in",
+				search: { returnTo: location.href, mode: "login" } as any,
+			});
+			return;
+		}
+
+		setActiveOverride("prediction");
+		setIsPredictionLaunching(true);
+
+		const predictionTab = window.open("about:blank", "_blank");
+		if (!predictionTab) {
+			setIsPredictionLaunching(false);
+			toast.error(
+				"Please allow pop-ups for this site to open Prediction Market.",
+			);
+			return;
+		}
+
+		try {
+			const { code, hashedClientId } = await requestHandoffCode();
+
+			// Blocks until the SSO endpoint answers; anything but 200 throws.
+			const { token } = await exchangeSsoCode(code, hashedClientId);
+
+			// The token is handed to the tab as ?sso_token=..; the Prediction
+			// Market app reads it, strips it, and stores the session itself.
+			const launchUrl = buildPredictionLaunchUrl(token);
+			if (predictionTab.closed) {
+				window.open(launchUrl, "_blank", "noopener");
+			} else {
+				predictionTab.location.replace(launchUrl);
+			}
+		} catch (error) {
+			predictionTab.close();
+			toast.error(
+				error instanceof PredictionSsoError
+					? error.message
+					: "Could not open Prediction Market. Please try again.",
+			);
+		} finally {
+			setIsPredictionLaunching(false);
+		}
+	};
+
 	// const handleSubscribe = (e: React.FormEvent) => {
 	// 	e.preventDefault();
 	// 	if (!email || !email.includes("@")) {
@@ -172,6 +262,39 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		location.pathname === "/ufc" ||
 		location.pathname === "/ufc/";
 
+	const isSportsActive =
+		location.pathname.startsWith("/sportsbetting") && !isThreeXThreePath;
+
+	const isCasinoActive =
+		(location.pathname.startsWith("/games") ||
+			location.pathname.startsWith("/game/")) &&
+		search.category !== "pvp" &&
+		search.category !== "virtuals";
+
+	const goToThreeXThree = () => {
+		setTab("betting");
+		trackWebengageEvent("Category", { Name: "3x3 Games" });
+		navigate({
+			to: "/sportsbetting/$",
+			params: { _splat: THREE_X_THREE_SPORTSBOOK_PATH },
+		});
+	};
+
+	const goToVirtualSports = () => {
+		setTab("games");
+		trackWebengageEvent("Category", { Name: "Virtual sports" });
+		navigate({
+			to: "/games",
+			search: { category: "virtuals" },
+		});
+	};
+
+	const goToVipProgram = () => {
+		setTab("loyalty");
+		trackWebengageEvent("Category", { Name: "VIP Program" });
+		navigate({ to: "/loyalty" as any });
+	};
+
 	const menuItems: MenuItem[] = [
 		{
 			id: "home",
@@ -180,69 +303,68 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			isActive: isItemActive("home", isHomeActive),
 			onClick: goToHome,
 		},
-                {
-			id: "prediction",
-			label: "Prediction Market",
-			icon: Trading,
-			isActive: isItemActive("prediction", false),
-			onClick: () => {
-				setActiveOverride("prediction");
-				window.open(
-					"https://prediction.sportsdey.com/",
-					"_blank",
-				);
-			},
-		},
 		{
 			id: "betting",
 			label: "Sports",
 			icon: SportsIcon,
-			isActive: isItemActive(
-				"betting",
-				location.pathname.startsWith("/sportsbetting"),
-			),
+			isActive: isItemActive("betting", isSportsActive),
 			onClick: goToSportsbook,
 		},
 		{
 			id: "scores",
 			label: "Scores",
 			icon: ScoresIcon,
-			isActive: isItemActive(
-				"scores",
-				location.pathname.includes("matches"),
-			),
+			isActive: isItemActive("scores", location.pathname.includes("matches")),
 			onClick: goToScores,
 		},
 		{
 			id: "casino",
 			label: "Casino",
 			icon: Gamepad2,
-			isActive: isItemActive(
-				"casino",
-				(location.pathname.startsWith("/games") ||
-					location.pathname.startsWith("/game/")) &&
-					search.category !== "pvp",
-			),
+			isActive: isItemActive("casino", isCasinoActive),
 			onClick: goToCasino,
 		},
 		{
-			id: "p2p",
+			id: "virtual",
+			label: "Virtual",
+			icon: Glasses,
+			isActive: isItemActive(
+				"virtual",
+				isThreeXThreePath || isVirtualSportsPath,
+			),
+			subItems: [
+				{
+					id: "virtual-3x3",
+					label: "3×3 Games",
+					isActive: isThreeXThreePath,
+					onClick: goToThreeXThree,
+				},
+				{
+					id: "virtual-sports",
+					label: "Virtual sports",
+					isActive: isVirtualSportsPath,
+					onClick: goToVirtualSports,
+				},
+			],
+		},
+		{
+			id: "esports",
 			label: "Esports",
 			icon: (className?: string) => (
 				<PVPIcon className={className} height={24} width={24} />
 			),
-			isActive: isItemActive(
-				"p2p",
-				location.pathname.startsWith("/games") &&
-					search.category === "pvp",
-			),
+			isActive: isItemActive("esports", isPvpPath),
+			// isActive: isItemActive(
+			// 	"p2p",
+			// 	location.pathname.startsWith("/games") && search.category === "pvp",
+			// ),
 			subItems: [
 				{
 					id: "pvp-casino",
 					label: "PvP Games",
-					isActive:
-						location.pathname.startsWith("/games") &&
-						search.category === "pvp",
+					isActive: isPvpPath,
+					// isActive:
+					// 	location.pathname.startsWith("/games") && search.category === "pvp",
 					onClick: () => {
 						setTab("games");
 						navigate({
@@ -253,12 +375,31 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				},
 				{
 					id: "pvp-esports",
-					label: "Tournaments",
+					label: "Tournament",
 					isActive: false,
-					onClick: () =>
-						window.open("https://tournaments.sportsdey.com/", "_blank"),
+					onClick: () => window.open(TOURNAMENTS_URL, "_blank"),
 				},
 			],
+		},
+		{
+			id: "trading",
+			label: "Trading",
+			icon: Trading,
+			isActive: isItemActive("trading", false),
+			onClick: () => {
+				setActiveOverride("trading");
+				window.open(
+					"https://binary.sportsdey.com/sportsdayApi/connectSportsDay",
+					"_blank",
+				);
+			},
+		},
+		{
+			id: "prediction",
+			label: "Predictions Market",
+			icon: PredictionMarketIcon,
+			isActive: isItemActive("prediction", false),
+			onClick: launchPredictionMarket,
 		},
 		{
 			id: "news",
@@ -278,44 +419,19 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			onClick: goToVideos,
 		},
 		{
-			id: "prediction",
-			label: "Prediction Market",
-			icon: PredictionMarketIcon,
-			isActive: isItemActive("prediction", false),
+			id: "tournament",
+			label: "Tournament",
+			icon: Trophy,
+			isActive: isItemActive("tournament", false),
 			onClick: () => {
-				setActiveOverride("prediction");
-				window.open(
-					"https://prediction.sportsdey.com/",
-					"_blank",
-				);
-			},
-		},	
-		{
-			id: "trading",
-			label: "Trading",
-			icon: Trading,
-			isActive: isItemActive("trading", false),
-			onClick: () => {
-				setActiveOverride("trading");
-				window.open(
-					"https://binary.sportsdey.com/sportsdayApi/connectSportsDay",
-					"_blank",
-				);
+				setActiveOverride("tournament");
+				window.open(TOURNAMENTS_URL, "_blank");
 			},
 		},
-		// {
-		// 	id: "tournament",
-		// 	label: "Tournament",
-		// 	icon: Trophy,
-		// 	isActive: false,
-		// 	disabled: true,
-		// 	onClick: () => showComingSoon("Tournament"),
-		// },
-
 		{
 			id: "missions",
 			label: "Missions",
-			icon: Target,
+			icon: ListChecks,
 			isActive: isItemActive(
 				"missions",
 				location.pathname.startsWith("/missions"),
@@ -326,7 +442,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				navigate({ to: "/missions" as any });
 			},
 		},
-
 		{
 			id: "promotions",
 			label: "Promotions",
@@ -340,20 +455,27 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
 			},
-		},	
+		},
+		{
+			id: "vip",
+			label: "VIP Program",
+			icon: Crown,
+			isActive: isItemActive(
+				"vip",
+				location.pathname.startsWith("/loyalty"),
+			),
+			onClick: goToVipProgram,
+		},
 		{
 			id: "partner",
-			label: "Become an affiliate",
+			label: "Become an Affiliate",
 			icon: FaHandshakeAngle,
 			isActive: isItemActive("partner", false),
 			onClick: () => {
 				setActiveOverride("partner");
-				window.open("https://Partners.sportsdey.com", "_blank");
+				window.open("https://partners.sportsdey.com", "_blank");
 			},
 		},
-
-
-
 
 		// {
 		// 	id: "lottery",
@@ -392,9 +514,9 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 					"_blank",
 				),
 		},
-	]
+	];
 
-return (
+	return (
 		<div className="w-full space-y-6">
 			{/* Menu list */}
 			<div
@@ -411,9 +533,17 @@ return (
 					{menuItems.map((item, idx) => {
 						const Icon = item.icon;
 						const isLast = idx === menuItems.length - 1;
-						const isExpanded = expandedItems[item.id];
+						const isExpanded = Boolean(expandedItems[item.id]);
+						const hasOpenGroup = Boolean(item.subItems && isExpanded);
 						return (
-							<div key={item.id} className="flex flex-col">
+							<div
+								key={item.id}
+								className={cn(
+									"flex flex-col",
+									hasOpenGroup &&
+										"rounded-xl border border-accent/45 dark:border-accent/50",
+								)}
+							>
 								<button
 									onClick={() => {
 										if (item.subItems) {
@@ -433,10 +563,16 @@ return (
 										isMobile ? "px-2 py-4" : "rounded-xl px-4 py-3",
 										isMobile &&
 											!isLast &&
+											!hasOpenGroup &&
 											"border-b border-gray-300 dark:border-[#2F3033]",
 										!isMobile &&
 											item.isActive &&
+											!item.subItems &&
 											"bg-accent text-white shadow-md shadow-accent/15",
+										!isMobile &&
+											item.isActive &&
+											item.subItems &&
+											"text-accent",
 										!isMobile &&
 											!item.isActive &&
 											"text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
@@ -454,8 +590,15 @@ return (
 												"h-4 w-4 shrink-0 transition-all",
 												!isMobile &&
 													item.isActive &&
+													!item.subItems &&
 													"text-white fill-white stroke-white [filter:brightness(0)_invert(1)] opacity-100",
-												isMobile && item.isActive && "text-accent fill-accent stroke-accent opacity-100",
+												!isMobile &&
+													item.isActive &&
+													item.subItems &&
+													"text-accent fill-accent stroke-accent opacity-100",
+												isMobile &&
+													item.isActive &&
+													"text-accent fill-accent stroke-accent opacity-100",
 												isMobile &&
 													!item.isActive &&
 													"text-gray-500 dark:text-[#8C8F8F]",
@@ -466,26 +609,27 @@ return (
 									{item.subItems && (
 										<ChevronDown
 											className={cn(
-												"w-4 h-4 transition-transform",
+												"h-4 w-4 transition-transform",
 												isExpanded && "rotate-180",
 											)}
 										/>
 									)}
 								</button>
 								{item.subItems && isExpanded && (
-									<div className="flex flex-col gap-1 pl-11 pr-4 py-2">
+									<div className="flex flex-col gap-1 py-2 pr-4 pl-11">
 										{item.subItems.map((sub) => (
 											<button
 												key={sub.id}
+												type="button"
 												onClick={() => {
 													sub.onClick();
-													if (!isMobile) onItemClick?.();
+													onItemClick?.();
 												}}
 												className={cn(
-													"text-left text-sm py-2 px-3 rounded-lg transition-colors",
+													"rounded-lg px-3 py-2 text-left text-sm transition-colors",
 													sub.isActive
-														? "text-accent font-semibold bg-accent/10"
-														: "text-gray-500 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-card/45",
+														? "bg-accent/10 font-semibold text-accent"
+														: "text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-card/45 dark:hover:text-white",
 												)}
 											>
 												{sub.label}
@@ -540,6 +684,6 @@ return (
 			</div>*/}
 		</div>
 	);
-}
+};
 
 export default Sidebar;

@@ -494,6 +494,12 @@ function HotCasinoPanel() {
 						returnUrl: `${window.location.origin}/games`,
 					});
 					gameUrl = launch.url;
+					navigate({
+						to: "/game/$gameId",
+						params: { gameId: game.code },
+						search: {},
+						state: { gameUrl, casinoProvider: "scorpio" } as never,
+					});
 				} else {
 					const stored = parseScorpioStoredCode(game.code);
 					if (stored) {
@@ -503,19 +509,23 @@ function HotCasinoPanel() {
 							returnUrl: `${window.location.origin}/games`,
 						});
 						gameUrl = launch.url;
+						navigate({
+							to: "/game/$gameId",
+							params: { gameId: game.code },
+							search: {},
+							state: { gameUrl, casinoProvider: "scorpio" } as never,
+						});
 					} else {
 						gameUrl = await launchClassicGame(game, { mode });
 						if (!gameUrl) return;
+						navigate({
+							to: "/game/$gameId",
+							params: { gameId: game.code },
+							search: {},
+							state: { gameUrl, casinoProvider: "classic" } as never,
+						});
 					}
-				}
-
-				navigate({
-					to: "/game/$gameId",
-					params: { gameId: game.code },
-					search: {},
-					state: { gameUrl } as never,
-				});
-			} catch (error) {
+				}			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "Failed to launch game";
 				const status = error instanceof ApiError ? error.status : null;

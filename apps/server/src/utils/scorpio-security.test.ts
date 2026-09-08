@@ -81,6 +81,24 @@ describe("scorpio config", () => {
 });
 
 describe("scorpio signature", () => {
+	it("normalizes malformed https:/ callback URLs from Scorpio", async () => {
+		const { normalizeScorpioCallbackUrl } = await import(
+			"./scorpio-config"
+		);
+		assert.equal(
+			normalizeScorpioCallbackUrl(
+				"https:/staging-api.sportsdey.com/scorpio/callback",
+			),
+			"https://staging-api.sportsdey.com/scorpio/callback",
+		);
+		assert.equal(
+			normalizeScorpioCallbackUrl(
+				"https://api.sportsdey.com/scorpio/callback/",
+			),
+			"https://api.sportsdey.com/scorpio/callback",
+		);
+	});
+
 	it("accepts a valid callback signature", () => {
 		const signature = computeScorpioSignature({ ...balanceBody }, API_TOKEN);
 		assert.doesNotThrow(() =>

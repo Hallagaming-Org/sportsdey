@@ -143,6 +143,13 @@ export default defineConfig(({ command, mode }) => {
 			);
 		}
 	}
+	if (command === "build" && mode === "production") {
+		if (!env.VITE_SERVER_URL?.includes("api.sportsdey.com")) {
+			throw new Error(
+				"Production web build must set VITE_SERVER_URL=https://api.sportsdey.com in .env.production (run pnpm run build:production, not build:staging).",
+			);
+		}
+	}
 
 	return {
 		plugins: [
@@ -182,6 +189,7 @@ export default defineConfig(({ command, mode }) => {
 				"/halla": proxyToLocalApi(),
 				"/thndr": proxyToLocalApi(),
 				"/kyc": proxyToLocalApi(),
+				"/handoff": proxyToLocalApi(),
 				"/bills": proxyToLocalApi(),
 				"/loyalty": proxyLoyaltyApiToLocalApi(),
 				"/mission": proxyMissionApiToLocalApi(),

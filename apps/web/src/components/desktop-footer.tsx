@@ -56,7 +56,7 @@ export default function DesktopFooter() {
 						</div>
 					</div>
 					<p className="max-w-xs text-[#A0A0A0] text-sm leading-relaxed">
-						Your #1 Sports Hub for News, Scores, Tips & More.
+						Nigeria's all-in-one gaming platform.
 					</p>
 
 					<div className="mt-6 flex items-start gap-3">
@@ -112,7 +112,7 @@ export default function DesktopFooter() {
 							</li>
 							<li>
 								<a
-									href="https://wa.link/25tnk8"
+									href="https://partners.sportsdey.com"
 									target="_blank"
 									rel="noopener noreferrer"
 									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"

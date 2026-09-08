@@ -46,6 +46,7 @@ import {
 	verifyAccountNumber,
 	verifyTransaction,
 } from "@/utils/paystack";
+import { isPhonePlaceholderEmail } from "@/utils/phone-user";
 import {
 	getClientIp,
 	getDeviceInfo,
@@ -57,6 +58,18 @@ import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+/** Paystack rejects `.local` placeholder emails used by phone OTP accounts. */
+function paystackCustomerEmail(user: {
+	email: string;
+	mobileNumber?: string | null;
+}): string {
+	if (!isPhonePlaceholderEmail(user.email)) {
+		return user.email;
+	}
+	const digits = (user.mobileNumber || user.email).replace(/\D/g, "");
+	return `phone_${digits || "user"}@users.sportsdey.com`;
+}
 
 const fundWalletRoute = createRoute({
 	method: "post",
@@ -658,17 +671,45 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 		);
 	}
 
+	// Await so WE records initiated before this request ends (and before
+	// deposit_completed from the later Paystack webhook).
+	await trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "deposit_initiated",
+			eventData: {
+				amount,
+				currency: "NGN",
+				payment_method: "card",
+				transaction_id: reference,
+			},
+		},
+		c.executionCtx,
+	);
+
 	let paystackResult: Awaited<ReturnType<typeof initializeTransaction>>;
 	try {
+		const serverUrl = c.env.SERVER_URL?.trim();
+		if (!serverUrl) {
+			throw new Error("SERVER_URL is not configured on this Worker");
+		}
+		if (!c.env.PAYSTACK_SECRET_KEY?.trim()) {
+			throw new Error("PAYSTACK_SECRET_KEY is not configured on this Worker");
+		}
+
 		paystackResult = await initializeTransaction(
 			c.env.PAYSTACK_SECRET_KEY,
 			amount,
-			user.email,
+			paystackCustomerEmail({
+				email: user.email,
+				mobileNumber: user.mobileNumber,
+			}),
 			{
 				userId: user.id,
 				type: "wallet_funding",
 			},
-			`${c.env.SERVER_URL}/wallet/callback`,
+			`${serverUrl.replace(/\/$/, "")}/wallet/callback`,
 			c.env.PROXY_URL,
 			c.env.PROXY_SECRET,
 			reference,
@@ -685,6 +726,21 @@ walletRoute.openapi(fundWalletRoute, async (c) => {
 				500,
 			);
 		}
+		trackWebengageEvent(
+			c.env,
+			{
+				userId: user.id,
+				eventName: "deposit_failed",
+				eventData: {
+					amount,
+					payment_method: "card",
+					failure_reason:
+						error instanceof Error ? error.message : "Failed to initialize deposit",
+					wallet_balance_after: currentBalance / 100,
+				},
+			},
+			c.executionCtx,
+		);
 		console.error("Paystack initiate failed:", error);
 		return c.json(
 			{ success: false, error: "Failed to initialize deposit" },
@@ -1889,6 +1945,20 @@ walletRoute.openapi(transferRoute, async (c) => {
 	const reference = `trf_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 	const amountKobo = amount * 100;
 
+	// Await initiated so WE orders it before transfer_funds_completed in this request.
+	await trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds_initiated",
+			eventData: {
+				wallet_id: recipientWalletId,
+				amount,
+			},
+		},
+		c.executionCtx,
+	);
+
 	const batchResults = await c.env.DB.batch([
 		c.env.DB.prepare(
 			"UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
@@ -2124,13 +2194,13 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 	const nowMs = now.getTime();
 	const amountKobo = amount * 100;
 
-	trackWebengageEvent(
+	await trackWebengageEvent(
 		c.env,
 		{
 			userId: user.id,
-			eventName: "transfer_funds initiated",
+			eventName: "transfer_funds_initiated",
 			eventData: {
-				"wallet id": "game_wallet",
+				wallet_id: "game_wallet",
 				amount,
 			},
 		},
@@ -2179,20 +2249,20 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		.where(eq(schema.gameWallet.id, gameWallet.id))
 		.limit(1);
 
-	// trackWebengageEvent(
-	// 	c.env,
-	// 	{
-	// 		userId: user.id,
-	// 		eventName: "transfer_funds_completed",
-	// 		eventData: {
-	// 			"wallet id": "game_wallet",
-	// 			amount,
-	// 			transaction_id: reference,
-	// 			wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
-	// 		},
-	// 	},
-	// 	c.executionCtx,
-	// );
+	trackWebengageEvent(
+		c.env,
+		{
+			userId: user.id,
+			eventName: "transfer_funds_completed",
+			eventData: {
+				wallet_id: "game_wallet",
+				amount,
+				transaction_id: reference,
+				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+			},
+		},
+		c.executionCtx,
+	);
 
 	return c.json(
 		{
