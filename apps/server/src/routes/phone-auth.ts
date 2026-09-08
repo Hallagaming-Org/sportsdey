@@ -24,6 +24,10 @@ import {
 	isDefaultPhoneUserName,
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
+import {
+	AuthLoginDataSchema,
+	buildAuthLoginResponse,
+} from "@/utils/auth-login-response";
 import { scheduleWebengageUserProfileSync } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
@@ -71,22 +75,7 @@ const SuccessMessageSchema = z.object({
 
 const VerifySuccessSchema = z.object({
 	success: z.literal(true),
-	data: z.object({
-		message: z.string(),
-		/** Raw Better Auth session token — send as `Authorization: Bearer <token>`. */
-		token: z.string(),
-		expiresAt: z.string(),
-		user: z.object({
-			id: z.string(),
-			name: z.string(),
-			email: z.string(),
-			mobileNumber: z.string().nullable(),
-			/** Account registration timestamp (ISO 8601). */
-			createdAt: z.string(),
-		}),
-		isFirstTimeSignIn: z.boolean().optional(),
-		needsProfileCompletion: z.boolean().optional(),
-	}),
+	data: AuthLoginDataSchema,
 });
 
 const ErrorSchema = z.object({
@@ -251,17 +240,19 @@ async function issuePhoneSession(
 	const token = createSessionToken();
 	const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 	const loginIp = c.req.header("cf-connecting-ip") || null;
+	const userAgent = c.req.header("user-agent") || null;
 	const now = new Date();
+	const sessionId = `${crypto.randomUUID()}`;
 
 	await db.insert(schema.session).values({
-		id: `${crypto.randomUUID()}`,
+		id: sessionId,
 		token,
 		expiresAt,
 		createdAt: now,
 		updatedAt: now,
 		userId: signedInUser.id,
 		ipAddress: loginIp,
-		userAgent: c.req.header("user-agent") || null,
+		userAgent,
 	});
 
 	await db
@@ -301,24 +292,21 @@ async function issuePhoneSession(
 	c.header("set-auth-token", token);
 	c.header("Access-Control-Expose-Headers", "set-auth-token");
 
-	return {
-		message: "Sign-in successful.",
-		token,
-		expiresAt: expiresAt.toISOString(),
-		user: {
-			id: signedInUser.id,
-			name: signedInUser.name,
-			email: signedInUser.email,
-			mobileNumber: signedInUser.mobileNumber,
-			createdAt:
-				signedInUser.createdAt instanceof Date
-					? signedInUser.createdAt.toISOString()
-					: new Date(signedInUser.createdAt).toISOString(),
+	return buildAuthLoginResponse({
+		session: {
+			id: sessionId,
+			token,
+			userId: signedInUser.id,
+			expiresAt,
+			createdAt: now,
+			updatedAt: now,
+			ipAddress: loginIp,
+			userAgent,
 		},
+		user: signedInUser,
+		message: "Sign-in successful.",
 		isFirstTimeSignIn,
-		// Only first-time phone signup should force complete-profile — not logins.
-		needsProfileCompletion: isFirstTimeSignIn,
-	};
+	});
 }
 
 const requestOtpRoute = createRoute({

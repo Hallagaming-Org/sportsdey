@@ -90,16 +90,35 @@ export type PhoneOtpUser = {
 	id: string;
 	name: string;
 	email: string;
-	mobileNumber: string | null;
+	emailVerified?: boolean;
+	image?: string | null;
 	createdAt?: string;
+	updatedAt?: string;
+	mobileNumber: string | null;
+	dob?: string | null;
+	verificationStatus?: string;
+	country?: string | null;
+};
+
+export type PhoneAuthSession = {
+	id: string;
+	token: string;
+	userId: string;
+	expiresAt: string;
+	createdAt: string;
+	updatedAt: string;
+	ipAddress?: string | null;
+	userAgent?: string | null;
 };
 
 export type PhoneAuthSuccess = {
-	message: string;
-	/** Raw session token — use as `Authorization: Bearer <token>`. */
-	token: string;
-	expiresAt?: string;
+	/** Better Auth OAuth-shaped session (carbon copy). */
+	session: PhoneAuthSession;
 	user: PhoneOtpUser;
+	/** Alias of `session.token` for existing phone clients. */
+	token: string;
+	message?: string;
+	expiresAt?: string;
 	isFirstTimeSignIn?: boolean;
 	needsProfileCompletion?: boolean;
 };

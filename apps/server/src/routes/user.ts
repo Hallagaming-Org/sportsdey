@@ -288,7 +288,8 @@ const GetAllUsersQuerySchema = z
 			.optional()
 			.openapi({ description: "Filter by tab", example: "all" }),
 		search: z.string().optional().openapi({
-			description: "Search users by name, email, or ID",
+			description:
+				"Search users by name, email, user ID, IP address, or phone number",
 			example: "john",
 		}),
 		fromDate: z.string().optional().openapi({
@@ -797,6 +798,7 @@ async function loadFilteredAdminUsers(
 			id: schema.user.id,
 			name: schema.user.name,
 			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
 			wallet: schema.wallet.balance,
 			status: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
@@ -831,7 +833,33 @@ async function loadFilteredAdminUsers(
 	// filtering and sorting in-memory
 	const rawUsers = await baseQuery.orderBy(orderByClause);
 
-	const users = rawUsers.map((u) => ({
+	const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
+	const searchDigits = search ? normalizePhoneDigits(search) : "";
+
+	// apply search and date filters in memory
+	const filtered = rawUsers.filter((u) => {
+		if (search) {
+			const q = search.toLowerCase();
+			const ip = (u.registeredIpAddress ?? "").toLowerCase();
+			const phone = (u.mobileNumber ?? "").toLowerCase();
+			const phoneDigits = normalizePhoneDigits(u.mobileNumber ?? "");
+			const matches =
+				u.name.toLowerCase().includes(q) ||
+				u.email.toLowerCase().includes(q) ||
+				u.id.toLowerCase().includes(q) ||
+				ip.includes(q) ||
+				phone.includes(q) ||
+				(searchDigits.length >= 7 && phoneDigits.includes(searchDigits));
+			if (!matches) return false;
+		}
+		if (!fromDate && !toDate) return true;
+		const ts = new Date(u.registeredDate).getTime();
+		if (fromDate && ts < fromDate.getTime()) return false;
+		if (toDate && ts > toDate.getTime()) return false;
+		return true;
+	});
+
+	return filtered.map((u) => ({
 		id: u.id,
 		name: u.name,
 		email: u.email,
@@ -841,27 +869,6 @@ async function loadFilteredAdminUsers(
 		registeredDate: toIsoTimestamp(u.registeredDate),
 		registeredIpAddress: u.registeredIpAddress ?? null,
 	}));
-
-	// apply search and date filters in memory
-	const filtered = users.filter((u) => {
-		if (search) {
-			const q = search.toLowerCase();
-			if (
-				!u.name.toLowerCase().includes(q) &&
-				!u.email.toLowerCase().includes(q) &&
-				!u.id.toLowerCase().includes(q)
-			) {
-				return false;
-			}
-		}
-		if (!fromDate && !toDate) return true;
-		const ts = new Date(u.registeredDate).getTime();
-		if (fromDate && ts < fromDate.getTime()) return false;
-		if (toDate && ts > toDate.getTime()) return false;
-		return true;
-	});
-
-	return filtered;
 }
 
 userRoute.openapi(getAllUsersRoute, async (c) => {
