@@ -6,6 +6,8 @@ import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
 	createPalmPayOrder,
+	assertPalmPaySigningKey,
+	PalmPayProviderError,
 	queryPalmPayOrder,
 	verifyPalmPay,
 } from "@/lib/palmpay/client";
@@ -60,6 +62,18 @@ route.openapi(
 			return c.json(
 				{ success: false as const, error: "PalmPay is not configured" },
 				500,
+			);
+		}
+		try {
+			assertPalmPaySigningKey(c.env.PALMPAY_MERCHANT_PRIVATE_KEY);
+		} catch (error) {
+			console.error("PalmPay configuration is invalid", {
+				operation: "validate_signing_key",
+				reason: error instanceof Error ? error.name : "UnknownError",
+			});
+			return c.json(
+				{ success: false as const, error: "PalmPay signing key is invalid or missing. Contact support." },
+				503,
 			);
 		}
 		const db = drizzle(c.env.DB, { schema });
@@ -126,6 +140,8 @@ route.openapi(
 			console.error("PalmPay deposit initiation failed", {
 				operation: "create_order",
 				reason: error instanceof Error ? error.name : "UnknownError",
+				providerStatus: error instanceof PalmPayProviderError ? error.providerStatus : undefined,
+				providerCode: error instanceof PalmPayProviderError ? error.providerCode : undefined,
 			});
 			await db
 				.update(schema.palmpayTransaction)
@@ -148,19 +164,22 @@ route.openapi(
 					eventData: {
 						amount: amountMajor,
 						payment_method: "palmpay",
-						failure_reason:
-							error instanceof Error
-								? error.message
-								: "Unable to start PalmPay deposit",
+					failure_reason:
+						error instanceof PalmPayProviderError
+							? `provider_${error.providerCode}`
+							: "Unable to start PalmPay deposit",
 						wallet_balance_after: (wallet?.balance ?? 0) / 100,
 					},
 				},
 				c.executionCtx,
 			);
-			return c.json(
-				{ success: false as const, error: "Unable to start PalmPay deposit" },
-				500,
-			);
+			if (error instanceof PalmPayProviderError) {
+				return c.json(
+					{ success: false as const, error: "PalmPay could not create this deposit. Please try again later." },
+					502,
+				);
+			}
+			return c.json({ success: false as const, error: "Unable to start PalmPay deposit" }, 500);
 		}
 	},
 );
