@@ -399,10 +399,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Predictions Market",
 			icon: PredictionMarketIcon,
 			isActive: isItemActive("prediction", false),
-			onClick: () => {
-				setActiveOverride("prediction");
-				window.open("https://prediction.sportsdey.com/", "_blank");
-			},
+			onClick: launchPredictionMarket,
 		},
 		{
 			id: "news",
