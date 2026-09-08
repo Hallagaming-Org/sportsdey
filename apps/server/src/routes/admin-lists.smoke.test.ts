@@ -131,6 +131,10 @@ function createListEnv() {
 			target_user_email text,
 			target_user_username text,
 			details text,
+			session_id text,
+			ip_address text,
+			device text,
+			browser text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE wallet_transaction (
@@ -269,8 +273,8 @@ function createListEnv() {
 		.run("admin-list-smoke", "admin-list@example.com", "x", "Admin", NOW, NOW);
 	sqlite
 		.prepare(
-			`INSERT INTO admin_session (id, expires_at, token, created_at, updated_at, admin_id)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO admin_session (id, expires_at, token, created_at, updated_at, ip_address, device_name, browser, admin_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.run(
 			"admin-session-list-smoke",
@@ -278,6 +282,9 @@ function createListEnv() {
 			ADMIN_TOKEN,
 			NOW,
 			NOW,
+			"102.88.12.34",
+			"Windows",
+			"Chrome",
 			"admin-list-smoke",
 		);
 
@@ -383,6 +390,28 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 		assert.equal(activity?.targetUser?.email, "list-smoke@example.com");
 		assert.equal(activity?.details?.transactionType, "debit");
 		assert.equal(activity?.details?.amount, 250);
+
+		const detailResponse = await adminGet(
+			adminActivityRoute,
+			`/activity/${activity?.id}`,
+			env,
+		);
+		const detailBody = (await detailResponse.json()) as {
+			success: boolean;
+			data: {
+				activity: {
+					module: string;
+					ipAddress: string | null;
+					device: string | null;
+					browser: string | null;
+				};
+			};
+		};
+		assert.equal(detailResponse.status, 200, JSON.stringify(detailBody));
+		assert.equal(detailBody.data.activity.module, "Wallet");
+		assert.equal(detailBody.data.activity.ipAddress, "102.88.12.34");
+		assert.equal(detailBody.data.activity.device, "Windows");
+		assert.equal(detailBody.data.activity.browser, "Chrome");
 	});
 
 	it("shows every user wallet movement with its debit amount, purpose, and balance", async () => {
