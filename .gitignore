@@ -61,6 +61,7 @@ docs/ai-engineering-checklist.md
 
 # Local Cursor rules (not for GitHub)
 .cursor/rules/db-migrations.mdc
+.cursor/rules/deploy-environments.mdc
 
 # Local SSH keys — never commit
 shaq
