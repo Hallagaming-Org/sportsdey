@@ -1,7 +1,10 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { listAdminActivity } from "@/utils/admin-activity-log";
+import {
+	getAdminActivityById,
+	listAdminActivity,
+} from "@/utils/admin-activity-log";
 import type { CloudflareBindings } from "../types";
 
 const adminActivityRoute = new OpenAPIHono<{
@@ -21,7 +24,18 @@ const ActivityLogSchema = z.object({
 	username: z.string().nullable(),
 	avatar: z.string().nullable(),
 	status: z.enum(["online", "offline"]),
+	executionStatus: z.literal("completed"),
 	action: z.string(),
+	module: z.string(),
+	description: z.string(),
+	reference: z.string().nullable(),
+	sessionId: z.string().nullable(),
+	ipAddress: z.string().nullable(),
+	device: z.string().nullable(),
+	browser: z.string().nullable(),
+	location: z.string().nullable(),
+	timeZone: z.string().nullable(),
+	screenResolution: z.string().nullable(),
 	targetUserId: z.string().nullable(),
 	targetUserName: z.string().nullable(),
 	targetUserEmail: z.string().nullable(),
@@ -45,6 +59,28 @@ const ActivityLogSchema = z.object({
 		})
 		.nullable(),
 	createdAt: z.string(),
+});
+
+const getAdminActivityDetailRoute = createRoute({
+	method: "get",
+	path: "/activity/{activityId}",
+	tags: ["Admin - Activity"],
+	summary: "Get one activity log with audit details",
+	security: [{ BearerAuth: [] }],
+	request: { params: z.object({ activityId: z.string().min(1) }) },
+	responses: {
+		200: {
+			description: "Activity log retrieved",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(z.object({ activity: ActivityLogSchema })),
+				},
+			},
+		},
+		401: { description: "Unauthorized", content: { "application/json": { schema: ErrorResponseSchema } } },
+		403: { description: "Forbidden", content: { "application/json": { schema: ErrorResponseSchema } } },
+		404: { description: "Activity log not found", content: { "application/json": { schema: ErrorResponseSchema } } },
+	},
 });
 
 const getAdminActivityRoute = createRoute({
@@ -119,6 +155,25 @@ adminActivityRoute.openapi(getAdminActivityRoute, async (c) => {
 				totalPages: Math.max(1, Math.ceil(total / limit)),
 			},
 		},
+	});
+});
+
+adminActivityRoute.openapi(getAdminActivityDetailRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) return c.json({ success: false, error: "Unauthorized" }, 401);
+	const session = await validateAdminSession(c.env, token);
+	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	const activity = await getAdminActivityById(
+		c.env,
+		c.req.valid("param").activityId,
+	);
+	if (!activity) return c.json({ success: false, error: "Activity log not found" }, 404);
+	return c.json({
+		success: true,
+		data: { activity: { ...activity, createdAt: activity.createdAt.toISOString() } },
 	});
 });
 

@@ -35,6 +35,41 @@ export async function signRequestBody(body: unknown, privateKey: string): Promis
 }
 
 
+function hmacSha3_512Hex(value: string, privateKey: string): string {
+	const signature = hmac(
+		sha3_512,
+		new TextEncoder().encode(privateKey),
+		new TextEncoder().encode(value),
+	);
+	return Array.from(signature)
+		.map((byte) => byte.toString(16).padStart(2, "0"))
+		.join("");
+}
+
+function requiredString(payload: Record<string, unknown>, key: string): string | null {
+	const value = payload[key];
+	return typeof value === "string" || typeof value === "number"
+		? String(value)
+		: null;
+}
+
+
+function callbackSigningPayload(payload: Record<string, unknown>): string | null {
+	const amount = requiredString(payload, "amount");
+	const currency = requiredString(payload, "currency");
+	const reference = requiredString(payload, "reference");
+	const status = requiredString(payload, "status");
+	const timestamp = requiredString(payload, "timestamp");
+	const transactionId = requiredString(payload, "transactionId");
+	if (!amount || !currency || !reference || !status || !timestamp || !transactionId) {
+		return null;
+	}
+
+	const refunded = payload.refunded === true ? "t" : "f";
+	const token = requiredString(payload, "token") ?? "";
+	return `{Amount:"${amount}",Currency:"${currency}",Reference:"${reference}",Refunded:${refunded},Status:"${status}",Timestamp:"${timestamp}",Token:"${token}",TransactionID:"${transactionId}"}`;
+}
+
 export async function verifyCallbackSignature(
 	rawBody: string,
 	privateKey: string,
@@ -50,9 +85,9 @@ export async function verifyCallbackSignature(
 		return { valid: false };
 	}
 
-	const sorted = sortKeysDeep(parsed.payload);
-	const json = JSON.stringify(sorted);
-	const expectedSignature = await hmacSha512Hex(json, privateKey);
+	const signingPayload = callbackSigningPayload(parsed.payload);
+	if (!signingPayload) return { valid: false };
+	const expectedSignature = hmacSha3_512Hex(signingPayload, privateKey);
 
 	const valid = timingSafeEqualHex(expectedSignature, parsed.sha512);
 	return { valid, payload: valid ? parsed.payload : undefined };
@@ -67,3 +102,5 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 	}
 	return result === 0;
 }
+import { hmac } from "@noble/hashes/hmac";
+import { sha3_512 } from "@noble/hashes/sha3";

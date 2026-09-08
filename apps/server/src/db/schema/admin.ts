@@ -129,6 +129,10 @@ export const adminActivityLog = sqliteTable(
 		targetUserEmail: text("target_user_email"),
 		targetUserUsername: text("target_user_username"),
 		details: text("details"),
+		sessionId: text("session_id"),
+		ipAddress: text("ip_address"),
+		device: text("device"),
+		browser: text("browser"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),

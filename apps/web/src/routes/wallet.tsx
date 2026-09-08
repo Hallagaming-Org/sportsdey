@@ -121,19 +121,19 @@ function WalletPage() {
 		});
 	const { data: opayStatus } = useQuery({
 		queryKey: ["opay-deposit-status", search.reference],
-		queryFn: () => apiRequest<{ success: true; data: { status: string } }>(`opay/status/${encodeURIComponent(search.reference ?? "")}`, { credentials: "include" }),
+		queryFn: () => apiRequest<{ status: string }>(`opay/status/${encodeURIComponent(search.reference ?? "")}`, { credentials: "include" }),
 		enabled: !!session?.user && search.deposit === "processing" && !!search.reference?.startsWith("opay_"),
 		refetchInterval: (query) => {
-			const status = query.state.data?.data.status;
+			const status = query.state.data?.status;
 			return status === "success" || status === "failed" ? false : 3_000;
 		},
 	});
 	useEffect(() => {
-		if (opayStatus?.data.status === "success" || opayStatus?.data.status === "failed") {
+		if (opayStatus?.status === "success" || opayStatus?.status === "failed") {
 			void queryClient.invalidateQueries({ queryKey: ["wallet"] });
 			void queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
 		}
-	}, [opayStatus?.data.status, queryClient]);
+	}, [opayStatus?.status, queryClient]);
 	const depositMutation = useMutation({
 		mutationFn: ({ amount, provider }: { amount: number; provider: DepositProvider }) =>
 			apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse>(
@@ -208,8 +208,7 @@ function WalletPage() {
 
 		setDepositError("");
 		setKudaDepositInstructions(null);
-		// deposit_initiated is emitted server-side on /wallet fund + OPay/Kuda
-		// initiate so it always precedes deposit_completed in WebEngage.
+
 		depositMutation.mutate({ amount, provider });
 	};
 
