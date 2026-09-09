@@ -33,6 +33,34 @@ import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
 
+const INTER_FONT_HREF =
+	"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+const DEFERRED_FONTS_HREF =
+	"https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Quicksand:wght@400;500;600;700&display=swap";
+
+function DeferredFonts() {
+	useEffect(() => {
+		const load = () => {
+			if (document.getElementById("deferred-fonts")) return;
+			const link = document.createElement("link");
+			link.id = "deferred-fonts";
+			link.rel = "stylesheet";
+			link.href = DEFERRED_FONTS_HREF;
+			document.head.appendChild(link);
+		};
+
+		if ("requestIdleCallback" in window) {
+			const idleId = window.requestIdleCallback(load, { timeout: 4000 });
+			return () => window.cancelIdleCallback(idleId);
+		}
+
+		const timeoutId = window.setTimeout(load, 2000);
+		return () => window.clearTimeout(timeoutId);
+	}, []);
+
+	return null;
+}
+
 // import { RouterProviderComponents } from "@tanstack/react-router";
 
 export type RouterAppContext = {
@@ -216,6 +244,14 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 
 						<HeadContent />
 						<link rel="icon" href="/Favicon.svg" type="image/svg+xml" />
+						<link rel="preconnect" href="https://fonts.googleapis.com" />
+						<link
+							rel="preconnect"
+							href="https://fonts.gstatic.com"
+							crossOrigin="anonymous"
+						/>
+						<link rel="preload" as="style" href={INTER_FONT_HREF} />
+						<link rel="stylesheet" href={INTER_FONT_HREF} />
 						<link rel="stylesheet" href={appCss} />
 					</head>
 					<body suppressHydrationWarning>
@@ -231,6 +267,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
+									<DeferredFonts />
 									<WebengageIdentity />
 									<ScrollToTop />
 									{isAuthRoute ? (
@@ -305,8 +342,12 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 								</Providers>
 
 								<Toaster richColors position="top-right" />
-								<TanStackRouterDevtools position="bottom-right" />
-								<ReactQueryDevtools initialIsOpen={false} />
+								{import.meta.env.DEV ? (
+									<>
+										<TanStackRouterDevtools position="bottom-right" />
+										<ReactQueryDevtools initialIsOpen={false} />
+									</>
+								) : null}
 								<Scripts />
 							</ErrorBoundary>
 						</QueryClientProvider>
