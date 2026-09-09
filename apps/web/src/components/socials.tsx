@@ -1,4 +1,3 @@
-import { useTheme } from "next-themes";
 import { useEffect, useRef } from "react";
 import DiscordIcon from "@/logos/DiscordIcon";
 import Facebook from "@/logos/facebook.svg?react";
@@ -35,18 +34,13 @@ export const socials = [
 ];
 
 const Socials = () => {
-	const { theme, resolvedTheme } = useTheme();
-
 	const widgetRef = useRef<HTMLDivElement | null>(null);
-
-	const currentTheme =
-		theme === "dark" || resolvedTheme === "dark" ? "dark" : "light";
 
 	useEffect(() => {
 		const SCRIPT_SRC = "https://www.livecoinwatch.com/static/lcw-widget.js";
+		const scriptId = "lcw-widget-script";
 		if (!widgetRef.current) return;
 
-		// Add the widget container if it's not already present
 		if (!widgetRef.current.querySelector(".livecoinwatch-widget-5")) {
 			const w = document.createElement("div");
 			w.className = "livecoinwatch-widget-5";
@@ -57,21 +51,11 @@ const Socials = () => {
 			w.setAttribute("lcw-marquee-items", "10");
 			widgetRef.current.appendChild(w);
 		}
-		if (!document.querySelector(`script[src="${SCRIPT_SRC}"]`)) {
-			const s = document.createElement("script");
-			s.src = SCRIPT_SRC;
-			s.defer = true;
-			document.body.appendChild(s);
-		}
-	}, [currentTheme]);
-
-	useEffect(() => {
-		const scriptId = "lcw-widget-script";
 		if (!document.getElementById(scriptId)) {
 			const script = document.createElement("script");
 			script.id = scriptId;
 			script.defer = true;
-			script.src = "https://www.livecoinwatch.com/static/lcw-widget.js";
+			script.src = SCRIPT_SRC;
 			document.body.appendChild(script);
 		}
 	}, []);

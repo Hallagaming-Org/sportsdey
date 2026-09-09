@@ -277,7 +277,7 @@ export default function DesktopFooter() {
 						issued on 30th of November, 2025.
 					</p>
 				</div>
-				<div className="flex flex-wrap items-center justify-center gap-2">
+				<div className="flex min-h-[40px] flex-wrap items-center justify-center gap-2 md:min-h-[58px]">
 					{[
 						{ name: "OPay", logo: OPayLogo },
 						{ name: "PalmPay", logo: PalmPayLogo },
@@ -294,6 +294,8 @@ export default function DesktopFooter() {
 							<img
 								src={provider.logo}
 								alt={provider.name}
+								width={117}
+								height={58}
 								className="h-full w-auto object-contain"
 							/>
 						</div>

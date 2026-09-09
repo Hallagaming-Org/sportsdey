@@ -340,8 +340,28 @@ export function getUniquePopularGames(
 	return pickGamesByOrderedNames(games, POPULAR_GAME_NAMES, limit);
 }
 
-export async function fetchClassicLobbyGames(): Promise<ClassicLobbyGame[]> {
-	const games = await apiRequest<ClassicLobbyGame[]>("games");
+/** Query params already supported by `GET /games`. */
+export type ClassicLobbyGamesQuery = {
+	category?: string;
+	search?: string;
+	sort?: "asc" | "desc";
+	offset?: number;
+	limit?: number;
+};
+
+export async function fetchClassicLobbyGames(
+	query?: ClassicLobbyGamesQuery,
+): Promise<ClassicLobbyGame[]> {
+	const params = new URLSearchParams();
+	if (query?.category) params.set("category", query.category);
+	if (query?.search) params.set("search", query.search);
+	if (query?.sort) params.set("sort", query.sort);
+	if (query?.offset != null) params.set("offset", String(query.offset));
+	if (query?.limit != null) params.set("limit", String(query.limit));
+	const qs = params.toString();
+	const games = await apiRequest<ClassicLobbyGame[]>(
+		qs ? `games?${qs}` : "games",
+	);
 	const enabled = games.filter((game) => game.enabled);
 	return enabled;
 }

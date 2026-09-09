@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { bannerImageUrl } from "@/components/BannerCarousel";
 import SportLandingPage from "@/components/SportLandingPage";
-import { getBanners } from "@/lib/banners-server";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
+import { getBanners } from "@/lib/banners-server";
 
 export const Route = createFileRoute("/")({
 	validateSearch: (search: Record<string, unknown>) => ({
@@ -10,6 +11,20 @@ export const Route = createFileRoute("/")({
 		sports: (search.sports as string) || undefined,
 	}),
 	loader: () => getBanners(),
+	head: ({ loaderData }) => {
+		const firstImage = loaderData?.[0]?.imageUrl;
+		if (!firstImage) return {};
+		return {
+			links: [
+				{
+					rel: "preload",
+					as: "image",
+					href: bannerImageUrl(firstImage, 640),
+					fetchPriority: "high",
+				},
+			],
+		};
+	},
 	component: HomeComponent,
 });
 
