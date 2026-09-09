@@ -7,6 +7,7 @@ import { trackWebengageEvent } from "@/lib/webengage";
 import {
 	createPalmPayOrder,
 	assertPalmPaySigningKey,
+	PalmPayNetworkError,
 	PalmPayProviderError,
 	queryPalmPayOrder,
 	verifyPalmPay,
@@ -77,7 +78,8 @@ route.openapi(
 			);
 		}
 		const db = drizzle(c.env.DB, { schema });
-		const reference = `palm_${crypto.randomUUID()}`;
+		// PalmPay permits merchant order IDs up to 32 characters.
+		const reference = `palm_${crypto.randomUUID().replaceAll("-", "").slice(0, 27)}`;
 		const amount = Math.round(input.data.amount * 100);
 		const amountMajor = input.data.amount;
 		try {
@@ -100,7 +102,7 @@ route.openapi(
 				paymentMethod: "palmpay",
 				createdAt: new Date(),
 			});
-			await trackWebengageEvent(
+			trackWebengageEvent(
 				c.env,
 				{
 					userId: user.id,
@@ -140,8 +142,11 @@ route.openapi(
 			console.error("PalmPay deposit initiation failed", {
 				operation: "create_order",
 				reason: error instanceof Error ? error.name : "UnknownError",
+				message: error instanceof Error ? error.message.slice(0, 160) : undefined,
 				providerStatus: error instanceof PalmPayProviderError ? error.providerStatus : undefined,
 				providerCode: error instanceof PalmPayProviderError ? error.providerCode : undefined,
+				providerMessage: error instanceof PalmPayProviderError ? error.providerMessage?.slice(0, 160) : undefined,
+				networkMessage: error instanceof PalmPayNetworkError ? error.networkMessage : undefined,
 			});
 			await db
 				.update(schema.palmpayTransaction)
@@ -173,7 +178,7 @@ route.openapi(
 				},
 				c.executionCtx,
 			);
-			if (error instanceof PalmPayProviderError) {
+			if (error instanceof PalmPayProviderError || error instanceof PalmPayNetworkError) {
 				return c.json(
 					{ success: false as const, error: "PalmPay could not create this deposit. Please try again later." },
 					502,

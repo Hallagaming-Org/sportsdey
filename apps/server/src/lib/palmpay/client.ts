@@ -15,9 +15,17 @@ export class PalmPayProviderError extends Error {
 	constructor(
 		public readonly providerStatus: number,
 		public readonly providerCode: string,
+		public readonly providerMessage?: string,
 	) {
-		super("PalmPay create order was rejected");
+		super(providerMessage || "PalmPay create order was rejected");
 		this.name = "PalmPayProviderError";
+	}
+}
+
+export class PalmPayNetworkError extends Error {
+	constructor(public readonly networkMessage?: string) {
+		super(networkMessage || "PalmPay could not be reached");
+		this.name = "PalmPayNetworkError";
 	}
 }
 
@@ -61,11 +69,13 @@ function base(env: CloudflareBindings) { return BASE_URLS[env.PALMPAY_ENV === "p
 function requestFields(fields: PalmPayPayload) { return { requestTime: Date.now(), version: "V1.1", nonceStr: crypto.randomBytes(16).toString("hex"), ...fields }; }
 
 export async function createPalmPayOrder(env: CloudflareBindings, input: { reference: string; amount: number; userId: string; mobile?: string }) {
-	const body = requestFields({ orderId: input.reference, title: "Sportsdey wallet top-up", description: "Sportsdey wallet deposit", userId: input.userId, userMobileNo: input.mobile, amount: input.amount, currency: "NGN", notifyUrl: `${env.SERVER_URL}/palmpay/webhook`, callBackUrl: `${env.FRONTEND_URL}/wallet?deposit=processing&reference=${encodeURIComponent(input.reference)}`, orderExpireTime: 1800, productType: "bank_transfer" });
-	const response = await fetch(`${base(env)}/api/v2/payment/merchant/createorder`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", CountryCode: "NG", Authorization: `Bearer ${env.PALMPAY_APP_ID}`, Signature: signPalmPay(body, env.PALMPAY_MERCHANT_PRIVATE_KEY) }, body: JSON.stringify(body) });
-	const json = await response.json().catch(() => null) as { respCode?: string; data?: { orderNo: string; checkoutUrl?: string } } | null;
+	const body = requestFields({ orderId: input.reference, title: "Sportsdey wallet top-up", description: "Sportsdey wallet deposit", goodsDetails: JSON.stringify([{ goodsId: "wallet-topup" }]), userId: input.userId, userMobileNo: input.mobile, amount: input.amount, currency: "NGN", notifyUrl: `${env.SERVER_URL}/palmpay/webhook`, callBackUrl: `${env.FRONTEND_URL}/wallet?deposit=processing&reference=${encodeURIComponent(input.reference)}`, orderExpireTime: 1800, productType: "bank_transfer" });
+	const response = await fetch(`${base(env)}/api/v2/payment/merchant/createorder`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", CountryCode: "NG", Authorization: `Bearer ${env.PALMPAY_APP_ID}`, Signature: signPalmPay(body, env.PALMPAY_MERCHANT_PRIVATE_KEY) }, body: JSON.stringify(body) }).catch((error) => {
+		throw new PalmPayNetworkError(error instanceof Error ? error.message.slice(0, 160) : undefined);
+	});
+	const json = await response.json().catch(() => null) as { respCode?: string; respMsg?: string; data?: { orderNo: string; checkoutUrl?: string } } | null;
 	if (!response.ok || json?.respCode !== "00000000" || !json.data?.orderNo) {
-		throw new PalmPayProviderError(response.status, json?.respCode ?? "INVALID_PROVIDER_RESPONSE");
+		throw new PalmPayProviderError(response.status, json?.respCode ?? "INVALID_PROVIDER_RESPONSE", json?.respMsg);
 	}
 	return json.data;
 }

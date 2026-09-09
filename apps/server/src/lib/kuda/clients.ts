@@ -21,6 +21,29 @@ const BASE_URLS: Record<KudaEnv, string> = {
 	production: "https://kuda-openapi.kuda.com/v2.1",
 };
 
+export class KudaProviderError extends Error {
+	constructor(
+		public readonly operation: "get_token" | "request",
+		public readonly providerStatus: number,
+		public readonly providerCode: string,
+	) {
+		super("Kuda provider request failed");
+		this.name = "KudaProviderError";
+	}
+}
+
+function parseKudaResponse(
+	raw: string,
+	operation: "get_token" | "request",
+	providerStatus: number,
+) {
+	try {
+		return JSON.parse(raw.replace(/^\uFEFF/, "").trim()) as Record<string, unknown>;
+	} catch {
+		throw new KudaProviderError(operation, providerStatus, "INVALID_PROVIDER_RESPONSE");
+	}
+}
+
 let cachedToken: { key: string; token: string; expiresAt: number } | null = null;
 
 /**
@@ -44,6 +67,7 @@ export async function getKudaAccessToken(
 	const response = await fetch(`${baseUrl}/Account/GetToken`, {
 		method: "POST",
 		headers: {
+			Accept: "application/json",
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
@@ -52,19 +76,28 @@ export async function getKudaAccessToken(
 		}),
 	});
 
+	const raw = await response.text();
 	if (!response.ok) {
-		throw new Error(`Failed to get Kuda token: ${response.status}`);
+		throw new KudaProviderError("get_token", response.status, "HTTP_ERROR");
 	}
 
-	const data = (await response.json()) as KudaTokenResponse;
+	const tokenResponse = raw.replace(/^\uFEFF/, "").trim();
+	let token = tokenResponse;
+	let expiresIn = 300;
+	if (tokenResponse.startsWith("{")) {
+		const data = parseKudaResponse(tokenResponse, "get_token", response.status) as KudaTokenResponse;
+		token = data.accessToken?.trim() ?? "";
+		expiresIn = data.expiresIn || expiresIn;
+	}
+	if (!token) throw new KudaProviderError("get_token", response.status, "MISSING_ACCESS_TOKEN");
 
 	cachedToken = {
 		key: cacheKey,
-		token: data.accessToken,
-		expiresAt: Date.now() + Math.max(60, data.expiresIn || 300) * 1000,
+		token,
+		expiresAt: Date.now() + Math.max(60, expiresIn) * 1000,
 	};
 
-	return data.accessToken;
+	return token;
 }
 
 /**
@@ -98,6 +131,7 @@ export async function kudaRequest<T = KudaBaseResponse>(
 	const response = await fetch(baseUrl, {
 		method: "POST",
 		headers: {
+			Accept: "application/json",
 			"Content-Type": "application/json",
 			Authorization: `Bearer ${token}`,
 		},
@@ -106,14 +140,14 @@ export async function kudaRequest<T = KudaBaseResponse>(
 
 	const rawResponse = await response.text();
 	if (!response.ok) {
-		throw new Error(`Kuda API error: ${response.status}`);
+		throw new KudaProviderError("request", response.status, "HTTP_ERROR");
 	}
 
-	const jsonResponse = JSON.parse(rawResponse) as T;
+	const jsonResponse = parseKudaResponse(rawResponse, "request", response.status) as T;
 
 	const baseResponse = jsonResponse as unknown as KudaBaseResponse;
 	if (baseResponse.status === false) {
-		throw new Error(`Kuda error: ${baseResponse.message || "Unknown error"}`);
+		throw new KudaProviderError("request", response.status, "REQUEST_REJECTED");
 	}
 
 	return jsonResponse;
