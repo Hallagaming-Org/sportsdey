@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
 	createDynamicCollectionAccount,
+	KudaProviderError,
 	queryDynamicCollectionStatus,
 } from "@/lib/kuda/clients";
 import { trackWebengageEvent } from "@/lib/webengage";
@@ -101,7 +102,14 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 			amount: parsed.data.amount,
 		} }, 200);
 	} catch (error) {
-		console.error("Kuda dynamic account creation failed", { operation: "create_dynamic_collection_account", reason: error instanceof Error ? error.name : "UnknownError" });
+		console.error("Kuda dynamic account creation failed", {
+			operation: "create_dynamic_collection_account",
+			reason: error instanceof Error ? error.name : "UnknownError",
+			message: error instanceof Error ? error.message.slice(0, 160) : undefined,
+			providerOperation: error instanceof KudaProviderError ? error.operation : undefined,
+			providerStatus: error instanceof KudaProviderError ? error.providerStatus : undefined,
+			providerCode: error instanceof KudaProviderError ? error.providerCode : undefined,
+		});
 		await db.update(schema.kudaTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(schema.kudaTransactions.reference, reference));
 		trackWebengageEvent(
 			c.env,

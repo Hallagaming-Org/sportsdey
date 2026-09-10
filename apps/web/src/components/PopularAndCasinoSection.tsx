@@ -47,16 +47,6 @@ const DEFAULT_GRADIENT =
 const HOT_CASINO_LIMIT = 30;
 const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
-/**
- * Homepage uses existing GET /games filters only.
- * `popular` is a real D1 slug; API limit max is 100 (30 would truncate
- * the popular set before HOT_CASINO_GAME_NAMES is applied).
- */
-const HOMEPAGE_CLASSIC_QUERY = {
-	category: "popular",
-	limit: 100,
-} as const;
-
 type HotLobbyGame =
 	| ScorpioLobbyGame
 	| (ClassicLobbyGame & { provider: "classic"; providerName: string });
@@ -451,8 +441,8 @@ function HotCasinoPanel() {
 	});
 
 	const classicQuery = useQuery<ClassicLobbyGame[]>({
-		queryKey: ["games", "homepage", HOMEPAGE_CLASSIC_QUERY],
-		queryFn: () => fetchClassicLobbyGames(HOMEPAGE_CLASSIC_QUERY),
+		queryKey: ["games"],
+		queryFn: fetchClassicLobbyGames,
 		enabled: !isSessionLoading,
 		staleTime: 60_000,
 	});
