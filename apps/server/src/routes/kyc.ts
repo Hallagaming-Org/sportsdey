@@ -1,5 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, or, sql } from "drizzle-orm";
+import type { DrizzleD1Database } from "drizzle-orm/d1";
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
@@ -91,10 +92,23 @@ const KycAdminStatusEnum = z
 	.enum(["not_verified", "pending_review", "approved", "rejected"])
 	.openapi("KycAdminStatusEnum");
 
+const KycReviewerSchema = z
+	.object({
+		id: z.string().openapi({ description: "Reviewer admin ID" }),
+		name: z.string().openapi({ description: "Reviewer admin name" }),
+		avatar: z
+			.string()
+			.nullable()
+			.openapi({ description: "Reviewer avatar URL" }),
+	})
+	.nullable()
+	.openapi("KycReviewer");
+
 const KycAdminListItemSchema = z
 	.object({
 		id: z.string().openapi({ description: "KYC ID" }),
 		playername: z.string().openapi({ description: "Player name" }),
+		image: z.string().nullable().openapi({ description: "Player avatar URL" }),
 		form_of_identification: IdentificationTypeEnum.openapi({
 			description: "Identification type",
 		}),
@@ -142,10 +156,51 @@ const KycDocumentResponseSchema = z
 				backDocument: KycDocumentSchema.nullable().openapi({
 					description: "Back document",
 				}),
+				status: KycAdminStatusEnum.openapi({ description: "KYC status" }),
+				reviewedBy: KycReviewerSchema.openapi({
+					description: "Reviewing admin",
+				}),
+				reviewedAt: z
+					.string()
+					.nullable()
+					.openapi({ description: "Reviewed at" }),
 			})
 			.openapi({ description: "Documents" }),
 	})
 	.openapi("KycDocumentResponse");
+
+async function getKycTargetUser(
+	db: DrizzleD1Database<typeof schema>,
+	userId: string,
+): Promise<
+	| {
+			id: string;
+			name: string | null;
+			email: string | null;
+			username: string | null;
+		}
+	| undefined
+> {
+	const [targetUser] = await db
+		.select({
+			id: schema.user.id,
+			name: schema.user.name,
+			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
+		})
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!targetUser) return undefined;
+
+	return {
+		id: targetUser.id,
+		name: targetUser.name,
+		email: targetUser.email,
+		username: targetUser.mobileNumber,
+	};
+}
 
 async function uploadFileToR2(
 	bucket: R2Bucket,
@@ -894,12 +949,59 @@ kycRoute.openapi(getKycByUserIdRoute, async (c) => {
 		}
 	}
 
+	let reviewedBy: { id: string; name: string; avatar: string | null } | null =
+		null;
+	let reviewedAt: string | null = null;
+	if (kycRecord.status === "approved" || kycRecord.status === "rejected") {
+		const [reviewActivity] = await db
+			.select({
+				adminId: schema.adminActivityLog.adminId,
+				loggedName: schema.adminActivityLog.adminName,
+				liveName: schema.admin.name,
+				liveAvatar: schema.admin.image,
+				createdAt: schema.adminActivityLog.createdAt,
+			})
+			.from(schema.adminActivityLog)
+			.leftJoin(
+				schema.admin,
+				eq(schema.adminActivityLog.adminId, schema.admin.id),
+			)
+			.where(
+				and(
+					eq(schema.adminActivityLog.targetUserId, kycRecord.userId),
+					inArray(schema.adminActivityLog.action, [
+						adminActivityActions.approveDocument,
+						adminActivityActions.rejectDocument,
+					]),
+					gte(schema.adminActivityLog.createdAt, kycRecord.submittedAt),
+				),
+			)
+			.orderBy(desc(schema.adminActivityLog.createdAt))
+			.limit(1);
+
+		if (reviewActivity) {
+			reviewedBy = {
+				id: reviewActivity.adminId,
+				name: reviewActivity.liveName ?? reviewActivity.loggedName,
+				avatar: reviewActivity.liveAvatar ?? null,
+			};
+			reviewedAt = toWAT(reviewActivity.createdAt);
+		}
+	}
+
 	return c.json(
 		{
 			success: true,
 			data: {
 				frontDocument,
 				backDocument,
+				status: kycRecord.status as
+					| "not_verified"
+					| "pending_review"
+					| "approved"
+					| "rejected",
+				reviewedBy,
+				reviewedAt,
 			},
 		},
 		200,
@@ -994,6 +1096,7 @@ kycRoute.openapi(approveKycRoute, async (c) => {
 		c.env,
 		session.adminId,
 		adminActivityActions.approveDocument,
+		{ targetUser: await getKycTargetUser(db, kycRecord.userId) },
 	);
 
 	await syncWebengageUserProfile(c.env, kycRecord.userId, c.executionCtx);
@@ -1105,6 +1208,7 @@ kycRoute.openapi(rejectKycRoute, async (c) => {
 		c.env,
 		session.adminId,
 		adminActivityActions.rejectDocument,
+		{ targetUser: await getKycTargetUser(db, kycRecord.userId) },
 	);
 
 	await syncWebengageUserProfile(c.env, kycRecord.userId, c.executionCtx);
