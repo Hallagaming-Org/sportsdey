@@ -55,13 +55,7 @@
 			},
 			"triggers": { "crons": ["0 * * * *"] },
 			"vars": {
-				"NODE_ENV": "staging",
-				"BETTER_AUTH_URL": "https://staging-api.sportsdey.com",
-				"FRONTEND_URL": "https://stagingweb.sportsdey.com",
-				"SERVER_URL": "https://staging-api.sportsdey.com",
-				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
-				"COOKIE_DOMAIN": "sportsdey.com",
-				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
+				"NODE_ENV": "staging"
 			}
 		},
 		"production": {
@@ -102,13 +96,7 @@
 				}
 			],
 			"vars": {
-				"NODE_ENV": "production",
-				"BETTER_AUTH_URL": "https://api.sportsdey.com",
-				"FRONTEND_URL": "https://sportsdey.com",
-				"SERVER_URL": "https://api.sportsdey.com",
-				"CORS_ORIGIN": "https://sportsdey.com",
-				"COOKIE_DOMAIN": "sportsdey.com",
-				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
+				"NODE_ENV": "production"
 			}
 		}
 	},
