@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import type { MissionCard as MissionCardModel } from "@/lib/missions";
+import { sportsbookSplatFromHref } from "@/lib/missions.constant";
 import { cn } from "@/lib/utils";
 import { iconForAction } from "./mission-action-icon";
 
@@ -24,6 +25,7 @@ export function MissionCard({ mission }: MissionCardProps) {
 			? Math.min(100, (mission.progressCurrent / mission.progressTarget) * 100)
 			: 0;
 	const Icon = iconForAction(mission.actionKind);
+	const sportsbookSplat = sportsbookSplatFromHref(mission.actionHref);
 
 	return (
 		<article
@@ -84,6 +86,13 @@ export function MissionCard({ mission }: MissionCardProps) {
 					>
 						Completed
 					</button>
+				) : sportsbookSplat ? (
+					<a
+						href={mission.actionHref}
+						className="mt-auto flex h-11 w-full items-center justify-center rounded-xl bg-accent font-bold text-sm text-[#040C01] transition-colors hover:bg-[#158f03] hover:text-white"
+					>
+						{mission.actionLabel}
+					</a>
 				) : (
 					<Link
 						to={missionPath(mission.actionHref)}
