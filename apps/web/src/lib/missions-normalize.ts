@@ -4,7 +4,12 @@ import {
 	MISSION_PLAY_SEARCH_KEY,
 	MISSION_REWARD_TYPE,
 	MISSION_ROUTE,
+	MISSION_SPORTSBOOK_FOOTBALL_PREMATCH,
+	MISSION_SPORTSBOOK_PATH_FIELD,
 	MISSION_TRIGGER_KEYWORD,
+	isDatabetTournamentGin,
+	sportsbookHrefFromSplat,
+	sportsbookTournamentSplat,
 } from "./missions.constant";
 
 export type MissionCadence = "daily" | "weekly" | "monthly";
@@ -33,15 +38,13 @@ export type MissionCard = {
 	status: "active" | "completed" | "locked" | "upcoming" | "ended";
 	lockedMessage: string | null;
 	actionLabel: string;
-	
 	actionHref: string;
-	
 	actionSearch?: { play?: string; category?: string };
 	actionKind: MissionActionKind;
-	
 	providers: Array<{ uniqueId: string; name: string }>;
-	
 	games: Array<{ uniqueId: string; name: string; providerName: string }>;
+	leagues: Array<{ uniqueId: string; name: string }>;
+	categories: Array<{ uniqueId: string; name: string }>;
 	startAt: string | null;
 	endAt: string | null;
 	completedAt: string | null;
@@ -75,6 +78,10 @@ export function normalizeMissionRecord(
 		asString(record._id ?? record.mission_id ?? record.id) || `mission-${index}`;
 	const level = asString(record.mission_level ?? record.level) || "Mission";
 	const { providers, games } = parseProviderGames(record.provider_games);
+	const { leagues, categories } = parseSportsTargets(
+		record.sports_league_events,
+	);
+	const sportsbookPath = asString(record[MISSION_SPORTSBOOK_PATH_FIELD]);
 	const triggers = parseMissionTriggers(record.mission_triggers);
 	const rewardPoints =
 		sumMissionPoints(record.missions_points) || triggers.rewardPoints;
@@ -113,16 +120,28 @@ export function normalizeMissionRecord(
 		triggerTypes: triggers.types,
 		providers,
 		games,
+		leagues,
+		categories,
+		sportsbookPath,
 	});
 	const title =
 		asString(record.title ?? record.name ?? record.mission_name) ||
-		fallbackTitle({ level, actionKind: action.kind, providers, games });
+		fallbackTitle({
+			level,
+			actionKind: action.kind,
+			providers,
+			games,
+			leagues,
+			categories,
+		});
 	const description =
 		asString(record.description ?? record.details ?? record.objective) ||
 		fallbackDescription({
 			actionKind: action.kind,
 			providers,
 			games,
+			leagues,
+			categories,
 			progressTarget,
 			triggerTypes: triggers.types,
 		});
@@ -143,6 +162,8 @@ export function normalizeMissionRecord(
 			actionKind: action.kind,
 			providers,
 			games,
+			leagues,
+			categories,
 		}),
 		rewardPoints,
 		rewardLabel,
@@ -155,6 +176,8 @@ export function normalizeMissionRecord(
 		actionKind: action.kind,
 		providers,
 		games,
+		leagues,
+		categories,
 		startAt,
 		endAt,
 		completedAt:
@@ -204,8 +227,15 @@ export function resolveMissionAction(payload: {
 	triggerTypes: string[];
 	providers: MissionCard["providers"];
 	games: MissionCard["games"];
+	leagues?: MissionCard["leagues"];
+	categories?: MissionCard["categories"];
+	sportsbookPath?: string;
 }): ResolvedMissionAction {
 	const triggerHaystack = payload.triggerTypes.join(" ");
+	const league = firstPlayableLeague(payload.leagues ?? []);
+	const category = firstNamedTarget(payload.categories ?? []);
+	const sportsbookPath = payload.sportsbookPath?.trim() || "";
+	const hasSportsTarget = Boolean(league || category || sportsbookPath);
 
 	if (MISSION_TRIGGER_KEYWORD.INVITE.test(triggerHaystack)) {
 		return {
@@ -229,12 +259,8 @@ export function resolveMissionAction(payload: {
 			search: { category: "virtuals" },
 		};
 	}
-	if (MISSION_TRIGGER_KEYWORD.SPORTS.test(triggerHaystack)) {
-		return {
-			kind: "sports",
-			label: MISSION_ACTION_LABEL.SPORTS,
-			href: MISSION_ROUTE.SPORTS,
-		};
+	if (MISSION_TRIGGER_KEYWORD.SPORTS.test(triggerHaystack) || hasSportsTarget) {
+		return sportsbookAction({ league, category, sportsbookPath });
 	}
 
 	const playGame = firstPlayableGame(payload.games);
@@ -254,11 +280,7 @@ export function resolveMissionAction(payload: {
 		MISSION_TRIGGER_KEYWORD.WAGER_OR_BET.test(triggerHaystack) &&
 		realProviders.length === 0
 	) {
-		return {
-			kind: "sports",
-			label: MISSION_ACTION_LABEL.SPORTS,
-			href: MISSION_ROUTE.SPORTS,
-		};
+		return sportsbookAction({ league, category, sportsbookPath });
 	}
 
 	if (realProviders.length > 0) {
@@ -273,6 +295,27 @@ export function resolveMissionAction(payload: {
 		kind: "generic",
 		label: MISSION_ACTION_LABEL.PLAY,
 		href: MISSION_ROUTE.CASINO,
+	};
+}
+
+function sportsbookAction(payload: {
+	league: MissionCard["leagues"][number] | null;
+	category: MissionCard["categories"][number] | null;
+	sportsbookPath: string;
+}): ResolvedMissionAction {
+	const splat =
+		payload.sportsbookPath ||
+		(payload.league && isDatabetTournamentGin(payload.league.uniqueId)
+			? sportsbookTournamentSplat(payload.league.uniqueId)
+			: MISSION_SPORTSBOOK_FOOTBALL_PREMATCH);
+	const targetName =
+		payload.league && payload.league.name !== "League"
+			? payload.league.name
+			: payload.category?.name;
+	return {
+		kind: "sports",
+		label: targetName ? `Play ${targetName}` : MISSION_ACTION_LABEL.SPORTS,
+		href: sportsbookHrefFromSplat(splat),
 	};
 }
 
@@ -322,6 +365,61 @@ function parseProviderGames(value: unknown): {
 	}
 
 	return { providers, games };
+}
+
+function parseSportsTargets(value: unknown): {
+	leagues: MissionCard["leagues"];
+	categories: MissionCard["categories"];
+} {
+	if (!Array.isArray(value)) return { leagues: [], categories: [] };
+
+	const leagues: MissionCard["leagues"] = [];
+	const categories: MissionCard["categories"] = [];
+	const seenLeagues = new Set<string>();
+	const seenCategories = new Set<string>();
+
+	for (const entry of value) {
+		if (typeof entry !== "object" || entry === null) continue;
+		const row = entry as Record<string, unknown>;
+		const category =
+			typeof row.category === "object" && row.category !== null
+				? (row.category as Record<string, unknown>)
+				: null;
+		const categoryId = asIdString(category?.unique_id ?? category?.id);
+		const categoryName = asString(category?.name);
+		if (categoryId || categoryName) {
+			const key = categoryId || categoryName.toLowerCase();
+			if (!seenCategories.has(key)) {
+				seenCategories.add(key);
+				categories.push({
+					uniqueId: categoryId,
+					name: categoryName || "Category",
+				});
+			}
+		}
+
+		const leagueList = Array.isArray(row.leagues) ? row.leagues : [];
+		for (const leagueEntry of leagueList) {
+			if (typeof leagueEntry !== "object" || leagueEntry === null) continue;
+			const wrapped = leagueEntry as Record<string, unknown>;
+			const leagueRow =
+				typeof wrapped.league === "object" && wrapped.league !== null
+					? (wrapped.league as Record<string, unknown>)
+					: wrapped;
+			const uniqueId = asIdString(leagueRow.unique_id ?? leagueRow.id);
+			const name = asString(leagueRow.name);
+			if (!uniqueId && !name) continue;
+			const key = uniqueId || name.toLowerCase();
+			if (seenLeagues.has(key)) continue;
+			seenLeagues.add(key);
+			leagues.push({
+				uniqueId,
+				name: name || "League",
+			});
+		}
+	}
+
+	return { leagues, categories };
 }
 
 function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
@@ -392,6 +490,28 @@ function firstPlayableGame(
 				Boolean(game.uniqueId) && !isPlaceholderUniqueId(game.uniqueId),
 		) ?? null
 	);
+}
+
+function firstNamedTarget(
+	targets: Array<{ uniqueId: string; name: string }>,
+): { uniqueId: string; name: string } | null {
+	return (
+		targets.find((target) => {
+			const hasName =
+				Boolean(target.name) &&
+				target.name !== "League" &&
+				target.name !== "Category";
+			const hasId =
+				Boolean(target.uniqueId) && !isPlaceholderUniqueId(target.uniqueId);
+			return hasName || hasId;
+		}) ?? null
+	);
+}
+
+function firstPlayableLeague(
+	leagues: MissionCard["leagues"],
+): MissionCard["leagues"][number] | null {
+	return firstNamedTarget(leagues);
 }
 
 function isPlaceholderUniqueId(value: string): boolean {
@@ -506,10 +626,14 @@ function resolveProgressLabel(payload: {
 	actionKind: MissionActionKind;
 	providers: MissionCard["providers"];
 	games: MissionCard["games"];
+	leagues: MissionCard["leagues"];
+	categories: MissionCard["categories"];
 }): string {
 	if (payload.status === "completed") return "Completed";
 	if (payload.actionKind === "invite") return "Referral";
 	if (payload.games[0]?.name) return payload.games[0].name;
+	if (payload.leagues[0]?.name) return payload.leagues[0].name;
+	if (payload.categories[0]?.name) return payload.categories[0].name;
 	if (payload.providers[0]?.name) return payload.providers[0].name;
 	return "Progress";
 }
@@ -519,8 +643,12 @@ function fallbackTitle(payload: {
 	actionKind: MissionActionKind;
 	providers: MissionCard["providers"];
 	games: MissionCard["games"];
+	leagues?: MissionCard["leagues"];
+	categories?: MissionCard["categories"];
 }): string {
 	if (payload.games[0]?.name) return `Play ${payload.games[0].name}`;
+	if (payload.leagues?.[0]?.name) return `Play ${payload.leagues[0].name}`;
+	if (payload.categories?.[0]?.name) return `Play ${payload.categories[0].name}`;
 	if (payload.providers[0]?.name) {
 		return `Play ${payload.providers[0].name}`;
 	}
@@ -539,6 +667,8 @@ function fallbackDescription(payload: {
 	actionKind: MissionActionKind;
 	providers: MissionCard["providers"];
 	games: MissionCard["games"];
+	leagues: MissionCard["leagues"];
+	categories: MissionCard["categories"];
 	progressTarget: number;
 	triggerTypes: string[];
 }): string {
@@ -549,6 +679,16 @@ function fallbackDescription(payload: {
 			.map((game) => game.name)
 			.join(", ");
 		return `Complete play on ${names}${payload.games.length > 2 ? " and more" : ""}.`;
+	}
+	if (payload.leagues.length > 0) {
+		const names = payload.leagues
+			.slice(0, 2)
+			.map((league) => league.name)
+			.join(", ");
+		return `Place a qualifying bet on ${names}${payload.leagues.length > 2 ? " and more" : ""}.`;
+	}
+	if (payload.categories.length > 0) {
+		return `Place a qualifying bet on ${payload.categories[0].name}.`;
 	}
 	if (payload.providers.length > 0) {
 		return `Complete the required play on ${payload.providers.map((provider) => provider.name).join(", ")}.`;
@@ -566,6 +706,11 @@ function fallbackDescription(payload: {
 
 function asString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
+}
+
+function asIdString(value: unknown): string {
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	return asString(value);
 }
 
 function asNumber(value: unknown): number {
