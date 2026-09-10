@@ -156,7 +156,7 @@ export async function kudaRequest<T = KudaBaseResponse>(
 
 export async function createDynamicCollectionAccount(
 	env: CloudflareBindings,
-	params: { requestRef: string; amount: number; accountName: string },
+	params: { requestRef: string; amount: number; accountName: string; remittingAccountNumber: string },
 ): Promise<{ accountNumber: string; accountName: string }> {
 	const response = await kudaRequest<{
 		status: boolean;
@@ -166,6 +166,12 @@ export async function createDynamicCollectionAccount(
 		amount: params.amount,
 		isFlexiblePayment: false,
 		accountName: params.accountName,
+		// Kuda requires the business-approved account that receives the collection.
+		// Keep it in environment configuration rather than source code.
+		remittingAccounts: [{
+			splitPercentage: 100,
+			accountNumber: params.remittingAccountNumber,
+		}],
 	}, params.requestRef);
 	if (!response.data?.accountNumber || !response.data.accountName) throw new Error("Kuda did not return a collection account");
 	return response.data;
