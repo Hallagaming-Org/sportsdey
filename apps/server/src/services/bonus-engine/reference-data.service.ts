@@ -8,10 +8,11 @@ import {
 	BONUS_ENGINE_DATABET_TOURNAMENTS_PATH,
 	BONUS_ENGINE_SPORTSBOOK_CATALOG,
 	BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS,
-	matchTopEuropeanChampionship,
+	pickCanonicalSportsbookTournament,
 } from "./reference-data.service.constant";
 import type {
 	BonusEngineChampionshipItem,
+	BonusEngineChampionshipRow,
 	BonusEngineEventMarketItem,
 	BonusEngineGameItem,
 	BonusEngineGameProviderItem,
@@ -139,16 +140,20 @@ export function listBonusEngineSportCategories(payload: {
  * Uses Data.Bet tournament ids when the sportsbook proxy is configured so
  * Championship ID equals `POST /bet` `league_id`.
  */
+export async function listBonusEngineChampionshipRows(
+	env?: CloudflareBindings,
+): Promise<BonusEngineChampionshipRow[]> {
+	const live = env ? await loadLiveTopEuropeanChampionships(env) : null;
+	return live ?? fallbackChampionships();
+}
+
 export async function listBonusEngineChampionships(payload: {
 	env?: CloudflareBindings;
 	sportId?: string;
 	categoryId?: string;
 	championshipId?: string;
 }): Promise<BonusEngineChampionshipItem[]> {
-	const live = payload.env
-		? await loadLiveTopEuropeanChampionships(payload.env)
-		: null;
-	const rows = live ?? fallbackChampionships();
+	const rows = await listBonusEngineChampionshipRows(payload.env);
 	return filterChampionships(rows, payload);
 }
 
@@ -168,12 +173,7 @@ export function listBonusEngineEventMarkets(_payload: {
 	return [];
 }
 
-function fallbackChampionships(): Array<{
-	sportId: number;
-	categoryId: number;
-	championshipId: number | string;
-	name: string;
-}> {
+function fallbackChampionships(): BonusEngineChampionshipRow[] {
 	return BONUS_ENGINE_SPORTSBOOK_CATALOG.championships.map((championship) => ({
 		sportId: championship.sportId,
 		categoryId: championship.categoryId,
@@ -183,12 +183,7 @@ function fallbackChampionships(): Array<{
 }
 
 function filterChampionships(
-	rows: Array<{
-		sportId: number;
-		categoryId: number;
-		championshipId: number | string;
-		name: string;
-	}>,
+	rows: BonusEngineChampionshipRow[],
 	payload: {
 		sportId?: string;
 		categoryId?: string;
@@ -225,12 +220,7 @@ function filterChampionships(
  */
 async function loadLiveTopEuropeanChampionships(
 	env: CloudflareBindings,
-): Promise<Array<{
-	sportId: number;
-	categoryId: number;
-	championshipId: number | string;
-	name: string;
-}> | null> {
+): Promise<BonusEngineChampionshipRow[] | null> {
 	if (!env.PROXY_URL?.trim() || !env.PROXY_SECRET?.trim()) return null;
 
 	try {
@@ -240,41 +230,27 @@ async function loadLiveTopEuropeanChampionships(
 			),
 		);
 
-		const byCanonicalName = new Map<
-			string,
-			{
-				sportId: number;
-				categoryId: number;
-				championshipId: number | string;
-				name: string;
-			}
-		>();
-
-		for (const page of pages) {
-			for (const tournament of page) {
-				const matched = matchTopEuropeanChampionship(tournament.name);
-				if (!matched || byCanonicalName.has(matched.name)) continue;
-				byCanonicalName.set(matched.name, {
-					sportId: matched.sportId,
-					categoryId: matched.categoryId,
-					championshipId: toChampionshipId(tournament.id),
-					name: matched.name,
-				});
-			}
+		const rows: BonusEngineChampionshipRow[] = [];
+		for (const [index, championship] of BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS.entries()) {
+			const picked = pickCanonicalSportsbookTournament(
+				pages[index] ?? [],
+				championship,
+			);
+			rows.push({
+				sportId: championship.sportId,
+				categoryId: championship.categoryId,
+				championshipId: picked
+					? toChampionshipId(picked.id)
+					: championship.fallbackChampionshipId,
+				name: championship.name,
+			});
 		}
 
-		if (byCanonicalName.size === 0) return null;
+		if (!rows.some((row) => isLiveSportsbookTournamentId(row.championshipId))) {
+			return null;
+		}
 
-		return BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS.map((championship) => {
-			return (
-				byCanonicalName.get(championship.name) ?? {
-					sportId: championship.sportId,
-					categoryId: championship.categoryId,
-					championshipId: championship.fallbackChampionshipId,
-					name: championship.name,
-				}
-			);
-		});
+		return rows;
 	} catch (error) {
 		console.warn("Bonus Engine championship catalog fell back to stubs", {
 			error: error instanceof Error ? error.message : String(error),
@@ -320,6 +296,10 @@ function toChampionshipId(rawId: string): number | string {
 		return numeric;
 	}
 	return trimmed;
+}
+
+function isLiveSportsbookTournamentId(id: number | string): boolean {
+	return /:gin:/i.test(String(id)) || /^betting:\d+:/i.test(String(id));
 }
 
 function parseOptionalInt(value: string | undefined): number | null {
