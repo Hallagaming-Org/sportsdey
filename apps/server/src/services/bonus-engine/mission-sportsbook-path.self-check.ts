@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import {
 	attachMissionSportsbookPaths,
 	resolveMissionSportsbookPath,
-} from "./mission-sportsbook-path.ts";
+} from "./mission-sportsbook-path";
 import {
 	BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS,
 	pickCanonicalSportsbookTournament,
-} from "./reference-data.service.constant.ts";
+} from "./reference-data.service.constant";
 import type { BonusEngineChampionshipRow } from "./reference-data.service.type.ts";
 
 const bundesliga = BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS.find(
