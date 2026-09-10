@@ -9,11 +9,17 @@ interface BannerCarouselProps {
 	banners: BannerData[];
 }
 
-/** Keep CMS crops but request modern, appropriately-sized images from Sanity. */
-function bannerImageUrl(source: string, width: number): string {
+/**
+ * Banners are authored at ~1500×500. The API hero URL also sends h=630,
+ * which crops the sides and makes the slideshow taller. Drop height/rect
+ * so the original wide crop is preserved.
+ */
+export function bannerImageUrl(source: string, width: number): string {
 	try {
 		const url = new URL(source);
 		if (!url.hostname.endsWith("sanity.io")) return source;
+		url.searchParams.delete("h");
+		url.searchParams.delete("rect");
 		url.searchParams.set("w", String(width));
 		url.searchParams.set("auto", "format");
 		url.searchParams.set("fit", "max");
