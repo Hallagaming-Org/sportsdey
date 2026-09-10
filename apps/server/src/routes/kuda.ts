@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
 	createDynamicCollectionAccount,
+	KudaProviderError,
 	queryDynamicCollectionStatus,
 } from "@/lib/kuda/clients";
 import { trackWebengageEvent } from "@/lib/webengage";
@@ -43,6 +44,10 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 	if (!parsed.success) return c.json({ success: false as const, error: "Enter a valid deposit amount" }, 400);
 
 	const amountKobo = Math.round(parsed.data.amount * 100);
+	if (!c.env.KUDA_API_KEY || !c.env.KUDA_BUSINESS_EMAIL) {
+		console.error("Kuda configuration is incomplete", { operation: "create_deposit_account" });
+		return c.json({ success: false as const, error: "Kuda deposits are not configured on this environment." }, 503);
+	}
 	const reference = `KDA${crypto.randomUUID().replaceAll("-", "").toUpperCase()}`;
 	const db = drizzle(c.env.DB, { schema });
 	try {
@@ -97,7 +102,14 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 			amount: parsed.data.amount,
 		} }, 200);
 	} catch (error) {
-		console.error("Kuda dynamic account creation failed", { operation: "create_dynamic_collection_account", reason: error instanceof Error ? error.name : "UnknownError" });
+		console.error("Kuda dynamic account creation failed", {
+			operation: "create_dynamic_collection_account",
+			reason: error instanceof Error ? error.name : "UnknownError",
+			message: error instanceof Error ? error.message.slice(0, 160) : undefined,
+			providerOperation: error instanceof KudaProviderError ? error.operation : undefined,
+			providerStatus: error instanceof KudaProviderError ? error.providerStatus : undefined,
+			providerCode: error instanceof KudaProviderError ? error.providerCode : undefined,
+		});
 		await db.update(schema.kudaTransactions).set({ status: "failed", updatedAt: new Date() }).where(eq(schema.kudaTransactions.reference, reference));
 		trackWebengageEvent(
 			c.env,
@@ -118,8 +130,12 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 		return c.json({ success: false as const, error: "Unable to create a Kuda deposit account. Please try again." }, 500);
 	}
 	} catch (error) {
-		console.error("Kuda deposit setup failed", { operation: "create_deposit_record", reason: error instanceof Error ? error.name : "UnknownError" });
-		return c.json({ success: false as const, error: "Kuda deposits are not ready on this environment." }, 503);
+		console.error("Kuda deposit setup failed", {
+			operation: "create_deposit_record",
+			reason: error instanceof Error ? error.name : "UnknownError",
+			message: error instanceof Error ? error.message.slice(0, 160) : undefined,
+		});
+		return c.json({ success: false as const, error: "Kuda could not prepare this deposit. Please try again later." }, 503);
 	}
 });
 

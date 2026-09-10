@@ -239,22 +239,22 @@ export const CLASSIC_KNOWN_GAMES: Record<
 	},
 	HALLABOMB: {
 		subtitle: "halla mini game",
-		image: "/halla-bomb.png",
+		image: "/halla-bomb.webp",
 		gradient: "linear-gradient(to bottom, #1a1a2e, #c0392b, #e74c3c)",
 	},
 	HALLADICE: {
 		subtitle: "halla mini game",
-		image: "/halla-dice.png",
+		image: "/halla-dice.webp",
 		gradient: "linear-gradient(to bottom, #0f2027, #203a43, #2c5364)",
 	},
 	HALLAMETRONITE: {
 		subtitle: "halla mini game",
-		image: "/halla-metronite.png",
+		image: "/halla-metronite.webp",
 		gradient: "linear-gradient(to bottom, #141e30, #243b55, #4a90d9)",
 	},
 	"sportsdey-crash": {
 		subtitle: "sportsdey original",
-		image: "/sportsdey-crash.jpeg",
+		image: "/sportsdey-crash.webp",
 		gradient: "linear-gradient(to bottom, #ff6b35, #f7931e, #ffcc00)",
 	},
 	spin_and_win: {
@@ -340,8 +340,28 @@ export function getUniquePopularGames(
 	return pickGamesByOrderedNames(games, POPULAR_GAME_NAMES, limit);
 }
 
-export async function fetchClassicLobbyGames(): Promise<ClassicLobbyGame[]> {
-	const games = await apiRequest<ClassicLobbyGame[]>("games");
+/** Query params already supported by `GET /games`. */
+export type ClassicLobbyGamesQuery = {
+	category?: string;
+	search?: string;
+	sort?: "asc" | "desc";
+	offset?: number;
+	limit?: number;
+};
+
+export async function fetchClassicLobbyGames(
+	query?: ClassicLobbyGamesQuery,
+): Promise<ClassicLobbyGame[]> {
+	const params = new URLSearchParams();
+	if (query?.category) params.set("category", query.category);
+	if (query?.search) params.set("search", query.search);
+	if (query?.sort) params.set("sort", query.sort);
+	if (query?.offset != null) params.set("offset", String(query.offset));
+	if (query?.limit != null) params.set("limit", String(query.limit));
+	const qs = params.toString();
+	const games = await apiRequest<ClassicLobbyGame[]>(
+		qs ? `games?${qs}` : "games",
+	);
 	const enabled = games.filter((game) => game.enabled);
 	return enabled;
 }

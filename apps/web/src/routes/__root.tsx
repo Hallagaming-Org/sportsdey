@@ -33,6 +33,34 @@ import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
 
+const INTER_FONT_HREF =
+	"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+const DEFERRED_FONTS_HREF =
+	"https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Quicksand:wght@400;500;600;700&display=swap";
+
+function DeferredFonts() {
+	useEffect(() => {
+		const load = () => {
+			if (document.getElementById("deferred-fonts")) return;
+			const link = document.createElement("link");
+			link.id = "deferred-fonts";
+			link.rel = "stylesheet";
+			link.href = DEFERRED_FONTS_HREF;
+			document.head.appendChild(link);
+		};
+
+		if ("requestIdleCallback" in window) {
+			const idleId = window.requestIdleCallback(load, { timeout: 4000 });
+			return () => window.cancelIdleCallback(idleId);
+		}
+
+		const timeoutId = window.setTimeout(load, 2000);
+		return () => window.clearTimeout(timeoutId);
+	}, []);
+
+	return null;
+}
+
 // import { RouterProviderComponents } from "@tanstack/react-router";
 
 export type RouterAppContext = {
@@ -200,11 +228,7 @@ function RootDocument() {
 							key="gtm-script"
 							dangerouslySetInnerHTML={{
 								__html: `
-        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  })(window,document,'script','dataLayer','GTM-5JZSLR3K');
+        (function(w,d,s,l,i){function load(){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f)}if(d.readyState==='complete'){setTimeout(load,1500)}else{w.addEventListener('load',function(){setTimeout(load,1500)},{once:true})}})(window,document,'script','dataLayer','GTM-5JZSLR3K');
       `,
 							}}
 						/>
@@ -213,14 +237,21 @@ function RootDocument() {
 							key="webengage-script"
 							dangerouslySetInnerHTML={{
 								__html: `
-var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r.__queue.push([t.join("."),
-arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z),a="webPersonalization feedback survey notification notificationInbox".split(z),c="options render clear abort".split(z),p="Prepare Render Open Close Submit Complete View Click".split(z),u="identify login logout setAttribute".split(z);if(!r||!r.__v){for(w[b]=r={__queue:[],__v:"6.0",user:{}},i=0;i < l.length;i++)o(r,[l[i]]);for(i=0;i < a.length;i++){for(r[a[i]]={},s=0;s < c.length;s++)o(r[a[i]],[a[i],c[s]]);for(s=0;s < p.length;s++)o(r[a[i]],[a[i],"on"+p[s]])}for(i=0;i < u.length;i++)o(r.user,["user",u[i]]);setTimeout(function(){var f=e.createElement("script"),d=e.getElementById("_webengage_script_tag");f.type="text/javascript",f.async=!0,f.src=("https:"==e.location.protocol?"https://widgets.ksa.webengage.com":"http://widgets.ksa.webengage.com")+"/js/webengage-min-v-6.0.js",d.parentNode.insertBefore(f,d)})}}(window,document,"webengage");webengage.init("ksa~aa13187c");
+var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r.__queue.push([t.join("."),arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z),a="webPersonalization feedback survey notification notificationInbox".split(z),c="options render clear abort".split(z),p="Prepare Render Open Close Submit Complete View Click".split(z),u="identify login logout setAttribute".split(z);if(!r||!r.__v){for(w[b]=r={__queue:[],__v:"6.0",user:{}},i=0;i < l.length;i++)o(r,[l[i]]);for(i=0;i < a.length;i++){for(r[a[i]]={},s=0;s < c.length;s++)o(r[a[i]],[a[i],c[s]]);for(s=0;s < p.length;s++)o(r[a[i]],[a[i],"on"+p[s]])}for(i=0;i < u.length;i++)o(r.user,["user",u[i]]);var load=function(){var f=e.createElement("script"),d=e.getElementById("_webengage_script_tag");f.type="text/javascript",f.async=!0,f.src=("https:"==e.location.protocol?"https://widgets.ksa.webengage.com":"http://widgets.ksa.webengage.com")+"/js/webengage-min-v-6.0.js",d.parentNode.insertBefore(f,d)};if("requestIdleCallback" in w){w.requestIdleCallback(load,{timeout:4000})}else{w.setTimeout(load,3000)}}}(window,document,"webengage");webengage.init("ksa~aa13187c");
 `,
 							}}
 						/>
 
 						<HeadContent />
 						<link rel="icon" href="/Favicon.svg" type="image/svg+xml" />
+						<link rel="preconnect" href="https://fonts.googleapis.com" />
+						<link
+							rel="preconnect"
+							href="https://fonts.gstatic.com"
+							crossOrigin="anonymous"
+						/>
+						<link rel="preload" as="style" href={INTER_FONT_HREF} />
+						<link rel="stylesheet" href={INTER_FONT_HREF} />
 						<link rel="stylesheet" href={appCss} />
 					</head>
 					<body suppressHydrationWarning>
@@ -236,6 +267,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
+									<DeferredFonts />
 									<WebengageIdentity />
 									<ScrollToTop />
 									{isAuthRoute ? (
@@ -310,8 +342,12 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 								</Providers>
 
 								<Toaster richColors position="top-right" />
-								<TanStackRouterDevtools position="bottom-right" />
-								<ReactQueryDevtools initialIsOpen={false} />
+								{import.meta.env.DEV ? (
+									<>
+										<TanStackRouterDevtools position="bottom-right" />
+										<ReactQueryDevtools initialIsOpen={false} />
+									</>
+								) : null}
 								<Scripts />
 							</ErrorBoundary>
 						</QueryClientProvider>

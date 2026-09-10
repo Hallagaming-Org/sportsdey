@@ -73,6 +73,7 @@ export default function PopularAndCasinoSection() {
 	const [widgetReady, setWidgetReady] = useState(false);
 	const [widgetError, setWidgetError] = useState<string | null>(null);
 	const [showBalanceModal, setShowBalanceModal] = useState(false);
+	const sectionRef = useRef<HTMLElement | null>(null);
 	const navigate = useNavigate();
 	const { data: session, isPending: isSessionLoading } = useSession();
 	const userId = session?.user?.id;
@@ -95,6 +96,7 @@ export default function PopularAndCasinoSection() {
 	isDarkRef.current = isDark;
 
 	// Re-init when auth identity changes so the sportsbook token includes player_id after login.
+	// Defer token + widget bootstrap until the section is near view and the browser is idle.
 	useEffect(() => {
 		if (!isSportsbookConfigured()) {
 			setWidgetError(
@@ -108,14 +110,19 @@ export default function PopularAndCasinoSection() {
 		if (isSessionLoading) return;
 
 		let cancelled = false;
+		let idleId: number | undefined;
+		let idleTimeoutId: number | undefined;
+		let fallbackTimer: number | undefined;
+		let observer: IntersectionObserver | undefined;
+
 		setWidgetReady(false);
 		setWidgetError(null);
 
-		const fallbackTimer = window.setTimeout(() => {
-			if (!cancelled) setWidgetReady(true);
-		}, WIDGET_LOAD_TIMEOUT_MS);
-
 		const init = async () => {
+			fallbackTimer = window.setTimeout(() => {
+				if (!cancelled) setWidgetReady(true);
+			}, WIDGET_LOAD_TIMEOUT_MS);
+
 			try {
 				const data = await apiRequest<{ token: string }>(
 					"sportsbook/token/create",
@@ -186,16 +193,45 @@ export default function PopularAndCasinoSection() {
 			}
 		};
 
-		void init();
+		const startWhenIdle = () => {
+			if ("requestIdleCallback" in window) {
+				idleId = window.requestIdleCallback(() => {
+					void init();
+				}, { timeout: 2500 });
+			} else {
+				idleTimeoutId = window.setTimeout(() => {
+					void init();
+				}, 1);
+			}
+		};
+
+		const sectionEl = sectionRef.current;
+		if (sectionEl && "IntersectionObserver" in window) {
+			observer = new IntersectionObserver(
+				(entries) => {
+					if (entries.some((entry) => entry.isIntersecting)) {
+						observer?.disconnect();
+						startWhenIdle();
+					}
+				},
+				{ rootMargin: "200px" },
+			);
+			observer.observe(sectionEl);
+		} else {
+			startWhenIdle();
+		}
 
 		return () => {
 			cancelled = true;
-			window.clearTimeout(fallbackTimer);
+			observer?.disconnect();
+			if (idleId != null) window.cancelIdleCallback(idleId);
+			if (idleTimeoutId != null) window.clearTimeout(idleTimeoutId);
+			if (fallbackTimer != null) window.clearTimeout(fallbackTimer);
 		};
 	}, [isSessionLoading, userId, navigate]);
 
 	return (
-		<section className="space-y-4">
+		<section ref={sectionRef} className="space-y-4">
 			<InsufficientBalanceModal
 				isOpen={showBalanceModal}
 				onClose={() => setShowBalanceModal(false)}
@@ -370,7 +406,7 @@ function PopularMatchesPanel({
 	const showSkeleton = !widgetReady && !widgetContentReady;
 
 	return (
-		<div ref={containerRef} className="relative min-h-[200px]">
+		<div ref={containerRef} className="relative min-h-[264px]">
 			{showSkeleton && (
 				<div className="absolute inset-0 z-10 flex flex-col gap-3 bg-white/80 sm:p-2 dark:bg-card/80">
 					{Array.from({ length: 3 }).map((_, i) => (
@@ -576,11 +612,11 @@ function HotCasinoPanel() {
 
 	if (isSessionLoading || isLoading) {
 		return (
-			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
+			<div className="custom-scrollbar grid min-h-[110px] snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-hidden pr-1 pb-2">
 				{Array.from({ length: 10 }).map((_, i) => (
 					<Skeleton
 						key={`casino-skel-${i}`}
-						className="h-[110px] w-full rounded-xl"
+						className="aspect-square h-[110px] w-full rounded-xl"
 					/>
 				))}
 			</div>
@@ -633,7 +669,7 @@ function HotCasinoPanel() {
 					if (activeLaunchGame) void handleGameLaunch(activeLaunchGame, "real");
 				}}
 			/>
-			<div className="custom-scrollbar grid snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
+			<div className="custom-scrollbar grid min-h-[110px] snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
 				{hotGames.map((game) => {
 					const isLoadingThis = loadingId === game.id;
 					const known = !isScorpioHotGame(game)

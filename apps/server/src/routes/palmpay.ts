@@ -1,11 +1,14 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
 	createPalmPayOrder,
+	assertPalmPaySigningKey,
+	PalmPayNetworkError,
+	PalmPayProviderError,
 	queryPalmPayOrder,
 	verifyPalmPay,
 } from "@/lib/palmpay/client";
@@ -19,6 +22,35 @@ const ErrorSchema = z.object({
 	success: z.literal(false),
 	error: z.string(),
 });
+
+route.openapi(
+	createRoute({
+		method: "get",
+		path: "/status/{reference}",
+		tags: ["PalmPay"],
+		summary: "Check a PalmPay deposit status",
+		security: [{ BearerAuth: [] }],
+		request: { params: z.object({ reference: z.string().startsWith("palm_") }) },
+		responses: {
+			200: { description: "Status retrieved" },
+			401: { description: "Unauthorized" },
+			404: { description: "Transaction not found" },
+		},
+	}),
+	async (c) => {
+		const user = c.get("user");
+		if (!user) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+		const { reference } = c.req.valid("param");
+		const db = drizzle(c.env.DB, { schema });
+		const [transaction] = await db
+			.select({ status: schema.palmpayTransaction.status })
+			.from(schema.palmpayTransaction)
+			.where(and(eq(schema.palmpayTransaction.reference, reference), eq(schema.palmpayTransaction.userId, user.id)))
+			.limit(1);
+		if (!transaction) return c.json({ success: false as const, error: "Transaction not found" }, 404);
+		return c.json({ success: true as const, data: { status: transaction.status } }, 200);
+	},
+);
 
 route.openapi(
 	createRoute({
@@ -62,8 +94,33 @@ route.openapi(
 				500,
 			);
 		}
+		const isProductionWorker = c.env.NODE_ENV === "production";
+		const isProductionPalmPay = c.env.PALMPAY_ENV === "production";
+		if (isProductionWorker !== isProductionPalmPay) {
+			console.error("PalmPay environment configuration mismatch", {
+				workerEnvironment: c.env.NODE_ENV,
+				palmPayEnvironment: c.env.PALMPAY_ENV ?? "unset",
+			});
+			return c.json(
+				{ success: false as const, error: "PalmPay is unavailable on this environment." },
+				503,
+			);
+		}
+		try {
+			assertPalmPaySigningKey(c.env.PALMPAY_MERCHANT_PRIVATE_KEY);
+		} catch (error) {
+			console.error("PalmPay configuration is invalid", {
+				operation: "validate_signing_key",
+				reason: error instanceof Error ? error.name : "UnknownError",
+			});
+			return c.json(
+				{ success: false as const, error: "PalmPay signing key is invalid or missing. Contact support." },
+				503,
+			);
+		}
 		const db = drizzle(c.env.DB, { schema });
-		const reference = `palm_${crypto.randomUUID()}`;
+		// PalmPay permits merchant order IDs up to 32 characters.
+		const reference = `palm_${crypto.randomUUID().replaceAll("-", "").slice(0, 27)}`;
 		const amount = Math.round(input.data.amount * 100);
 		const amountMajor = input.data.amount;
 		try {
@@ -86,7 +143,7 @@ route.openapi(
 				paymentMethod: "palmpay",
 				createdAt: new Date(),
 			});
-			await trackWebengageEvent(
+			void trackWebengageEvent(
 				c.env,
 				{
 					userId: user.id,
@@ -126,6 +183,11 @@ route.openapi(
 			console.error("PalmPay deposit initiation failed", {
 				operation: "create_order",
 				reason: error instanceof Error ? error.name : "UnknownError",
+				message: error instanceof Error ? error.message.slice(0, 160) : undefined,
+				providerStatus: error instanceof PalmPayProviderError ? error.providerStatus : undefined,
+				providerCode: error instanceof PalmPayProviderError ? error.providerCode : undefined,
+				providerMessage: error instanceof PalmPayProviderError ? error.providerMessage?.slice(0, 160) : undefined,
+				networkMessage: error instanceof PalmPayNetworkError ? error.networkMessage : undefined,
 			});
 			await db
 				.update(schema.palmpayTransaction)
@@ -148,19 +210,22 @@ route.openapi(
 					eventData: {
 						amount: amountMajor,
 						payment_method: "palmpay",
-						failure_reason:
-							error instanceof Error
-								? error.message
-								: "Unable to start PalmPay deposit",
+					failure_reason:
+						error instanceof PalmPayProviderError
+							? `provider_${error.providerCode}`
+							: "Unable to start PalmPay deposit",
 						wallet_balance_after: (wallet?.balance ?? 0) / 100,
 					},
 				},
 				c.executionCtx,
 			);
-			return c.json(
-				{ success: false as const, error: "Unable to start PalmPay deposit" },
-				500,
-			);
+			if (error instanceof PalmPayProviderError || error instanceof PalmPayNetworkError) {
+				return c.json(
+					{ success: false as const, error: "PalmPay could not create this deposit. Please try again later." },
+					502,
+				);
+			}
+			return c.json({ success: false as const, error: "Unable to start PalmPay deposit" }, 500);
 		}
 	},
 );

@@ -19,6 +19,11 @@ import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
 import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
+import {
+	loadGameNames,
+	lookupGameName,
+	pickCatalogGameName,
+} from "@/utils/game-display-name";
 import type { StoredBetOdd } from "@/utils/ticket-selection-labels";
 import {
 	formatTicketSelection,
@@ -480,6 +485,7 @@ const handleGetTicketsList = async (
 		roundId: string | null;
 		provider: string | null;
 		gameCode: string | null;
+		providerId: number | null;
 	}> = [];
 	let listTotal = 0;
 
@@ -580,6 +586,7 @@ const handleGetTicketsList = async (
 					roundId: null,
 					provider: null,
 					gameCode: null,
+					providerId: null,
 				});
 			}
 		} else {
@@ -665,6 +672,7 @@ const handleGetTicketsList = async (
 					roundId: null,
 					provider: null,
 					gameCode: null,
+					providerId: null,
 				});
 			}
 		}
@@ -684,6 +692,7 @@ const handleGetTicketsList = async (
 			gameIdCol: any;
 			winTypes: string[];
 			provider: string;
+			providerIdCol?: any;
 		}> = [
 			{
 				table: schema.gameTransactions,
@@ -754,6 +763,7 @@ const handleGetTicketsList = async (
 				gameIdCol: schema.scorpioTransactions.gameCode,
 				winTypes: ["WIN"],
 				provider: "Scorpio",
+				providerIdCol: schema.scorpioTransactions.providerId,
 			},
 		];
 
@@ -797,6 +807,9 @@ const handleGetTicketsList = async (
 			if (source.gameIdCol) {
 				selectCols.gameCode = source.gameIdCol;
 			}
+			if (source.providerIdCol) {
+				selectCols.providerId = source.providerIdCol;
+			}
 
 			const results = await db
 				.select(selectCols)
@@ -837,6 +850,7 @@ const handleGetTicketsList = async (
 					roundId: r.roundId ?? null,
 					provider: source.provider,
 					gameCode: r.gameCode ?? null,
+					providerId: r.providerId ?? null,
 				});
 			}
 		}
@@ -848,32 +862,15 @@ const handleGetTicketsList = async (
 		? allTickets.slice(0, MAX_UNPAGINATED_ROWS)
 		: allTickets.slice((page - 1) * limit, page * limit);
 
-	// Resolve game names with chunked IN queries — one query per 100 unique
-	// codes instead of one per row.
-	const gameNameByCode = new Map<string, string | null>();
-	const uniqueGameCodes = [
-		...new Set(
-			rowsForNames
-				.map((t) => t.gameCode)
-				.filter((code): code is string => Boolean(code)),
-		),
-	];
-	const GAME_CODE_CHUNK = 100;
-	for (let i = 0; i < uniqueGameCodes.length; i += GAME_CODE_CHUNK) {
-		const chunk = uniqueGameCodes.slice(i, i + GAME_CODE_CHUNK);
-		const rows = await db
-			.select({ code: schema.game.code, name: schema.game.name })
-			.from(schema.game)
-			.where(inArray(schema.game.code, chunk));
-		for (const row of rows) {
-			gameNameByCode.set(row.code, row.name ?? null);
-		}
-	}
+	const gameNameByCode = await loadGameNames(db, rowsForNames);
 
 	const ticketsWithNames = rowsForNames.map((t) => {
-		const gameName = t.gameCode
-			? (gameNameByCode.get(t.gameCode) ?? null)
-			: null;
+		const gameName = pickCatalogGameName(
+			gameNameByCode,
+			t.gameCode,
+			t.provider,
+			t.providerId,
+		);
 		return {
 			id: t.id,
 			userId: t.userId,
@@ -1065,6 +1062,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 		roundId: string | null;
 		provider: string | null;
 		gameCode: string | null;
+		providerId: number | null;
 	}> = [];
 
 	if (type === "all" || type === "sportsbook") {
@@ -1141,6 +1139,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				roundId: null,
 				provider: null,
 				gameCode: null,
+				providerId: null,
 			});
 		}
 	}
@@ -1159,6 +1158,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			gameIdCol: any;
 			winTypes: string[];
 			provider: string;
+			providerIdCol?: any;
 		}> = [
 			{
 				table: schema.gameTransactions,
@@ -1229,6 +1229,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				gameIdCol: schema.scorpioTransactions.gameCode,
 				winTypes: ["WIN"],
 				provider: "Scorpio",
+				providerIdCol: schema.scorpioTransactions.providerId,
 			},
 		];
 
@@ -1248,6 +1249,9 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			}
 			if (source.gameIdCol) {
 				selectCols.gameCode = source.gameIdCol;
+			}
+			if (source.providerIdCol) {
+				selectCols.providerId = source.providerIdCol;
 			}
 
 			const results = await db
@@ -1278,6 +1282,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 					roundId: r.roundId ?? null,
 					provider: source.provider,
 					gameCode: r.gameCode ?? null,
+					providerId: r.providerId ?? null,
 				});
 			}
 		}
@@ -1287,30 +1292,15 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 
 	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
 
-	const gameNameByCode = new Map<string, string | null>();
-	const uniqueGameCodes = [
-		...new Set(
-			capped
-				.map((t) => t.gameCode)
-				.filter((code): code is string => Boolean(code)),
-		),
-	];
-	const GAME_CODE_CHUNK = 100;
-	for (let i = 0; i < uniqueGameCodes.length; i += GAME_CODE_CHUNK) {
-		const chunk = uniqueGameCodes.slice(i, i + GAME_CODE_CHUNK);
-		const rows = await db
-			.select({ code: schema.game.code, name: schema.game.name })
-			.from(schema.game)
-			.where(inArray(schema.game.code, chunk));
-		for (const row of rows) {
-			gameNameByCode.set(row.code, row.name ?? null);
-		}
-	}
+	const gameNameByCode = await loadGameNames(db, capped);
 
 	const ticketsWithNames = capped.map((t) => {
-		const gameName = t.gameCode
-			? (gameNameByCode.get(t.gameCode) ?? null)
-			: null;
+		const gameName = pickCatalogGameName(
+			gameNameByCode,
+			t.gameCode,
+			t.provider,
+			t.providerId,
+		);
 		return {
 			id: t.id,
 			userId: t.userId,
@@ -1606,6 +1596,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		gameIdCol: any;
 		winTypes: string[];
 		provider: string;
+		providerIdCol?: any;
 	}> = [
 		{
 			table: schema.gameTransactions,
@@ -1680,6 +1671,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			gameIdCol: schema.scorpioTransactions.gameCode,
 			winTypes: ["WIN"],
 			provider: "Scorpio",
+			providerIdCol: schema.scorpioTransactions.providerId,
 		},
 	];
 
@@ -1701,6 +1693,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		};
 		if (source.roundIdCol) selectCols.roundId = source.roundIdCol;
 		if (source.gameIdCol) selectCols.gameCode = source.gameIdCol;
+		if (source.providerIdCol) selectCols.providerId = source.providerIdCol;
 
 		const row = await db
 			.select(selectCols)
@@ -1712,12 +1705,12 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		if (row) {
 			let gameName: string | null = null;
 			if (row.gameCode) {
-				const [g] = await db
-					.select({ name: schema.game.name })
-					.from(schema.game)
-					.where(eq(schema.game.code, row.gameCode))
-					.limit(1);
-				gameName = g?.name ?? null;
+				gameName = await lookupGameName(
+					db,
+					row.gameCode,
+					source.provider,
+					row.providerId ?? null,
+				);
 			}
 			const isWin = source.winTypes.includes(row.outcomeType);
 			let stakeAmount = row.betAmount;

@@ -3,6 +3,7 @@ import { and, desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
+import { lookupGameName } from "@/utils/game-display-name";
 import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
 import {
 	collectTicketOdds,
@@ -155,23 +156,133 @@ function deriveStatus(
 	return "failed";
 }
 
-function deriveStatusFromCasino(
+type CasinoStatus = "success" | "pending" | "failed";
+
+const CASINO_WIN_TYPES = new Set(["win", "won", "credit"]);
+const CASINO_BET_TYPES = new Set(["bet", "debit"]);
+
+function casinoTypeKey(type: string): string {
+	return type.trim().toLowerCase();
+}
+
+function isCasinoWinType(type: string): boolean {
+	return CASINO_WIN_TYPES.has(casinoTypeKey(type));
+}
+
+function isCasinoBetType(type: string): boolean {
+	return CASINO_BET_TYPES.has(casinoTypeKey(type));
+}
+
+/**
+ * Instant casino rounds settle as soon as the provider posts a result.
+ * A WIN of ₦0 is a loss (or a rejected spin), not a win.
+ * A BET with no credit is a completed loss, not an open ticket.
+ */
+export function deriveStatusFromCasino(
 	type: string,
-): "success" | "pending" | "failed" {
-	switch (type) {
-		case "WIN":
-		case "win":
-		case "won":
-		case "WON":
-		case "CREDIT":
-			return "success";
-		case "BET":
-		case "bet":
-		case "DEBIT":
-		case "debit":
-			return "pending";
-		default:
-			return "failed";
+	amount = 0,
+): CasinoStatus {
+	if (isCasinoWinType(type)) {
+		return amount > 0 ? "success" : "failed";
+	}
+	return "failed";
+}
+
+type CasinoLedgerRow = {
+	id: string;
+	type: string;
+	amount: number;
+	createdAt: Date;
+	roundId?: string | null;
+	gameLabel: string;
+};
+
+type CollapsedCasinoItem = {
+	id: string;
+	ticketId: string;
+	gameLabel: string;
+	amount: number;
+	status: CasinoStatus;
+	payout: number | null;
+	createdAt: Date;
+	settledAt: Date;
+};
+
+export function collapseCasinoLedgerRows(
+	rows: CasinoLedgerRow[],
+): CollapsedCasinoItem[] {
+	const groups = new Map<string, CasinoLedgerRow[]>();
+	for (const row of rows) {
+		const key = row.roundId?.trim() || `tx:${row.id}`;
+		const list = groups.get(key);
+		if (list) list.push(row);
+		else groups.set(key, [row]);
+	}
+
+	const items: CollapsedCasinoItem[] = [];
+	for (const group of groups.values()) {
+		group.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+		const bets = group.filter((row) => isCasinoBetType(row.type));
+		const wins = group.filter((row) => isCasinoWinType(row.type));
+		const betAmount = bets.reduce((sum, row) => sum + row.amount, 0);
+		const winAmount = wins.reduce((sum, row) => sum + row.amount, 0);
+
+		// Insufficient-funds / rejected play: provider may send WIN 0 with no debit.
+		if (bets.length === 0 && winAmount <= 0) {
+			continue;
+		}
+
+		const primary = bets[0] ?? group[0];
+		const status: CasinoStatus = winAmount > 0 ? "success" : "failed";
+		items.push({
+			id: primary.id,
+			ticketId: primary.id,
+			gameLabel: primary.gameLabel,
+			amount: (betAmount > 0 ? betAmount : winAmount) / 100,
+			status,
+			payout: status === "success" ? winAmount / 100 : 0,
+			createdAt: primary.createdAt,
+			settledAt: group[group.length - 1].createdAt,
+		});
+	}
+	return items;
+}
+
+function pushCollapsedCasinoItems(
+	allItems: Array<{
+		id: string;
+		ticketId: string;
+		type: string;
+		amount: number;
+		multiplier: number;
+		status: CasinoStatus;
+		placedAt: string;
+		totalOdds: string | null;
+		potentialWin: number | null;
+		actualPayout: number | null;
+		settledAt: string | null;
+		betType: string | null;
+		createdAt: Date;
+	}>,
+	items: CollapsedCasinoItem[],
+) {
+	for (const item of items) {
+		const won = item.status === "success";
+		allItems.push({
+			id: item.id,
+			ticketId: item.ticketId,
+			type: `Casino - ${item.gameLabel}`,
+			amount: item.amount,
+			multiplier: won && item.amount > 0 ? (item.payout ?? 0) / item.amount : 0,
+			status: item.status,
+			placedAt: toWAT(item.createdAt),
+			totalOdds: null,
+			potentialWin: won ? item.payout : null,
+			actualPayout: item.payout,
+			settledAt: toWAT(item.settledAt),
+			betType: "Casino",
+			createdAt: item.createdAt,
+		});
 	}
 }
 
@@ -299,19 +410,30 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.limit(MAX_PER_SOURCE);
 
 	const gameNameCache = new Map<string, string | null>();
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
-			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
+	async function getGameName(
+		code: string,
+		provider?: string | null,
+		providerId?: number | null,
+	): Promise<string | null> {
+		const cacheKey = `${provider ?? ""}:${providerId ?? ""}:${code}`;
+		if (gameNameCache.has(cacheKey)) return gameNameCache.get(cacheKey)!;
+		const name =
+			provider === "Scorpio"
+				? await lookupGameName(db, code, provider, providerId)
+				: (
+						await db
+							.select({ name: schema.game.name })
+							.from(schema.game)
+							.where(eq(schema.game.code, code))
+							.limit(1)
+					)[0]?.name ?? null;
+		gameNameCache.set(cacheKey, name);
 		return name;
 	}
 
 	for (const row of casinoRows) {
+		if (isCasinoWinType(row.type) && row.amount <= 0) continue;
+
 		let gameName = "Casino";
 		if (row.game) {
 			const name = await getGameName(row.game);
@@ -319,8 +441,8 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		}
 
 		const amountNaira = row.amount / 100;
-		const isWin = ["WIN", "win", "WON", "won", "CREDIT"].includes(row.type);
-		const status = deriveStatusFromCasino(row.type);
+		const status = deriveStatusFromCasino(row.type, row.amount);
+		const won = status === "success";
 
 		allItems.push({
 			id: row.id,
@@ -331,9 +453,9 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			status,
 			placedAt: toWAT(row.createdAt),
 			totalOdds: null,
-			potentialWin: isWin ? amountNaira : null,
-			actualPayout: isWin ? amountNaira : null,
-			settledAt: isWin ? toWAT(row.createdAt) : null,
+			potentialWin: won ? amountNaira : null,
+			actualPayout: won ? amountNaira : 0,
+			settledAt: toWAT(row.createdAt),
 			betType: "Casino",
 			createdAt: row.createdAt,
 		});
@@ -352,33 +474,30 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			amount: schema.thundrTransactions.amount,
 			createdAt: schema.thundrTransactions.createdAt,
 			gameId: schema.thundrTransactions.gameId,
+			roundId: schema.thundrTransactions.roundId,
 		})
 		.from(schema.thundrTransactions)
 		.where(and(...thundrFilters))
 		.orderBy(desc(schema.thundrTransactions.createdAt))
 		.limit(MAX_PER_SOURCE);
 
+	const thundrLedger: CasinoLedgerRow[] = [];
 	for (const row of thundrRows) {
-		const amountNaira = row.amount / 100;
-		const isWin = ["WIN", "win", "WON", "won"].includes(row.type);
-		const status = deriveStatusFromCasino(row.type);
-
-		allItems.push({
+		let gameName = row.gameId || "Thundr";
+		if (row.gameId) {
+			const name = await getGameName(row.gameId);
+			if (name) gameName = name;
+		}
+		thundrLedger.push({
 			id: row.id,
-			ticketId: row.id,
-			type: `Casino - ${row.gameId || "Thundr"}`,
-			amount: amountNaira,
-			multiplier: 0,
-			status,
-			placedAt: toWAT(row.createdAt),
-			totalOdds: null,
-			potentialWin: isWin ? amountNaira : null,
-			actualPayout: isWin ? amountNaira : null,
-			settledAt: isWin ? toWAT(row.createdAt) : null,
-			betType: "Casino",
+			type: row.type,
+			amount: row.amount,
 			createdAt: row.createdAt,
+			roundId: row.roundId,
+			gameLabel: gameName,
 		});
 	}
+	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(thundrLedger));
 
 	// ===== 4. FETCH SLOTEGRATOR TRANSACTIONS =====
 	const slotFilters: any[] = [
@@ -395,39 +514,30 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			amount: schema.slotitegrationTransactions.amount,
 			createdAt: schema.slotitegrationTransactions.createdAt,
 			gameId: schema.slotitegrationTransactions.gameId,
+			roundId: schema.slotitegrationTransactions.roundId,
 		})
 		.from(schema.slotitegrationTransactions)
 		.where(and(...slotFilters))
 		.orderBy(desc(schema.slotitegrationTransactions.createdAt))
 		.limit(MAX_PER_SOURCE);
 
+	const slotLedger: CasinoLedgerRow[] = [];
 	for (const row of slotRows) {
 		let gameName = "Slotegrator";
 		if (row.gameId) {
 			const name = await getGameName(row.gameId);
 			if (name) gameName = name;
 		}
-
-		const amountNaira = row.amount / 100;
-		const isWin = ["win", "WIN", "WON", "won"].includes(row.type);
-		const status = deriveStatusFromCasino(row.type);
-
-		allItems.push({
+		slotLedger.push({
 			id: row.id,
-			ticketId: row.id,
-			type: `Casino - ${gameName}`,
-			amount: amountNaira,
-			multiplier: 0,
-			status,
-			placedAt: toWAT(row.createdAt),
-			totalOdds: null,
-			potentialWin: isWin ? amountNaira : null,
-			actualPayout: isWin ? amountNaira : null,
-			settledAt: isWin ? toWAT(row.createdAt) : null,
-			betType: "Casino",
+			type: row.type,
+			amount: row.amount,
 			createdAt: row.createdAt,
+			roundId: row.roundId,
+			gameLabel: gameName,
 		});
 	}
+	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(slotLedger));
 
 	// ===== 5. FETCH SCORPIO TRANSACTIONS =====
 	const scorpioFilters: any[] = [
@@ -444,39 +554,35 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			amount: schema.scorpioTransactions.amount,
 			createdAt: schema.scorpioTransactions.createdAt,
 			gameCode: schema.scorpioTransactions.gameCode,
+			providerId: schema.scorpioTransactions.providerId,
+			roundId: schema.scorpioTransactions.roundId,
 		})
 		.from(schema.scorpioTransactions)
 		.where(and(...scorpioFilters))
 		.orderBy(desc(schema.scorpioTransactions.createdAt))
 		.limit(MAX_PER_SOURCE);
 
+	const scorpioLedger: CasinoLedgerRow[] = [];
 	for (const row of scorpioRows) {
 		let gameName = "Scorpio";
 		if (row.gameCode) {
-			const name = await getGameName(row.gameCode);
+			const name = await getGameName(
+				row.gameCode,
+				"Scorpio",
+				row.providerId,
+			);
 			if (name) gameName = name;
 		}
-
-		const amountNaira = row.amount / 100;
-		const isWin = ["WIN", "win", "WON", "won"].includes(row.type);
-		const status = deriveStatusFromCasino(row.type);
-
-		allItems.push({
+		scorpioLedger.push({
 			id: row.id,
-			ticketId: row.id,
-			type: `Casino - ${gameName}`,
-			amount: amountNaira,
-			multiplier: 0,
-			status,
-			placedAt: toWAT(row.createdAt),
-			totalOdds: null,
-			potentialWin: isWin ? amountNaira : null,
-			actualPayout: isWin ? amountNaira : null,
-			settledAt: isWin ? toWAT(row.createdAt) : null,
-			betType: "Casino",
+			type: row.type,
+			amount: row.amount,
 			createdAt: row.createdAt,
+			roundId: row.roundId,
+			gameLabel: gameName,
 		});
 	}
+	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(scorpioLedger));
 
 	// ===== 6. SORT AND PAGINATE =====
 	allItems.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -585,28 +691,34 @@ function deriveSelectionStatus(
 	return "pending";
 }
 
-// Helper to process casino transactions
+type CasinoDetailTx = {
+	id: string;
+	type: string;
+	amount: number;
+	balanceBefore: number | null;
+	game?: string | null;
+	createdAt: Date;
+	provider?: string;
+	roundId?: string | null;
+};
+
 function processCasinoTransaction(
-	tx: {
-		id: string;
-		type: string;
-		amount: number;
-		balanceBefore: number | null;
-		game: string | null;
-		createdAt: Date;
-		provider?: string;
-		roundId?: string;
-	},
+	tx: CasinoDetailTx,
 	gameName: string,
 	provider: string,
+	roundTxs: CasinoDetailTx[] = [],
 ) {
-	const isWin = tx.type === "WIN" || tx.type === "win" || tx.type === "WON";
-	const stakeNaira = tx.amount / 100;
-	const outcome: "won" | "lost" | "pending" = isWin
-		? "won"
-		: tx.type === "BET" || tx.type === "bet"
-			? "pending"
-			: "lost";
+	const txs = roundTxs.length > 0 ? roundTxs : [tx];
+	const bets = txs.filter((row) => isCasinoBetType(row.type));
+	const wins = txs.filter((row) => isCasinoWinType(row.type));
+	const betAmount = bets.reduce((sum, row) => sum + row.amount, 0);
+	const winAmount = wins.reduce((sum, row) => sum + row.amount, 0);
+	const outcome: "won" | "lost" | "pending" =
+		winAmount > 0 ? "won" : "lost";
+	const stakeKobo = betAmount > 0 ? betAmount : tx.amount;
+	const stakeNaira = stakeKobo / 100;
+	const payoutNaira = winAmount / 100;
+	const won = outcome === "won";
 
 	return {
 		success: true as const,
@@ -617,7 +729,7 @@ function processCasinoTransaction(
 			outcome,
 			stake: stakeNaira,
 			totalOdds: 0,
-			totalReturn: isWin ? stakeNaira : null,
+			totalReturn: won ? payoutNaira : null,
 			potentialCashout: null,
 			numberOfBets: 1,
 			selections: [],
@@ -625,8 +737,7 @@ function processCasinoTransaction(
 			gameName: gameName,
 			provider: provider,
 			roundId: tx.roundId || undefined,
-			multiplier:
-				isWin && tx.amount > 0 ? tx.amount / (tx.balanceBefore || 1) : 0,
+			multiplier: won && stakeKobo > 0 ? winAmount / stakeKobo : 0,
 			casinoSelections: [
 				{
 					id: tx.id,
@@ -777,7 +888,28 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				.limit(1);
 			if (game?.name) gameName = game.name;
 		}
-		return c.json(processCasinoTransaction(thundrBet, gameName, "Thundr"), 200);
+		const roundTxs = thundrBet.roundId
+			? await db
+					.select({
+						id: schema.thundrTransactions.id,
+						type: schema.thundrTransactions.type,
+						amount: schema.thundrTransactions.amount,
+						balanceBefore: schema.thundrTransactions.balanceBefore,
+						roundId: schema.thundrTransactions.roundId,
+						createdAt: schema.thundrTransactions.createdAt,
+					})
+					.from(schema.thundrTransactions)
+					.where(
+						and(
+							eq(schema.thundrTransactions.userId, user.id),
+							eq(schema.thundrTransactions.roundId, thundrBet.roundId),
+						),
+					)
+			: [];
+		return c.json(
+			processCasinoTransaction(thundrBet, gameName, "Thundr", roundTxs),
+			200,
+		);
 	}
 
 	// Try gameTransactions
@@ -842,8 +974,26 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				.limit(1);
 			if (game?.name) gameName = game.name;
 		}
+		const roundTxs = slotBet.roundId
+			? await db
+					.select({
+						id: schema.slotitegrationTransactions.id,
+						type: schema.slotitegrationTransactions.type,
+						amount: schema.slotitegrationTransactions.amount,
+						balanceBefore: schema.slotitegrationTransactions.balanceBefore,
+						roundId: schema.slotitegrationTransactions.roundId,
+						createdAt: schema.slotitegrationTransactions.createdAt,
+					})
+					.from(schema.slotitegrationTransactions)
+					.where(
+						and(
+							eq(schema.slotitegrationTransactions.userId, user.id),
+							eq(schema.slotitegrationTransactions.roundId, slotBet.roundId),
+						),
+					)
+			: [];
 		return c.json(
-			processCasinoTransaction(slotBet, gameName, "Slotegrator"),
+			processCasinoTransaction(slotBet, gameName, "Slotegrator", roundTxs),
 			200,
 		);
 	}
@@ -856,6 +1006,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			amount: schema.scorpioTransactions.amount,
 			balanceBefore: schema.scorpioTransactions.balanceBefore,
 			gameCode: schema.scorpioTransactions.gameCode,
+			providerId: schema.scorpioTransactions.providerId,
 			roundId: schema.scorpioTransactions.roundId,
 			createdAt: schema.scorpioTransactions.createdAt,
 		})
@@ -871,15 +1022,34 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 	if (scorpioBet) {
 		let gameName = "Scorpio";
 		if (scorpioBet.gameCode) {
-			const [game] = await db
-				.select({ name: schema.game.name })
-				.from(schema.game)
-				.where(eq(schema.game.code, scorpioBet.gameCode))
-				.limit(1);
-			if (game?.name) gameName = game.name;
+			const name = await lookupGameName(
+				db,
+				scorpioBet.gameCode,
+				"Scorpio",
+				scorpioBet.providerId,
+			);
+			if (name) gameName = name;
 		}
+		const roundTxs = scorpioBet.roundId
+			? await db
+					.select({
+						id: schema.scorpioTransactions.id,
+						type: schema.scorpioTransactions.type,
+						amount: schema.scorpioTransactions.amount,
+						balanceBefore: schema.scorpioTransactions.balanceBefore,
+						roundId: schema.scorpioTransactions.roundId,
+						createdAt: schema.scorpioTransactions.createdAt,
+					})
+					.from(schema.scorpioTransactions)
+					.where(
+						and(
+							eq(schema.scorpioTransactions.userId, user.id),
+							eq(schema.scorpioTransactions.roundId, scorpioBet.roundId),
+						),
+					)
+			: [];
 		return c.json(
-			processCasinoTransaction(scorpioBet, gameName, "Scorpio"),
+			processCasinoTransaction(scorpioBet, gameName, "Scorpio", roundTxs),
 			200,
 		);
 	}
