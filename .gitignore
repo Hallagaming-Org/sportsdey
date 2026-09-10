@@ -86,3 +86,7 @@ bonus-engine-setup/
 apps/server/src/cli/apply-unmatched-aliases.ts
 apps/server/src/cli/unmatched-alias-rollback.json
 apps/server/src/cli/unmatched-reconciliation.tsv
+
+# Lighthouse Chrome user-data (Windows absolute paths; invalid on Windows checkout)
+C:\\Users/
+**/C:\\Users/

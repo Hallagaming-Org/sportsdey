@@ -14,7 +14,7 @@ interface BannerCarouselProps {
  * which crops the sides and makes the slideshow taller. Drop height/rect
  * so the original wide crop is preserved.
  */
-function bannerImageUrl(source: string, width: number): string {
+export function bannerImageUrl(source: string, width: number): string {
 	try {
 		const url = new URL(source);
 		if (!url.hostname.endsWith("sanity.io")) return source;
