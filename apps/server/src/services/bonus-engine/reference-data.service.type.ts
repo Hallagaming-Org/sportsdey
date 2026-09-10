@@ -26,6 +26,13 @@ export type BonusEngineChampionshipItem = {
 	name: string;
 };
 
+export type BonusEngineChampionshipRow = {
+	sportId: number;
+	categoryId: number;
+	championshipId: number | string;
+	name: string;
+};
+
 export type BonusEngineSportEventItem = {
 	EventId: number;
 	EventName: string;

@@ -115,6 +115,19 @@ export function SportsbookPage() {
 	}, [token, session?.user]);
 
 	useEffect(() => {
+		const { pathname, search } = window.location;
+		if (!/%3A/i.test(pathname)) return;
+		try {
+			const decoded = decodeURIComponent(pathname);
+			if (decoded !== pathname) {
+				window.history.replaceState(null, "", `${decoded}${search}`);
+			}
+		} catch {
+			// keep the encoded path if it is not valid URI encoding
+		}
+	}, []);
+
+	useEffect(() => {
 		// if (isSessionLoading || !session?.user) return;
 		void loadToken();
 	}, [isSessionLoading, session?.user, loadToken]);

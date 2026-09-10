@@ -1,9 +1,3 @@
-/**
- * Sportsbook catalog for Bonus Engine Admin dropdowns.
- * Championships are the European top 6 — not individual fixtures.
- * Live Data.Bet tournament ids are preferred so `POST /bet` `league_id`
- * matches Admin Championship ID.
- */
 export const BONUS_ENGINE_DATABET_FOOTBALL_SPORT = "football";
 
 export const BONUS_ENGINE_DATABET_TOURNAMENTS_PATH =
@@ -15,6 +9,7 @@ export type BonusEngineTopEuropeanChampionship = {
 	fallbackChampionshipId: number;
 	name: string;
 	searchName: string;
+	canonicalName: string;
 	aliases: readonly string[];
 	excludedSubstrings: readonly string[];
 };
@@ -26,25 +21,36 @@ export const BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS: readonly BonusEngineTopEur
 			categoryId: 10,
 			fallbackChampionshipId: 100,
 			name: "Premier League",
-			searchName: "Premier League",
+			searchName: "England. Premier League",
+			canonicalName: "england. premier league",
 			aliases: ["premier league"],
-			excludedSubstrings: ["premier league 2", "u21", "u18"],
+			excludedSubstrings: [
+				"premier league 2",
+				"u21",
+				"u18",
+				"u19",
+				"u23",
+				"women",
+				"cup",
+			],
 		},
 		{
 			sportId: 1,
 			categoryId: 11,
 			fallbackChampionshipId: 101,
 			name: "La Liga",
-			searchName: "La Liga",
+			searchName: "Spain. La Liga",
+			canonicalName: "spain. la liga",
 			aliases: ["la liga", "laliga"],
-			excludedSubstrings: ["la liga 2", "laliga 2", "segunda"],
+			excludedSubstrings: ["la liga 2", "laliga 2", "segunda", "women"],
 		},
 		{
 			sportId: 1,
 			categoryId: 12,
 			fallbackChampionshipId: 102,
 			name: "Serie A",
-			searchName: "Serie A",
+			searchName: "Italy. Serie A",
+			canonicalName: "italy. serie a",
 			aliases: ["serie a"],
 			excludedSubstrings: ["serie a2", "serie b", "women"],
 		},
@@ -53,27 +59,37 @@ export const BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS: readonly BonusEngineTopEur
 			categoryId: 13,
 			fallbackChampionshipId: 103,
 			name: "Bundesliga",
-			searchName: "Bundesliga",
+			searchName: "Germany. Bundesliga",
+			canonicalName: "germany. bundesliga",
 			aliases: ["bundesliga"],
-			excludedSubstrings: ["2. bundesliga", "bundesliga 2", "3. liga"],
+			excludedSubstrings: [
+				"2. bundesliga",
+				"bundesliga 2",
+				"3. liga",
+				"u19",
+				"women",
+				"austria",
+			],
 		},
 		{
 			sportId: 1,
 			categoryId: 14,
 			fallbackChampionshipId: 104,
 			name: "Ligue 1",
-			searchName: "Ligue 1",
+			searchName: "France. Ligue 1",
+			canonicalName: "france. ligue 1",
 			aliases: ["ligue 1"],
-			excludedSubstrings: ["ligue 2"],
+			excludedSubstrings: ["ligue 2", "women"],
 		},
 		{
 			sportId: 1,
 			categoryId: 15,
 			fallbackChampionshipId: 105,
 			name: "UEFA Champions League",
-			searchName: "Champions League",
+			searchName: "UEFA Champions League",
+			canonicalName: "uefa champions league",
 			aliases: ["uefa champions league", "champions league"],
-			excludedSubstrings: ["women", "youth", "europa"],
+			excludedSubstrings: ["women", "youth", "europa", "playoffs", "srl"],
 		},
 	];
 
@@ -123,4 +139,49 @@ export function matchTopEuropeanChampionship(
 		}
 	}
 	return undefined;
+}
+
+/**
+ * Pick the sportsbook tournament row the SPA can open.
+ * Data.Bet `/tournament/{id}` uses `betting:24:gin:...` (current web tournament),
+ * not season archives (`17`) or youth/women variants.
+ */
+export function pickCanonicalSportsbookTournament(
+	tournaments: Array<{ id: string; name: string }>,
+	championship: BonusEngineTopEuropeanChampionship,
+): { id: string; name: string } | undefined {
+	let best: { id: string; name: string; score: number } | undefined;
+	for (const tournament of tournaments) {
+		const score = scoreSportsbookTournament(tournament, championship);
+		if (score < 0) continue;
+		if (!best || score > best.score) {
+			best = { ...tournament, score };
+		}
+	}
+	return best ? { id: best.id, name: best.name } : undefined;
+}
+
+function scoreSportsbookTournament(
+	tournament: { id: string; name: string },
+	championship: BonusEngineTopEuropeanChampionship,
+): number {
+	const normalized = tournament.name.toLowerCase().replace(/\s+/g, " ").trim();
+	if (!normalized) return -1;
+	if (
+		championship.excludedSubstrings.some((part) => normalized.includes(part))
+	) {
+		return -1;
+	}
+	if (!championship.aliases.some((alias) => normalized.includes(alias))) {
+		return -1;
+	}
+
+	let score = 0;
+	if (normalized === championship.canonicalName) score += 100;
+	const ginType = Number(tournament.id.match(/^betting:(\d+):/)?.[1]);
+	if (ginType === 24) score += 150;
+	else if (ginType === 21) score += 30;
+	else if (ginType === 17) score -= 40;
+	if (/\b(season|playoffs|u19|u21|u23|women)\b/i.test(normalized)) score -= 50;
+	return score;
 }
