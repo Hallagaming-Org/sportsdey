@@ -59,6 +59,7 @@ export {
 } from "./crypto";
 export {
 	listBonusEngineChampionships,
+	listBonusEngineChampionshipRows,
 	listBonusEngineEventMarkets,
 	listBonusEngineGameProviders,
 	listBonusEngineGames,
@@ -91,6 +92,10 @@ export {
 	redeemBonusEngineLoyaltyPoints,
 } from "./loyalty.service";
 export { listBonusEngineMissions, mergeMissionListWithLocalProgress } from "./mission.service";
+export {
+	attachMissionSportsbookPaths,
+	resolveMissionSportsbookPath,
+} from "./mission-sportsbook-path";
 export {
 	activateBonusEngineUserBonus,
 	buildBonusEngineListCampaignsBody,
