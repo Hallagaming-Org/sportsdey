@@ -63,9 +63,23 @@ type OpayDepositResponse = {
 };
 
 type KudaDepositResponse = {
-	success: true;
-	data: KudaDepositInstructions;
+	reference: string;
+	virtualAccountNumber: string;
+	accountName: string;
+	bankName: string;
+	amount: number;
 };
+
+type PalmPayDepositResponse = {
+	checkoutUrl: string;
+	reference: string;
+};
+
+type DepositResult =
+	| { provider: "paystack"; data: FundWalletResponse }
+	| { provider: "opay"; data: OpayDepositResponse }
+	| { provider: "kuda"; data: KudaDepositResponse }
+	| { provider: "palmpay"; data: PalmPayDepositResponse };
 
 const MIN_DEPOSIT_AMOUNT = 100;
 const MAX_DEPOSIT_AMOUNT = 9_999_999;
@@ -128,15 +142,32 @@ function WalletPage() {
 			return status === "success" || status === "failed" ? false : 3_000;
 		},
 	});
+	const { data: palmPayStatus } = useQuery({
+		queryKey: ["palmpay-deposit-status", search.reference],
+		queryFn: () =>
+			apiRequest<{ status: string }>(
+				`palmpay/status/${encodeURIComponent(search.reference ?? "")}`,
+				{ credentials: "include" },
+			),
+		enabled:
+			!!session?.user &&
+			search.deposit === "processing" &&
+			!!search.reference?.startsWith("palm_"),
+		refetchInterval: (query) => {
+			const status = query.state.data?.status;
+			return status === "success" || status === "failed" ? false : 3_000;
+		},
+	});
 	useEffect(() => {
-		if (opayStatus?.status === "success" || opayStatus?.status === "failed") {
+		const status = opayStatus?.status ?? palmPayStatus?.status;
+		if (status === "success" || status === "failed") {
 			void queryClient.invalidateQueries({ queryKey: ["wallet"] });
 			void queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
 		}
-	}, [opayStatus?.status, queryClient]);
+	}, [opayStatus?.status, palmPayStatus?.status, queryClient]);
 	const depositMutation = useMutation({
-		mutationFn: ({ amount, provider }: { amount: number; provider: DepositProvider }) =>
-			apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse>(
+		mutationFn: async ({ amount, provider }: { amount: number; provider: DepositProvider }): Promise<DepositResult> => {
+			const data = await apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse | PalmPayDepositResponse>(
 				provider === "opay"
 					? "opay/initiate"
 					: provider === "kuda"
@@ -149,14 +180,26 @@ function WalletPage() {
 					credentials: "include",
 					body: JSON.stringify({ amount }),
 				},
-			),
-		onSuccess: (data) => {
-			if ("data" in data) {
-				setKudaDepositInstructions(data.data);
+			);
+			return { provider, data } as DepositResult;
+		},
+		onSuccess: ({ provider, data }) => {
+			if (provider === "kuda") {
+				setKudaDepositInstructions(data);
 				setDepositError("");
 				return;
 			}
-			window.location.href = "authorizationUrl" in data ? data.authorizationUrl : data.cashierUrl;
+			const redirectUrl =
+				provider === "palmpay"
+					? data.checkoutUrl
+					: provider === "opay"
+						? data.cashierUrl
+						: data.authorizationUrl;
+			if (!redirectUrl) {
+				setDepositError("Payment provider did not return a checkout link. Please try again.");
+				return;
+			}
+			window.location.assign(redirectUrl);
 			setIsDepositModalOpen(false);
 			setDepositAmount("");
 			setDepositError("");

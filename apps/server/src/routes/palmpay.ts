@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
@@ -22,6 +22,35 @@ const ErrorSchema = z.object({
 	success: z.literal(false),
 	error: z.string(),
 });
+
+route.openapi(
+	createRoute({
+		method: "get",
+		path: "/status/{reference}",
+		tags: ["PalmPay"],
+		summary: "Check a PalmPay deposit status",
+		security: [{ BearerAuth: [] }],
+		request: { params: z.object({ reference: z.string().startsWith("palm_") }) },
+		responses: {
+			200: { description: "Status retrieved" },
+			401: { description: "Unauthorized" },
+			404: { description: "Transaction not found" },
+		},
+	}),
+	async (c) => {
+		const user = c.get("user");
+		if (!user) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+		const { reference } = c.req.valid("param");
+		const db = drizzle(c.env.DB, { schema });
+		const [transaction] = await db
+			.select({ status: schema.palmpayTransaction.status })
+			.from(schema.palmpayTransaction)
+			.where(and(eq(schema.palmpayTransaction.reference, reference), eq(schema.palmpayTransaction.userId, user.id)))
+			.limit(1);
+		if (!transaction) return c.json({ success: false as const, error: "Transaction not found" }, 404);
+		return c.json({ success: true as const, data: { status: transaction.status } }, 200);
+	},
+);
 
 route.openapi(
 	createRoute({
@@ -65,6 +94,18 @@ route.openapi(
 				500,
 			);
 		}
+		const isProductionWorker = c.env.NODE_ENV === "production";
+		const isProductionPalmPay = c.env.PALMPAY_ENV === "production";
+		if (isProductionWorker !== isProductionPalmPay) {
+			console.error("PalmPay environment configuration mismatch", {
+				workerEnvironment: c.env.NODE_ENV,
+				palmPayEnvironment: c.env.PALMPAY_ENV ?? "unset",
+			});
+			return c.json(
+				{ success: false as const, error: "PalmPay is unavailable on this environment." },
+				503,
+			);
+		}
 		try {
 			assertPalmPaySigningKey(c.env.PALMPAY_MERCHANT_PRIVATE_KEY);
 		} catch (error) {
@@ -102,7 +143,7 @@ route.openapi(
 				paymentMethod: "palmpay",
 				createdAt: new Date(),
 			});
-			trackWebengageEvent(
+			void trackWebengageEvent(
 				c.env,
 				{
 					userId: user.id,
