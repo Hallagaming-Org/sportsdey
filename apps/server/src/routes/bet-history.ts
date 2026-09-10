@@ -3,6 +3,7 @@ import { and, desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
+import { lookupGameName } from "@/utils/game-display-name";
 import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
 import {
 	collectTicketOdds,
@@ -409,15 +410,24 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		.limit(MAX_PER_SOURCE);
 
 	const gameNameCache = new Map<string, string | null>();
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
-			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
+	async function getGameName(
+		code: string,
+		provider?: string | null,
+		providerId?: number | null,
+	): Promise<string | null> {
+		const cacheKey = `${provider ?? ""}:${providerId ?? ""}:${code}`;
+		if (gameNameCache.has(cacheKey)) return gameNameCache.get(cacheKey)!;
+		const name =
+			provider === "Scorpio"
+				? await lookupGameName(db, code, provider, providerId)
+				: (
+						await db
+							.select({ name: schema.game.name })
+							.from(schema.game)
+							.where(eq(schema.game.code, code))
+							.limit(1)
+					)[0]?.name ?? null;
+		gameNameCache.set(cacheKey, name);
 		return name;
 	}
 
@@ -544,6 +554,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			amount: schema.scorpioTransactions.amount,
 			createdAt: schema.scorpioTransactions.createdAt,
 			gameCode: schema.scorpioTransactions.gameCode,
+			providerId: schema.scorpioTransactions.providerId,
 			roundId: schema.scorpioTransactions.roundId,
 		})
 		.from(schema.scorpioTransactions)
@@ -555,7 +566,11 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	for (const row of scorpioRows) {
 		let gameName = "Scorpio";
 		if (row.gameCode) {
-			const name = await getGameName(row.gameCode);
+			const name = await getGameName(
+				row.gameCode,
+				"Scorpio",
+				row.providerId,
+			);
 			if (name) gameName = name;
 		}
 		scorpioLedger.push({
@@ -991,6 +1006,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			amount: schema.scorpioTransactions.amount,
 			balanceBefore: schema.scorpioTransactions.balanceBefore,
 			gameCode: schema.scorpioTransactions.gameCode,
+			providerId: schema.scorpioTransactions.providerId,
 			roundId: schema.scorpioTransactions.roundId,
 			createdAt: schema.scorpioTransactions.createdAt,
 		})
@@ -1006,12 +1022,13 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 	if (scorpioBet) {
 		let gameName = "Scorpio";
 		if (scorpioBet.gameCode) {
-			const [game] = await db
-				.select({ name: schema.game.name })
-				.from(schema.game)
-				.where(eq(schema.game.code, scorpioBet.gameCode))
-				.limit(1);
-			if (game?.name) gameName = game.name;
+			const name = await lookupGameName(
+				db,
+				scorpioBet.gameCode,
+				"Scorpio",
+				scorpioBet.providerId,
+			);
+			if (name) gameName = name;
 		}
 		const roundTxs = scorpioBet.roundId
 			? await db
