@@ -8,6 +8,7 @@ import {
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
+import { admin } from "./schema/admin";
 
 export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
@@ -861,6 +862,8 @@ export const kyc = sqliteTable("kyc", {
 	backDocumentId: text("back_document_id").references(() => userFile.id),
 	status: text("status").notNull().default("pending_review"),
 	rejectionReason: text("rejection_reason"),
+	reviewedByAdminId: text("reviewed_by_admin_id").references(() => admin.id),
+	reviewedAt: integer("reviewed_at", { mode: "timestamp_ms" }),
 	submittedAt: integer("submitted_at", { mode: "timestamp_ms" }).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -888,6 +891,10 @@ export const kycRelations = relations(kyc, ({ one }) => ({
 	user: one(user, {
 		fields: [kyc.userId],
 		references: [user.id],
+	}),
+	reviewer: one(admin, {
+		fields: [kyc.reviewedByAdminId],
+		references: [admin.id],
 	}),
 	frontDocument: one(userFile, {
 		fields: [kyc.frontDocumentId],
