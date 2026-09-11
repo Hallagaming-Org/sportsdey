@@ -45,6 +45,17 @@ export function isBonusEngineJsonNotFound(
 	return !error.includes("<!DOCTYPE");
 }
 
+
+export function isBonusEngineUnhandledException(text?: string): boolean {
+	const message = text?.trim() ?? "";
+	if (!message) return false;
+	return (
+		/cannot read propert(?:y|ies).*(?:null|undefined)/i.test(message) ||
+		/cannot set propert(?:y|ies).*(?:null|undefined)/i.test(message) ||
+		/^typeerror:/i.test(message)
+	);
+}
+
 export async function bonusEngineRequest<T = unknown>(payload: {
 	env: CloudflareBindings;
 	path: string;
