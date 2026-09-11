@@ -136,7 +136,7 @@ export function listBonusEngineSportCategories(payload: {
 }
 
 /**
- * Returns top-6 European championships for Admin dropdowns.
+ * Returns catalogued European championships for Admin dropdowns.
  * Uses Data.Bet tournament ids when the sportsbook proxy is configured so
  * Championship ID equals `POST /bet` `league_id`.
  */
@@ -215,7 +215,7 @@ function filterChampionships(
 }
 
 /**
- * Load Data.Bet tournament ids for the top-6 European championships.
+ * Load Data.Bet tournament ids for catalogued European championships.
  * Returns null when the proxy is missing or every lookup fails.
  */
 async function loadLiveTopEuropeanChampionships(
