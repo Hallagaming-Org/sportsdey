@@ -3,6 +3,17 @@ export const SPORTSBOOK_BETSLIP_ID = "betting-betslip";
 export const SPORTSBOOK_BOOTSTRAP_SCRIPT_ID = "databet-spa-bootstrap-script";
 export const SPORTSBOOK_HEADER_OFFSET = 64;
 
+/** Data.Bet prematch lobby (Live/Prematch tabs). Empty `/sportsbetting` defaults to live. */
+export const SPORTSBOOK_PREMATCH_SPLAT = "sports/prematch";
+
+export function sportsbookPrematchNavigateOptions() {
+	return {
+		to: "/sportsbetting/$" as const,
+		params: { _splat: SPORTSBOOK_PREMATCH_SPLAT },
+		search: { sports: undefined },
+	} as any;
+}
+
 export type OddFormat =
 	| "Decimal"
 	| "Fractional"

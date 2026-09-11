@@ -6,7 +6,7 @@ export const BONUS_API_ROUTE = {
 } as const;
 
 export const BONUS_PLAY_ROUTE = {
-	SPORTS: "/sportsbetting",
+	SPORTS: "/sportsbetting/sports/prematch",
 	CASINO: "/games",
 	WALLET: "/wallet",
 } as const;

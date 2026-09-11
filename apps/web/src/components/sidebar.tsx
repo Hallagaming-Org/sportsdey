@@ -32,6 +32,7 @@ import Soccer from "@/logos/Soccer";
 import SportsIcon from "@/logos/sport.svg?react";
 import Trading from "@/logos/Trading";
 import Video from "@/logos/Video";
+import { sportsbookPrematchNavigateOptions } from "@/lib/sportsbook";
 import { useActiveTab } from "./active-tab-context";
 
 const THREE_X_THREE_SPORTSBOOK_PATH = "esports/live/football-esports";
@@ -144,10 +145,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToSportsbook = () => {
 		setTab("betting");
 		trackWebengageEvent("Category", { Name: "Sportsbook" });
-		navigate({
-			to: "/sportsbetting",
-			search: { sports: currentSport } as any,
-		});
+		navigate(sportsbookPrematchNavigateOptions() as any);
 	};
 
 	const goToNews = () => {

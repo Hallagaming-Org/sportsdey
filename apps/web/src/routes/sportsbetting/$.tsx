@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
@@ -13,9 +13,20 @@ import {
 	isSportsbookConfigured,
 	loadSportsbookBootstrapScript,
 	SPORTSBOOK_CONTAINER_ID,
+	SPORTSBOOK_PREMATCH_SPLAT,
 } from "@/lib/sportsbook";
 
 export const Route = createFileRoute("/sportsbetting/$")({
+	beforeLoad: ({ params }) => {
+		if (!params._splat) {
+			throw redirect({
+				to: "/sportsbetting/$",
+				params: { _splat: SPORTSBOOK_PREMATCH_SPLAT },
+				search: {},
+				replace: true,
+			});
+		}
+	},
 	validateSearch: (search: Record<string, unknown>) => ({
 		sportTypeSlug:
 			typeof search.sportTypeSlug === "string"
