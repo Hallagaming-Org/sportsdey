@@ -91,10 +91,23 @@ const KycAdminStatusEnum = z
 	.enum(["not_verified", "pending_review", "approved", "rejected"])
 	.openapi("KycAdminStatusEnum");
 
+const KycReviewerSchema = z
+	.object({
+		id: z.string().openapi({ description: "Reviewer admin ID" }),
+		name: z.string().openapi({ description: "Reviewer admin name" }),
+		avatar: z
+			.string()
+			.nullable()
+			.openapi({ description: "Reviewer avatar URL" }),
+	})
+	.nullable()
+	.openapi("KycReviewer");
+
 const KycAdminListItemSchema = z
 	.object({
 		id: z.string().openapi({ description: "KYC ID" }),
 		playername: z.string().openapi({ description: "Player name" }),
+		image: z.string().nullable().openapi({ description: "Player avatar URL" }),
 		form_of_identification: IdentificationTypeEnum.openapi({
 			description: "Identification type",
 		}),
@@ -142,6 +155,14 @@ const KycDocumentResponseSchema = z
 				backDocument: KycDocumentSchema.nullable().openapi({
 					description: "Back document",
 				}),
+				status: KycAdminStatusEnum.openapi({ description: "KYC status" }),
+				reviewedBy: KycReviewerSchema.openapi({
+					description: "Reviewing admin",
+				}),
+				reviewedAt: z
+					.string()
+					.nullable()
+					.openapi({ description: "Reviewed at" }),
 			})
 			.openapi({ description: "Documents" }),
 	})
@@ -894,12 +915,41 @@ kycRoute.openapi(getKycByUserIdRoute, async (c) => {
 		}
 	}
 
+	let reviewedBy: { id: string; name: string; avatar: string | null } | null =
+		null;
+	if (kycRecord.reviewedByAdminId) {
+		const [reviewer] = await db
+			.select({
+				id: schema.admin.id,
+				name: schema.admin.name,
+				avatar: schema.admin.image,
+			})
+			.from(schema.admin)
+			.where(eq(schema.admin.id, kycRecord.reviewedByAdminId))
+			.limit(1);
+
+		if (reviewer) {
+			reviewedBy = {
+				id: reviewer.id,
+				name: reviewer.name,
+				avatar: reviewer.avatar ?? null,
+			};
+		}
+	}
+
 	return c.json(
 		{
 			success: true,
 			data: {
 				frontDocument,
 				backDocument,
+				status: kycRecord.status as
+					| "not_verified"
+					| "pending_review"
+					| "approved"
+					| "rejected",
+				reviewedBy,
+				reviewedAt: kycRecord.reviewedAt ? toWAT(kycRecord.reviewedAt) : null,
 			},
 		},
 		200,
@@ -983,7 +1033,12 @@ kycRoute.openapi(approveKycRoute, async (c) => {
 
 	await db
 		.update(schema.kyc)
-		.set({ status: "approved", updatedAt: new Date() })
+		.set({
+			status: "approved",
+			reviewedByAdminId: session.adminId,
+			reviewedAt: new Date(),
+			updatedAt: new Date(),
+		})
 		.where(eq(schema.kyc.id, kycId));
 
 	await db
@@ -1094,7 +1149,13 @@ kycRoute.openapi(rejectKycRoute, async (c) => {
 
 	await db
 		.update(schema.kyc)
-		.set({ status: "rejected", rejectionReason: reason, updatedAt: new Date() })
+		.set({
+			status: "rejected",
+			rejectionReason: reason,
+			reviewedByAdminId: session.adminId,
+			reviewedAt: new Date(),
+			updatedAt: new Date(),
+		})
 		.where(eq(schema.kyc.id, kycId));
 
 	await db

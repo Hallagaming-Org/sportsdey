@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8905b5e1-56d8-4e99-a693-5caa7c9926ec",
+  "id": "6ba04089-749f-4c77-a043-7cdcac9dbfdf",
   "prevId": "0b9a3423-6d18-453f-9ba2-5a7bd2224341",
   "tables": {
     "account": {
@@ -1465,6 +1465,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "reviewed_by_admin_id": {
+          "name": "reviewed_by_admin_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "submitted_at": {
           "name": "submitted_at",
           "type": "integer",
@@ -1523,6 +1537,19 @@
           "tableTo": "user_file",
           "columnsFrom": [
             "back_document_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "kyc_reviewed_by_admin_id_admin_id_fk": {
+          "name": "kyc_reviewed_by_admin_id_admin_id_fk",
+          "tableFrom": "kyc",
+          "tableTo": "admin",
+          "columnsFrom": [
+            "reviewed_by_admin_id"
           ],
           "columnsTo": [
             "id"
@@ -1639,6 +1666,125 @@
         "opay_transaction_user_id_user_id_fk": {
           "name": "opay_transaction_user_id_user_id_fk",
           "tableFrom": "opay_transaction",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "palmpay_transaction": {
+      "name": "palmpay_transaction",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_no": {
+          "name": "order_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'initiated'"
+        },
+        "checkout_url": {
+          "name": "checkout_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "raw_callback_payload": {
+          "name": "raw_callback_payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(cast(unixepoch('subsecond') * 1000 as integer))"
+        }
+      },
+      "indexes": {
+        "palmpay_transaction_reference_unique": {
+          "name": "palmpay_transaction_reference_unique",
+          "columns": [
+            "reference"
+          ],
+          "isUnique": true
+        },
+        "palmpay_transaction_order_no_unique": {
+          "name": "palmpay_transaction_order_no_unique",
+          "columns": [
+            "order_no"
+          ],
+          "isUnique": true
+        },
+        "palmpay_transaction_user_id_idx": {
+          "name": "palmpay_transaction_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "palmpay_transaction_user_id_user_id_fk": {
+          "name": "palmpay_transaction_user_id_user_id_fk",
+          "tableFrom": "palmpay_transaction",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
@@ -3903,6 +4049,69 @@
           "notNull": true,
           "autoincrement": false
         },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target_user_name": {
+          "name": "target_user_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target_user_email": {
+          "name": "target_user_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target_user_username": {
+          "name": "target_user_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "details": {
+          "name": "details",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "device": {
+          "name": "device",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "browser": {
+          "name": "browser",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3924,6 +4133,13 @@
           "name": "admin_activity_log_adminId_idx",
           "columns": [
             "admin_id"
+          ],
+          "isUnique": false
+        },
+        "admin_activity_log_targetUserId_idx": {
+          "name": "admin_activity_log_targetUserId_idx",
+          "columns": [
+            "target_user_id"
           ],
           "isUnique": false
         }
