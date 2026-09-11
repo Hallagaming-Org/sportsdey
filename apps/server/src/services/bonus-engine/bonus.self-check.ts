@@ -10,8 +10,8 @@ import {
 	parseBonusAllocationRecords,
 	resolveBonusStatusWalletDeltas,
 	shouldCreditAllocatedBonus,
-} from "./bonus.service.ts";
-import { isBonusEngineJsonNotFound } from "./client.ts";
+} from "./bonus.service";
+import { isBonusEngineJsonNotFound, isBonusEngineUnhandledException } from "./client";
 
 assert.deepEqual(
 	buildBonusEnginePlayerScopedBody({
@@ -185,5 +185,18 @@ assert.equal(
 	}),
 	false,
 );
+
+assert.equal(
+	isBonusEngineUnhandledException(
+		"Cannot read properties of null (reading '_id')",
+	),
+	true,
+);
+assert.equal(
+	isBonusEngineUnhandledException("Cannot read property '_id' of null"),
+	true,
+);
+assert.equal(isBonusEngineUnhandledException("No player bonuses found"), false);
+assert.equal(isBonusEngineUnhandledException(""), false);
 
 console.log("bonus-engine bonus.self-check: ok");

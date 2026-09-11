@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Gift } from "lucide-react";
-import { BONUS_ACTION_LABEL, BONUS_KIND } from "@/lib/bonuses.constant";
+import { BONUS_ACTION_LABEL, BONUS_KIND, sportsbookSplatFromHref } from "@/lib/bonuses.constant";
 import type { BonusCard as BonusCardModel } from "@/lib/bonuses";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,8 @@ export function BonusCard({
 		bonus.wageringRequired > 0
 			? Math.min(100, (bonus.wageringCurrent / bonus.wageringRequired) * 100)
 			: 0;
+
+	const sportsbookSplat = sportsbookSplatFromHref(bonus.actionHref);
 
 	return (
 		<article className="relative flex flex-col overflow-hidden rounded-2xl border border-[#1B2722] bg-[#151616] p-5">
@@ -82,6 +84,13 @@ export function BonusCard({
 					>
 						{BONUS_ACTION_LABEL.ACTIVATE}
 					</button>
+				) : sportsbookSplat ? (
+					<a
+						href={bonus.actionHref}
+						className="flex h-11 w-full items-center justify-center rounded-xl bg-accent font-bold text-sm text-[#040C01] transition-colors hover:bg-[#158f03] hover:text-white"
+					>
+						{bonus.actionLabel}
+					</a>
 				) : (
 					<Link
 						to={pathWithoutHash(bonus.actionHref)}

@@ -6,10 +6,17 @@ export const BONUS_API_ROUTE = {
 } as const;
 
 export const BONUS_PLAY_ROUTE = {
-	SPORTS: "/sportsbetting",
+	SPORTS: "/sportsbetting/sports/prematch",
 	CASINO: "/games",
 	WALLET: "/wallet",
 } as const;
+
+export {
+	MISSION_SPORTSBOOK_FOOTBALL_PREMATCH as BONUS_SPORTSBOOK_FOOTBALL_PREMATCH,
+	MISSION_SPORTSBOOK_PATH_FIELD as BONUS_SPORTSBOOK_PATH_FIELD,
+	sportsbookHrefFromSplat,
+	sportsbookSplatFromHref,
+} from "./missions.constant";
 
 export const BONUS_PLAY_SEARCH_KEY = "play" as const;
 
@@ -60,7 +67,18 @@ export const BONUS_ENGINE_STATUS = {
 export const BONUS_PRODUCT_TYPE = {
 	CASINO: "casino",
 	SPORTSBOOK: "sportsbook",
+	SPORT: "sport",
+	SPORTS: "sports",
 } as const;
+
+/** True when Bonus Engine `product` / `product_type` means sportsbook. */
+export function isSportsBonusProduct(productType: string): boolean {
+	return (
+		productType === BONUS_PRODUCT_TYPE.SPORTSBOOK ||
+		productType === BONUS_PRODUCT_TYPE.SPORT ||
+		productType === BONUS_PRODUCT_TYPE.SPORTS
+	);
+}
 
 export const BONUS_TYPE = {
 	WELCOME: "welcome",

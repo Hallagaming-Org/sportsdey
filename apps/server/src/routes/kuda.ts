@@ -14,6 +14,7 @@ import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
 const kudaRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+type KudaCollectionBindings = CloudflareBindings & { KUDA_REMITTING_ACCOUNT_NUMBER?: string };
 const ErrorSchema = z.object({ success: z.literal(false), error: z.string() });
 const InitiateDepositSchema = z.object({ amount: z.number().finite().positive().max(9_999_999) });
 const InitiateDepositResponseSchema = z.object({
@@ -44,7 +45,8 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 	if (!parsed.success) return c.json({ success: false as const, error: "Enter a valid deposit amount" }, 400);
 
 	const amountKobo = Math.round(parsed.data.amount * 100);
-	if (!c.env.KUDA_API_KEY || !c.env.KUDA_BUSINESS_EMAIL) {
+	const remittingAccountNumber = (c.env as KudaCollectionBindings).KUDA_REMITTING_ACCOUNT_NUMBER?.trim();
+	if (!c.env.KUDA_API_KEY || !c.env.KUDA_BUSINESS_EMAIL || !/^\d{10}$/.test(remittingAccountNumber ?? "")) {
 		console.error("Kuda configuration is incomplete", { operation: "create_deposit_account" });
 		return c.json({ success: false as const, error: "Kuda deposits are not configured on this environment." }, 503);
 	}
@@ -70,6 +72,7 @@ kudaRoute.openapi(initiateDepositRoute, async (c) => {
 			requestRef: reference,
 			amount: amountKobo,
 			accountName: "Sportsdey Wallet Top-up",
+			remittingAccountNumber,
 		});
 		await db.update(schema.kudaTransactions).set({
 			status: "pending",

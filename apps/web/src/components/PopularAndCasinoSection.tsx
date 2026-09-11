@@ -39,6 +39,7 @@ import {
 	isSportsbookConfigured,
 	loadSportsbookWidgets,
 	SPORTSBOOK_CONTAINER_ID,
+	sportsbookPrematchNavigateOptions,
 } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
 
@@ -169,7 +170,7 @@ export default function PopularAndCasinoSection() {
 											params: { _splat: cleanLink },
 										});
 									} else {
-										navigate({ to: "/sportsbetting" });
+										navigate(sportsbookPrematchNavigateOptions() as any);
 									}
 									window.scrollTo({ top: 0, behavior: "smooth" });
 									break;

@@ -211,6 +211,20 @@
       "when": 1787837906367,
       "tag": "0029_confused_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1788254492298,
+      "tag": "0030_nifty_wolverine",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1788878250541,
+      "tag": "0031_gorgeous_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

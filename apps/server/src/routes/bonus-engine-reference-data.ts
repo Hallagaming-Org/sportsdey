@@ -260,7 +260,7 @@ const championshipRoute = createRoute({
 	tags: ["Bonus Engine Reference Data"],
 	summary: "Gets the list of championships",
 	description:
-		"Returns the top 6 European football championships. Championship IDs match Data.Bet tournament ids when the sportsbook proxy is configured.",
+		"Returns catalogued European football championships (top 5 leagues plus UEFA Champions League and UEFA Europa League). Championship IDs match Data.Bet tournament ids when the sportsbook proxy is configured.",
 	request: {
 		headers: SecureDataHeaderSchema,
 		query: z.object({

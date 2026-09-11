@@ -303,7 +303,7 @@ function PhoneSignInPage() {
 
 				<div className="mt-6 text-center">
 					<p className="mb-4 font-medium text-[#6f7471] text-sm">
-						Other login methods
+						{isSignUp ? "Other Sign-Up Methods" : "Other login methods"}
 					</p>
 					<div className="flex items-center justify-center">
 						<button

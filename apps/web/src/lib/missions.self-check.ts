@@ -93,7 +93,10 @@ const sportsWager = resolveMissionAction({
 	games: [],
 });
 assert.equal(sportsWager.kind, "sports");
-assert.equal(sportsWager.href, "/sportsbetting");
+assert.equal(
+	sportsWager.href,
+	"/sportsbetting/sports/prematch/football",
+);
 
 const placeholderWager = resolveMissionAction({
 	triggerTypes: ["Bet X and Get X"],
@@ -101,6 +104,87 @@ const placeholderWager = resolveMissionAction({
 	games: [{ uniqueId: "game_id", name: "Game", providerName: "provider_name" }],
 });
 assert.equal(placeholderWager.kind, "sports");
+assert.equal(
+	placeholderWager.href,
+	"/sportsbetting/sports/prematch/football",
+);
+
+const leagueMission = normalizeMissionRecord({
+	_id: "6a97384b90c3b87c2011ced9",
+	mission_name: "TestySports",
+	mission_triggers: [
+		{
+			type: "Bet X and Get X",
+			parameters: {
+				amount: "1000",
+				rewards: [{ type: "Points", amount: 5000 }],
+			},
+		},
+	],
+	provider_games: [{ game: [] }],
+	product: "sport",
+	sports_league_events: [
+		{
+			sports: { unique_id: 1, name: "Soccer" },
+			category: { unique_id: 10, name: "England" },
+			leagues: [
+				{ league: { unique_id: 100, name: "Premier League" } },
+			],
+		},
+	],
+	sportsbook_path:
+		"sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(leagueMission.actionKind, "sports");
+assert.equal(leagueMission.actionLabel, "Play Premier League");
+assert.equal(
+	leagueMission.actionHref,
+	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+);
+assert.equal(leagueMission.leagues[0]?.name, "Premier League");
+
+const germanyCategory = normalizeMissionRecord({
+	_id: "6a9698b190c3b87c20108712",
+	mission_name: "newSept",
+	mission_triggers: [
+		{
+			type: "Wager X and Get X",
+			parameters: { amount: "100" },
+		},
+	],
+	provider_games: [{ game: [] }],
+	product: "sport",
+	sports_league_events: [
+		{
+			sports: { unique_id: 1, name: "Soccer" },
+			category: { unique_id: 13, name: "Germany" },
+			leagues: [{}],
+		},
+	],
+	sportsbook_path:
+		"sports/prematch/football/tournament/betting:24:gin:bef631c0-4f2c-4baa-879e-fa15c90fb911",
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(germanyCategory.actionLabel, "Play Germany");
+assert.equal(
+	germanyCategory.actionHref,
+	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:bef631c0-4f2c-4baa-879e-fa15c90fb911",
+);
+assert.equal(germanyCategory.categories[0]?.name, "Germany");
+
+const emptyLeagueSport = resolveMissionAction({
+	triggerTypes: ["Wager X and Get X"],
+	providers: [],
+	games: [],
+	leagues: [],
+});
+assert.equal(
+	emptyLeagueSport.href,
+	"/sportsbetting/sports/prematch/football",
+);
 
 const invite = resolveMissionAction({
 	triggerTypes: ["Refer a friend"],

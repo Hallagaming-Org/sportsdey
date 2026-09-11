@@ -65,7 +65,9 @@ assert.equal(casinoBody.game_id, "starburst");
 assert.equal(matchTopEuropeanChampionship("Premier League")?.name, "Premier League");
 assert.equal(matchTopEuropeanChampionship("Premier League 2"), undefined);
 assert.equal(matchTopEuropeanChampionship("UEFA Champions League")?.name, "UEFA Champions League");
-assert.equal(matchTopEuropeanChampionship("UEFA Europa League"), undefined);
+assert.equal(matchTopEuropeanChampionship("UEFA Europa League")?.name, "UEFA Europa League");
+assert.equal(matchTopEuropeanChampionship("Europa League")?.name, "UEFA Europa League");
+assert.equal(matchTopEuropeanChampionship("UEFA Europa Conference League"), undefined);
 assert.equal(matchTopEuropeanChampionship("LaLiga")?.name, "La Liga");
 
 console.log("bonus-engine sportsbook-bet.self-check: ok");

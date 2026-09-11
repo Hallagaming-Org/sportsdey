@@ -1,5 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import { useCurrentSport } from "@/hooks/use-current-sport";
+import { sportsbookPrematchNavigateOptions } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 
@@ -55,10 +56,7 @@ const Footer = () => {
 
 									if (item === "betting") {
 										trackCategory("Sportsbetting");
-										router.navigate({
-											to: "/sportsbetting",
-											search: { sports: currentSport } as any,
-										});
+										router.navigate(sportsbookPrematchNavigateOptions() as any);
 									}
 
 									if (item === "games") {
