@@ -50,7 +50,11 @@ export {
 	isBonusEngineCallbackVerifyConfigured,
 	isBonusEngineConfigured,
 } from "./config";
-export { extractBonusEngineMessage, isBonusEngineJsonNotFound } from "./client";
+export {
+	extractBonusEngineMessage,
+	isBonusEngineJsonNotFound,
+	isBonusEngineUnhandledException,
+} from "./client";
 export {
 	hashBonusEngineIdempotencyKey,
 	signBonusEngineBody,
@@ -93,6 +97,7 @@ export {
 } from "./loyalty.service";
 export { listBonusEngineMissions, mergeMissionListWithLocalProgress } from "./mission.service";
 export {
+	attachLiveSportsbookPaths,
 	attachMissionSportsbookPaths,
 	resolveMissionSportsbookPath,
 } from "./mission-sportsbook-path";
