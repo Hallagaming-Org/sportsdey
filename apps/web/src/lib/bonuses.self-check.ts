@@ -85,7 +85,10 @@ const sportsOnly = resolveBonusAction({
 	hasSportsTargets: true,
 });
 assert.equal(sportsOnly.kind, "sports");
-assert.equal(sportsOnly.href, "/sportsbetting");
+assert.equal(
+	sportsOnly.href,
+	"/sportsbetting/sports/prematch/football",
+);
 
 const placeholderGames = resolveBonusAction({
 	bonusType: "login",
@@ -94,6 +97,33 @@ const placeholderGames = resolveBonusAction({
 	hasSportsTargets: false,
 });
 assert.equal(placeholderGames.href, "/games");
+
+const englandCampaign = normalizeBonusCampaign({
+	_id: "6a96c81990c3b87c2010e7ea",
+	type: "login",
+	product: "sport",
+	campaign_code: "MANUSUCKS",
+	sports_league_events: [
+		{
+			sports: { unique_id: 1, name: "Soccer" },
+			category: { unique_id: 10, name: "England" },
+			leagues: [{}],
+		},
+		{
+			sports: { unique_id: 1, name: "Soccer" },
+			category: { unique_id: 11, name: "Spain" },
+			leagues: [{}],
+		},
+	],
+	sportsbook_path:
+		"sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+});
+assert.equal(englandCampaign.actionKind, "sports");
+assert.equal(englandCampaign.actionLabel, "Play England");
+assert.equal(
+	englandCampaign.actionHref,
+	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+);
 
 assert.equal(BONUS_TYPE_DEFAULT, "welcome");
 assert.equal(isBonusCampaignType("welcome"), true);
