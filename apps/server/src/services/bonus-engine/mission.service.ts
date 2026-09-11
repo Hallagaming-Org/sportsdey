@@ -6,6 +6,7 @@ import type {
 } from "./bonus-engine.service.type";
 import { bonusEngineRequest } from "./client";
 import { getBonusEngineConfig } from "./config";
+import { attachLiveSportsbookPaths } from "./mission-sportsbook-path";
 import { listBonusEngineMissionProgressForUser } from "./persistence.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
@@ -71,11 +72,15 @@ export async function listBonusEngineMissions(payload: {
 		userId: payload.userId,
 	});
 	const merged = mergeMissionListWithLocalProgress({ missions, progress });
+	const withSportsbookPaths = await attachLiveSportsbookPaths({
+		env: payload.env,
+		records: merged,
+	});
 	return {
 		...result,
 		data: {
 			...result.data,
-			data: merged,
+			data: withSportsbookPaths,
 		},
 	};
 }

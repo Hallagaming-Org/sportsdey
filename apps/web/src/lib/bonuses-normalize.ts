@@ -6,10 +6,14 @@ import {
 	BONUS_PLAY_ROUTE,
 	BONUS_PLAY_SEARCH_KEY,
 	BONUS_PRODUCT_TYPE,
+	BONUS_SPORTSBOOK_FOOTBALL_PREMATCH,
+	BONUS_SPORTSBOOK_PATH_FIELD,
 	BONUS_STATUS,
 	BONUS_STATUS_LABEL,
 	BONUS_TYPE,
 	BONUS_USER_ACTION,
+	isSportsBonusProduct,
+	sportsbookHrefFromSplat,
 } from "./bonuses.constant";
 
 export type BonusKind = (typeof BONUS_KIND)[keyof typeof BONUS_KIND];
@@ -67,12 +71,17 @@ export function normalizeUserBonus(
 		record.product_type ?? record.product,
 	).toLowerCase();
 	const games = parseBonusGames(record);
-	const hasSportsTargets = hasSportsAllowList(record);
+	const sportsTarget = parseBonusSportsTarget(record);
+	const sportsbookPath = asString(record[BONUS_SPORTSBOOK_PATH_FIELD]);
+	const hasSportsTargets =
+		hasSportsAllowList(record) || Boolean(sportsTarget.name || sportsbookPath);
 	const action = resolveBonusAction({
 		bonusType,
 		productType,
 		games,
 		hasSportsTargets,
+		sportsbookPath,
+		sportsTargetName: sportsTarget.name,
 	});
 	const status = resolveAssignmentStatus(record);
 	const bonusAmount = asAmount(
@@ -137,12 +146,17 @@ export function normalizeBonusCampaign(
 	const bonusType = asString(record.type ?? record.bonus_type) || "bonus";
 	const productType = asString(record.product).toLowerCase();
 	const games = parseBonusGames(record);
-	const hasSportsTargets = hasSportsAllowList(record);
+	const sportsTarget = parseBonusSportsTarget(record);
+	const sportsbookPath = asString(record[BONUS_SPORTSBOOK_PATH_FIELD]);
+	const hasSportsTargets =
+		hasSportsAllowList(record) || Boolean(sportsTarget.name || sportsbookPath);
 	const action = resolveBonusAction({
 		bonusType,
 		productType,
 		games,
 		hasSportsTargets,
+		sportsbookPath,
+		sportsTargetName: sportsTarget.name,
 	});
 	const bonusAmount = asAmount(record.bonus_reward_amount ?? record.bonus_amount);
 	const cashAmount = asAmount(record.cash_reward_amount ?? record.cash_amount);
@@ -193,6 +207,8 @@ export function resolveBonusAction(payload: {
 	productType: string;
 	games: PlayableGame[];
 	hasSportsTargets: boolean;
+	sportsbookPath?: string;
+	sportsTargetName?: string;
 }): {
 	kind: BonusActionKind;
 	label: string;
@@ -218,13 +234,17 @@ export function resolveBonusAction(payload: {
 	}
 
 	if (
-		payload.productType === BONUS_PRODUCT_TYPE.SPORTSBOOK ||
-		payload.hasSportsTargets
+		isSportsBonusProduct(payload.productType) ||
+		payload.hasSportsTargets ||
+		payload.sportsbookPath
 	) {
+		const splat =
+			payload.sportsbookPath?.trim() || BONUS_SPORTSBOOK_FOOTBALL_PREMATCH;
+		const targetName = payload.sportsTargetName?.trim();
 		return {
 			kind: "sports",
-			label: BONUS_ACTION_LABEL.SPORTS,
-			href: BONUS_PLAY_ROUTE.SPORTS,
+			label: targetName ? `Play ${targetName}` : BONUS_ACTION_LABEL.SPORTS,
+			href: sportsbookHrefFromSplat(splat),
 		};
 	}
 
@@ -305,11 +325,41 @@ function parseBonusGames(record: BonusRecord): PlayableGame[] {
 
 function hasSportsAllowList(record: BonusRecord): boolean {
 	const buckets = [
+		record.sports_league_events,
 		record.wagering_sports,
 		record.sports_leagues_event,
 		record.freebet_sports_leagues_event,
 	];
 	return buckets.some((bucket) => Array.isArray(bucket) && bucket.length > 0);
+}
+
+function parseBonusSportsTarget(record: BonusRecord): { name: string } {
+	const events = record.sports_league_events;
+	if (!Array.isArray(events)) return { name: "" };
+
+	for (const entry of events) {
+		if (typeof entry !== "object" || entry === null) continue;
+		const row = entry as Record<string, unknown>;
+		const leagues = Array.isArray(row.leagues) ? row.leagues : [];
+		for (const leagueEntry of leagues) {
+			if (typeof leagueEntry !== "object" || leagueEntry === null) continue;
+			const wrapped = leagueEntry as Record<string, unknown>;
+			const leagueRow =
+				typeof wrapped.league === "object" && wrapped.league !== null
+					? (wrapped.league as Record<string, unknown>)
+					: wrapped;
+			const leagueName = asString(leagueRow.name);
+			if (leagueName) return { name: leagueName };
+		}
+		const category =
+			typeof row.category === "object" && row.category !== null
+				? (row.category as Record<string, unknown>)
+				: null;
+		const categoryName = asString(category?.name);
+		if (categoryName) return { name: categoryName };
+	}
+
+	return { name: "" };
 }
 
 function fallbackTitle(bonusType: string): string {

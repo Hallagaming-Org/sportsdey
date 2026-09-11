@@ -1,10 +1,42 @@
 export const MISSION_ROUTE = {
 	SPORTS: "/sportsbetting",
+	SPORTS_SPLAT: "/sportsbetting/$",
 	CASINO: "/games",
 	WALLET: "/wallet",
 	ACCOUNT: "/account",
 	INVITE: "/account#account-referral-id",
 } as const;
+
+/** Data.Bet prematch football lobby (SportsDey basename `/sportsbetting`). */
+export const MISSION_SPORTSBOOK_FOOTBALL_PREMATCH =
+	"sports/prematch/football";
+
+export const MISSION_SPORTSBOOK_PATH_FIELD = "sportsbook_path";
+
+export function isDatabetTournamentGin(id: string): boolean {
+	const value = id.trim();
+	return /:gin:/i.test(value) || /^betting:\d+:/i.test(value);
+}
+
+export function sportsbookHrefFromSplat(splat: string): string {
+	return `${MISSION_ROUTE.SPORTS}/${splat.replace(/^\/+/, "")}`;
+}
+
+export function sportsbookSplatFromHref(href: string): string | undefined {
+	const prefix = `${MISSION_ROUTE.SPORTS}/`;
+	if (!href.startsWith(prefix)) return undefined;
+	const splat = href.slice(prefix.length).split("#")[0]?.replace(/\/+$/, "");
+	if (!splat) return undefined;
+	try {
+		return decodeURIComponent(splat);
+	} catch {
+		return splat;
+	}
+}
+
+export function sportsbookTournamentSplat(tournamentId: string): string {
+	return `${MISSION_SPORTSBOOK_FOOTBALL_PREMATCH}/tournament/${tournamentId.trim()}`;
+}
 
 export const MISSION_ACTION_LABEL = {
 	SPORTS: "Go to Sports",
