@@ -91,6 +91,22 @@ export const BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS: readonly BonusEngineTopEur
 			aliases: ["uefa champions league", "champions league"],
 			excludedSubstrings: ["women", "youth", "europa", "playoffs", "srl"],
 		},
+		{
+			sportId: 1,
+			categoryId: 15,
+			fallbackChampionshipId: 106,
+			name: "UEFA Europa League",
+			searchName: "UEFA Europa League",
+			canonicalName: "uefa europa league",
+			aliases: ["uefa europa league", "europa league"],
+			excludedSubstrings: [
+				"women",
+				"youth",
+				"conference",
+				"champions",
+				"playoffs",
+			],
+		},
 	];
 
 export const BONUS_ENGINE_SPORTSBOOK_CATALOG = {
@@ -117,8 +133,9 @@ export const BONUS_ENGINE_SPORTSBOOK_CATALOG = {
 export const BONUS_ENGINE_SPORTSBOOK_STUB_EVENT_IDS = new Set(["5000", "5001"]);
 
 /**
- * Pick the top-6 European championship for a Data.Bet tournament name.
- * Exclusions run first so "Premier League 2" does not match Premier League.
+ * Pick the catalogued European championship for a Data.Bet tournament name.
+ * Exclusions run first so "Premier League 2" does not match Premier League
+ * and Europa League does not match Champions League.
  */
 export function matchTopEuropeanChampionship(
 	tournamentName: string,
