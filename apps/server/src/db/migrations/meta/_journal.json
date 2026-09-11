@@ -1,216 +1,202 @@
 {
-  "version": "7",
-  "dialect": "sqlite",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1776703062589,
-      "tag": "0000_premium_lady_vermin",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1777025072602,
-      "tag": "0001_melted_violations",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1777051819466,
-      "tag": "0002_familiar_giant_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1777226478025,
-      "tag": "0003_third_hairball",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1777511842253,
-      "tag": "0004_brief_freak",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1777736027706,
-      "tag": "0005_lowly_franklin_richards",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1777993038553,
-      "tag": "0006_motionless_captain_cross",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1778206485518,
-      "tag": "0007_broad_mac_gargan",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1778552864384,
-      "tag": "0008_quick_pixie",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1778639546465,
-      "tag": "0009_plain_unus",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1778688532352,
-      "tag": "0010_pretty_thunderbolt",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1779274271497,
-      "tag": "0011_bizarre_vance_astro",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "6",
-      "when": 1779274449494,
-      "tag": "0012_vengeful_vampiro",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "6",
-      "when": 1781472352967,
-      "tag": "0013_sloppy_silver_centurion",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "6",
-      "when": 1781820136110,
-      "tag": "0014_deep_guardian",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "6",
-      "when": 1781839055159,
-      "tag": "0015_curly_next_avengers",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "6",
-      "when": 1782182238171,
-      "tag": "0016_elite_shatterstar",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1782730252006,
-      "tag": "0017_conscious_bastion",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1783348542877,
-      "tag": "0018_greedy_punisher",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "6",
-      "when": 1783350396447,
-      "tag": "0019_grey_nomad",
-      "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "6",
-      "when": 1783697449770,
-      "tag": "0020_early_king_cobra",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "6",
-      "when": 1784034124686,
-      "tag": "0021_right_jack_flag",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "6",
-      "when": 1784229729223,
-      "tag": "0022_burly_fat_cobra",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "6",
-      "when": 1785000000000,
-      "tag": "0023_scorpio_players",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "6",
-      "when": 1785100000000,
-      "tag": "0024_scorpio_transactions",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "6",
-      "when": 1785512083386,
-      "tag": "0025_silly_jean_grey",
-      "breakpoints": true
-    },
-    {
-      "idx": 26,
-      "version": "6",
-      "when": 1785949231893,
-      "tag": "0026_regular_warlock",
-      "breakpoints": true
-    },
-    {
-      "idx": 27,
-      "version": "6",
-      "when": 1787402993097,
-      "tag": "0027_cute_fallen_one",
-      "breakpoints": true
-    },
-    {
-      "idx": 28,
-      "version": "6",
-      "when": 1787660000000,
-      "tag": "0029_bonus_engine_user_bonus",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "6",
-      "when": 1787837906367,
-      "tag": "0029_confused_living_tribunal",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1776703062589,
+			"tag": "0000_premium_lady_vermin",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1777025072602,
+			"tag": "0001_melted_violations",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1777051819466,
+			"tag": "0002_familiar_giant_man",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1777226478025,
+			"tag": "0003_third_hairball",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1777511842253,
+			"tag": "0004_brief_freak",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "6",
+			"when": 1777736027706,
+			"tag": "0005_lowly_franklin_richards",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "6",
+			"when": 1777993038553,
+			"tag": "0006_motionless_captain_cross",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "6",
+			"when": 1778206485518,
+			"tag": "0007_broad_mac_gargan",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "6",
+			"when": 1778552864384,
+			"tag": "0008_quick_pixie",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "6",
+			"when": 1778639546465,
+			"tag": "0009_plain_unus",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "6",
+			"when": 1778688532352,
+			"tag": "0010_pretty_thunderbolt",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "6",
+			"when": 1779274271497,
+			"tag": "0011_bizarre_vance_astro",
+			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "6",
+			"when": 1779274449494,
+			"tag": "0012_vengeful_vampiro",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "6",
+			"when": 1781472352967,
+			"tag": "0013_sloppy_silver_centurion",
+			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "6",
+			"when": 1781820136110,
+			"tag": "0014_deep_guardian",
+			"breakpoints": true
+		},
+		{
+			"idx": 15,
+			"version": "6",
+			"when": 1781839055159,
+			"tag": "0015_curly_next_avengers",
+			"breakpoints": true
+		},
+		{
+			"idx": 16,
+			"version": "6",
+			"when": 1782182238171,
+			"tag": "0016_elite_shatterstar",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "6",
+			"when": 1782730252006,
+			"tag": "0017_conscious_bastion",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "6",
+			"when": 1783348542877,
+			"tag": "0018_greedy_punisher",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "6",
+			"when": 1783350396447,
+			"tag": "0019_grey_nomad",
+			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "6",
+			"when": 1783697449770,
+			"tag": "0020_early_king_cobra",
+			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "6",
+			"when": 1784034124686,
+			"tag": "0021_right_jack_flag",
+			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "6",
+			"when": 1784229729223,
+			"tag": "0022_burly_fat_cobra",
+			"breakpoints": true
+		},
+		{
+			"idx": 23,
+			"version": "6",
+			"when": 1785000000000,
+			"tag": "0023_scorpio_players",
+			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "6",
+			"when": 1785100000000,
+			"tag": "0024_scorpio_transactions",
+			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "6",
+			"when": 1785512083386,
+			"tag": "0025_silly_jean_grey",
+			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "6",
+			"when": 1785949231893,
+			"tag": "0026_regular_warlock",
+			"breakpoints": true
+		},
+		{
+			"idx": 27,
+			"version": "6",
+			"when": 1787402993097,
+			"tag": "0027_cute_fallen_one",
+			"breakpoints": true
+		}
+	]
 }
