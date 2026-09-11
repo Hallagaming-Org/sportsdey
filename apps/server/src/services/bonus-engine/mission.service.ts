@@ -6,12 +6,8 @@ import type {
 } from "./bonus-engine.service.type";
 import { bonusEngineRequest } from "./client";
 import { getBonusEngineConfig } from "./config";
-import {
-	attachMissionSportsbookPaths,
-	missionHasSportsLeagueEvents,
-} from "./mission-sportsbook-path";
+import { attachLiveSportsbookPaths } from "./mission-sportsbook-path";
 import { listBonusEngineMissionProgressForUser } from "./persistence.service";
-import { listBonusEngineChampionshipRows } from "./reference-data.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
 type BonusEngineMissionListEnvelope = {
@@ -78,7 +74,7 @@ export async function listBonusEngineMissions(payload: {
 	const merged = mergeMissionListWithLocalProgress({ missions, progress });
 	const withSportsbookPaths = await attachLiveSportsbookPaths({
 		env: payload.env,
-		missions: merged,
+		records: merged,
 	});
 	return {
 		...result,
@@ -87,20 +83,6 @@ export async function listBonusEngineMissions(payload: {
 			data: withSportsbookPaths,
 		},
 	};
-}
-
-async function attachLiveSportsbookPaths(payload: {
-	env: CloudflareBindings;
-	missions: BonusEngineMissionListItem[];
-}): Promise<BonusEngineMissionListItem[]> {
-	if (!payload.missions.some(missionHasSportsLeagueEvents)) {
-		return payload.missions;
-	}
-	const championships = await listBonusEngineChampionshipRows(payload.env);
-	return attachMissionSportsbookPaths({
-		missions: payload.missions,
-		championships,
-	});
 }
 
 function overlayMissionProgress(payload: {

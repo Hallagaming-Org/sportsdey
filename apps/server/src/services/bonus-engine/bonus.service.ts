@@ -14,9 +14,16 @@ import type {
 	BonusEngineUserBonusActionBody,
 	BonusEngineUserBonusItem,
 } from "./bonus-engine.service.type";
-import { bonusEngineRequest, isBonusEngineJsonNotFound } from "./client";
+import {
+	bonusEngineRequest,
+	extractBonusEngineMessage,
+	isBonusEngineJsonNotFound,
+	isBonusEngineUnhandledException,
+} from "./client";
 import { getBonusEngineConfig } from "./config";
+import { attachLiveSportsbookPaths } from "./mission-sportsbook-path";
 import { getBonusEngineWalletBalances, listBonusEngineUserBonusSnapshots } from "./persistence.service";
+import { syncBonusEnginePlayerOnAppLogin } from "./player.service";
 import { creditBonusActivation } from "./rewards.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
@@ -205,54 +212,117 @@ export function isBonusEngineActivateAccepted(
 }
 
 /**
- * Lists active bonus campaigns for the signed-in player (`POST /list_active_campaign`).
+ * Lists active bonus campaigns for the signed-in player (`POST /list_active_campaign`)
+ * and overlays a Data.Bet `sportsbook_path` when `sports_league_events` is set.
  */
 export async function listBonusEngineCampaigns(payload: {
 	env: CloudflareBindings;
 	userId: string;
 	bonusType: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineBonusCampaignItem[]>>> {
-	return signedBonusRequest({
+	const result = await signedBonusRequest<
+		BonusEngineEnvelope<BonusEngineBonusCampaignItem[]>
+	>({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.LIST_ACTIVE_CAMPAIGN,
 		userId: payload.userId,
 		bonusType: payload.bonusType,
 	});
+	if (!result.ok) return result;
+
+	const campaigns = asRecordArray(result.data?.data);
+	const withSportsbookPaths = await attachLiveSportsbookPaths({
+		env: payload.env,
+		records: campaigns,
+	});
+	return {
+		...result,
+		data: {
+			...result.data,
+			data: withSportsbookPaths,
+		},
+	};
 }
 
 /**
  * Lists player bonus assignments (`POST /getall_User_bonus`) and overlays
- * local allocation/status snapshots. Engine 404 becomes an empty list so
- * callback-assigned bonuses still show.
+ * local allocation/status snapshots. Engine 404 or a caught TypeError
+ * (missing player, `user._id` on null) becomes an empty list so
+ * callback-assigned bonuses still show. Retries once after `POST /login`
+ * when the engine crashed that way.
  */
 export async function listBonusEngineUserBonuses(payload: {
 	env: CloudflareBindings;
 	userId: string;
+	username?: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineUserBonusItem[]>>> {
-	const result = await signedBonusRequest<
+	let result = await signedBonusRequest<
 		BonusEngineEnvelope<BonusEngineUserBonusItem[]>
 	>({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.GETALL_USER_BONUS,
 		userId: payload.userId,
 	});
+
+	if (isBonusEngineUnhandledException(bonusEngineResultText(result))) {
+		const username = payload.username?.trim() || payload.userId;
+		console.error("Bonus Engine getall_User_bonus crashed; retrying after player sync", {
+			userId: payload.userId,
+			status: result.status,
+			error: bonusEngineResultText(result),
+		});
+		await syncBonusEnginePlayerOnAppLogin({
+			env: payload.env,
+			userId: payload.userId,
+			username,
+		});
+		result = await signedBonusRequest<
+			BonusEngineEnvelope<BonusEngineUserBonusItem[]>
+		>({
+			env: payload.env,
+			path: BONUS_ENGINE_PATH.GETALL_USER_BONUS,
+			userId: payload.userId,
+		});
+	}
+
 	const snapshots = await listBonusEngineUserBonusSnapshots({
 		env: payload.env,
 		userId: payload.userId,
 	});
 
-	if (!result.ok && !isBonusEngineJsonNotFound(result)) return result;
+	if (
+		!result.ok &&
+		!isBonusEngineJsonNotFound(result) &&
+		!isBonusEngineUnhandledException(bonusEngineResultText(result))
+	) {
+		return result;
+	}
 
-	const bonuses = result.ok ? asRecordArray(result.data?.data) : [];
+	const engineCrashed = isBonusEngineUnhandledException(
+		bonusEngineResultText(result),
+	);
+	const bonuses =
+		result.ok && !engineCrashed ? asRecordArray(result.data?.data) : [];
 	const merged = mergeUserBonusesWithLocalSnapshots({ bonuses, snapshots });
+	const withSportsbookPaths = await attachLiveSportsbookPaths({
+		env: payload.env,
+		records: merged,
+	});
+	const message =
+		engineCrashed || isBonusEngineJsonNotFound(result)
+			? withSportsbookPaths.length > 0
+				? "OK"
+				: "No player bonuses found"
+			: result.message;
 	return {
 		ok: true,
 		status: 200,
 		data: {
 			...result.data,
-			data: merged,
+			data: withSportsbookPaths,
+			message,
 		},
-		message: result.message,
+		message,
 	};
 }
 
@@ -265,10 +335,12 @@ export async function activateBonusEngineUserBonus(payload: {
 	env: CloudflareBindings;
 	userId: string;
 	userbonusId: string;
+	username?: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineBonusWalletData>>> {
 	const listResult = await listBonusEngineUserBonuses({
 		env: payload.env,
 		userId: payload.userId,
+		username: payload.username,
 	});
 	const bonuses = listResult.ok
 		? asRecordArray(listResult.data?.data)
@@ -438,11 +510,19 @@ async function signedBonusActionRequest(
 	});
 }
 
+function bonusEngineResultText(
+	result: BonusEngineApiResult<{ message?: string }>,
+): string {
+	if (result.error?.trim()) return result.error;
+	if (result.message?.trim()) return result.message;
+	return extractBonusEngineMessage(result.data, "");
+}
+
 function asRecordArray(value: unknown): BonusEngineUserBonusItem[] {
 	if (!Array.isArray(value)) return [];
 	return value.filter(
 		(row): row is BonusEngineUserBonusItem =>
-			typeof row === "object" && row !== null,
+			typeof row === "object" && row !== null && !Array.isArray(row),
 	);
 }
 

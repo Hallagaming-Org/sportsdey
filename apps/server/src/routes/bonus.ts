@@ -13,6 +13,7 @@ import {
 	extractBonusEngineMessage,
 	isBonusEngineConfigured,
 	isBonusEngineJsonNotFound,
+	isBonusEngineUnhandledException,
 	listBonusEngineCampaigns,
 	listBonusEngineUserBonuses,
 	BONUS_ENGINE_UPSTREAM_ROUTE_MISSING,
@@ -34,11 +35,21 @@ function isHtmlUpstreamError(error?: string): boolean {
 	return message.startsWith("<") || /cannot post/i.test(message);
 }
 
-/** Strips Express/HTML 404 bodies so clients never see upstream markup. */
+
 function publicBonusEngineError(error: string | undefined, fallback: string): string {
 	if (isHtmlUpstreamError(error)) return BONUS_ENGINE_UPSTREAM_ROUTE_MISSING;
+	if (isBonusEngineUnhandledException(error)) return fallback;
 	const message = error?.trim() ?? "";
 	return message || fallback;
+}
+
+function publicBonusEngineListMessage(
+	message: string | undefined,
+	fallback: string,
+): string {
+	if (isBonusEngineUnhandledException(message)) return fallback;
+	const text = message?.trim() ?? "";
+	return text || fallback;
 }
 
 const campaignsRoute = createRoute({
@@ -188,6 +199,7 @@ bonusRoute.openapi(listRoute, async (c) => {
 	const result = await listBonusEngineUserBonuses({
 		env: c.env,
 		userId: user.id,
+		username: user.name || user.email || user.id,
 	});
 	if (!result.ok && isBonusEngineJsonNotFound(result)) {
 		return c.json(
@@ -217,10 +229,12 @@ bonusRoute.openapi(listRoute, async (c) => {
 		{
 			success: true as const,
 			data: bonuses,
-			message:
+			message: publicBonusEngineListMessage(
 				result.data?.message ||
-				result.message ||
-				extractBonusEngineMessage(result.data, "OK"),
+					result.message ||
+					extractBonusEngineMessage(result.data, ""),
+				bonuses.length > 0 ? "OK" : "No player bonuses found",
+			),
 		},
 		200,
 	);
@@ -284,6 +298,7 @@ bonusRoute.openapi(activateRoute, async (c) => {
 	const result = await activateBonusEngineUserBonus({
 		env: c.env,
 		userId: user.id,
+		username: user.name || user.email || user.id,
 		userbonusId: body.userbonus_id,
 	});
 	if (!result.ok) {
