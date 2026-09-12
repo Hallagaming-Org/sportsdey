@@ -2,7 +2,7 @@
  * Off-peak backfill for accumulator program boosts.
  *
  * Lists Sportsdey users from D1, skips players already marked program_synced
- * in KV (`acc-program-sync-v1:{playerId}`), and calls ensureAccumulatorProgramBoosts
+ * in KV (`acc-program-sync-v2:{playerId}`), and calls ensureAccumulatorProgramBoosts
  * for the rest with the same concurrency-8 limit used by live sync.
  *
  * Usage:
