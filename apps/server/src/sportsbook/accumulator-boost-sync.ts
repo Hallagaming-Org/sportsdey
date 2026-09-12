@@ -24,7 +24,10 @@ export const ACCUMULATOR_SYNC_CONCURRENCY = 8;
 
 export type DatabetBoostRecord = {
 	id: string;
-	calculation_strategy?: { type?: string };
+	calculation_strategy?: {
+		type?: string;
+		strategy?: { params?: { multiplier?: string } };
+	};
 	required_conditions?: Array<{
 		bet_details?: Array<{
 			data?: {
@@ -251,6 +254,7 @@ export async function ensureAccumulatorProgramBoosts(
 				body: {
 					player_id: input.playerId,
 					applicable_conditions: repair.applicable_conditions,
+					calculation_strategy: repair.calculation_strategy,
 				},
 			});
 			if (!response.ok) {

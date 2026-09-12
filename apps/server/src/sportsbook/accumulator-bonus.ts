@@ -2,9 +2,9 @@
  * Accumulator bonus (DataBet bet boost) — Sportsdey sports table.
  *
  * Bonus % extra on total odds. DataBet multiplier = 1 + percent/100.
- * Example: 5% → 1.05, 100% → 2.00, 500% → 6.00.
+ * Example: 2.5% → 1.025, 50% → 1.50, 250% → 3.50.
  *
- * Football has no Doubles (2-fold) bonus. Basketball and tennis start at 3%.
+ * Football has no Doubles (2-fold) bonus. Basketball and tennis start at 1.5%.
  * From Trebles (3-fold) onward all three sports share the same scale, up to 50-fold.
  *
  * Grants POST one DataBet `static` boost per sport × fold so the published
@@ -43,60 +43,60 @@ export function accumulatorProgramMaxSelections(sport: AccumulatorSport): number
 
 /** Shared bonus % from 3-fold through 50-fold (all listed sports). */
 const SHARED_BONUS_PERCENT: Record<number, number> = {
-	3: 5,
-	4: 10,
-	5: 15,
-	6: 20,
-	7: 25,
-	8: 30,
-	9: 35,
-	10: 40,
-	11: 45,
-	12: 50,
-	13: 60,
-	14: 70,
-	15: 75,
-	16: 80,
-	17: 90,
-	18: 100,
-	19: 110,
-	20: 120,
-	21: 130,
-	22: 140,
-	23: 150,
-	24: 160,
-	25: 170,
-	26: 180,
-	27: 200,
-	28: 210,
-	29: 220,
-	30: 230,
-	31: 240,
-	32: 250,
-	33: 260,
-	34: 270,
-	35: 280,
-	36: 290,
-	37: 300,
-	38: 315,
-	39: 330,
-	40: 345,
-	41: 360,
-	42: 375,
-	43: 390,
-	44: 405,
-	45: 420,
-	46: 435,
-	47: 450,
-	48: 465,
-	49: 480,
-	50: 500,
+	3: 2.5,
+	4: 5,
+	5: 7.5,
+	6: 10,
+	7: 12.5,
+	8: 15,
+	9: 17.5,
+	10: 20,
+	11: 22.5,
+	12: 25,
+	13: 30,
+	14: 35,
+	15: 37.5,
+	16: 40,
+	17: 45,
+	18: 50,
+	19: 55,
+	20: 60,
+	21: 65,
+	22: 70,
+	23: 75,
+	24: 80,
+	25: 85,
+	26: 90,
+	27: 100,
+	28: 105,
+	29: 110,
+	30: 115,
+	31: 120,
+	32: 125,
+	33: 130,
+	34: 135,
+	35: 140,
+	36: 145,
+	37: 150,
+	38: 157.5,
+	39: 165,
+	40: 172.5,
+	41: 180,
+	42: 187.5,
+	43: 195,
+	44: 202.5,
+	45: 210,
+	46: 217.5,
+	47: 225,
+	48: 232.5,
+	49: 240,
+	50: 250,
 };
 
 const DOUBLES_BONUS_PERCENT: Record<AccumulatorSport, number | null> = {
 	football: null,
-	basketball: 3,
-	tennis: 3,
+	basketball: 1.5,
+	tennis: 1.5,
 };
 
 export function getAccumulatorBonusPercent(
@@ -116,14 +116,19 @@ export function getAccumulatorBonusPercent(
 	return SHARED_BONUS_PERCENT[selections] ?? null;
 }
 
-/** DataBet `multiplier` string, e.g. 15% → "1.15". */
+/** DataBet `multiplier` string, e.g. 7.5% → "1.075", 15% → "1.15". */
+export function formatAccumulatorMultiplier(percent: number): string {
+	const value = (100 + percent) / 100;
+	return Number.isInteger(percent) ? value.toFixed(2) : value.toFixed(3);
+}
+
 export function getAccumulatorMultiplier(
 	sport: AccumulatorSport,
 	selections: number,
 ): string | null {
 	const percent = getAccumulatorBonusPercent(sport, selections);
 	if (percent == null) return null;
-	return ((100 + percent) / 100).toFixed(2);
+	return formatAccumulatorMultiplier(percent);
 }
 
 export type AccumulatorBonusRow = {
@@ -221,7 +226,7 @@ export function buildAccumulatorBoostPayload(input: {
 		required_conditions: conditions,
 		// Must mirror required_conditions (including exact odds_count). Sport-only
 		// applicable rules make every fold boost eligible on any acca of that sport,
-		// so Databet can latch onto the 50-fold x6.00 boost on a 3-leg ~30x slip.
+		// so Databet can latch onto the 50-fold x3.50 boost on a 3-leg ~30x slip.
 		applicable_conditions: conditions,
 		bonusPercent,
 		multiplier,
@@ -357,7 +362,10 @@ type BetDetailData = {
 
 export type DatabetBoostLike = {
 	id?: string;
-	calculation_strategy?: { type?: string };
+	calculation_strategy?: {
+		type?: string;
+		strategy?: { params?: { multiplier?: string } };
+	};
 	required_conditions?: Array<{
 		bet_details?: Array<{
 			data?: BetDetailData;
@@ -398,6 +406,23 @@ function accumulatorFoldFromRequired(
  * (or wrong fold). When the list omits applicable_conditions entirely we cannot
  * verify eligibility — caller must not infer "needs repair" from absence alone.
  */
+export function boostHasStaleMultiplier(boost: DatabetBoostLike): boolean {
+	if (boost.calculation_strategy?.type !== "static") return false;
+	const required = requiredBetDetail(boost);
+	if (!required) return false;
+	const fold = accumulatorFoldFromRequired(required);
+	if (!fold) return false;
+	const expected = getAccumulatorMultiplier(fold.sport, fold.selections);
+	if (expected == null) return false;
+	const actual = boost.calculation_strategy.strategy?.params?.multiplier;
+	if (actual == null || actual === "") return true;
+	return Number.parseFloat(actual) !== Number.parseFloat(expected);
+}
+
+export function boostNeedsFoldRepair(boost: DatabetBoostLike): boolean {
+	return boostHasLooseApplicableConditions(boost) || boostHasStaleMultiplier(boost);
+}
+
 export function boostHasLooseApplicableConditions(boost: DatabetBoostLike): boolean {
 	if (boost.calculation_strategy?.type !== "static") return false;
 	const required = requiredBetDetail(boost);
@@ -430,9 +455,12 @@ export type AccumulatorFoldBoostRepair = {
 	sport: AccumulatorSport;
 	selections: number;
 	applicable_conditions: unknown[];
+	calculation_strategy: NonNullable<
+		ReturnType<typeof buildAccumulatorBoostPayload>
+	>["calculation_strategy"];
 };
 
-/** PATCH targets for boosts granted before applicable_conditions matched required. */
+/** PATCH targets for loose applicable rules or outdated multipliers. */
 export function planAccumulatorFoldRepairs(
 	existing: DatabetBoostLike[],
 	options: { skipBoostIds?: ReadonlySet<string> } = {},
@@ -440,7 +468,7 @@ export function planAccumulatorFoldRepairs(
 	const repairs: AccumulatorFoldBoostRepair[] = [];
 	for (const boost of existing) {
 		if (!boost.id || options.skipBoostIds?.has(boost.id)) continue;
-		if (!boostHasLooseApplicableConditions(boost)) continue;
+		if (!boostNeedsFoldRepair(boost)) continue;
 		const required = requiredBetDetail(boost);
 		if (!required) continue;
 		const fold = accumulatorFoldFromRequired(required);
@@ -452,6 +480,7 @@ export function planAccumulatorFoldRepairs(
 			sport: fold.sport,
 			selections: fold.selections,
 			applicable_conditions: payload.applicable_conditions,
+			calculation_strategy: payload.calculation_strategy,
 		});
 	}
 	return repairs;
