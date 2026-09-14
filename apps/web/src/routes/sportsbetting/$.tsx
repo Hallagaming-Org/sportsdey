@@ -52,6 +52,8 @@ export function SportsbookPage() {
 	const [isLoading, setIsLoading] = useState(true);
 	const initializedTokenRef = useRef<string | null>(null);
 	const previousThemeRef = useRef<boolean | null>(null);
+	const tokenRequestIdRef = useRef(0);
+	const accumulatorSyncUserRef = useRef<string | null>(null);
 	const navigate = useNavigate();
 
 	useEffect(() => {
@@ -85,9 +87,12 @@ export function SportsbookPage() {
 		previousThemeRef.current = isDarkTheme;
 	}, [isDarkTheme]);
 
-	const loadToken = useCallback(async () => {
-		setIsLoading(true);
-		setError(null);
+	const loadToken = useCallback(async (options?: { silent?: boolean }) => {
+		const requestId = ++tokenRequestIdRef.current;
+		if (!options?.silent) {
+			setIsLoading(true);
+			setError(null);
+		}
 		initializedTokenRef.current = null;
 		try {
 			const data = await apiRequest<SportsbookTokenResponse>(
@@ -97,22 +102,28 @@ export function SportsbookPage() {
 					credentials: "include",
 				},
 			);
+			if (requestId !== tokenRequestIdRef.current) {
+				return;
+			}
 			setToken(data.token);
 		} catch (err) {
+			if (requestId !== tokenRequestIdRef.current) {
+				return;
+			}
 			if (err instanceof ApiError) {
 				setError(err.message);
 			} else {
 				setError("Failed to create sportsbook session. Please try again.");
 			}
 		} finally {
-			setIsLoading(false);
+			if (requestId === tokenRequestIdRef.current && !options?.silent) {
+				setIsLoading(false);
+			}
 		}
 	}, []);
 
-	const accumulatorSyncUserRef = useRef<string | null>(null);
-
 	useEffect(() => {
-		if (!token || !session?.user) {
+		if (isSessionLoading || !session?.user) {
 			return;
 		}
 		if (accumulatorSyncUserRef.current === session.user.id) {
@@ -120,10 +131,16 @@ export function SportsbookPage() {
 		}
 		accumulatorSyncUserRef.current = session.user.id;
 
-		void ensureAccumulatorBoostsSynced().catch((err) => {
-			console.warn("Accumulator boost sync failed on sportsbook load", err);
-		});
-	}, [token, session?.user]);
+		void ensureAccumulatorBoostsSynced()
+			.then((status) => {
+				if (status === "synced") {
+					return loadToken({ silent: true });
+				}
+			})
+			.catch((err) => {
+				console.warn("Accumulator boost sync failed on sportsbook load", err);
+			});
+	}, [isSessionLoading, session?.user, loadToken]);
 
 	useEffect(() => {
 		const { pathname, search } = window.location;
@@ -139,7 +156,9 @@ export function SportsbookPage() {
 	}, []);
 
 	useEffect(() => {
-		// if (isSessionLoading || !session?.user) return;
+		if (isSessionLoading) {
+			return;
+		}
 		void loadToken();
 	}, [isSessionLoading, session?.user, loadToken]);
 
@@ -164,6 +183,9 @@ export function SportsbookPage() {
 				window.bettingLoader.load(
 					buildAppInitOptions(token, isDarkTheme),
 					(bettingAPI) => {
+						if (cancelled) {
+							return;
+						}
 						dispatchBettingInit(bettingAPI);
 						bettingAPI.subscribe("redirect", ({ destination, link }) => {
 							switch (destination) {
@@ -200,7 +222,9 @@ export function SportsbookPage() {
 						});
 					},
 				);
-				initializedTokenRef.current = token;
+				if (!cancelled) {
+					initializedTokenRef.current = token;
+				}
 			} catch {
 				if (!cancelled) {
 					setError("Failed to load sportsbook application.");

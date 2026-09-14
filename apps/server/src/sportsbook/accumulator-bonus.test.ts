@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+	ACCUMULATOR_MAX_BONUS_PERCENT,
 	ACCUMULATOR_MAX_MULTIPLIER,
 	ACCUMULATOR_MAX_STEPS,
 	ACCUMULATOR_MULTIPLIER_PER_STEP,
@@ -31,36 +32,25 @@ function boostedAccumulatorOdds(productOdds: number, multiplier: string): number
 }
 
 describe("accumulator bonus table", () => {
-	it("has no football Doubles bonus", () => {
-		assert.equal(getAccumulatorBonusPercent("football", 2), null);
-		assert.equal(getAccumulatorMultiplier("football", 2), null);
-		assert.equal(buildAccumulatorBoostPayload({ sport: "football", selections: 2 }), null);
-	});
-
-	it("starts basketball and tennis Doubles at 1.5%", () => {
-		assert.equal(getAccumulatorBonusPercent("basketball", 2), 1.5);
-		assert.equal(getAccumulatorBonusPercent("tennis", 2), 1.5);
-		assert.equal(getAccumulatorMultiplier("basketball", 2), "1.015");
-	});
-
-	it("matches the shared 3–11 fold scale", () => {
-		assert.equal(getAccumulatorBonusPercent("football", 3), 2.5);
-		assert.equal(getAccumulatorBonusPercent("basketball", 4), 5);
-		assert.equal(getAccumulatorBonusPercent("tennis", 11), 22.5);
-		assert.equal(getAccumulatorMultiplier("football", 3), "1.025");
-		assert.equal(getAccumulatorMultiplier("football", 11), "1.225");
-	});
-
-	it("matches irregular high-fold jumps", () => {
-		assert.equal(getAccumulatorBonusPercent("football", 12), 25);
-		assert.equal(getAccumulatorBonusPercent("football", 13), 30);
-		assert.equal(getAccumulatorBonusPercent("football", 15), 37.5);
-		assert.equal(getAccumulatorBonusPercent("football", 16), 40);
-		assert.equal(getAccumulatorBonusPercent("football", 27), 100);
-		assert.equal(getAccumulatorBonusPercent("football", 38), 157.5);
-		assert.equal(getAccumulatorBonusPercent("football", 50), 250);
-		assert.equal(getAccumulatorMultiplier("tennis", 18), "1.50");
-		assert.equal(getAccumulatorMultiplier("basketball", 50), "3.50");
+	it("applies 20% (1.20×) from Doubles through 50-fold for every listed sport", () => {
+		assert.equal(ACCUMULATOR_MAX_BONUS_PERCENT, 20);
+		assert.equal(getAccumulatorBonusPercent("football", 2), 20);
+		assert.equal(getAccumulatorBonusPercent("basketball", 2), 20);
+		assert.equal(getAccumulatorBonusPercent("tennis", 2), 20);
+		assert.equal(getAccumulatorMultiplier("football", 2), "1.20");
+		assert.equal(getAccumulatorMultiplier("basketball", 2), "1.20");
+		assert.equal(getAccumulatorBonusPercent("football", 3), 20);
+		assert.equal(getAccumulatorBonusPercent("basketball", 4), 20);
+		assert.equal(getAccumulatorBonusPercent("tennis", 9), 20);
+		assert.equal(getAccumulatorMultiplier("football", 3), "1.20");
+		assert.equal(getAccumulatorMultiplier("football", 9), "1.20");
+		assert.equal(getAccumulatorBonusPercent("football", 10), 20);
+		assert.equal(getAccumulatorBonusPercent("football", 50), 20);
+		assert.equal(getAccumulatorMultiplier("football", 10), "1.20");
+		assert.equal(getAccumulatorMultiplier("football", 50), "1.20");
+		assert.equal(getAccumulatorMultiplier("tennis", 18), "1.20");
+		assert.equal(getAccumulatorMultiplier("basketball", 50), "1.20");
+		assert.ok(buildAccumulatorBoostPayload({ sport: "football", selections: 2 }));
 	});
 
 	it("rejects folds outside 2–50", () => {
@@ -72,9 +62,9 @@ describe("accumulator bonus table", () => {
 		const table = getAccumulatorBonusTable();
 		assert.equal(table.length, 49);
 		assert.equal(table[0]?.label, "Doubles");
-		assert.equal(table[0]?.football, null);
+		assert.equal(table[0]?.football, 20);
 		assert.equal(table[48]?.selections, 50);
-		assert.equal(table[48]?.football, 250);
+		assert.equal(table[48]?.football, 20);
 	});
 
 	it("builds a DataBet static express payload for a qualifying fold", () => {
@@ -83,8 +73,8 @@ describe("accumulator bonus table", () => {
 			selections: 5,
 		});
 		assert.ok(payload);
-		assert.equal(payload.bonusPercent, 7.5);
-		assert.equal(payload.multiplier, "1.075");
+		assert.equal(payload.bonusPercent, 20);
+		assert.equal(payload.multiplier, "1.20");
 		assert.equal(payload.calculation_strategy.type, "static");
 		assert.equal(
 			payload.calculation_strategy.strategy.params.min_selections,
@@ -175,7 +165,31 @@ describe("accumulator bonus table", () => {
 		assert.equal(boostHasStaleMultiplier(payload as never), false);
 		const repairs = planAccumulatorFoldRepairs([staleBoost]);
 		assert.equal(repairs.length, 1);
-		assert.equal(repairs[0]?.calculation_strategy.strategy.params.multiplier, "1.025");
+		assert.equal(repairs[0]?.calculation_strategy.strategy.params.multiplier, "1.20");
+	});
+
+	it("flags high-fold boosts still above the 1.20 cap as stale", () => {
+		const payload = buildAccumulatorBoostPayload({
+			sport: "football",
+			selections: 50,
+		});
+		assert.ok(payload);
+		const staleBoost = {
+			id: "boost-50",
+			calculation_strategy: {
+				type: "static" as const,
+				strategy: {
+					conditions: [],
+					params: { multiplier: "2.00", min_selections: 50 },
+				},
+			},
+			required_conditions: payload.required_conditions as never,
+			applicable_conditions: payload.applicable_conditions as never,
+		};
+		assert.equal(boostHasStaleMultiplier(staleBoost), true);
+		const repairs = planAccumulatorFoldRepairs([staleBoost]);
+		assert.equal(repairs.length, 1);
+		assert.equal(repairs[0]?.calculation_strategy.strategy.params.multiplier, "1.20");
 	});
 
 	it("does not flag repair when list payload omits applicable_conditions", () => {
@@ -241,7 +255,7 @@ describe("accumulator bonus table", () => {
 		);
 	});
 
-	it("3-leg ~30x acca should not share applicable rules with 50-fold x3.50 boost", () => {
+	it("3-leg ~30x acca should not share applicable rules with 50-fold x1.20 boost", () => {
 		const legOdds = [2, 3, 5];
 		const product = accumulatorOddsProduct(legOdds);
 		assert.equal(product, 30);
@@ -256,7 +270,7 @@ describe("accumulator bonus table", () => {
 		});
 		assert.ok(trebleBoost);
 		assert.ok(maxFoldBoost);
-		assert.equal(maxFoldBoost.multiplier, "3.50");
+		assert.equal(maxFoldBoost.multiplier, "1.20");
 
 		const trebleApplicable = (
 			trebleBoost.applicable_conditions[0] as {
@@ -272,21 +286,21 @@ describe("accumulator bonus table", () => {
 		assert.equal(maxFoldApplicable, 50);
 
 		assert.ok(
-			Math.abs(boostedAccumulatorOdds(product, trebleBoost.multiplier) - 30.75) <
+			Math.abs(boostedAccumulatorOdds(product, trebleBoost.multiplier) - 36) <
 				1e-9,
 		);
 		assert.notEqual(
 			boostedAccumulatorOdds(product, maxFoldBoost.multiplier),
 			product,
 		);
-		assert.equal(boostedAccumulatorOdds(product, maxFoldBoost.multiplier), 105);
+		assert.equal(boostedAccumulatorOdds(product, maxFoldBoost.multiplier), 36);
 	});
 
 	it("builds one steps boost per sport that grows with extra selections", () => {
 		const football = buildAccumulatorStepsBoostPayload("football");
 		assert.equal(football.calculation_strategy.type, "steps");
-		assert.equal(football.minSelections, 3);
-		assert.equal(football.maxSelections, 10);
+		assert.equal(football.minSelections, 2);
+		assert.equal(football.maxSelections, 9);
 		assert.equal(ACCUMULATOR_MAX_MULTIPLIER, "1.40");
 		assert.equal(ACCUMULATOR_MAX_STEPS, 8);
 		assert.deepEqual(football.calculation_strategy.strategy.params, {
@@ -299,8 +313,8 @@ describe("accumulator bonus table", () => {
 				data: { odds_count: { min: number; max: number }; sport: { sport_ids: string[] } };
 			}>;
 		};
-		assert.equal(required.bet_details[0]?.data.odds_count.min, 3);
-		assert.equal(required.bet_details[0]?.data.odds_count.max, 10);
+		assert.equal(required.bet_details[0]?.data.odds_count.min, 2);
+		assert.equal(required.bet_details[0]?.data.odds_count.max, 9);
 		assert.deepEqual(required.bet_details[0]?.data.sport.sport_ids, ["football"]);
 
 		const basketball = buildAccumulatorStepsBoostPayload("basketball");
@@ -316,23 +330,23 @@ describe("accumulator bonus table", () => {
 
 	it("lists one static boost per spreadsheet fold, not a linear steps scale", () => {
 		const payloads = listAccumulatorFoldBoostPayloads();
-		assert.equal(payloads.length, 146);
+		assert.equal(payloads.length, 147);
 		assert.equal(
 			payloads.filter((p) => p.sport === "football").length,
-			48,
+			49,
 		);
 		assert.equal(
 			payloads.filter((p) => p.sport === "basketball").length,
 			49,
 		);
-		assert.equal(payloads.some((p) => p.sport === "football" && p.selections === 2), false);
+		assert.equal(payloads.some((p) => p.sport === "football" && p.selections === 2), true);
 
 		const football5 = payloads.find(
 			(p) => p.sport === "football" && p.selections === 5,
 		);
 		assert.equal(football5?.calculation_strategy.type, "static");
-		assert.equal(football5?.bonusPercent, 7.5);
-		assert.equal(football5?.multiplier, "1.075");
+		assert.equal(football5?.bonusPercent, 20);
+		assert.equal(football5?.multiplier, "1.20");
 		assert.equal(
 			football5?.calculation_strategy.strategy.params.min_selections,
 			5,
@@ -344,10 +358,10 @@ describe("accumulator bonus table", () => {
 		const football13 = payloads.find(
 			(p) => p.sport === "football" && p.selections === 13,
 		);
-		assert.equal(football12?.bonusPercent, 25);
-		assert.equal(football13?.bonusPercent, 30);
-		assert.equal(football12?.multiplier, "1.25");
-		assert.equal(football13?.multiplier, "1.30");
+		assert.equal(football12?.bonusPercent, 20);
+		assert.equal(football13?.bonusPercent, 20);
+		assert.equal(football12?.multiplier, "1.20");
+		assert.equal(football13?.multiplier, "1.20");
 
 		const basketball2 = payloads.find(
 			(p) => p.sport === "basketball" && p.selections === 2,
@@ -355,10 +369,10 @@ describe("accumulator bonus table", () => {
 		const tennis50 = payloads.find(
 			(p) => p.sport === "tennis" && p.selections === 50,
 		);
-		assert.equal(basketball2?.bonusPercent, 1.5);
-		assert.equal(basketball2?.multiplier, "1.015");
-		assert.equal(tennis50?.bonusPercent, 250);
-		assert.equal(tennis50?.multiplier, "3.50");
+		assert.equal(basketball2?.bonusPercent, 20);
+		assert.equal(basketball2?.multiplier, "1.20");
+		assert.equal(tennis50?.bonusPercent, 20);
+		assert.equal(tennis50?.multiplier, "1.20");
 	});
 
 	it("detects an existing steps boost for a sport", () => {
@@ -441,14 +455,14 @@ describe("accumulator bonus table", () => {
 			plan.toCreate.some((preset) => preset.sport === "tennis"),
 			false,
 		);
-		assert.equal(plan.toCreate.length, 48 + 49);
+		assert.equal(plan.toCreate.length, 49 + 49);
 	});
 
 	it("grants the full static table once legacy steps boosts are gone", () => {
 		const plan = planAccumulatorFoldGrants([]);
 		assert.deepEqual(plan.blockedLegacySports, []);
 		assert.deepEqual(plan.legacyStepsBoostIds, []);
-		assert.equal(plan.toCreate.length, 146);
+		assert.equal(plan.toCreate.length, 147);
 		assert.equal(
 			plan.toCreate.filter((preset) => preset.sport === "tennis").length,
 			49,
@@ -468,7 +482,7 @@ describe("accumulator bonus table", () => {
 			},
 		]);
 		assert.deepEqual(plan.blockedLegacySports, []);
-		assert.equal(plan.toCreate.length, 145);
+		assert.equal(plan.toCreate.length, 146);
 		assert.equal(
 			plan.toCreate.some(
 				(preset) => preset.sport === "football" && preset.selections === 5,
