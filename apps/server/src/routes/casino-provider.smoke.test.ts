@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { describe, it } from "node:test";
+import { createMemoryD1 } from "../test-support/memory-d1";
 import casinoProviderRoute from "./casino-provider";
 
 const USER_ID = "luckyworld-smoke-user";
@@ -10,85 +11,6 @@ const BET_KOBO = 1_000;
 const BET_PROVIDER_UNITS = BET_KOBO * 10;
 
 type SqliteDb = DatabaseSync;
-
-class MemoryD1Statement {
-	constructor(
-		private readonly sqlite: SqliteDb,
-		private readonly sql: string,
-		private readonly params: unknown[] = [],
-		private readonly onRun?: (sql: string) => void,
-	) {}
-
-	bind(...params: unknown[]) {
-		return new MemoryD1Statement(
-			this.sqlite,
-			this.sql,
-			params.map((value) => (value === undefined ? null : value)),
-			this.onRun,
-		);
-	}
-
-	async all() {
-		this.onRun?.(this.sql);
-		const statement = this.sqlite.prepare(this.sql);
-		const results = statement.all(...this.params) as Record<string, unknown>[];
-		return { results, success: true as const };
-	}
-
-	async run() {
-		this.onRun?.(this.sql);
-		const statement = this.sqlite.prepare(this.sql);
-		const info = statement.run(...this.params);
-		return {
-			success: true as const,
-			meta: {
-				changes: info.changes,
-				last_row_id: Number(info.lastInsertRowid),
-			},
-		};
-	}
-
-	async raw() {
-		this.onRun?.(this.sql);
-		const statement = this.sqlite.prepare(this.sql);
-		const rows = statement.all(...this.params) as Record<string, unknown>[];
-		const columns = statement.columns().map((column) => column.name);
-		return rows.map((row) => columns.map((name) => row[name]));
-	}
-
-	async first() {
-		const { results } = await this.all();
-		return results[0] ?? null;
-	}
-}
-
-class MemoryD1 {
-	failNextWalletUpdate = false;
-
-	constructor(private readonly sqlite: SqliteDb) {}
-
-	prepare(sql: string) {
-		return new MemoryD1Statement(this.sqlite, sql, [], (nextSql) => {
-			if (
-				this.failNextWalletUpdate &&
-				/\bupdate\b/i.test(nextSql) &&
-				/\bwallet\b/i.test(nextSql) &&
-				!/\bgame_transactions\b/i.test(nextSql)
-			) {
-				this.failNextWalletUpdate = false;
-				throw new Error("D1_ERROR: simulated wallet update failure");
-			}
-		});
-	}
-
-	async batch(statements: MemoryD1Statement[]) {
-		const results = [];
-		for (const statement of statements) {
-			results.push(await statement.all());
-		}
-		return results;
-	}
-}
 
 function createSmokeEnv(betProviderTxId: string) {
 	const sqlite = new DatabaseSync(":memory:");
@@ -188,8 +110,8 @@ function createSmokeEnv(betProviderTxId: string) {
 			SESSION_TOKEN,
 		);
 
-	const d1 = new MemoryD1(sqlite);
-	return { sqlite, d1, env: { DB: d1 } as unknown as { DB: D1Database } };
+	const { d1, DB } = createMemoryD1(sqlite);
+	return { sqlite, d1, env: { DB } };
 }
 
 function rollbackBody(betProviderTxId: string) {
