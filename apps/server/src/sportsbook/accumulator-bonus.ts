@@ -2,10 +2,7 @@
  * Accumulator bonus (DataBet bet boost) — Sportsdey sports table.
  *
  * Bonus % extra on total odds. DataBet multiplier = 1 + percent/100.
- * Example: 2.5% → 1.025, 50% → 1.50, 250% → 3.50.
- *
- * Football has no Doubles (2-fold) bonus. Basketball and tennis start at 1.5%.
- * From Trebles (3-fold) onward all three sports share the same scale, up to 50-fold.
+ * Every listed sport × fold from Doubles (2-fold) through 50-fold is 20% → 1.20×.
  *
  * Grants POST one DataBet `static` boost per sport × fold so the published
  * percentages apply exactly. Legacy `steps` boosts are deleted on grant so
@@ -16,7 +13,7 @@ export const ACCUMULATOR_SPORTS = ["football", "basketball", "tennis"] as const;
 export type AccumulatorSport = (typeof ACCUMULATOR_SPORTS)[number];
 
 export const ACCUMULATOR_MIN_SELECTIONS: Record<AccumulatorSport, number> = {
-	football: 3,
+	football: 2,
 	basketball: 2,
 	tennis: 2,
 };
@@ -36,6 +33,9 @@ export const ACCUMULATOR_MAX_MULTIPLIER = (
 	ACCUMULATOR_MAX_STEPS * Number(ACCUMULATOR_MULTIPLIER_PER_STEP)
 ).toFixed(2);
 export const ACCUMULATOR_PROGRAM_QUANTITY = 9999;
+
+/** Hard cap on extra % (1.20×). Historical SHARED_BONUS_PERCENT may be higher. */
+export const ACCUMULATOR_MAX_BONUS_PERCENT = 20;
 
 export function accumulatorProgramMaxSelections(sport: AccumulatorSport): number {
 	return ACCUMULATOR_MIN_SELECTIONS[sport] + ACCUMULATOR_MAX_STEPS - 1;
@@ -94,9 +94,9 @@ const SHARED_BONUS_PERCENT: Record<number, number> = {
 };
 
 const DOUBLES_BONUS_PERCENT: Record<AccumulatorSport, number | null> = {
-	football: null,
-	basketball: 1.5,
-	tennis: 1.5,
+	football: ACCUMULATOR_MAX_BONUS_PERCENT,
+	basketball: ACCUMULATOR_MAX_BONUS_PERCENT,
+	tennis: ACCUMULATOR_MAX_BONUS_PERCENT,
 };
 
 export function getAccumulatorBonusPercent(
@@ -113,7 +113,9 @@ export function getAccumulatorBonusPercent(
 	if (selections === 2) {
 		return DOUBLES_BONUS_PERCENT[sport];
 	}
-	return SHARED_BONUS_PERCENT[selections] ?? null;
+	const percent = SHARED_BONUS_PERCENT[selections];
+	if (percent == null) return null;
+	return ACCUMULATOR_MAX_BONUS_PERCENT;
 }
 
 /** DataBet `multiplier` string, e.g. 7.5% → "1.075", 15% → "1.15". */
@@ -179,7 +181,7 @@ function sportConditions(sport: AccumulatorSport, selections: number) {
 
 /**
  * Fields to send to DataBet POST /bet-boosts for one sport × fold.
- * Returns null when that sport has no bonus at that fold (football doubles).
+ * Returns null when that sport has no bonus at that fold.
  */
 export function buildAccumulatorBoostPayload(input: {
 	sport: AccumulatorSport;
@@ -226,7 +228,7 @@ export function buildAccumulatorBoostPayload(input: {
 		required_conditions: conditions,
 		// Must mirror required_conditions (including exact odds_count). Sport-only
 		// applicable rules make every fold boost eligible on any acca of that sport,
-		// so Databet can latch onto the 50-fold x3.50 boost on a 3-leg ~30x slip.
+		// so Databet can latch onto the 50-fold x1.20 boost on a 3-leg ~30x slip.
 		applicable_conditions: conditions,
 		bonusPercent,
 		multiplier,
@@ -240,7 +242,7 @@ export type AccumulatorFoldBoostPayload = NonNullable<
 	selections: number;
 };
 
-/** One static DataBet boost per published sport × fold (skips football doubles). */
+/** One static DataBet boost per published sport × fold (2–50). */
 export function listAccumulatorFoldBoostPayloads(): AccumulatorFoldBoostPayload[] {
 	const payloads: AccumulatorFoldBoostPayload[] = [];
 	for (const sport of ACCUMULATOR_SPORTS) {

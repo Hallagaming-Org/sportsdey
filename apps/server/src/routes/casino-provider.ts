@@ -16,6 +16,12 @@ import {
 	WithdrawRequestSchema,
 	CasinoWithdrawResponseSchema as WithdrawResponseSchema,
 } from "@/schemas/casino-provider";
+import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	casinoBetAmountFromKobo,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+} from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 const casinoProviderRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -687,6 +693,17 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		// Ledger already claimed; do not 500 or LuckyWorld will retry and we
 		// must not reverse a completed debit.
 	}
+
+	await reportCasinoBetInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: user_id,
+		betId: provider_tx_id,
+		amount: casinoBetAmountFromKobo(amountKobo),
+		currency,
+		gameRef: game,
+		fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.LUCKYWORLD,
+	});
 
 	return c.json(
 		{

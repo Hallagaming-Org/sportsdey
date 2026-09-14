@@ -1,8 +1,12 @@
-import { and, eq, isNotNull, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createDb } from "../../db";
 import * as schema from "../../db/schema";
 import type { CloudflareBindings } from "../../types";
 import { databetFetch } from "../../utils/databet-fetch";
+import {
+	nativeCasinoProviderByGameCode,
+	nativeCasinoProviderById,
+} from "./casino-catalog.constant";
 import {
 	BONUS_ENGINE_DATABET_FOOTBALL_SPORT,
 	BONUS_ENGINE_DATABET_TOURNAMENTS_PATH,
@@ -23,7 +27,11 @@ import type {
 
 /**
  * Lists distinct casino providers for Bonus Engine Admin dropdowns.
- * Only returns rows with real Slotegrator `provider_id` + `provider_name`.
+ *
+ * Slotegrator rows bring their own `provider_id` + `provider_name`. Rows we
+ * seed ourselves (Lagos Rush, Halla, LuckyWorld, Thndr, Sportsdey Originals)
+ * have neither, so they resolve through the native catalog — otherwise Admin
+ * could not build a mission rule those games are able to satisfy.
  * Returns [] when the catalog has not been synced yet (never invents placeholders).
  */
 export async function listBonusEngineGameProviders(
@@ -32,6 +40,7 @@ export async function listBonusEngineGameProviders(
 	const db = createDb(env.DB);
 	const rows = await db
 		.select({
+			code: schema.game.code,
 			providerId: schema.game.providerId,
 			providerName: schema.game.providerName,
 			isLiveGame: schema.game.isLiveGame,
@@ -43,15 +52,25 @@ export async function listBonusEngineGameProviders(
 	for (const row of rows) {
 		const uniqueId = row.providerId?.trim();
 		const name = row.providerName?.trim();
-		if (!uniqueId || !name) continue;
-		const existing = providers.get(uniqueId);
-		providers.set(uniqueId, {
-			name,
-			unique_id: uniqueId,
-			is_live_game:
-				row.isLiveGame || existing?.is_live_game === 1
-					? 1
-					: (existing?.is_live_game ?? 0),
+		if (uniqueId && name) {
+			const existing = providers.get(uniqueId);
+			providers.set(uniqueId, {
+				name,
+				unique_id: uniqueId,
+				is_live_game:
+					row.isLiveGame || existing?.is_live_game === 1
+						? 1
+						: (existing?.is_live_game ?? 0),
+			});
+			continue;
+		}
+
+		const native = nativeCasinoProviderByGameCode(row.code);
+		if (!native || providers.has(native.uniqueId)) continue;
+		providers.set(native.uniqueId, {
+			name: native.name,
+			unique_id: native.uniqueId,
+			is_live_game: native.isLiveGame,
 		});
 	}
 
@@ -61,8 +80,17 @@ export async function listBonusEngineGameProviders(
 }
 
 /**
- * Lists casino games that have real provider metadata, optionally filtered
- * by Slotegrator provider id (`gameProvider` query = provider `unique_id`).
+ * Lists every enabled casino game with a resolvable provider, optionally
+ * filtered by provider (`gameProvider` query = provider `unique_id`).
+ *
+ * `unique_id` is always `game.code` — the same value the provider callback
+ * routes report as `game_id`. For Slotegrator rows the code *is* the uuid
+ * (`catalog-sync.service.ts` writes `code: uuid`), so this is unchanged for
+ * them and readable (`LAGOSRUSH`) for games we seed.
+ *
+ * Adding a game needs no code change here: seed it with provider metadata and
+ * it shows up. The native catalog is only a fallback for rows seeded before
+ * that metadata existed.
  */
 export async function listBonusEngineGames(payload: {
 	env: CloudflareBindings;
@@ -70,35 +98,36 @@ export async function listBonusEngineGames(payload: {
 }): Promise<BonusEngineGameItem[]> {
 	const db = createDb(payload.env.DB);
 	const providerFilter = payload.gameProvider?.trim();
+	const enabled = eq(schema.game.enabled, true);
+	// Only narrow in SQL when the filter cannot also match a native fallback,
+	// so the big Slotegrator catalog is never scanned in full for no reason.
+	const canFilterInSql =
+		Boolean(providerFilter) && !nativeCasinoProviderById(providerFilter);
 	const rows = await db
 		.select({
-			id: schema.game.id,
 			name: schema.game.name,
+			code: schema.game.code,
 			providerId: schema.game.providerId,
 			freeSpin: schema.game.freeSpin,
 		})
 		.from(schema.game)
 		.where(
-			providerFilter
-				? and(
-						eq(schema.game.enabled, true),
-						eq(schema.game.providerId, providerFilter),
-					)
-				: and(
-						eq(schema.game.enabled, true),
-						isNotNull(schema.game.providerId),
-						ne(schema.game.providerId, ""),
-					),
+			canFilterInSql && providerFilter
+				? and(enabled, eq(schema.game.providerId, providerFilter))
+				: enabled,
 		);
 
 	return rows.flatMap((row) => {
-		const providerId = row.providerId?.trim();
+		const providerId =
+			row.providerId?.trim() ||
+			nativeCasinoProviderByGameCode(row.code)?.uniqueId;
 		if (!providerId) return [];
+		if (providerFilter && providerId !== providerFilter) return [];
 		return [
 			{
 				provider_unique_id: providerId,
 				name: row.name,
-				unique_id: row.id,
+				unique_id: row.code,
 				free_spin: row.freeSpin ? 1 : 0,
 			},
 		];

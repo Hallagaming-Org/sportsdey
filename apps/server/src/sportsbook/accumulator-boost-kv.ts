@@ -5,10 +5,10 @@ export type AccumulatorKvNamespace = NonNullable<
 	ReturnType<typeof getAccumulatorKv>
 >;
 
-/** Covers first-time 146-boost grant; released in finally when sync completes. */
+/** Covers first-time 147-boost grant; released in finally when sync completes. */
 export const ACCUMULATOR_SYNC_LOCK_TTL_SECONDS = 600;
 export const ACCUMULATOR_REPAIRED_TTL_SECONDS = 365 * 24 * 60 * 60;
-export const ACCUMULATOR_APPLICABLE_REPAIR_VERSION = "v2";
+export const ACCUMULATOR_APPLICABLE_REPAIR_VERSION = "v4";
 
 export function getAccumulatorKv(
 	env: CloudflareBindings,

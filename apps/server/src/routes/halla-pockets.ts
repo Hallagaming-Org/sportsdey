@@ -20,6 +20,11 @@ import {
 	LagosRushRefundResponseSchema,
 	MinigodErrorSchema,
 } from "@/schemas/minigod";
+import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+} from "@/services/bonus-engine";
 import { koboToNaira, nairaToKobo } from "@/utils/halla-money";
 import type { CloudflareBindings } from "../types";
 
@@ -244,6 +249,17 @@ hallaPocketsRoute.openapi(debitRoute, async (c) => {
 			500,
 		);
 	}
+
+	// Halla callbacks carry no game code, so the bet reports at provider level.
+	await reportCasinoBetInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		amount: amountNaira,
+		currency,
+		fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.HALLA,
+	});
 
 	return c.json(
 		{

@@ -3,9 +3,17 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { debitWallet, creditWallet } from "@/db/atomic-wallet";
+import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+} from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+/** Hashcodex hosts Sportsdey Crash; its wallet calls carry no game code. */
+const SPORTSDEY_CRASH_GAME_CODE = "sportsdey-crash";
 
 const DepositSchema = z
 	.object({
@@ -177,6 +185,18 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 			{ success: false, error: "Failed to record transaction" },
 			500,
 		);
+	}
+
+	if (action === "debit") {
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: user.id,
+			betId: reference,
+			amount,
+			gameRef: SPORTSDEY_CRASH_GAME_CODE,
+			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SPORTSDEY_ORIGINALS,
+		});
 	}
 
 	return c.json(
