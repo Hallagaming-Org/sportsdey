@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { nativeCasinoProviderByGameCode } from "../services/bonus-engine/casino-catalog.constant";
 
 const args = process.argv.slice(2);
 
@@ -22,6 +23,16 @@ interface SeedGame {
 	name: string;
 	code: string;
 	categories: string[];
+}
+
+/**
+ * Resolves the Bonus Engine provider that owns a seeded game so `game` rows
+ * carry `provider_id` / `provider_name` like Slotegrator's synced rows do.
+ * Without these, the game is invisible to Bonus Engine Admin dropdowns and its
+ * bets cannot satisfy a mission rule.
+ */
+function providerForCode(code: string) {
+	return nativeCasinoProviderByGameCode(code);
 }
 
 const GAMES: SeedGame[] = [
@@ -131,6 +142,18 @@ async function main() {
 	const usedCategories = new Set(GAMES.flatMap((g) => g.categories));
 	const codes = GAMES.map((g) => g.code);
 
+	// A game with no provider is invisible to Bonus Engine Admin, so missions
+	// can never be built for it. Fail here rather than seed a dead row.
+	const orphans = GAMES.filter((game) => !providerForCode(game.code));
+	if (orphans.length > 0) {
+		console.error(
+			`These game codes have no Bonus Engine provider — add them to a provider's gameCodes in services/bonus-engine/casino-catalog.constant.ts:\n  ${orphans
+				.map((game) => `${game.code} (${game.name})`)
+				.join("\n  ")}`,
+		);
+		process.exit(1);
+	}
+
 	console.log(`Seeding games in ${env} database...`);
 	console.log(`Total games: ${GAMES.length}`);
 	console.log(`Categories: ${usedCategories.size}`);
@@ -175,19 +198,24 @@ async function main() {
 
 	if (toInsert.length > 0) {
 		const gameValues = toInsert
-			.map(
-				(game) =>
-					`(${escape(game.id)}, ${escape(game.name)}, ${escape(game.code)}, NULL, 1, ${now}, ${now})`,
-			)
+			.map((game) => {
+				const provider = providerForCode(game.code);
+				return `(${escape(game.id)}, ${escape(game.name)}, ${escape(game.code)}, NULL, ${escape(provider?.uniqueId)}, ${escape(provider?.name)}, 1, ${now}, ${now})`;
+			})
 			.join(",\n");
 		statements.push(
-			`INSERT INTO game (id, name, code, image_url, enabled, created_at, updated_at) VALUES ${gameValues};`,
+			`INSERT INTO game (id, name, code, image_url, provider_id, provider_name, enabled, created_at, updated_at) VALUES ${gameValues};`,
 		);
 	}
 
 	for (const game of toUpdate) {
+		const provider = providerForCode(game.code);
+		// Never null out provider metadata a catalog sync may have written.
+		const providerSet = provider
+			? `provider_id = ${escape(provider.uniqueId)}, provider_name = ${escape(provider.name)}, `
+			: "";
 		statements.push(
-			`UPDATE game SET name = ${escape(game.name)}, enabled = 1, updated_at = ${now} WHERE id = ${escape(game.id)};`,
+			`UPDATE game SET name = ${escape(game.name)}, ${providerSet}enabled = 1, updated_at = ${now} WHERE id = ${escape(game.id)};`,
 		);
 	}
 
