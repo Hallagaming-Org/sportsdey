@@ -13,7 +13,8 @@ Quick map of casino/operator-wallet integrations in this repo.
 | Scorpio Play | **Not implemented** | seamless `command` callbacks (external docs) | — |
 
 **Shared:** `user`, `wallet` (and usually `wallet_transaction`).  
-**No shared service layer today** — extract `lib/casino-wallet.ts` before adding Scorpio to avoid a fifth copy of debit/credit logic.
+**No shared service layer today** for debit/credit — extract `lib/casino-wallet.ts` before adding Scorpio to avoid a fifth copy of that logic.  
+**Bonus Engine reporting is shared:** every bet callback above calls `reportCasinoBetInBackground` (`services/bonus-engine/casino-bet.service.ts`) so mission progress moves. A new provider must call it too, and register its game codes in `casino-catalog.constant.ts` — see [Casino bet reporting](./bonus-engine/CONTEXT.md#casino-bet-reporting).
 
 See [casino-provider.md §10](./casino-provider.md#10-integrating-scorpio-play-without-duplicating-business-logic).
 
