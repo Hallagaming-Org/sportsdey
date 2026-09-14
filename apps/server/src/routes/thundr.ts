@@ -19,6 +19,12 @@ import {
 	ThundrTransactionRequestSchema,
 	ThundrTransactionResponseSchema,
 } from "@/schemas/thundr";
+import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	casinoBetAmountFromKobo,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+} from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 type ThundrContext = {
@@ -475,6 +481,19 @@ thundrRoute.post("/transactions", async (c) => {
 			{ success: false, error: "Failed to record transaction" },
 			500,
 		);
+	}
+
+	if (tx.type === "BET") {
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.transactionId,
+			amount: casinoBetAmountFromKobo(txAmountKobo),
+			currency: "NGN",
+			gameRef: tx.gameId,
+			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.THNDR,
+		});
 	}
 
 	return c.json(

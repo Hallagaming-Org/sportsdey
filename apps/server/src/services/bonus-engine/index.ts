@@ -74,6 +74,25 @@ export {
 export { syncCasinoCatalogFromSlotegrator } from "./catalog-sync.service";
 export type { CasinoCatalogSyncResult } from "./catalog-sync.service";
 export {
+	BONUS_ENGINE_NATIVE_CASINO_PROVIDERS,
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	nativeCasinoProviderByGameCode,
+	nativeCasinoProviderById,
+} from "./casino-catalog.constant";
+export type { BonusEngineNativeCasinoProvider } from "./casino-catalog.constant";
+export {
+	casinoBetAmountFromKobo,
+	optionalExecutionCtx,
+	reportCasinoBet,
+	reportCasinoBetInBackground,
+	resolveCasinoBetIdentity,
+} from "./casino-bet.service";
+export type {
+	CasinoBetIdentity,
+	CasinoBetReport,
+	CasinoCatalogGame,
+} from "./casino-bet.service";
+export {
 	buildBonusEngineBetReportBody,
 	reportBonusEngineBet,
 	reportBonusEngineDeposit,
