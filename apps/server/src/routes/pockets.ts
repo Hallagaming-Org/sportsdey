@@ -14,9 +14,18 @@ import {
 	LagosRushRefundResponseSchema,
 	MinigodErrorSchema,
 } from "@/schemas/minigod";
+import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	casinoBetAmountFromKobo,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+} from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 const pocketsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+/** D1 `game.code` for Lagos Rush; the provider callbacks carry no game id. */
+const LAGOS_RUSH_GAME_CODE = "LAGOSRUSH";
 
 function validatePocketsApiKey(c: any): boolean {
 	const apiKey = c.req.header("x-api-key");
@@ -254,6 +263,17 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 			500,
 		);
 	}
+
+	await reportCasinoBetInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		amount: casinoBetAmountFromKobo(amount),
+		currency,
+		gameRef: LAGOS_RUSH_GAME_CODE,
+		fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.LAGOS_RUSH,
+	});
 
 	return c.json(
 		{
