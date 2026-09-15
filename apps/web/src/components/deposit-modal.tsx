@@ -151,8 +151,8 @@ export function DepositModal({
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-0 py-0 sm:px-4 sm:py-8">
-			<div className="flex h-full w-full max-w-2xl flex-col overflow-hidden border-[#1B2722] bg-black shadow-[0_30px_60px_rgba(0,0,0,0.5)] sm:h-auto sm:max-h-[90vh] sm:rounded-[22px] sm:border">
+		<div className="fixed inset-0 z-50 flex min-h-[100dvh] items-center justify-center overflow-y-auto overscroll-y-contain bg-black/60 px-0 py-0 sm:px-4 sm:py-8">
+			<div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-2xl min-w-0 flex-col overflow-hidden border-[#1B2722] bg-black shadow-[0_30px_60px_rgba(0,0,0,0.5)] sm:h-auto sm:max-h-[calc(100dvh-4rem)] sm:rounded-[22px] sm:border">
 				{/* Header */}
 				<div className="flex items-center justify-between border-[#1B2722] border-b px-4 py-4 sm:px-6 sm:py-5">
 					<div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ export function DepositModal({
 					</button>
 				</div>
 
-				<div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-5 [-webkit-overflow-scrolling:touch] sm:px-6 sm:py-6">
 					{kudaDepositInstructions ? (
 						<div>
 							<p className="font-semibold text-lg text-white">Transfer to complete your deposit</p>
