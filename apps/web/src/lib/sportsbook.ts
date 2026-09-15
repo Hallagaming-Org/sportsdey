@@ -85,6 +85,10 @@ export type BettingAPI = {
     event: "handle-not-enough-balance",
     callback: () => void,
   ): void;
+	updateThemeConfig?: (
+		theme: { offsetTop: number; palette: SportsbookThemePalette },
+		options?: { replace?: boolean },
+	) => void;
 };
 
 export type BaseWidgetStyle = {
@@ -200,12 +204,12 @@ export function getSportsbookTheme(isDark: boolean, offsetTop: number) {
 }
 
 const lightSportsbookPalette: SportsbookThemePalette = {
-	colorsPrimary1: "#000000",
+	colorsPrimary1: "#f4f4f4",
 	colorsPrimary2: "#ffffff",
 	colorsSecondary1: "#f3f3f3",
 	colorsSecondary2: "#e3e3e3",
 	colorsSecondary3: "#9999a1",
-	colorsAccent1: "#ff6b00",
+	colorsAccent1: "#1baa04",
 	colorsAccent2: "#ffb700",
 	colorsAccent3: "#a900d9",
 	textButton: "#ffffff",
@@ -219,12 +223,12 @@ const lightSportsbookPalette: SportsbookThemePalette = {
 };
 
 const darkSportsbookPalette: SportsbookThemePalette = {
-	colorsPrimary1: "#000000",
-	colorsPrimary2: "#1c1d1f",
-	colorsSecondary1: "#1f1f1f",
+	colorsPrimary1: "#040c01",
+	colorsPrimary2: "#040c01",
+	colorsSecondary1: "#040c01",
 	colorsSecondary2: "#2c2c2c",
 	colorsSecondary3: "#9999a1",
-	colorsAccent1: "#ff6b00",
+	colorsAccent1: "#1baa04",
 	colorsAccent2: "#ffb700",
 	colorsAccent3: "#a900d9",
 	textButton: "#ffffff",
@@ -258,6 +262,74 @@ export function buildAppInitOptions(
 export function dispatchBettingInit(bettingAPI: BettingAPI) {
 	window.bettingAPI = bettingAPI;
 	document.dispatchEvent(new Event("betting-init"));
+}
+
+const SPORTSBOOK_SHADOW_STYLE_ID = "sportsdey-sportsbook-overrides";
+
+/** DataBet mounts in an open shadow root; document CSS cannot restyle `.bg-colorsSecondary1`. */
+const SPORTSBOOK_SHADOW_CSS = `
+#bet-root,
+.bet-tailwind-root {
+	background-color: transparent !important;
+	--bet-colors-accent-1: #1baa04;
+	--bet-colors-accent-1-rgb: 27, 170, 4;
+}
+.bg-colorsSecondary1 {
+	background-color: transparent !important;
+	box-shadow: none !important;
+}
+
+/* DataBet type scale is calc(var(--bet-base-font-size) * n). Default 16px
+   makes match names/odds ~12px on phones. Bump the base on small screens. */
+@media (max-width: 767px) {
+	#bet-root,
+	.bet-tailwind-root {
+		--bet-base-font-size: 20px !important;
+	}
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+	#bet-root,
+	.bet-tailwind-root {
+		--bet-base-font-size: 18px !important;
+	}
+}
+`;
+
+export function injectSportsbookShadowOverrides(): boolean {
+	const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
+	const shadow = host?.shadowRoot;
+	if (!shadow) {
+		return false;
+	}
+	const existing = shadow.getElementById(SPORTSBOOK_SHADOW_STYLE_ID);
+	if (existing) {
+		existing.textContent = SPORTSBOOK_SHADOW_CSS;
+		return true;
+	}
+	const style = document.createElement("style");
+	style.id = SPORTSBOOK_SHADOW_STYLE_ID;
+	style.textContent = SPORTSBOOK_SHADOW_CSS;
+	shadow.appendChild(style);
+	return true;
+}
+
+export function scheduleSportsbookShadowOverrides() {
+	if (injectSportsbookShadowOverrides()) {
+		return;
+	}
+	let attempts = 0;
+	const timer = window.setInterval(() => {
+		attempts += 1;
+		if (injectSportsbookShadowOverrides() || attempts >= 50) {
+			window.clearInterval(timer);
+		}
+	}, 100);
+}
+
+export function applySportsbookRuntimeTheme(isDark: boolean) {
+	window.bettingAPI?.updateThemeConfig?.(
+		getSportsbookTheme(isDark, SPORTSBOOK_HEADER_OFFSET),
+	);
 }
 
 export function loadSportsbookBootstrapScript(
