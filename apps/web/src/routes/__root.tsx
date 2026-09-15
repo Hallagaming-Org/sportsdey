@@ -278,7 +278,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 
 											<main
 												id="app-main-content"
-												className="no-scrollbar flex-1 overflow-y-auto"
+										className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
 											>
 												<Outlet />
 											</main>
@@ -293,7 +293,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 											<main
 												id="app-main-content"
 												className={cn(
-													"no-scrollbar flex-1 overflow-y-auto overflow-x-hidden",
+													"no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain",
 													isGameRoute && "flex flex-col",
 												)}
 											>

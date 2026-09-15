@@ -257,7 +257,7 @@ function WalletPage() {
 
 	return (
 		<OpenfortWalletScope>
-			<div className="w-full max-w-full overflow-x-hidden overscroll-contain">
+			<div className="min-w-0 max-w-full overflow-x-clip overscroll-y-contain">
 			{isInitialPageLoading ? (
 				<div className="flex min-h-[320px] items-center justify-center rounded-2xl bg-white p-6 shadow-sm dark:bg-[#202120]">
 					<Loader2 className="h-8 w-8 animate-spin text-primary dark:text-white" />

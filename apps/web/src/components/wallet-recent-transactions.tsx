@@ -122,7 +122,7 @@ function WalletRecentTransactionsView({
 
 	return (
 		<>
-			<div className="rounded-2xl border border-[#1B2722] bg-[#000606] p-5 shadow-sm md:p-8">
+			<div className="min-w-0 max-w-full rounded-2xl border border-[#1B2722] bg-[#000606] p-5 shadow-sm md:p-8">
 				<div className="mb-5 flex items-center justify-between md:mb-6">
 					<h2 className="font-semibold text-[22px] text-white tracking-tight md:text-[24px]">
 						Recent Transactions
@@ -137,7 +137,7 @@ function WalletRecentTransactionsView({
 					</Link>
 				</div>
 
-				<div className="better-scrollbar w-full overflow-x-auto">
+				<div className="better-scrollbar max-w-full touch-pan-x overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
 					{isLoading ? (
 						<table className="min-w-[640px] w-full border-collapse text-left">
 							<thead>
