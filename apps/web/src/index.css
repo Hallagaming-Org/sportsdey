@@ -11,8 +11,17 @@
 
 html,
 body {
-	height: 100svh;
-	overflow: clip;
+	height: 100dvh;
+	overflow: hidden;
+	overscroll-behavior: none; 
+	width: 100%;
+	max-width: 100vw; 
+	position: fixed; 
+	inset: 0;
+}
+
+* {
+	overscroll-behavior-x: contain;
 }
 
 :root {

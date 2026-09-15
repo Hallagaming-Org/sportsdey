@@ -271,7 +271,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 									<WebengageIdentity />
 									<ScrollToTop />
 									{isAuthRoute ? (
-										<div className="flex h-svh flex-col overflow-clip">
+										<div className="flex h-dvh flex-col overflow-hidden">
 											<header className="shrink-0">
 												<Header />
 											</header>
@@ -284,7 +284,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 											</main>
 										</div>
 									) : (
-										<div className="flex h-svh flex-col overflow-clip">
+										<div className="flex h-dvh flex-col overflow-hidden">
 											<header className="shrink-0">
 												<Header />
 												{!isGameRoute && <Socials />}
@@ -293,7 +293,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 											<main
 												id="app-main-content"
 												className={cn(
-													"no-scrollbar flex-1 overflow-y-auto",
+													"no-scrollbar flex-1 overflow-y-auto overflow-x-hidden",
 													isGameRoute && "flex flex-col",
 												)}
 											>
