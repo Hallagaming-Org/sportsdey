@@ -15,7 +15,8 @@ type CategoryFilter =
 	| "boxing"
 	| "mma/ufc"
 	| "politics"
-	| "entertainment";
+	| "entertainment"
+	| "crypto/finance";
 
 export const Route = createFileRoute("/news/")({
 	loader: () => getBanners(),
@@ -36,6 +37,7 @@ function RouteComponent() {
 		{ id: "mma/ufc", label: "MMA/UFC" },
 		{ id: "politics", label: "Politics" },
 		{ id: "entertainment", label: "Entertainment" },
+		{ id: "crypto/finance", label: "Crypto/Finance" },
 	] as const;
 
 	return (

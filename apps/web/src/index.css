@@ -11,8 +11,16 @@
 
 html,
 body {
-	height: 100svh;
-	overflow: clip;
+	height: 100%;
+	min-height: 100%;
+	overflow: hidden;
+	overscroll-behavior: none;
+	width: 100%;
+	max-width: 100%;
+}
+
+* {
+	overscroll-behavior-x: contain;
 }
 
 :root {
@@ -285,6 +293,12 @@ body {
 }
 
 /* Sportsbook Layout Fixes */
+#betting__container,
+#betting__container > div {
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
 #betting__container > div > div:nth-child(2) > div:first-child {
 	position: sticky !important;
 	top: 64px !important;
