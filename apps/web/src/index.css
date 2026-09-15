@@ -293,6 +293,12 @@ body {
 }
 
 /* Sportsbook Layout Fixes */
+#betting__container,
+#betting__container > div {
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
 #betting__container > div > div:nth-child(2) > div:first-child {
 	position: sticky !important;
 	top: 64px !important;
