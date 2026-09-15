@@ -19,8 +19,8 @@ export function SuccessModal({
 	}
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-[2px]">
-			<div className="relative w-full max-w-[360px] rounded-3xl border border-gray-600 bg-[#000606] p-8 text-center shadow-xl">
+		<div className="fixed inset-0 z-50 flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-y-contain bg-black/60 p-3 backdrop-blur-[2px] sm:items-center sm:p-4">
+			<div className="relative my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-[360px] min-w-0 overflow-y-auto overscroll-y-contain rounded-3xl border border-gray-600 bg-[#000606] p-6 text-center shadow-xl [-webkit-overflow-scrolling:touch] sm:p-8">
 				<button
 					type="button"
 					onClick={onClose}
