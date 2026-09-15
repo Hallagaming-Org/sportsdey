@@ -27,7 +27,6 @@ import CableTvIcon from "@/logos/cable-tv.svg?react";
 import ElectricityIcon from "@/logos/electricity.svg?react";
 import InternetIcon from "@/logos/internet.svg?react";
 import AeroplaneIcon from "@/logos/aeroplane.svg?react";
-import WalletIcon from "@/logos/wallet.svg?react";
 
 const OpenfortCryptoWallet = lazy(() =>
 	import("@/components/openfort-crypto-wallet").then((mod) => ({
@@ -265,21 +264,9 @@ function WalletPage() {
 				</div>
 			) : isWalletRoot ? (
 				<>
-					<div className="mb-6 flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-5">
-						<div className="space-y-4 lg:col-span-3">
-							<div className="flex h-fit items-center justify-between rounded-2xl border border-[#1B2722] bg-[#000606] px-5 py-4 shadow-sm">
-								<h1 className="font-semibold text-[28px] text-white tracking-tight md:text-[30px]">
-									Wallet
-								</h1>
-								<div className="flex h-10 w-14 items-center justify-center rounded-xl border border-[#1B2722] bg-[#04100B]">
-									<WalletIcon
-										width={18}
-										height={18}
-										className="block text-[#6C7073]"
-									/>
-								</div>
-							</div>
-							<div className="min-h-40 w-full rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm md:p-7">
+					<div className="mb-6 flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:items-stretch lg:gap-5">
+						<div className="lg:col-span-3 lg:h-full">
+							<div className="flex h-full min-h-40 w-full flex-col rounded-2xl border border-[#1B2722] bg-[#000606] p-6 shadow-sm md:p-7">
 								<p className="flex items-center gap-1.5 text-[14px] text-white">
 									Wallet Balance <span aria-hidden="true">💸</span>
 								</p>
@@ -360,7 +347,7 @@ function WalletPage() {
 								</div>
 							</div>
 						</div>
-						<div className="min-h-40 rounded-2xl border border-[#1B2722] bg-[#000606] p-5 shadow-sm md:p-6 lg:col-span-2">
+						<div className="flex h-full min-h-40 flex-col rounded-2xl border border-[#1B2722] bg-[#000606] p-5 shadow-sm md:p-6 lg:col-span-2">
 							<p className="border-[#1B2722] border-b pb-3 font-semibold text-base text-white">
 								Quick Access
 							</p>
