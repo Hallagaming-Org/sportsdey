@@ -206,6 +206,8 @@ function RootDocument() {
 		"/bonuses/",
 		"/loyalty",
 		"/loyalty/",
+		"/tournaments",
+		"/tournaments/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);
