@@ -4062,7 +4062,7 @@ const accumulatorProgramGrantRoute = createRoute({
 	tags: ["Sportsbook"],
 	summary: "Grant accumulator bonus program",
 	description:
-		"Create one DataBet static boost per published sport × fold (football/basketball/tennis 2–50). Deletes the legacy steps program first so the player has only the static table.",
+		"Create one DataBet static 1.20× boost per listed sport (football/basketball/tennis, 3–50 selections). Deletes leftover per-fold cards and the legacy steps program first.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {

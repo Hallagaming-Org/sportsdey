@@ -8,12 +8,10 @@ import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
 import {
 	buildAppInitOptions,
-	applySportsbookRuntimeTheme,
 	dispatchBettingInit,
 	getSportsbookBootstrapScript,
 	isSportsbookConfigured,
 	loadSportsbookBootstrapScript,
-	scheduleSportsbookShadowOverrides,
 	SPORTSBOOK_CONTAINER_ID,
 	SPORTSBOOK_PREMATCH_SPLAT,
 } from "@/lib/sportsbook";
@@ -189,8 +187,6 @@ export function SportsbookPage() {
 							return;
 						}
 						dispatchBettingInit(bettingAPI);
-						applySportsbookRuntimeTheme(isDarkTheme);
-						scheduleSportsbookShadowOverrides();
 						bettingAPI.subscribe("redirect", ({ destination, link }) => {
 							switch (destination) {
 								case "login": {
@@ -226,7 +222,6 @@ export function SportsbookPage() {
 						});
 					},
 				);
-				scheduleSportsbookShadowOverrides();
 				if (!cancelled) {
 					initializedTokenRef.current = token;
 				}
@@ -262,10 +257,7 @@ export function SportsbookPage() {
 
 	return (
 		<div className="relative my-2 space-y-4">
-			<div
-				id={SPORTSBOOK_CONTAINER_ID}
-				className="min-h-[calc(100vh-200px)]"
-			/>
+			<div id={SPORTSBOOK_CONTAINER_ID} className="min-h-[calc(100vh-200px)]" />
 			<SportsbookBetslip />
 
 			{isLoading && (

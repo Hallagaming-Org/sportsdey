@@ -58,8 +58,47 @@ describe("accumulator boost sync", () => {
 		}));
 		const work = planAccumulatorSyncWork(payloads, new Set());
 		assert.equal(work.legacyStepsBoostIds.length, 0);
+		assert.equal(work.staleFoldBoostIds.length, 0);
 		assert.equal(work.toRepair.length, 0);
 		assert.equal(work.toCreate.length, 0);
+	});
+
+	it("planAccumulatorSyncWork reports leftover fold cards for deletion", () => {
+		const leftover = {
+			id: "fold-3",
+			calculation_strategy: {
+				type: "static",
+				strategy: { params: { multiplier: "1.20" } },
+			},
+			required_conditions: [
+				{
+					bet_details: [
+						{
+							data: {
+								sport: { sport_ids: ["football"] },
+								odds_count: { min: 3, max: 3 },
+							},
+						},
+					],
+				},
+			],
+			applicable_conditions: [
+				{
+					bet_details: [
+						{
+							data: {
+								sport: { sport_ids: ["football"] },
+								odds_count: { min: 3, max: 3 },
+							},
+						},
+					],
+				},
+			],
+		};
+		const work = planAccumulatorSyncWork([leftover], new Set());
+		assert.deepEqual(work.staleFoldBoostIds, ["fold-3"]);
+		assert.equal(work.toRepair.length, 0);
+		assert.equal(work.toCreate.length, 3);
 	});
 
 	it("ensureAccumulatorProgramBoosts skips sync when list fails", async () => {

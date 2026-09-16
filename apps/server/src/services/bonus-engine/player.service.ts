@@ -1,3 +1,4 @@
+import type { ExecutionContext } from "hono";
 import type { CloudflareBindings } from "../../types";
 import { BONUS_ENGINE_PATH } from "./bonus-engine.service.constant";
 import type {
@@ -79,4 +80,22 @@ export async function syncBonusEnginePlayerOnAppLogin(payload: {
 			error,
 		});
 	}
+}
+
+/**
+ * Login must not wait on Bonus Engine (D1 + untimed HTTP). Use waitUntil when
+ * the Worker provides it so the sync can finish after the response is sent.
+ */
+export function scheduleBonusEnginePlayerOnAppLogin(payload: {
+	env: CloudflareBindings;
+	userId: string;
+	username: string;
+	executionCtx?: ExecutionContext;
+}): void {
+	const work = syncBonusEnginePlayerOnAppLogin(payload);
+	if (typeof payload.executionCtx?.waitUntil === "function") {
+		payload.executionCtx.waitUntil(work);
+		return;
+	}
+	void work;
 }

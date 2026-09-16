@@ -10,7 +10,10 @@ import {
 } from "@/auth";
 import { SESSION_TTL_MS } from "@/constants/session";
 import * as schema from "@/db/schema";
-import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
+import {
+	optionalExecutionCtx,
+	scheduleBonusEnginePlayerOnAppLogin,
+} from "@/services/bonus-engine";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import { isD1CapacityError } from "@/utils/d1-errors";
 import {
@@ -260,10 +263,11 @@ async function issuePhoneSession(
 		.set({ lastLoginIp: loginIp })
 		.where(eq(schema.user.id, signedInUser.id));
 
-	await syncBonusEnginePlayerOnAppLogin({
+	scheduleBonusEnginePlayerOnAppLogin({
 		env: c.env,
 		userId: signedInUser.id,
 		username: signedInUser.name || signedInUser.email || signedInUser.id,
+		executionCtx: optionalExecutionCtx(c),
 	});
 
 	const authSecret = c.env.BETTER_AUTH_SECRET?.trim();
