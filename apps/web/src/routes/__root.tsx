@@ -154,7 +154,6 @@ function RootDocument() {
 	const isGameRoute =
 		location.pathname.startsWith("/game/") ||
 		location.pathname.startsWith("/play/");
-	const isSportsbookRoute = location.pathname.startsWith("/sportsbetting");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
@@ -207,6 +206,8 @@ function RootDocument() {
 		"/bonuses/",
 		"/loyalty",
 		"/loyalty/",
+		"/tournaments",
+		"/tournaments/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);
@@ -302,14 +303,9 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 													className={cn(
 														isGameRoute
 															? ""
-															: cn(
-																	"mx-4 grid py-4 lg:mx-[104px]",
-																	isSportsbookRoute ? "gap-4" : "md:gap-8",
-																),
+															: "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
 														!isGameRoute && shouldShowSidebar
-															? isSportsbookRoute
-																? "lg:grid-cols-[250px_minmax(0,1fr)]"
-																: "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
+															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
 															: !isGameRoute
 																? "lg:grid-cols-1"
 																: "",
@@ -317,12 +313,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 													)}
 												>
 													{!isGameRoute && shouldShowSidebar && (
-														<aside
-															className={cn(
-																"no-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6",
-																isSportsbookRoute ? "pr-0" : "pr-4",
-															)}
-														>
+														<aside className="no-scrollbar hidden pr-4 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6">
 															<Sidebar />
 														</aside>
 													)}

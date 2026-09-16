@@ -91,7 +91,7 @@ sportsdey/
 - `cd apps/server && pnpm run db:generate`: Generate sql file for migration
 - `cd apps/server && pnpm run db:migrate`: Make changes to the local db
 - `cd apps/server && pnpm run db:migrate:staging`: Make changes to the staging database
-- `cd apps/server && pnpm run db:migrate:staging`: Make changes to the production database
+- `cd apps/server && pnpm run db:migrate:production`: Make changes to the production database
 - `pnpm run check-types`: Check TypeScript types across all apps
 <!--- `pnpm run db:push`: Push schema changes to database-->
 - `pnpm run db:studio`: Open database studio UI

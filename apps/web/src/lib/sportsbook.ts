@@ -85,10 +85,6 @@ export type BettingAPI = {
     event: "handle-not-enough-balance",
     callback: () => void,
   ): void;
-	updateThemeConfig?: (
-		theme: { offsetTop: number; palette: SportsbookThemePalette },
-		options?: { replace?: boolean },
-	) => void;
 };
 
 export type BaseWidgetStyle = {
@@ -204,14 +200,14 @@ export function getSportsbookTheme(isDark: boolean, offsetTop: number) {
 }
 
 const lightSportsbookPalette: SportsbookThemePalette = {
-	colorsPrimary1: "#f4f4f4",
+	colorsPrimary1: "#000000",
 	colorsPrimary2: "#ffffff",
 	colorsSecondary1: "#f3f3f3",
 	colorsSecondary2: "#e3e3e3",
 	colorsSecondary3: "#9999a1",
-	colorsAccent1: "#1baa04",
+	colorsAccent1: "#ff6b00",
 	colorsAccent2: "#ffb700",
-	colorsAccent3: "#1baa04",
+	colorsAccent3: "#a900d9",
 	textButton: "#ffffff",
 	textPrimary: "#000000",
 	textSecondary: "#656565",
@@ -223,14 +219,14 @@ const lightSportsbookPalette: SportsbookThemePalette = {
 };
 
 const darkSportsbookPalette: SportsbookThemePalette = {
-	colorsPrimary1: "#040c01",
-	colorsPrimary2: "#040c01",
-	colorsSecondary1: "#1c1c1e",
+	colorsPrimary1: "#000000",
+	colorsPrimary2: "#1c1d1f",
+	colorsSecondary1: "#1f1f1f",
 	colorsSecondary2: "#2c2c2c",
 	colorsSecondary3: "#9999a1",
-	colorsAccent1: "#1baa04",
+	colorsAccent1: "#ff6b00",
 	colorsAccent2: "#ffb700",
-	colorsAccent3: "#1baa04",
+	colorsAccent3: "#a900d9",
 	textButton: "#ffffff",
 	textPrimary: "#ffffff",
 	textSecondary: "#c2c2c2",
@@ -262,189 +258,6 @@ export function buildAppInitOptions(
 export function dispatchBettingInit(bettingAPI: BettingAPI) {
 	window.bettingAPI = bettingAPI;
 	document.dispatchEvent(new Event("betting-init"));
-}
-
-const SPORTSBOOK_SHADOW_STYLE_ID = "sportsdey-sportsbook-overrides";
-const SPORTSBOOK_ACCENT_GREEN = "#1baa04";
-const SPORTSBOOK_ACCENT_GREEN_RGB = "27, 170, 4";
-
-const SPORTSBOOK_PANEL_BG = "#1c1c1e";
-const SPORTSBOOK_PANEL_BG_RGB = "28, 28, 30";
-const SPORTSBOOK_ODDS_PANEL_BG = "#141416";
-
-const SPORTSBOOK_ACCENT_VARS = {
-	"--bet-colors-secondary-1": SPORTSBOOK_PANEL_BG,
-	"--bet-colors-secondary-1-rgb": SPORTSBOOK_PANEL_BG_RGB,
-	"--bet-colors-accent-1": SPORTSBOOK_ACCENT_GREEN,
-	"--bet-colors-accent-1-rgb": SPORTSBOOK_ACCENT_GREEN_RGB,
-	"--bet-colors-accent-3": SPORTSBOOK_ACCENT_GREEN,
-	"--bet-colors-accent-3-rgb": SPORTSBOOK_ACCENT_GREEN_RGB,
-} as const;
-
-/** DataBet mounts in an open shadow root; document CSS cannot restyle `.bg-colorsSecondary1`. */
-const SPORTSBOOK_SHADOW_CSS = `
-#bet-root,
-.bet-tailwind-root {
-	background-color: transparent !important;
-	--bet-colors-secondary-1: ${SPORTSBOOK_PANEL_BG} !important;
-	--bet-colors-secondary-1-rgb: ${SPORTSBOOK_PANEL_BG_RGB} !important;
-	--bet-colors-accent-1: ${SPORTSBOOK_ACCENT_GREEN} !important;
-	--bet-colors-accent-1-rgb: ${SPORTSBOOK_ACCENT_GREEN_RGB} !important;
-	--bet-colors-accent-3: ${SPORTSBOOK_ACCENT_GREEN} !important;
-	--bet-colors-accent-3-rgb: ${SPORTSBOOK_ACCENT_GREEN_RGB} !important;
-}
-
-/* Top Events: style the DataBet card shell only. Do not pad/size the
-   isolate wrapper — that squeezed team rows and hid the away side. */
-[data-testid="top-events-widget-event-link"] .min-h-full.flex-col.bg-colorsSecondary1 {
-	background-color: ${SPORTSBOOK_PANEL_BG} !important;
-	border: 1px solid rgba(255, 255, 255, 0.05) !important;
-	border-radius: 12px !important;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-}
-
-/* Odds 1/X/2 sit in a darker sub-panel; keep DataBet's own button chrome. */
-[data-testid="top-events-widget-event-link"] .gap-2.overflow-hidden.rounded-8 {
-	background-color: ${SPORTSBOOK_ODDS_PANEL_BG} !important;
-}
-[data-testid="top-events-widget-event-link"] .grid.flex-1.bg-colorsSecondary1 {
-	background-color: transparent !important;
-	border: none !important;
-	box-shadow: none !important;
-}
-
-/* Keep carousel arrows off the match cards. */
-.top-events-carousel .absolute.inset-0.flex.items-center.justify-between {
-	left: -4px;
-	right: -4px;
-	width: auto;
-	padding-left: 0 !important;
-	padding-right: 0 !important;
-}
-
-/* HOT BUNDLES: each league/combo column is already hot-bundle-card. */
-[data-testid="hot-bundle-card"] {
-	background-color: ${SPORTSBOOK_PANEL_BG} !important;
-	border: 1px solid rgba(255, 255, 255, 0.05) !important;
-	border-radius: 12px !important;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-}
-
-.bet-tailwind-root .text-colorsAccent3,
-.bet-tailwind-root .fill-colorsAccent3,
-.bet-tailwind-root .stroke-colorsAccent3,
-.bet-tailwind-root .bg-colorsAccent3,
-.text-colorsAccent3,
-.fill-colorsAccent3,
-.stroke-colorsAccent3 {
-	color: ${SPORTSBOOK_ACCENT_GREEN} !important;
-	fill: ${SPORTSBOOK_ACCENT_GREEN} !important;
-	stroke: ${SPORTSBOOK_ACCENT_GREEN} !important;
-}
-
-/* DataBet type scale is calc(var(--bet-base-font-size) * n). Default 16px
-   makes match names/odds ~12px on phones. Bump the base on small screens. */
-@media (max-width: 767px) {
-	#bet-root,
-	.bet-tailwind-root {
-		--bet-base-font-size: 20px !important;
-	}
-}
-@media (min-width: 768px) and (max-width: 1023px) {
-	#bet-root,
-	.bet-tailwind-root {
-		--bet-base-font-size: 18px !important;
-	}
-}
-`;
-
-function pinSportsbookAccentVars(el: HTMLElement) {
-	for (const [name, value] of Object.entries(SPORTSBOOK_ACCENT_VARS)) {
-		if (
-			el.style.getPropertyValue(name) === value &&
-			el.style.getPropertyPriority(name) === "important"
-		) {
-			continue;
-		}
-		el.style.setProperty(name, value, "important");
-	}
-}
-
-function pinSportsbookAccentOnTree(root: ParentNode) {
-	if (root instanceof HTMLElement) {
-		pinSportsbookAccentVars(root);
-	}
-	root.querySelectorAll<HTMLElement>("#bet-root, .bet-tailwind-root").forEach(
-		pinSportsbookAccentVars,
-	);
-}
-
-export function injectSportsbookShadowOverrides(): boolean {
-	const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
-	if (!host) {
-		return false;
-	}
-	pinSportsbookAccentVars(host);
-	const shadow = host.shadowRoot;
-	if (!shadow) {
-		return false;
-	}
-	pinSportsbookAccentOnTree(shadow);
-	const existing = shadow.getElementById(SPORTSBOOK_SHADOW_STYLE_ID);
-	if (existing) {
-		if (existing.textContent !== SPORTSBOOK_SHADOW_CSS) {
-			existing.textContent = SPORTSBOOK_SHADOW_CSS;
-		}
-		return true;
-	}
-	const style = document.createElement("style");
-	style.id = SPORTSBOOK_SHADOW_STYLE_ID;
-	style.textContent = SPORTSBOOK_SHADOW_CSS;
-	shadow.appendChild(style);
-	return true;
-}
-
-let sportsbookOverrideObserver: MutationObserver | null = null;
-
-export function scheduleSportsbookShadowOverrides() {
-	injectSportsbookShadowOverrides();
-	if (!sportsbookOverrideObserver) {
-		sportsbookOverrideObserver = new MutationObserver(() => {
-			injectSportsbookShadowOverrides();
-		});
-	}
-	const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
-	if (host) {
-		sportsbookOverrideObserver.observe(host, {
-			attributes: true,
-			attributeFilter: ["style", "class"],
-			childList: true,
-			subtree: true,
-		});
-		if (host.shadowRoot) {
-			sportsbookOverrideObserver.observe(host.shadowRoot, {
-				attributes: true,
-				attributeFilter: ["style", "class"],
-				childList: true,
-				subtree: true,
-			});
-		}
-	}
-	let attempts = 0;
-	const timer = window.setInterval(() => {
-		attempts += 1;
-		const ready = injectSportsbookShadowOverrides();
-		if ((ready && attempts >= 10) || attempts >= 80) {
-			window.clearInterval(timer);
-		}
-	}, 100);
-}
-
-export function applySportsbookRuntimeTheme(isDark: boolean) {
-	window.bettingAPI?.updateThemeConfig?.(
-		getSportsbookTheme(isDark, SPORTSBOOK_HEADER_OFFSET),
-	);
-	injectSportsbookShadowOverrides();
 }
 
 export function loadSportsbookBootstrapScript(
@@ -517,8 +330,6 @@ export async function loadSportsbookWidgets(
 		buildWidgetInitOptions(token, isDark),
 		(bettingAPI) => {
 			dispatchBettingInit(bettingAPI);
-			applySportsbookRuntimeTheme(isDark);
-			scheduleSportsbookShadowOverrides();
 			onLoad?.(bettingAPI);
 		},
 	);

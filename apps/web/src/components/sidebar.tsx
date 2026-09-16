@@ -36,7 +36,6 @@ import { sportsbookPrematchNavigateOptions } from "@/lib/sportsbook";
 import { useActiveTab } from "./active-tab-context";
 
 const THREE_X_THREE_SPORTSBOOK_PATH = "esports/live/football-esports";
-const TOURNAMENTS_URL = "https://tournaments.sportsdey.com/";
 
 
 type MenuItem = {
@@ -293,6 +292,12 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 		navigate({ to: "/loyalty" as any });
 	};
 
+	const goToTournaments = () => {
+		setTab("tournament");
+		trackWebengageEvent("Category", { Name: "Tournament" });
+		navigate({ to: "/tournaments" as any });
+	};
+
 	const menuItems: MenuItem[] = [
 		{
 			id: "home",
@@ -374,8 +379,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				{
 					id: "pvp-esports",
 					label: "Tournament",
-					isActive: false,
-					onClick: () => window.open(TOURNAMENTS_URL, "_blank"),
+					isActive: location.pathname.startsWith("/tournaments"),
+					onClick: goToTournaments,
 				},
 			],
 		},
@@ -420,11 +425,11 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			id: "tournament",
 			label: "Tournament",
 			icon: Trophy,
-			isActive: isItemActive("tournament", false),
-			onClick: () => {
-				setActiveOverride("tournament");
-				window.open(TOURNAMENTS_URL, "_blank");
-			},
+			isActive: isItemActive(
+				"tournament",
+				location.pathname.startsWith("/tournaments"),
+			),
+			onClick: goToTournaments,
 		},
 		{
 			id: "missions",

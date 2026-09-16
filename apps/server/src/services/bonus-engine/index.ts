@@ -146,5 +146,9 @@ export {
 	upsertBonusEngineMissionProgress,
 	upsertBonusEngineUserBonus,
 } from "./persistence.service";
-export { loginBonusEnginePlayer, syncBonusEnginePlayerOnAppLogin } from "./player.service";
+export {
+	loginBonusEnginePlayer,
+	scheduleBonusEnginePlayerOnAppLogin,
+	syncBonusEnginePlayerOnAppLogin,
+} from "./player.service";
 export { getBonusEngineAccessToken } from "./token.service";

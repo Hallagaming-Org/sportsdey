@@ -26,15 +26,16 @@ import adminTransactionsRoute from "./routes/admin-transactions";
 import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
+import { optionalExecutionCtx } from "./services/bonus-engine";
 import type { CloudflareBindings } from "./types";
 import type { ExportQueueMessage } from "./types/exports";
+import { isD1CapacityError } from "./utils/d1-errors";
 import {
 	deleteExpiredExports,
 	processExportMessage,
 	requeueStaleChunks,
 } from "./utils/exports/service";
-import { extractBearerToken }  from "./utils/webengage-sms-auth";
-import { isD1CapacityError } from "./utils/d1-errors";
+import { extractBearerToken } from "./utils/webengage-sms-auth";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -62,8 +63,11 @@ app.onError((err, c) => {
 
 const authCache: ReturnType<typeof createAuth> | null = null;
 
-function getAuth(env: CloudflareBindings) {
-	return createAuth(env);
+function getAuth(
+	env: CloudflareBindings,
+	executionCtx?: ReturnType<typeof optionalExecutionCtx>,
+) {
+	return createAuth(env, executionCtx);
 }
 
 type AuthContext = {
@@ -153,7 +157,7 @@ app.use(
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
-	const auth = getAuth(c.env);
+	const auth = getAuth(c.env, optionalExecutionCtx(c));
 	const response = await auth.handler(c.req.raw);
 
 	const setCookies: string[] = [];
@@ -221,7 +225,7 @@ app.use("*", async (c, next) => {
 	) {
 		return next();
 	}
-	const auth = getAuth(c.env);
+	const auth = getAuth(c.env, optionalExecutionCtx(c));
 	const sessionResult = await auth.api.getSession({
 		headers: c.req.raw.headers,
 	});

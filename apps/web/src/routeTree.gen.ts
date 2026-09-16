@@ -36,6 +36,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as VideosIndexRouteImport } from './routes/videos.index'
 import { Route as UfcIndexRouteImport } from './routes/ufc.index'
+import { Route as TournamentsIndexRouteImport } from './routes/tournaments.index'
 import { Route as TennisIndexRouteImport } from './routes/tennis.index'
 import { Route as PromotionsIndexRouteImport } from './routes/promotions.index'
 import { Route as NotificationsIndexRouteImport } from './routes/notifications.index'
@@ -210,6 +211,11 @@ const UfcIndexRoute = UfcIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => UfcRoute,
+} as any)
+const TournamentsIndexRoute = TournamentsIndexRouteImport.update({
+  id: '/tournaments/',
+  path: '/tournaments/',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const TennisIndexRoute = TennisIndexRouteImport.update({
   id: '/',
@@ -471,6 +477,7 @@ export interface FileRoutesByFullPath {
   '/notifications/': typeof NotificationsIndexRoute
   '/promotions/': typeof PromotionsIndexRoute
   '/tennis/': typeof TennisIndexRoute
+  '/tournaments/': typeof TournamentsIndexRoute
   '/ufc/': typeof UfcIndexRoute
   '/videos/': typeof VideosIndexRoute
   '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
@@ -531,6 +538,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsIndexRoute
   '/promotions': typeof PromotionsIndexRoute
   '/tennis': typeof TennisIndexRoute
+  '/tournaments': typeof TournamentsIndexRoute
   '/ufc': typeof UfcIndexRoute
   '/videos': typeof VideosIndexRoute
   '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
@@ -600,6 +608,7 @@ export interface FileRoutesById {
   '/notifications/': typeof NotificationsIndexRoute
   '/promotions/': typeof PromotionsIndexRoute
   '/tennis/': typeof TennisIndexRoute
+  '/tournaments/': typeof TournamentsIndexRoute
   '/ufc/': typeof UfcIndexRoute
   '/videos/': typeof VideosIndexRoute
   '/basketball/tournament/$tournamentId': typeof BasketballTournamentTournamentIdRoute
@@ -670,6 +679,7 @@ export interface FileRouteTypes {
     | '/notifications/'
     | '/promotions/'
     | '/tennis/'
+    | '/tournaments/'
     | '/ufc/'
     | '/videos/'
     | '/basketball/tournament/$tournamentId'
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/promotions'
     | '/tennis'
+    | '/tournaments'
     | '/ufc'
     | '/videos'
     | '/basketball/tournament/$tournamentId'
@@ -798,6 +809,7 @@ export interface FileRouteTypes {
     | '/notifications/'
     | '/promotions/'
     | '/tennis/'
+    | '/tournaments/'
     | '/ufc/'
     | '/videos/'
     | '/basketball/tournament/$tournamentId'
@@ -851,6 +863,7 @@ export interface RootRouteChildren {
   LoyaltyIndexRoute: typeof LoyaltyIndexRoute
   MissionsIndexRoute: typeof MissionsIndexRoute
   PromotionsIndexRoute: typeof PromotionsIndexRoute
+  TournamentsIndexRoute: typeof TournamentsIndexRoute
   IndexTournamentTournamentIdRoute: typeof IndexTournamentTournamentIdRoute
 }
 
@@ -1044,6 +1057,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/ufc/'
       preLoaderRoute: typeof UfcIndexRouteImport
       parentRoute: typeof UfcRoute
+    }
+    '/tournaments/': {
+      id: '/tournaments/'
+      path: '/tournaments'
+      fullPath: '/tournaments/'
+      preLoaderRoute: typeof TournamentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/tennis/': {
       id: '/tennis/'
@@ -1518,6 +1538,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoyaltyIndexRoute: LoyaltyIndexRoute,
   MissionsIndexRoute: MissionsIndexRoute,
   PromotionsIndexRoute: PromotionsIndexRoute,
+  TournamentsIndexRoute: TournamentsIndexRoute,
   IndexTournamentTournamentIdRoute: IndexTournamentTournamentIdRoute,
 }
 export const routeTree = rootRouteImport
