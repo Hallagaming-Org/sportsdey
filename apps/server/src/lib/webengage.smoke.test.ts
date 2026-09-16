@@ -320,8 +320,10 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(wallet.includes('eventName: "transfer_funds_completed"'));
 		assert.ok(wallet.includes('await trackWebengageEvent('));
 		assert.ok(wallet.includes('eventName: "deposit_initiated"'));
-		assert.ok(wallet.includes("account_number: accountNumber"));
-		assert.ok(withdrawals.includes("account_number: accountNumber"));
+		assert.ok(wallet.includes("account_number_last4"));
+		assert.ok(withdrawals.includes("account_number_last4"));
+		assert.ok(wallet.includes("maskBankAccountNumber(accountNumber)"));
+		assert.ok(withdrawals.includes("maskBankAccountNumber(accountNumber)"));
 		assert.equal(withdrawModal.includes("withdrawal_requested"), false);
 		assert.ok(wallet.includes('eventName: "deposit_completed"'));
 		assert.ok(wallet.includes('eventName: "deposit_failed"'));

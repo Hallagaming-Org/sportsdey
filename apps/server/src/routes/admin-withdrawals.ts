@@ -15,6 +15,7 @@ import {
 } from "@/utils/admin-activity-log";
 import { createTransferRecipient, initiateTransfer } from "@/utils/paystack";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
+import { maskBankAccountNumber } from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
 const adminWithdrawalsRoute = new OpenAPIHono<{
@@ -364,23 +365,27 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been approved and is being processed.`,
 	});
 
-	trackWebengageEvent(
-		c.env,
-		{
-			userId: txn.userId,
-			eventName: "withdrawal_completed",
-			eventData: {
-				amount: txn.amount / 100,
-				transaction_id: transfer.reference,
-				bank: bankCode,
-				wallet_balance_after: (txn.balance ?? 0) / 100,
-				account_number: accountNumber,
-				account_name: accountName ?? "",
+
+	if (transfer.status === "success") {
+		void trackWebengageEvent(
+			c.env,
+			{
+				userId: txn.userId,
+				eventName: "withdrawal_completed",
+				eventData: {
+					amount: txn.amount / 100,
+					transaction_id: transfer.reference,
+					bank: bankCode,
+					bank_code: bankCode,
+					wallet_balance_after: (txn.balance ?? 0) / 100,
+					account_number_last4: maskBankAccountNumber(accountNumber),
+					account_name: accountName ?? "",
+				},
 			},
-		},
-		c.executionCtx,
-	);
-	await syncWebengageUserProfile(c.env, txn.userId, c.executionCtx);
+			c.executionCtx,
+		);
+		await syncWebengageUserProfile(c.env, txn.userId, c.executionCtx);
+	}
 	await recordActivityForSession(
 		c.env,
 		session.adminId,

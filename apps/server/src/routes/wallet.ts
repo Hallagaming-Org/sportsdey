@@ -55,6 +55,7 @@ import {
 } from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
+import { maskBankAccountNumber } from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -208,31 +209,18 @@ const getBanksRoute = createRoute({
 	},
 });
 
-// const webhookRoute = createRoute({
-// 	method: "post",
-// 	path: "/webhook",
-// 	tags: ["Wallet"],
-// 	summary: "Paystack webhook",
-// 	description: "Handle Paystack webhook events for wallet funding",
-// 	responses: {
-// 		200: {
-// 			description: "Webhook processed",
-// 			content: {
-// 				"application/json": {
-// 					schema: WebhookResponseSchema,
-// 				},
-// 			},
-// 		},
-// 		400: {
-// 			description: "Invalid signature or malformed request",
-// 			content: {
-// 				"application/json": {
-// 					schema: WebhookErrorSchema,
-// 				},
-// 			},
-// 		},
-// 	},
-// });
+const paystackWebhookRoute = createRoute({
+	method: "post",
+	path: "/paystack/webhook",
+	tags: ["Wallet"],
+	summary: "Paystack payout webhook",
+	description:
+		"Receives verified Paystack transfer status updates. This endpoint is server-to-server only.",
+	responses: {
+		200: { description: "Webhook received" },
+		400: { description: "Invalid webhook signature or body" },
+	},
+});
 
 const callbackRoute = createRoute({
 	method: "get",
@@ -1350,6 +1338,100 @@ walletRoute.openapi(callbackRoute, async (c) => {
 	return c.html(html, 200);
 });
 
+walletRoute.openapi(paystackWebhookRoute, async (c) => {
+	const signature = c.req.header("x-paystack-signature");
+	if (!signature) {
+		return c.json({ received: false }, 400);
+	}
+
+	const rawBody = await c.req.text();
+	const expectedSignature = crypto
+		.createHmac("sha512", c.env.PAYSTACK_SECRET_KEY)
+		.update(rawBody)
+		.digest("hex");
+	const expectedBytes = new TextEncoder().encode(expectedSignature);
+	const suppliedBytes = new TextEncoder().encode(signature);
+	if (
+		expectedBytes.length !== suppliedBytes.length ||
+		!crypto.timingSafeEqual(expectedBytes, suppliedBytes)
+	) {
+		return c.json({ received: false }, 400);
+	}
+
+	let payload: {
+		event?: unknown;
+		data?: { reference?: unknown };
+	};
+	try {
+		payload = JSON.parse(rawBody);
+	} catch {
+		return c.json({ received: false }, 400);
+	}
+
+	if (
+		payload.event !== "transfer.success" ||
+		typeof payload.data?.reference !== "string"
+	) {
+		return c.json({ received: true }, 200);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+	const [transaction] = await db
+		.select()
+		.from(schema.walletTransaction)
+		.where(eq(schema.walletTransaction.reference, payload.data.reference))
+		.limit(1);
+	if (!transaction || transaction.status !== "processing") {
+		return c.json({ received: true }, 200);
+	}
+
+	const [completed] = await db
+		.update(schema.walletTransaction)
+		.set({ status: "success" })
+		.where(
+			and(
+				eq(schema.walletTransaction.id, transaction.id),
+				eq(schema.walletTransaction.status, "processing"),
+			),
+		)
+		.returning({ id: schema.walletTransaction.id });
+	if (!completed) {
+		return c.json({ received: true }, 200);
+	}
+
+	let metadata: Record<string, unknown> = {};
+	try {
+		metadata = JSON.parse(transaction.metadata || "{}");
+	} catch {
+	}
+	const bankCode = typeof metadata.bankCode === "string" ? metadata.bankCode : "";
+	const accountNumber =
+		typeof metadata.accountNumber === "string" ? metadata.accountNumber : undefined;
+	const accountName =
+		typeof metadata.accountName === "string" ? metadata.accountName : "";
+
+	void trackWebengageEvent(
+		c.env,
+		{
+			userId: transaction.userId,
+			eventName: "withdrawal_completed",
+			eventData: {
+				amount: transaction.amount / 100,
+				transaction_id: payload.data.reference,
+				bank: bankCode,
+				bank_code: bankCode,
+				wallet_balance_after: (transaction.balance ?? 0) / 100,
+				account_number_last4: maskBankAccountNumber(accountNumber),
+				account_name: accountName,
+			},
+		},
+		c.executionCtx,
+	);
+	void syncWebengageUserProfile(c.env, transaction.userId, c.executionCtx);
+
+	return c.json({ received: true }, 200);
+});
+
 // walletRoute.openapi(webhookRoute, async (c) => {
 // 	const signature = c.req.header("x-paystack-signature");
 // 	if (!signature) {
@@ -1792,7 +1874,7 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 		.set({ balance: newBalance })
 		.where(eq(schema.walletTransaction.id, txnId));
 
-	trackWebengageEvent(
+	void trackWebengageEvent(
 		c.env,
 		{
 			userId: user.id,
@@ -1800,8 +1882,9 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 			eventData: {
 				amount,
 				bank: bankCode,
+				bank_code: bankCode,
 				wallet_balance_before: wallet.balance / 100,
-				account_number: accountNumber,
+				account_number_last4: maskBankAccountNumber(accountNumber),
 				account_name: accountName ?? "",
 			},
 		},

@@ -101,3 +101,11 @@ export function buildWebengageUserPayload(params: {
 	}
 	return payload;
 }
+
+export function maskBankAccountNumber(
+	accountNumber: string | null | undefined,
+): string | undefined {
+	const digits = accountNumber?.replace(/\D/g, "") ?? "";
+	if (!digits) return undefined;
+	return `****${digits.slice(-4)}`;
+}
