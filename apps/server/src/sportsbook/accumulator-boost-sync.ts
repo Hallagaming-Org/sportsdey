@@ -142,16 +142,18 @@ export function planAccumulatorSyncWork(
 	repairedBoostIds: ReadonlySet<string>,
 ) {
 	const grantPlan = planAccumulatorFoldGrants(existing);
-	const remaining = existing;
-	const toRepair = planAccumulatorFoldRepairs(remaining, {
-		skipBoostIds: repairedBoostIds,
-	});
-	const { toCreate, blockedLegacySports } = planAccumulatorFoldGrants(remaining);
+	const skipBoostIds = new Set([
+		...repairedBoostIds,
+		...grantPlan.staleFoldBoostIds,
+		...grantPlan.legacyStepsBoostIds,
+	]);
+	const toRepair = planAccumulatorFoldRepairs(existing, { skipBoostIds });
 	return {
 		legacyStepsBoostIds: grantPlan.legacyStepsBoostIds,
+		staleFoldBoostIds: grantPlan.staleFoldBoostIds,
 		toRepair,
-		toCreate,
-		blockedLegacySports,
+		toCreate: grantPlan.toCreate,
+		blockedLegacySports: grantPlan.blockedLegacySports,
 	};
 }
 
@@ -204,6 +206,7 @@ export async function ensureAccumulatorProgramBoosts(
 
 		if (
 			work.legacyStepsBoostIds.length === 0 &&
+			work.staleFoldBoostIds.length === 0 &&
 			work.toRepair.length === 0 &&
 			work.toCreate.length === 0
 		) {
@@ -216,7 +219,10 @@ export async function ensureAccumulatorProgramBoosts(
 	const failed: AccumulatorSyncResult["failed"] = [];
 	const removedLegacy: string[] = [];
 
-	for (const boostId of work.legacyStepsBoostIds) {
+	for (const boostId of [
+		...work.legacyStepsBoostIds,
+		...work.staleFoldBoostIds,
+	]) {
 		const response = await databetFetch(env, `/bet-boosts/${boostId}`, {
 			method: "DELETE",
 		});
@@ -233,7 +239,7 @@ export async function ensureAccumulatorProgramBoosts(
 		failed.push({
 			sport,
 			selections: 0,
-			error: `delete legacy steps ${boostId}: ${response.status} ${await response.text()}`,
+			error: `delete leftover boost ${boostId}: ${response.status} ${await response.text()}`,
 		});
 	}
 
@@ -355,13 +361,18 @@ export async function ensureAccumulatorProgramBoosts(
 		if (
 			failed.length === 0 &&
 			kv &&
-			work.legacyStepsBoostIds.length === removedLegacy.length
+			work.legacyStepsBoostIds.length + work.staleFoldBoostIds.length ===
+				removedLegacy.length
 		) {
 			const after = planAccumulatorSyncWork(
 				remaining,
 				await getRepairedBoostIds(kv, input.playerId),
 			);
-			if (after.toCreate.length === 0 && after.toRepair.length === 0) {
+			if (
+				after.toCreate.length === 0 &&
+				after.toRepair.length === 0 &&
+				after.staleFoldBoostIds.length === 0
+			) {
 				await markAccumulatorProgramSynced(kv, input.playerId);
 			}
 		}
