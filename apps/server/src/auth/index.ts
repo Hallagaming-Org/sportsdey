@@ -5,13 +5,14 @@ import { createAuthMiddleware } from "better-auth/api";
 import { bearer, openAPI } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { ExecutionContext } from "hono";
 import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 	SESSION_MAX_AGE_SECONDS,
 } from "@/constants/session";
 import * as schema from "@/db/schema";
-import { syncBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
+import { scheduleBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../../worker-configuration";
 
 const HMAC_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
@@ -100,7 +101,10 @@ function oauthCredentials(clientId?: string, clientSecret?: string) {
 	return { clientId: id, clientSecret: secret };
 }
 
-export const createAuth = (env: CloudflareBindings) => {
+export const createAuth = (
+	env: CloudflareBindings,
+	executionCtx?: ExecutionContext,
+) => {
 	const db = drizzle(env.DB, { schema });
 	const google = oauthCredentials(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
 	const facebook = oauthCredentials(
@@ -221,13 +225,12 @@ export const createAuth = (env: CloudflareBindings) => {
 				}
 				if (userId) {
 					const username =
-						newSession?.user?.name ||
-						newSession?.user?.email ||
-						userId;
-					await syncBonusEnginePlayerOnAppLogin({
+						newSession?.user?.name || newSession?.user?.email || userId;
+					scheduleBonusEnginePlayerOnAppLogin({
 						env,
 						userId,
 						username,
+						executionCtx,
 					});
 				}
 			}),
