@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Gift, Plus, Wallet } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ApiError } from "@/lib/api";
 import {
 	activeAssignedBonuses,
@@ -36,7 +37,13 @@ export function WalletBalanceMenu({
 }: WalletBalanceMenuProps) {
 	const panelId = useId();
 	const rootRef = useRef<HTMLDivElement>(null);
+	const panelRef = useRef<HTMLDivElement>(null);
 	const [open, setOpen] = useState(false);
+	const [mounted, setMounted] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const bonusesQuery = useQuery({
 		queryKey: BONUS_QUERY_KEY.LIST,
@@ -66,21 +73,116 @@ export function WalletBalanceMenu({
 
 	useEffect(() => {
 		if (!open) return;
-		const onPointer = (event: MouseEvent) => {
-			if (!rootRef.current?.contains(event.target as Node)) {
-				setOpen(false);
+		const onPointer = (event: MouseEvent | TouchEvent) => {
+			const target = event.target as Node;
+			if (
+				rootRef.current?.contains(target) ||
+				panelRef.current?.contains(target)
+			) {
+				return;
 			}
+			setOpen(false);
 		};
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "Escape") setOpen(false);
 		};
 		document.addEventListener("mousedown", onPointer);
+		document.addEventListener("touchstart", onPointer);
 		document.addEventListener("keydown", onKey);
 		return () => {
 			document.removeEventListener("mousedown", onPointer);
+			document.removeEventListener("touchstart", onPointer);
 			document.removeEventListener("keydown", onKey);
 		};
 	}, [open]);
+
+	const panel = open ? (
+		<div
+			ref={panelRef}
+			id={panelId}
+			role="dialog"
+			aria-label="Wallet breakdown"
+			className={cn(
+				"rounded-xl border border-[#2F3033] bg-[#151616] shadow-xl",
+				compact
+					? "fixed inset-x-2 top-[4.75rem] z-[100] w-auto max-h-[min(28rem,calc(100dvh-5.5rem))] overflow-y-auto"
+					: "absolute right-0 z-[80] mt-2 w-[280px] overflow-hidden",
+			)}
+		>
+			<div className="space-y-3 p-3">
+				<div className="flex items-start justify-between gap-3">
+					<div className="flex items-center gap-2">
+						<span className="flex size-8 items-center justify-center rounded-full bg-white/5 text-white">
+							<Wallet className="size-4" />
+						</span>
+						<div>
+							<p className="text-[11px] font-medium uppercase tracking-wide text-[#8C8F8F]">
+								Main balance
+							</p>
+							<p className="font-bold text-sm text-white">{naira(mainBalance)}</p>
+						</div>
+					</div>
+				</div>
+				<p className="text-[10px] text-[#8C8F8F]">
+					Withdrawable cash. Bonus funds are listed separately below.
+				</p>
+
+				<div className="flex items-start justify-between gap-3 rounded-lg border border-accent/25 bg-accent/10 p-2.5">
+					<div className="flex items-center gap-2">
+						<span className="flex size-8 items-center justify-center rounded-full bg-accent/20 text-accent">
+							<Gift className="size-4" />
+						</span>
+						<div>
+							<p className="text-[11px] font-medium uppercase tracking-wide text-accent">
+								Bonus balance
+							</p>
+							<p className="font-bold text-sm text-white">
+								{naira(bonusBalance)}
+							</p>
+						</div>
+					</div>
+				</div>
+				<p className="text-[10px] text-[#8C8F8F]">
+					Usable for bets per bonus rules. Not withdrawable until wagering is
+					complete.
+				</p>
+
+				{activeBonuses.length > 0 ? (
+					<ul className="max-h-40 space-y-2 overflow-y-auto">
+						{activeBonuses.map((bonus) => (
+							<li
+								key={bonus.id}
+								className="rounded-lg border border-[#2F3033] bg-[#1C1D1F] p-2"
+							>
+								<p className="truncate text-xs font-semibold text-white">
+									{bonus.title}
+								</p>
+								<p className="text-[11px] text-accent">{bonus.rewardLabel}</p>
+								{bonus.wageringRequired > 0 ? (
+									<p className="mt-0.5 text-[10px] text-[#8C8F8F]">
+										{bonus.wageringLabel}
+									</p>
+								) : null}
+								{bonus.status === BONUS_STATUS.ACTIVE && bonus.endAt ? (
+									<p className="text-[10px] text-[#8C8F8F]">
+										Expires{" "}
+										{new Date(bonus.endAt).toLocaleDateString("en-US", {
+											day: "numeric",
+											month: "short",
+										})}
+									</p>
+								) : null}
+							</li>
+						))}
+					</ul>
+				) : (
+					<p className="text-center text-[11px] text-[#8C8F8F]">
+						No active bonuses.
+					</p>
+				)}
+			</div>
+		</div>
+	) : null;
 
 	return (
 		<div ref={rootRef} className="relative">
@@ -154,94 +256,11 @@ export function WalletBalanceMenu({
 				</button>
 			</div>
 
-			{open ? (
-				<div
-					id={panelId}
-					role="dialog"
-					aria-label="Wallet breakdown"
-					className={cn(
-						"absolute z-[80] mt-2 overflow-hidden rounded-xl border border-[#2F3033] bg-[#151616] shadow-xl",
-						compact
-							? "right-0 w-[min(calc(100vw-1.5rem),18rem)]"
-							: "right-0 w-[280px]",
-					)}
-				>
-					<div className="space-y-3 p-3">
-						<div className="flex items-start justify-between gap-3">
-							<div className="flex items-center gap-2">
-								<span className="flex size-8 items-center justify-center rounded-full bg-white/5 text-white">
-									<Wallet className="size-4" />
-								</span>
-								<div>
-									<p className="text-[11px] font-medium uppercase tracking-wide text-[#8C8F8F]">
-										Main balance
-									</p>
-									<p className="font-bold text-sm text-white">
-										{naira(mainBalance)}
-									</p>
-								</div>
-							</div>
-						</div>
-						<p className="text-[10px] text-[#8C8F8F]">
-							Withdrawable cash. Bonus funds are listed separately below.
-						</p>
-
-						<div className="flex items-start justify-between gap-3 rounded-lg border border-accent/25 bg-accent/10 p-2.5">
-							<div className="flex items-center gap-2">
-								<span className="flex size-8 items-center justify-center rounded-full bg-accent/20 text-accent">
-									<Gift className="size-4" />
-								</span>
-								<div>
-									<p className="text-[11px] font-medium uppercase tracking-wide text-accent">
-										Bonus balance
-									</p>
-									<p className="font-bold text-sm text-white">
-										{naira(bonusBalance)}
-									</p>
-								</div>
-							</div>
-						</div>
-						<p className="text-[10px] text-[#8C8F8F]">
-							Usable for bets per bonus rules. Not withdrawable until wagering
-							is complete.
-						</p>
-
-						{activeBonuses.length > 0 ? (
-							<ul className="max-h-40 space-y-2 overflow-y-auto">
-								{activeBonuses.map((bonus) => (
-									<li
-										key={bonus.id}
-										className="rounded-lg border border-[#2F3033] bg-[#1C1D1F] p-2"
-									>
-										<p className="truncate text-xs font-semibold text-white">
-											{bonus.title}
-										</p>
-										<p className="text-[11px] text-accent">{bonus.rewardLabel}</p>
-										{bonus.wageringRequired > 0 ? (
-											<p className="mt-0.5 text-[10px] text-[#8C8F8F]">
-												{bonus.wageringLabel}
-											</p>
-										) : null}
-										{bonus.status === BONUS_STATUS.ACTIVE && bonus.endAt ? (
-											<p className="text-[10px] text-[#8C8F8F]">
-												Expires{" "}
-												{new Date(bonus.endAt).toLocaleDateString("en-US", {
-													day: "numeric",
-													month: "short",
-												})}
-											</p>
-										) : null}
-									</li>
-								))}
-							</ul>
-						) : (
-							<p className="text-center text-[11px] text-[#8C8F8F]">
-								No active bonuses.
-							</p>
-						)}
-					</div>
-				</div>
-			) : null}
+			{compact
+				? mounted && panel
+					? createPortal(panel, document.body)
+					: null
+				: panel}
 		</div>
 	);
 }
