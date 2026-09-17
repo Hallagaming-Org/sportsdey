@@ -13,6 +13,7 @@ import {
 	type WalletTransaction,
 } from "@/lib/wallet-transactions";
 import EmptyStateWithdrawal from "@/logos/EmptyStateWithdrawal.png";
+import WalletIcon from "@/logos/wallet-icon.svg?react";
 
 type WalletRecentTransactionsProps = {
 	transactions: WalletTransaction[];
@@ -104,12 +105,14 @@ function WalletRecentTransactionsView({
 				const { date, time } = parseDateTime(tx.createdAt);
 				const typeLabel = getTransactionTypeLabel(tx);
 				const amountLabel = getTransactionAmountLabel(tx);
+				const isCredit = (tx.amount ?? 0) > 0;
 				return {
 					id: tx.id,
 					date,
 					time,
 					typeLabel,
 					amountLabel,
+					isCredit,
 					statusText: statusText === "Successful" ? "Success" : statusText,
 					statusColor,
 					original: tx,
@@ -137,115 +140,198 @@ function WalletRecentTransactionsView({
 					</Link>
 				</div>
 
-				<div className="better-scrollbar max-w-full touch-pan-x overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-					{isLoading ? (
-						<table className="min-w-[640px] w-full border-collapse text-left">
-							<thead>
-								<tr className="border-[#1B2722]/50 border-b font-semibold text-[#6C7073] text-[14px]">
-									<th className="w-[25%] pb-4 font-semibold">Date & Time</th>
-									<th className="w-[30%] pb-4 font-semibold">Type</th>
-									<th className="w-[20%] pb-4 font-semibold">Amount</th>
-									<th className="w-[20%] pb-4 font-semibold">Status</th>
-									<th className="w-[5%] pb-4 text-right font-semibold">...</th>
-								</tr>
-							</thead>
-							<tbody>
-								{[...Array(5)].map((_, i) => (
-									<tr
-										key={i}
-										className="border-[#1B2722]/30 border-b last:border-b-0"
-									>
-										<td className="py-4 pr-4">
-											<Skeleton className="h-5 w-24 bg-[#1C1C1E]" />
-											<Skeleton className="mt-1 h-4 w-16 bg-[#1C1C1E]" />
-										</td>
-										<td className="py-4 pr-4">
-											<Skeleton className="h-5 w-32 bg-[#1C1C1E]" />
-										</td>
-										<td className="py-4 pr-4">
-											<Skeleton className="h-5 w-20 bg-[#1C1C1E]" />
-										</td>
-										<td className="py-4 pr-4">
-											<Skeleton className="h-8 w-[84px] rounded-full bg-[#1C1C1E]" />
-										</td>
-										<td className="py-4 text-right">
-											<Skeleton className="ml-auto h-5 w-5 rounded-full bg-[#1C1C1E]" />
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					) : hasNoTransactions ? (
-						<div className="flex flex-col items-center justify-center py-12 text-center">
-							<img
-								src={EmptyStateWithdrawal}
-								alt="No transactions"
-								className="mx-auto h-16 w-16 max-w-[160px]"
-							/>
-							<p className="mt-4 font-medium text-base text-primary dark:text-[#6C7073]">
-								Looks like you don&apos;t have any transaction yet!
-							</p>
+				{isLoading ? (
+					<>
+						{/* Mobile skeleton */}
+						<div className="space-y-4 md:hidden">
+							{[...Array(5)].map((_, i) => (
+								<div key={i} className="flex items-center gap-4 py-2">
+									<Skeleton className="h-12 w-12 shrink-0 rounded-full bg-[#1C1C1E]" />
+									<div className="min-w-0 flex-1">
+										<Skeleton className="h-5 w-32 bg-[#1C1C1E]" />
+										<Skeleton className="mt-1.5 h-4 w-40 bg-[#1C1C1E]" />
+									</div>
+									<Skeleton className="h-5 w-20 bg-[#1C1C1E]" />
+								</div>
+							))}
 						</div>
-					) : (
-						<table className="min-w-[640px] w-full border-collapse text-left">
-							<thead>
-								<tr className="border-[#1B2722]/50 border-b font-semibold text-[#6C7073] text-[14px]">
-									<th className="w-[25%] pb-4 font-semibold">Date & Time</th>
-									<th className="w-[30%] pb-4 font-semibold">Type</th>
-									<th className="w-[20%] pb-4 font-semibold">Amount</th>
-									<th className="w-[20%] pb-4 font-semibold">Status</th>
-									<th className="w-[5%] pb-4 text-right font-semibold">
-										<span className="sr-only">Actions</span>
-									</th>
-								</tr>
-							</thead>
-							<tbody>
+						{/* Desktop skeleton */}
+						<div className="hidden md:block">
+							<table className="min-w-[640px] w-full border-collapse text-left">
+								<thead>
+									<tr className="border-[#1B2722]/50 border-b font-semibold text-[#6C7073] text-[14px]">
+										<th className="w-[25%] pb-4 font-semibold">Date & Time</th>
+										<th className="w-[30%] pb-4 font-semibold">Type</th>
+										<th className="w-[20%] pb-4 font-semibold">Amount</th>
+										<th className="w-[20%] pb-4 font-semibold">Status</th>
+										<th className="w-[5%] pb-4 text-right font-semibold">...</th>
+									</tr>
+								</thead>
+								<tbody>
+									{[...Array(5)].map((_, i) => (
+										<tr
+											key={i}
+											className="border-[#1B2722]/30 border-b last:border-b-0"
+										>
+											<td className="py-4 pr-4">
+												<Skeleton className="h-5 w-24 bg-[#1C1C1E]" />
+												<Skeleton className="mt-1 h-4 w-16 bg-[#1C1C1E]" />
+											</td>
+											<td className="py-4 pr-4">
+												<Skeleton className="h-5 w-32 bg-[#1C1C1E]" />
+											</td>
+											<td className="py-4 pr-4">
+												<Skeleton className="h-5 w-20 bg-[#1C1C1E]" />
+											</td>
+											<td className="py-4 pr-4">
+												<Skeleton className="h-8 w-[84px] rounded-full bg-[#1C1C1E]" />
+											</td>
+											<td className="py-4 text-right">
+												<Skeleton className="ml-auto h-5 w-5 rounded-full bg-[#1C1C1E]" />
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					</>
+				) : hasNoTransactions ? (
+					<div className="flex flex-col items-center justify-center py-12 text-center">
+						<img
+							src={EmptyStateWithdrawal}
+							alt="No transactions"
+							className="mx-auto h-16 w-16 max-w-[160px]"
+						/>
+						<p className="mt-4 font-medium text-base text-primary dark:text-[#6C7073]">
+							Looks like you don&apos;t have any transaction yet!
+						</p>
+					</div>
+				) : (
+					<>
+						{/* ===== MOBILE CARD LIST ===== */}
+						<div className="md:hidden">
+							<div className="divide-y divide-[#1B2722]/40">
 								{mappedTransactions.map((tx) => (
-									<tr
+									<button
 										key={tx.id}
-										className="cursor-pointer border-[#1B2722]/30 border-b transition-colors last:border-b-0 hover:bg-white/[0.02]"
+										type="button"
 										onClick={() => setSelectedTx(tx.original)}
+										className="flex w-full items-center gap-3 py-4 text-left transition-colors active:bg-white/[0.02]"
 									>
-										<td className="py-4 pr-4">
-											<div className="font-medium text-[15px] text-white">
-												{tx.date}
-											</div>
-											<div className="mt-0.5 text-[#6C7073] text-[13px]">
-												{tx.time}
-											</div>
-										</td>
-										<td className="max-w-[200px] truncate py-4 pr-4 font-medium text-[15px] text-white">
-											{tx.typeLabel}
-										</td>
-										<td className="py-4 pr-4 font-semibold text-[15px] text-white">
-											{tx.amountLabel}
-										</td>
-										<td className="py-4 pr-4">
+										{/* Icon Circle */}
+										<div
+											className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+												tx.isCredit ? "bg-[#D9F5D0]" : "bg-[#FFD9D4]"
+											}`}
+										>
+											<WalletIcon
+												width={20}
+												height={20}
+												className="text-[#4F7D42]"
+											/>
+										</div>
+
+										{/* Label + Date */}
+										<div className="min-w-0 flex-1">
+											<p className="truncate font-semibold text-[15px] text-white">
+												{tx.typeLabel}
+											</p>
+											<p className="mt-0.5 text-[#6C7073] text-[13px]">
+												{tx.date} <span className="mx-1">·</span> {tx.time}
+											</p>
+										</div>
+
+										{/* Amount + kebab */}
+										<div className="flex items-center gap-2">
 											<span
-												className={`inline-block min-w-[84px] rounded-full px-3 py-1.5 text-center font-semibold text-xs ${statusBadgeStyles[tx.statusColor]}`}
+												className={`font-semibold text-[15px] ${
+													tx.isCredit ? "text-[#23BF09]" : "text-[#EE201C]"
+												}`}
 											>
-												{tx.statusText}
+												{tx.isCredit ? "+" : "-"}
+												{tx.amountLabel.replace("-", "")}
 											</span>
-										</td>
-										<td className="py-4 text-right">
 											<button
 												type="button"
-												className="p-1 text-[#6C7073] transition-colors hover:text-white"
 												aria-label="Transaction actions"
 												onClick={(e) => {
 													e.stopPropagation();
 													setSelectedTx(tx.original);
 												}}
+												className="p-1 text-[#6C7073] transition-colors hover:text-white"
 											>
 												<MoreHorizontal className="h-5 w-5" />
 											</button>
-										</td>
-									</tr>
+										</div>
+									</button>
 								))}
-							</tbody>
-						</table>
-					)}
-				</div>
+							</div>
+						</div>
+
+						{/* ===== DESKTOP TABLE ===== */}
+						<div className="hidden md:block">
+							<div className="better-scrollbar max-w-full touch-pan-x overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+								<table className="min-w-[640px] w-full border-collapse text-left">
+									<thead>
+										<tr className="border-[#1B2722]/50 border-b font-semibold text-[#6C7073] text-[14px]">
+											<th className="w-[25%] pb-4 font-semibold">Date & Time</th>
+											<th className="w-[30%] pb-4 font-semibold">Type</th>
+											<th className="w-[20%] pb-4 font-semibold">Amount</th>
+											<th className="w-[20%] pb-4 font-semibold">Status</th>
+											<th className="w-[5%] pb-4 text-right font-semibold">
+												<span className="sr-only">Actions</span>
+											</th>
+										</tr>
+									</thead>
+									<tbody>
+										{mappedTransactions.map((tx) => (
+											<tr
+												key={tx.id}
+												className="cursor-pointer border-[#1B2722]/30 border-b transition-colors last:border-b-0 hover:bg-white/[0.02]"
+												onClick={() => setSelectedTx(tx.original)}
+											>
+												<td className="py-4 pr-4">
+													<div className="font-medium text-[15px] text-white">
+														{tx.date}
+													</div>
+													<div className="mt-0.5 text-[#6C7073] text-[13px]">
+														{tx.time}
+													</div>
+												</td>
+												<td className="max-w-[200px] truncate py-4 pr-4 font-medium text-[15px] text-white">
+													{tx.typeLabel}
+												</td>
+												<td className="py-4 pr-4 font-semibold text-[15px] text-white">
+													{tx.amountLabel}
+												</td>
+												<td className="py-4 pr-4">
+													<span
+														className={`inline-block min-w-[84px] rounded-full px-3 py-1.5 text-center font-semibold text-xs ${statusBadgeStyles[tx.statusColor]}`}
+													>
+														{tx.statusText}
+													</span>
+												</td>
+												<td className="py-4 text-right">
+													<button
+														type="button"
+														className="p-1 text-[#6C7073] transition-colors hover:text-white"
+														aria-label="Transaction actions"
+														onClick={(e) => {
+															e.stopPropagation();
+															setSelectedTx(tx.original);
+														}}
+													>
+														<MoreHorizontal className="h-5 w-5" />
+													</button>
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</>
+				)}
 			</div>
 
 			{selectedTx && (

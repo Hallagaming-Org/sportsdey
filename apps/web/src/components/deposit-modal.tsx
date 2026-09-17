@@ -12,8 +12,8 @@ import VerveIcon from "@/logos/verve.svg?react";
 import VisaIcon from "@/logos/visa.svg?react";
 import WalletIcon from "@/logos/wallet.svg?react";
 
-type DepositMethod = "card" | "direct_banking" | "bank_transfer" | "crypto";
-export type DepositProvider = "paystack" | "opay" | "kuda" | "palmpay";
+type DepositMethod =  "direct_banking" | "card" | "crypto";
+export type DepositProvider =  "opay" | "kuda" | "palmpay" | "paystack";
 
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000, 5000, 10000];
@@ -26,16 +26,15 @@ const CARD_PROVIDER_LOGOS = [
 
 const BANKS = [
 	{ key: "opay", name: "Opay", Icon: OpayIcon },
-	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
-	{ key: "kuda", name: "Kuda", Icon: KudaIcon },
 	{ key: "palmpay", name: "PalmPay", Icon: PalmPayLogo },
+	{ key: "kuda", name: "Kuda", Icon: KudaIcon },
+	{ key: "paystack", name: "Paystack", Icon: PaystackIcon },
 ];
 
-/** Order matches deposit Figma: Bank Transfer → Card → Crypto → Direct Banking */
 const BASE_METHOD_TABS: { key: DepositMethod; label: string }[] = [
-	{ key: "bank_transfer", label: "Bank Transfer" },
-	{ key: "card", label: "Card" },
 	{ key: "direct_banking", label: "Direct Banking" },
+	{ key: "card", label: "Card" },
+	{ key: "crypto", label: "Crypto" },
 ];
 
 type BankTransferDetails = {
@@ -86,7 +85,7 @@ export function DepositModal({
 	kudaDepositInstructions,
 }: DepositModalProps) {
 	const [activeMethod, setActiveMethod] =
-		useState<DepositMethod>("bank_transfer");
+		useState<DepositMethod>("direct_banking");
 	const [selectedBank, setSelectedBank] = useState<string | null>(null);
 	const [cardNumber, setCardNumber] = useState("");
 	const [expiry, setExpiry] = useState("");
@@ -108,11 +107,11 @@ export function DepositModal({
 
 	const selectedBankName = BANKS.find((b) => b.key === selectedBank)?.name;
 	const showNairaCheckout =
-		activeMethod !== "bank_transfer" && activeMethod !== "crypto";
+		activeMethod !== "direct_banking" && activeMethod !== "crypto";
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
-		if (activeMethod === "bank_transfer" || activeMethod === "crypto") {
+		if (activeMethod === "direct_banking" || activeMethod === "crypto") {
 			return;
 		}
 
