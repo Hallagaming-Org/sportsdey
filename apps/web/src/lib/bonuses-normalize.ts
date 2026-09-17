@@ -452,3 +452,21 @@ function asDateString(value: unknown): string | null {
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? value : null;
 }
+
+/** Assigned bonuses the Promotions page should surface (pending + active). */
+export function promotionsAssignedBonuses(bonuses: BonusCard[]): BonusCard[] {
+	return bonuses.filter(
+		(bonus) =>
+			bonus.kind === BONUS_KIND.ASSIGNMENT &&
+			(bonus.status === BONUS_STATUS.READY ||
+				bonus.status === BONUS_STATUS.ACTIVE),
+	);
+}
+
+export function activeAssignedBonuses(bonuses: BonusCard[]): BonusCard[] {
+	return bonuses.filter(
+		(bonus) =>
+			bonus.kind === BONUS_KIND.ASSIGNMENT &&
+			bonus.status === BONUS_STATUS.ACTIVE,
+	);
+}

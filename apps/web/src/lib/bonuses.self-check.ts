@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
+	activeAssignedBonuses,
 	normalizeBonusCampaign,
 	normalizeUserBonus,
+	promotionsAssignedBonuses,
 	resolveBonusAction,
 } from "./bonuses-normalize.ts";
 import {
@@ -128,5 +130,9 @@ assert.equal(
 assert.equal(BONUS_TYPE_DEFAULT, "welcome");
 assert.equal(isBonusCampaignType("welcome"), true);
 assert.equal(isBonusCampaignType("unknown"), false);
+
+assert.equal(promotionsAssignedBonuses([assignment, ready]).length, 2);
+assert.equal(activeAssignedBonuses([assignment, ready]).length, 1);
+assert.equal(promotionsAssignedBonuses([depositCampaign]).length, 0);
 
 console.log("bonuses.self-check: ok");

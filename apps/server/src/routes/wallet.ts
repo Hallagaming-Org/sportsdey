@@ -72,6 +72,18 @@ function paystackCustomerEmail(user: {
 	return `phone_${digits || "user"}@users.sportsdey.com`;
 }
 
+async function bonusBalanceNaira(
+	db: ReturnType<typeof drizzle<typeof schema>>,
+	userId: string,
+): Promise<number> {
+	const [row] = await db
+		.select({ balance: schema.gameWallet.balance })
+		.from(schema.gameWallet)
+		.where(eq(schema.gameWallet.userId, userId))
+		.limit(1);
+	return (row?.balance ?? 0) / 100;
+}
+
 const fundWalletRoute = createRoute({
 	method: "post",
 	path: "/fund",
@@ -797,6 +809,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 		const walletResponse = {
 			id: newWallet.id,
 			balance: newWallet.balance / 100,
+			bonusBalance: await bonusBalanceNaira(db, user.id),
 			createdAt: toWAT(newWallet.createdAt),
 			updatedAt: toWAT(newWallet.updatedAt),
 		};
@@ -813,6 +826,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 	const walletResponse = {
 		id: wallet.id,
 		balance: wallet.balance / 100,
+		bonusBalance: await bonusBalanceNaira(db, user.id),
 		createdAt: toWAT(wallet.createdAt),
 		updatedAt: toWAT(wallet.updatedAt),
 	};

@@ -14,7 +14,11 @@ export const WalletResponseSchema = z
 	.object({
 		id: z.string().openapi({ description: "Wallet ID" }),
 		balance: z.number().openapi({
-			description: "Wallet balance in Naira (stored as kobo internally)",
+			description: "Main wallet balance in Naira (withdrawable; stored as kobo internally)",
+		}),
+		bonusBalance: z.number().openapi({
+			description:
+				"Bonus / game-wallet balance in Naira (not withdrawable until wagering is complete)",
 		}),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),

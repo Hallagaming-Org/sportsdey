@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api";
-import { BONUS_API_ROUTE } from "@/lib/bonuses.constant";
+import { BONUS_API_ROUTE, BONUS_QUERY_KEY } from "@/lib/bonuses.constant";
+import type { QueryClient } from "@tanstack/react-query";
 import {
 	normalizeBonusCampaign,
 	normalizeUserBonus,
@@ -7,7 +8,13 @@ import {
 } from "@/lib/bonuses-normalize";
 
 export type { BonusActionKind, BonusCard, BonusKind, BonusStatus } from "@/lib/bonuses-normalize";
-export { normalizeBonusCampaign, normalizeUserBonus, resolveBonusAction } from "@/lib/bonuses-normalize";
+export {
+	activeAssignedBonuses,
+	normalizeBonusCampaign,
+	normalizeUserBonus,
+	promotionsAssignedBonuses,
+	resolveBonusAction,
+} from "@/lib/bonuses-normalize";
 
 export async function fetchPlayerBonuses(): Promise<BonusCard[]> {
 	const data = await apiRequest<Record<string, unknown>[]>(BONUS_API_ROUTE.LIST, {
@@ -56,4 +63,14 @@ export async function cancelPlayerBonus(payload: {
 		credentials: "include",
 		body: JSON.stringify({ userbonus_id: payload.userbonusId }),
 	});
+}
+
+export async function invalidateBonusAndWallet(
+	queryClient: QueryClient,
+): Promise<void> {
+	await Promise.all([
+		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.LIST }),
+		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.CAMPAIGNS }),
+		queryClient.invalidateQueries({ queryKey: ["wallet"] }),
+	]);
 }
