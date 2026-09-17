@@ -1,3 +1,9 @@
+import {
+	constrainSportsbookThreeColumnRows,
+	type DatabetLayoutConfig,
+	patchDatabetLayoutConfig,
+} from "./sportsbook-layout";
+
 export const SPORTSBOOK_CONTAINER_ID = "betting__container";
 
 /**
@@ -16,6 +22,21 @@ const SPORTSBOOK_HOST_CHROME_CSS = `
 [data-id="BreakpointProvider"] {
 	min-width: 0 !important;
 	max-width: 100% !important;
+	width: 100% !important;
+}
+[data-id="BreakpointProvider"] .flex {
+	min-width: 0;
+	max-width: 100%;
+}
+[data-id="BreakpointProvider"] .flex > * {
+	min-width: 0;
+}
+[data-id="BreakpointProvider"] .flex > [style*="320px"],
+[data-id="BreakpointProvider"] .flex > [class*="320px"] {
+	flex: 0 0 320px !important;
+	flex-shrink: 0 !important;
+	min-width: 320px !important;
+	max-width: 320px !important;
 }
 `;
 
@@ -32,14 +53,17 @@ export function installSportsbookHostChromeFix(host: HTMLElement): () => void {
 			style.textContent = SPORTSBOOK_HOST_CHROME_CSS;
 			root.appendChild(style);
 		}
+		constrainSportsbookThreeColumnRows(root);
 		if (observingRoot !== root) {
 			shadowObserver?.disconnect();
 			shadowObserver = new MutationObserver(() => {
 				if (!root.getElementById(SPORTSBOOK_HOST_CHROME_STYLE_ID)) {
 					apply();
+				} else {
+					constrainSportsbookThreeColumnRows(root);
 				}
 			});
-			shadowObserver.observe(root, { childList: true });
+			shadowObserver.observe(root, { childList: true, subtree: true });
 			observingRoot = root;
 		}
 	};
@@ -184,18 +208,6 @@ export type TopEventsOutsideWidgetProps = IDefaultWidgetProps & {
 	"with-sport-title"?: boolean;
 };
 
-type DatabetLayoutNode = {
-	breakpoint?: number;
-	flexSize?: string;
-	[key: string]: unknown;
-};
-
-type DatabetLayoutConfig = {
-	mobile?: DatabetLayoutNode;
-	tablet?: DatabetLayoutNode;
-	desktop?: DatabetLayoutNode;
-};
-
 export type BettingLoader = {
 	load: (
 		options: AppInitOptions,
@@ -216,27 +228,12 @@ export type BettingLoader = {
  * laptop at 100% zoom — after our sidebar and page margins — falls into
  * tablet and drops the inline Betslip column.
  *
- * Lower the thresholds to match Tailwind lg, and let 320px side columns
- * shrink instead of clipping Top Events / Hot Bundles.
+ * Keep those lower thresholds, but do not shrink the 320px Betslip column.
+ * Category pages use a 100% flex basis on the center column, which overflows
+ * the host; pin the sides and let the center fill remaining space instead.
  */
 export function patchDatabetLayoutForHostChrome() {
-	const layout = window.bettingLoader?.appConfig?.layoutConfig;
-	if (!layout) return;
-
-	if (layout.tablet) layout.tablet.breakpoint = 768;
-	if (layout.desktop) layout.desktop.breakpoint = 1024;
-
-	const visit = (node: unknown) => {
-		if (!node || typeof node !== "object") return;
-		const rec = node as DatabetLayoutNode;
-		if (rec.flexSize === "0 0 320px") {
-			rec.flexSize = "0 1 320px";
-		}
-		for (const value of Object.values(rec)) {
-			if (value && typeof value === "object") visit(value);
-		}
-	};
-	visit(layout.desktop);
+	patchDatabetLayoutConfig(window.bettingLoader?.appConfig?.layoutConfig);
 }
 
 declare global {
