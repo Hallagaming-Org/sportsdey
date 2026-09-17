@@ -11,7 +11,9 @@ import {
 	dispatchBettingInit,
 	getSportsbookBootstrapScript,
 	isSportsbookConfigured,
+	installSportsbookHostChromeFix,
 	loadSportsbookBootstrapScript,
+	patchDatabetLayoutForHostChrome,
 	SPORTSBOOK_CONTAINER_ID,
 	SPORTSBOOK_PREMATCH_SPLAT,
 } from "@/lib/sportsbook";
@@ -143,6 +145,12 @@ export function SportsbookPage() {
 	}, [isSessionLoading, session?.user, loadToken]);
 
 	useEffect(() => {
+		const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
+		if (!host) return;
+		return installSportsbookHostChromeFix(host);
+	}, []);
+
+	useEffect(() => {
 		const { pathname, search } = window.location;
 		if (!/%3A/i.test(pathname)) return;
 		try {
@@ -180,6 +188,7 @@ export function SportsbookPage() {
 					return;
 				}
 
+				patchDatabetLayoutForHostChrome();
 				window.bettingLoader.load(
 					buildAppInitOptions(token, isDarkTheme),
 					(bettingAPI) => {
@@ -256,8 +265,11 @@ export function SportsbookPage() {
 	}
 
 	return (
-		<div className="relative my-2 space-y-4">
-			<div id={SPORTSBOOK_CONTAINER_ID} className="min-h-[calc(100vh-200px)]" />
+		<div className="relative min-w-0 bg-transparent p-0">
+			<div
+				id={SPORTSBOOK_CONTAINER_ID}
+				className="min-h-[calc(100vh-200px)] min-w-0 w-full bg-transparent p-0"
+			/>
 			<SportsbookBetslip />
 
 			{isLoading && (

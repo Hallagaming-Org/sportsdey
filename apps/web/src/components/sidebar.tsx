@@ -14,14 +14,7 @@ import { useEffect, useState } from "react";
 import { FaHandshakeAngle } from "react-icons/fa6";
 import { toast } from "sonner";
 import { useCurrentSport } from "@/hooks/use-current-sport";
-import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
-import {
-	buildPredictionLaunchUrl,
-	exchangeSsoCode,
-	PredictionSsoError,
-	requestHandoffCode,
-} from "@/lib/prediction-market";
 import { cn } from "@/lib/utils";
 import { trackWebengageEvent } from "@/lib/webengage";
 import LiveSupport from "@/logos/LiveSupport";
@@ -36,6 +29,7 @@ import { sportsbookPrematchNavigateOptions } from "@/lib/sportsbook";
 import { useActiveTab } from "./active-tab-context";
 
 const THREE_X_THREE_SPORTSBOOK_PATH = "esports/live/football-esports";
+const PREDICTION_MARKET_URL = "https://prediction.sportsdey.com/";
 
 
 type MenuItem = {
@@ -64,8 +58,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const location = useLocation();
 	const search = (location.search || {}) as Record<string, any>;
 	const currentSport = useCurrentSport();
-	const { data: session, isPending: isSessionLoading } = useSession();
-	const [isPredictionLaunching, setIsPredictionLaunching] = useState(false);
 	// const [email, setEmail] = useState("");
 
 	const [activeOverride, setActiveOverride] = useState<string | null>(null);
@@ -175,67 +167,6 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 
 	const showComingSoon = (feature: string) => {
 		toast.info(`${feature} is coming soon!`);
-	};
-
-	/**
-	 * SSO into Prediction Market:
-	 *   /handoff/code -> GET /users/auth/sso -> open the app with the token.
-	 *
-	 * Nothing is stored on this origin — localStorage is partitioned per origin,
-	 * so only the Prediction Market app can persist the session it reads. The
-	 * tab never leaves about:blank until the SSO call returns 200 with a token,
-	 * so the user is never dropped there unauthenticated; on failure it closes.
-	 *
-	 * The tab itself is opened synchronously inside the click so the browser
-	 * keeps the user activation; opening it after the two awaits would be
-	 * blocked as a popup. It stays blank until the exchange succeeds.
-	 */
-	const launchPredictionMarket = async () => {
-		if (isSessionLoading || isPredictionLaunching) return;
-		if (!session?.user) {
-			navigate({
-				to: "/auth/phone-sign-in",
-				search: { returnTo: location.href, mode: "login" } as any,
-			});
-			return;
-		}
-
-		setActiveOverride("prediction");
-		setIsPredictionLaunching(true);
-
-		const predictionTab = window.open("about:blank", "_blank");
-		if (!predictionTab) {
-			setIsPredictionLaunching(false);
-			toast.error(
-				"Please allow pop-ups for this site to open Prediction Market.",
-			);
-			return;
-		}
-
-		try {
-			const { code, hashedClientId } = await requestHandoffCode();
-
-			// Blocks until the SSO endpoint answers; anything but 200 throws.
-			const { token } = await exchangeSsoCode(code, hashedClientId);
-
-			// The token is handed to the tab as ?sso_token=..; the Prediction
-			// Market app reads it, strips it, and stores the session itself.
-			const launchUrl = buildPredictionLaunchUrl(token);
-			if (predictionTab.closed) {
-				window.open(launchUrl, "_blank", "noopener");
-			} else {
-				predictionTab.location.replace(launchUrl);
-			}
-		} catch (error) {
-			predictionTab.close();
-			toast.error(
-				error instanceof PredictionSsoError
-					? error.message
-					: "Could not open Prediction Market. Please try again.",
-			);
-		} finally {
-			setIsPredictionLaunching(false);
-		}
 	};
 
 	// const handleSubscribe = (e: React.FormEvent) => {
@@ -402,7 +333,10 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Predictions Market",
 			icon: PredictionMarketIcon,
 			isActive: isItemActive("prediction", false),
-			onClick: launchPredictionMarket,
+			onClick: () => {
+				setActiveOverride("prediction");
+				window.open(PREDICTION_MARKET_URL, "_blank");
+			},
 		},
 		{
 			id: "news",

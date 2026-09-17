@@ -1,4 +1,62 @@
 export const SPORTSBOOK_CONTAINER_ID = "betting__container";
+
+/**
+ * DataBet paints its SPA shell with colorsPrimary2 (#000) and a 16px inset.
+ * That shell is inside the open shadow root — not the gray panels (secondary
+ * colors). Strip only the shell so the widget sits on the page background.
+ */
+const SPORTSBOOK_HOST_CHROME_STYLE_ID = "sportsdey-sportsbook-host-chrome";
+const SPORTSBOOK_HOST_CHROME_CSS = `
+.ft-b1_reg.bg-colorsPrimary2 {
+	background-color: transparent !important;
+}
+.ft-b1_reg.bg-colorsPrimary2 > .relative.flex.grow > .size-all-inherit {
+	padding: 0 !important;
+}
+[data-id="BreakpointProvider"] {
+	min-width: 0 !important;
+	max-width: 100% !important;
+}
+`;
+
+export function installSportsbookHostChromeFix(host: HTMLElement): () => void {
+	let shadowObserver: MutationObserver | null = null;
+	let observingRoot: ShadowRoot | null = null;
+
+	const apply = () => {
+		const root = host.shadowRoot;
+		if (!root) return;
+		if (!root.getElementById(SPORTSBOOK_HOST_CHROME_STYLE_ID)) {
+			const style = document.createElement("style");
+			style.id = SPORTSBOOK_HOST_CHROME_STYLE_ID;
+			style.textContent = SPORTSBOOK_HOST_CHROME_CSS;
+			root.appendChild(style);
+		}
+		if (observingRoot !== root) {
+			shadowObserver?.disconnect();
+			shadowObserver = new MutationObserver(() => {
+				if (!root.getElementById(SPORTSBOOK_HOST_CHROME_STYLE_ID)) {
+					apply();
+				}
+			});
+			shadowObserver.observe(root, { childList: true });
+			observingRoot = root;
+		}
+	};
+
+	apply();
+	const hostObserver = new MutationObserver(apply);
+	hostObserver.observe(host, { childList: true, subtree: true });
+	const retry = window.setInterval(apply, 300);
+	const stopRetry = window.setTimeout(() => window.clearInterval(retry), 20_000);
+
+	return () => {
+		hostObserver.disconnect();
+		shadowObserver?.disconnect();
+		window.clearInterval(retry);
+		window.clearTimeout(stopRetry);
+	};
+}
 export const SPORTSBOOK_BETSLIP_ID = "betting-betslip";
 export const SPORTSBOOK_BOOTSTRAP_SCRIPT_ID = "databet-spa-bootstrap-script";
 export const SPORTSBOOK_HEADER_OFFSET = 64;
@@ -126,6 +184,18 @@ export type TopEventsOutsideWidgetProps = IDefaultWidgetProps & {
 	"with-sport-title"?: boolean;
 };
 
+type DatabetLayoutNode = {
+	breakpoint?: number;
+	flexSize?: string;
+	[key: string]: unknown;
+};
+
+type DatabetLayoutConfig = {
+	mobile?: DatabetLayoutNode;
+	tablet?: DatabetLayoutNode;
+	desktop?: DatabetLayoutNode;
+};
+
 export type BettingLoader = {
 	load: (
 		options: AppInitOptions,
@@ -135,7 +205,39 @@ export type BettingLoader = {
 		options: AppInitOptions,
 		onLoad?: (bettingAPI: BettingAPI) => void,
 	) => void;
+	appConfig?: {
+		layoutConfig?: DatabetLayoutConfig;
+	};
 };
+
+/**
+ * DataBet picks mobile / tablet / desktop from the BreakpointProvider's
+ * clientWidth (not the window). Default desktop is 1440px, so a normal
+ * laptop at 100% zoom — after our sidebar and page margins — falls into
+ * tablet and drops the inline Betslip column.
+ *
+ * Lower the thresholds to match Tailwind lg, and let 320px side columns
+ * shrink instead of clipping Top Events / Hot Bundles.
+ */
+export function patchDatabetLayoutForHostChrome() {
+	const layout = window.bettingLoader?.appConfig?.layoutConfig;
+	if (!layout) return;
+
+	if (layout.tablet) layout.tablet.breakpoint = 768;
+	if (layout.desktop) layout.desktop.breakpoint = 1024;
+
+	const visit = (node: unknown) => {
+		if (!node || typeof node !== "object") return;
+		const rec = node as DatabetLayoutNode;
+		if (rec.flexSize === "0 0 320px") {
+			rec.flexSize = "0 1 320px";
+		}
+		for (const value of Object.values(rec)) {
+			if (value && typeof value === "object") visit(value);
+		}
+	};
+	visit(layout.desktop);
+}
 
 declare global {
 	interface Window {
