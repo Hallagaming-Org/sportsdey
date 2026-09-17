@@ -32,10 +32,12 @@ export function CustomBetslipFloatingButton({ isOpen }: { isOpen: boolean }) {
 
 	return (
 		<button
+			type="button"
+			aria-label="Open bet basket"
 			onClick={() => {
 				document.dispatchEvent(new CustomEvent("toggle-local-betslip"));
 			}}
-			className="fixed bottom-24 right-4 md:right-6 z-[999999] flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-xl transition-transform hover:scale-105"
+			className="fixed right-4 bottom-24 z-[999999] flex h-16 w-16 items-center justify-center rounded-full bg-accent text-white shadow-xl transition-transform hover:scale-105 lg:hidden"
 		>
 			<div className="relative flex flex-col items-center justify-center">
 				{itemCount > 0 ? (

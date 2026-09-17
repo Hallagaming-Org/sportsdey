@@ -293,11 +293,27 @@ body {
 }
 
 /* Sportsbook Layout Fixes */
+#betting__container,
+#betting__container > div,
+#betting__container iframe {
+	background: transparent !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	box-shadow: none !important;
+}
+
+#betting__container {
+	width: 100%;
+	min-width: 0;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
 #betting__container > div > div:nth-child(2) > div:first-child {
 	position: sticky !important;
 	top: 64px !important;
 	z-index: 40 !important;
-	background-color: var(--background);
+	background-color: transparent !important;
 }
 
 

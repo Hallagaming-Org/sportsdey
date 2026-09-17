@@ -217,6 +217,7 @@ app.use("*", async (c, next) => {
 		path.startsWith("/gamification/callback/") ||
 		path.startsWith("/bem/api/BonusEngine/") ||
 		path.startsWith("/opay/callback") ||
+		path.startsWith("/wallet/paystack/webhook") ||
 		path.startsWith("/kuda/webhook") ||
 		path.startsWith("/palmpay/webhook") ||
 		// Public server-to-server SSO exchange — authorized by code + token, not a session.

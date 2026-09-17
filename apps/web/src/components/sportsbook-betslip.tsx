@@ -175,17 +175,12 @@ const betslipStyleGetter: Record<
 		}
 
 		// ── Desktop ─────────────────────────────────────────────────────────────
-		// Sticky within its layout column, bottom-anchored feel via top offset
+		// DataBet's own desktop layout already paints the inline Betslip column
+		// inside the widget. Keep this host mount off-screen so it doesn't add
+		// a second column or steal width.
 		return {
 			style: {
-				position: "sticky",
-				top: HEADER_OFFSET_PX,
-				// Constrained width — must never stretch to full page width
-				width: BETSLIP_WIDTH_PX,
-				maxHeight: `calc(100dvh - ${HEADER_OFFSET_PX}px)`,
-				overflowY: "auto",
-				alignSelf: "flex-start",
-				zIndex: 40,
+				...PRE_MOUNT_STYLE,
 			},
 		};
 	},
@@ -258,20 +253,7 @@ const betslipStyleGetter: Record<
 		// ── Desktop ─────────────────────────────────────────────────────────────
 		return {
 			style: {
-				position: "fixed",
-				bottom: 0,
-				left: "50%",
-				opacity: isOpen ? 1 : 0,
-				transform: isOpen ? "translateX(-50%) translateY(0)" : "translateX(-50%) translateY(20px)",
-				pointerEvents: isOpen ? "auto" : "none",
-				width: BETSLIP_WIDTH_PX,
-				maxWidth: "calc(100vw - 32px)",
-				maxHeight: isOpen
-					? `calc(100dvh - ${HEADER_OFFSET_PX}px)`
-					: "56px",
-				overflowY: "auto",
-				zIndex: 999999,
-				transition: "opacity 0.3s ease, transform 0.3s ease, max-height 0.3s ease",
+				...PRE_MOUNT_STYLE,
 			},
 		};
 	},
@@ -383,7 +365,9 @@ export function SportsbookBetslip() {
 					<island-betslip-widget></island-betslip-widget>
 				)}
 			</div>
-			<CustomBetslipFloatingButton isOpen={localIsOpen} />
+			<CustomBetslipFloatingButton
+				isOpen={localIsOpen || state?.breakpoint === "desktop"}
+			/>
 		</>
 	);
 }

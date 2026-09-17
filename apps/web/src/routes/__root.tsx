@@ -154,6 +154,7 @@ function RootDocument() {
 	const isGameRoute =
 		location.pathname.startsWith("/game/") ||
 		location.pathname.startsWith("/play/");
+	const isSportsbookRoute = location.pathname.startsWith("/sportsbetting");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
@@ -206,6 +207,8 @@ function RootDocument() {
 		"/bonuses/",
 		"/loyalty",
 		"/loyalty/",
+		"/tournaments",
+		"/tournaments/",
 		"/bet-history",
 		"/bet-history/$ticketId",
 	]);
@@ -293,7 +296,10 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 											<main
 												id="app-main-content"
 												className={cn(
-													"no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain",
+													"no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-y-contain",
+													isSportsbookRoute
+														? "overflow-x-auto"
+														: "overflow-x-hidden",
 													isGameRoute && "flex flex-col",
 												)}
 											>
@@ -301,9 +307,16 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 													className={cn(
 														isGameRoute
 															? ""
-															: "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
+															: cn(
+																	"mx-4 grid py-4",
+																	isSportsbookRoute
+																		? "gap-3 lg:mx-4 xl:mx-6"
+																		: "md:gap-8 lg:mx-[104px]",
+																),
 														!isGameRoute && shouldShowSidebar
-															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
+															? isSportsbookRoute
+																? "lg:grid-cols-[220px_minmax(0,1fr)]"
+																: "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
 															: !isGameRoute
 																? "lg:grid-cols-1"
 																: "",
@@ -311,7 +324,12 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 													)}
 												>
 													{!isGameRoute && shouldShowSidebar && (
-														<aside className="no-scrollbar hidden pr-4 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6">
+														<aside
+															className={cn(
+																"no-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6",
+																isSportsbookRoute ? "pr-2" : "pr-4",
+															)}
+														>
 															<Sidebar />
 														</aside>
 													)}
