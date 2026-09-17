@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
 	d1ScorpioFallbackGames,
+	dedupeLobbyGamesByName,
 	excludeScorpioStoredGames,
 	mergeLobbyGames,
 	parseScorpioStoredCode,
@@ -156,5 +157,70 @@ describe("mergeLobbyGames", () => {
 		const kept = excludeScorpioStoredGames(rows);
 		assert.equal(kept.length, 1);
 		assert.equal(kept[0]?.name, "10 Blazing Treasures");
+	});
+
+	it("does not hide live Scorpio when Thndr uses the same short code", () => {
+		const thndr = classic({ name: "Blackjack", code: "blackjack" });
+		const live = scorpio({
+			name: "Blackjack",
+			code: "blackjack",
+			providerId: 9,
+		});
+		const merged = mergeLobbyGames([thndr], [live]);
+		assert.equal(merged.length, 2);
+		assert.equal(
+			merged.some((g) => g.code === "blackjack" && !("provider" in g)),
+			true,
+		);
+		assert.equal(
+			merged.some(
+				(g) =>
+					g.code === "blackjack" && "provider" in g && g.provider === "scorpio",
+			),
+			true,
+		);
+	});
+
+	it("drops unprefixed D1 copies so Scorpio is not GIS-launched", () => {
+		const d1Copy = classic({ name: "10 Bulky Fruits", code: "619" });
+		const live = scorpio({
+			name: "10 Bulky Fruits",
+			code: "619",
+			providerId: 16,
+		});
+		const merged = mergeLobbyGames([d1Copy], [live]);
+		assert.equal(merged.length, 1);
+		const tile = merged[0];
+		assert.ok(tile);
+		assert.equal("provider" in tile && tile.provider, "scorpio");
+	});
+});
+
+describe("dedupeLobbyGamesByName", () => {
+	it("prefers Scorpio Aviator over a GIS uuid with the same name", () => {
+		const gis = classic({
+			name: "Aviator",
+			code: "4bc0d67409ba4af3bdab71293794872d",
+		});
+		const live = scorpio({
+			name: "Aviator",
+			code: "aviator",
+			providerId: 1,
+		});
+		const [tile] = dedupeLobbyGamesByName([gis, live]);
+		assert.ok(tile);
+		assert.equal("provider" in tile && tile.provider, "scorpio");
+		assert.equal(tile.code, "aviator");
+	});
+
+	it("prefers in-house Lagos Rush over a GIS duplicate name", () => {
+		const original = classic({ name: "Lagos Rush", code: "LAGOSRUSH" });
+		const gis = classic({
+			name: "Lagos Rush",
+			code: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		});
+		const [tile] = dedupeLobbyGamesByName([gis, original]);
+		assert.ok(tile);
+		assert.equal(tile.code, "LAGOSRUSH");
 	});
 });

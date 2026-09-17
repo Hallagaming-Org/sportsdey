@@ -124,6 +124,8 @@ export const userRelations = relations(user, ({ many }) => ({
 	slotitegrationTransactions: many(slotitegrationTransactions),
 	scorpioPlayers: many(scorpioPlayers),
 	scorpioTransactions: many(scorpioTransactions),
+	swipegamesSessions: many(swipegamesSessions),
+	swipegamesTransactions: many(swipegamesTransactions),
 	kycRecords: many(kyc),
 	notifications: many(userNotification),
 }));
@@ -811,6 +813,78 @@ export const slotitegrationTransactionsRelations = relations(
 	({ one }) => ({
 		user: one(user, {
 			fields: [slotitegrationTransactions.userId],
+			references: [user.id],
+		}),
+	}),
+);
+
+export const swipegamesSessions = sqliteTable(
+	"swipegames_sessions",
+	{
+		sessionId: text("session_id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		gameId: text("game_id").notNull(),
+		gsId: text("gs_id"),
+		currency: text("currency").notNull().default("NGN"),
+		demo: integer("demo", { mode: "boolean" }).default(false).notNull(),
+		status: text("status").default("active").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [index("swipegames_session_userId_idx").on(table.userId)],
+);
+
+export const swipegamesSessionsRelations = relations(
+	swipegamesSessions,
+	({ one }) => ({
+		user: one(user, {
+			fields: [swipegamesSessions.userId],
+			references: [user.id],
+		}),
+	}),
+);
+
+export const swipegamesTransactions = sqliteTable(
+	"swipegames_transactions",
+	{
+		id: text("id").primaryKey(),
+		providerTxId: text("provider_tx_id").notNull().unique(),
+		origProviderTxId: text("orig_provider_tx_id"),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		type: text("type").notNull(),
+		playType: text("play_type"),
+		amount: integer("amount").notNull(),
+		balanceBefore: integer("balance_before"),
+		balanceAfter: integer("balance_after"),
+		roundId: text("round_id").notNull(),
+		sessionId: text("session_id").notNull(),
+		frId: text("fr_id"),
+		gameId: text("game_id").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("swipegames_tx_userId_idx").on(table.userId),
+		index("swipegames_tx_sessionId_idx").on(table.sessionId),
+		index("swipegames_tx_origProviderTxId_idx").on(table.origProviderTxId),
+	],
+);
+
+export const swipegamesTransactionsRelations = relations(
+	swipegamesTransactions,
+	({ one }) => ({
+		user: one(user, {
+			fields: [swipegamesTransactions.userId],
 			references: [user.id],
 		}),
 	}),

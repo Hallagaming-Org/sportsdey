@@ -1,0 +1,554 @@
+openapi: 3.0.3
+info:
+  title: Swipe Games Integration Adapter Public API
+  description: |
+    This is the Integration Adapter API for Swipe Games Public API.
+    It is used to make reverse calls to integrations working through Public API.
+    Please implement this API on your side to support Swipe Games Public API.
+
+  version: 1.10.2
+
+paths:
+  /balance:
+    get:
+      summary: Get balance
+      tags:
+        - Reverse Calls
+      description: |
+        This endpoint is used to get the player's balance.
+        Please make sure that this endpoint responds as quickly as possible,
+        so player's experience is not affected.
+
+      parameters:
+        - name: X-REQUEST-SIGN
+          in: header
+          required: true
+          description: Request signature (see [Verifying Request Signatures](/swipegames-integration#verifying-request-signatures) for more details)
+          schema:
+            type: string
+        - name: sessionID
+          in: query
+          required: true
+          description: |
+            Session ID (external). This is your own Session ID, the exact value you provided in the `sessionID` field of the `Create New Game` call.
+            We store it and pass it back in all reverse calls to you.
+
+            Note: this is NOT the `gsID` (Game Session ID) returned by `Create New Game`. `gsID` is Swipe Games's own identifier and is never sent in reverse calls.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+          schema:
+            type: string
+
+      responses:
+        200:
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceResponse"
+
+        401:
+          description: Wrong signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+
+        404:
+          description: User with this game session ID not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+
+        500:
+          description: Server error occurred
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+  /bet:
+    post:
+      tags:
+        - Reverse Calls
+      summary: Bet
+      description: |
+        This endpoint is used to place a bet in the game.
+        Every time player places a bet, we send a request to this endpoint and wait for the answer (**sync request**).
+
+        Please make sure that this endpoint responds as quickly as possible,
+        so player's experience is not affected.
+
+        In case we receive not 200 (OK) response or 5 seconds timeout we will send following `refund request.
+      parameters:
+        - name: X-REQUEST-SIGN
+          in: header
+          required: true
+          description: Request signature (see [Verifying Request Signatures](/swipegames-integration#verifying-request-signatures) for more details)
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        description: Request body is sent in [JSON Canonical Form](/authn#json-canonical-form)
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BetRequest"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BetResponse"
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        401:
+          description: Wrong signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        404:
+          description: User with this game session ID not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        500:
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+
+  /win:
+    post:
+      tags:
+        - Reverse Calls
+      summary: Win
+      description: |
+        This endpoint is used to place a win in the game.
+
+        Every time player wins, or round ended without a win (in this case amount is 0),
+        we send a request to this endpoint and wait for the answer. Wait time is 5 seconds.
+
+        After timeout or any error this request will be retrying in the background until we receive 200(OK) response.
+      parameters:
+        - name: X-REQUEST-SIGN
+          in: header
+          required: true
+          description: Request signature (see [Verifying Request Signatures](/swipegames-integration#verifying-request-signatures) for more details)
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        description: Request body is sent in [JSON Canonical Form](/authn#json-canonical-form)
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WinRequest"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WinResponse"
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        401:
+          description: Wrong signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        404:
+          description: User with this game session ID not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        500:
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+
+  /refund:
+    post:
+      tags:
+        - Reverse Calls
+      summary: Refund
+      description: |
+        This endpoint is used to place a refund for bet or win action.
+        We send refund to the client side in case of Bet 500 error or timeout, also
+        in case when player cancels the game.
+
+        After timeout or any error this request will be retrying until we receive 200(OK) response.
+      parameters:
+        - name: X-REQUEST-SIGN
+          in: header
+          required: true
+          description: Request signature (see [Verifying Request Signatures](/swipegames-integration#verifying-request-signatures) for more details)
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        description: Request body is sent in [JSON Canonical Form](/authn#json-canonical-form)
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRequest"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        401:
+          description: Wrong signature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        404:
+          description: User with this game session ID not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+        500:
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithCodeAndAction"
+
+components:
+  schemas:
+    ErrorResponseWithCodeAndAction:
+      description: |
+        Error response for Swipe Games Integration Adapter Public API. In additional to the common error response,
+        it contains an action field that describes the required client action (could be omit). If error code is provided in additional
+        client will handle it accordingly and with priority over action.
+        You can provide either message or message and code. Code always has
+        priority over message when both are provided. It means if you provide code, the client will handle it accordingly with some localized messaage,
+        related to the code. If you provide only message, the client will show it to the player as is.
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          description: A brief description of the error in English. Could be shown to the player.
+          type: string
+        details:
+          description: Technical details for the error. Could be used for debugging, should not be shown to the player.
+          type: string
+        code:
+          description: Error code. Could be handled by client accordingly (with localized message and related action).
+          type: string
+          enum:
+            - game_not_found
+            - currency_not_supported
+            - locale_not_supported
+            - account_blocked
+            - bet_limit
+            - loss_limit
+            - time_limit
+            - insufficient_funds
+            - session_expired
+            - session_not_found
+            - client_connection_error
+        action:
+          description: |
+            Required client action.
+            - `refresh` - shows a refresh button to the player. Player cannot continue without refreshing the game page.
+                 It's useful when the game session expires or the game is not available anymore. Once page is refreshed,
+                 the game will be reloaded and the player can continue playing. This might not work when games aren't embedded
+                 in the casino, but are opened in a new tab or window, since it will reopen the game again.
+          type: string
+          enum:
+            - "refresh"
+        actionData:
+          description: |
+            Client action related data.
+            You can pass additional data to the client action. Not all actions require this field.
+          type: string
+
+    BalanceResponse:
+      type: object
+      required:
+        - balance
+      properties:
+        balance:
+          description: |
+            The player's balance in selected currency **main** units (**not cents**).
+            Currency selected by the client during the `Create New Game` call.
+            Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+    BetRequest:
+      type: object
+      required:
+        - type
+        - sessionID
+        - amount
+        - txID
+        - roundID
+      properties:
+        type:
+          description: |
+            The type of the bet.
+            - `regular` type means regular bet,
+            - `free` type means free bet (see Free Rounds section).
+          type: string
+          enum:
+            - regular
+            - free
+          example: regular
+        sessionID:
+          type: string
+          description: |
+            Session ID (external). This is your own Session ID, the exact value you provided in the `sessionID` field of the `Create New Game` call.
+            It is NOT the `gsID` (Game Session ID) returned by `Create New Game`, which is Swipe Games's own identifier and is never sent in reverse calls.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        amount:
+          description: |
+            The amount of the bet in currency **main** units (**not cents**).
+            Currency selected by the client during the `Create New Game` call.
+            Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+        txID:
+          description: |
+            Globally unique identifier (UUID v4) for the bet transaction on Swipe Games' side.
+            Must be used as an idempotency key on your side.
+            Uniqueness is guaranteed by Swipe Games for a rolling 3-month window.
+            For uniqueness guarantees beyond 3 months, use the composite key (`txID` + `roundID`).
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "c27ccade-5a45-4157-a85f-7d023a689ea5"
+        roundID:
+          description: |
+            Non unique ID for the round (internal) on Swipe Games' side.
+            Could be the same for different games.
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "b78e42f8-2041-482d-9c4b-f2ca79fc75e3"
+        frID:
+          description: |
+            Free Rounds ID (external).
+            This field is provided only for free rounds bets (where `type` is `free`).
+          type: string
+          example: "some_external_free_rounds_id"
+
+    BetResponse:
+      type: object
+      required:
+        - balance
+        - txID
+      properties:
+        balance:
+          description: |
+            The player's balance in selected currency **main** units (note: not cents) after the bet is applied.
+            Currency selected by the client during the `Create New Game` call.
+            Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+        txID:
+          description: Unique ID for the bet on your side. This is required for further tracking/debugging purposes.
+          type: string
+          example: "your_txn_123"
+
+    WinRequest:
+      type: object
+      required:
+        - type
+        - sessionID
+        - amount
+        - txID
+        - roundID
+      properties:
+        type:
+          description: |
+            The type of the win.
+            - `regular` type means regular win,
+            - `free` type means free win (see Free Rounds section).
+          type: string
+          enum:
+            - regular
+            - free
+          example: regular
+        sessionID:
+          type: string
+          description: |
+            Session ID (external). This is your own Session ID, the exact value you provided in the `sessionID` field of the `Create New Game` call.
+            It is NOT the `gsID` (Game Session ID) returned by `Create New Game`, which is Swipe Games's own identifier and is never sent in reverse calls.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        amount:
+          description: |
+            The amount of the win in currency **main** units (note: not cents). Currency selected by the client during the
+            `Create New Game` call. Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+        txID:
+          description: |
+            Globally unique identifier (UUID v4) for the win transaction on Swipe Games' side.
+            Must be used as an idempotency key on your side.
+            Uniqueness is guaranteed by Swipe Games for a rolling 3-month window.
+            For uniqueness guarantees beyond 3 months, use the composite key (`txID` + `roundID`).
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "c27ccade-5a45-4157-a85f-7d023a689ea5"
+        roundID:
+          description: |
+            Non unique ID for the round (internal) on Swipe Games' side.
+            Could be the same for different games.
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "b78e42f8-2041-482d-9c4b-f2ca79fc75e3"
+        frID:
+          description: |
+            Free Rounds ID (external).
+            This field is provided only for free rounds wins (where `type` is `free`),
+            during bonus balance withdrawal process (type is `regular`).
+          type: string
+          example: "some_external_free_rounds_id"
+
+    WinResponse:
+      type: object
+      required:
+        - balance
+        - txID
+      properties:
+        balance:
+          description: |
+            The player's balance in selected currency **main** units (note: not cents) after the win is applied.
+            Currency selected by the client during the `Create New Game` call.
+            Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+        txID:
+          description: Unique ID for the win on your side. This is required for further tracking/debugging purposes.
+          type: string
+          example: "some_external_win_tx_id"
+
+    RefundRequest:
+      type: object
+      required:
+        - sessionID
+        - txID
+        - origTxID
+        - amount
+      properties:
+        sessionID:
+          type: string
+          description: |
+            Session ID (external). This is your own Session ID, the exact value you provided in the `sessionID` field of the `Create New Game` call.
+            It is NOT the `gsID` (Game Session ID) returned by `Create New Game`, which is Swipe Games's own identifier and is never sent in reverse calls.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        txID:
+          description: |
+            Globally unique identifier (UUID v4) for the refund transaction on Swipe Games' side.
+            Must be used as an idempotency key on your side.
+            Uniqueness is guaranteed by Swipe Games for a rolling 3-month window.
+            For uniqueness guarantees beyond 3 months, use the composite key (`txID` + `roundID`).
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "c27ccade-5a45-4157-a85f-7d023a689ea5"
+        origTxID:
+          description: |
+            Original transaction ID (internal) on Swipe Games' side.
+            This is the ID of the transaction that should be refunded.
+            In some cases this original transaction ID might be not recorded on your side (timeout, server side error, etc).
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "c27ccade-5a45-4157-a85f-7d023a689ea5"
+        roundID:
+          description: |
+            Non unique ID for the round (internal) on Swipe Games' side.
+            Could be the same for different games.
+            Added in version 1.5.0. This field is optional for backward compatibility.
+          type: string
+          format: uuid
+          x-go-type: uuid.UUID
+          x-go-type-import:
+            name: uuid
+            path: github.com/google/uuid
+          example: "b78e42f8-2041-482d-9c4b-f2ca79fc75e3"
+        amount:
+          description: |
+            The amount of the refund in currency **main** units (note: not cents).
+            Currency selected by the client during the `Create New Game` call.
+            Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+            Refunds are always done for the whole bet amount.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+
+    RefundResponse:
+      type: object
+      required:
+        - balance
+        - txID
+      properties:
+        balance:
+          description: |
+            The user's balance in selected currency **main** units (note: not cents) after the refund is applied.
+            Currency selected by the client during the `Create New Game` call.
+            Fiat currencies carry **up to** 2 decimal places; some (e.g. `JPY`, `KRW`, `VND`) carry none.
+          type: string
+          pattern: '^(0|[1-9]\d*)(\.\d+)?$'
+          example: "100.10"
+        txID:
+          description: Unique ID for the refund on your side. This is required for further tracking/debugging purposes.
+          type: string
+          example: "some_external_refund_tx_id"

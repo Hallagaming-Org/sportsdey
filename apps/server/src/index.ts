@@ -211,6 +211,14 @@ app.use("*", async (c, next) => {
 		path.startsWith("/account/") ||
 		path.startsWith("/scorpio/callback") ||
 		path.startsWith("/api/scorpio/callback") ||
+		path.startsWith("/swipegames/balance") ||
+		path.startsWith("/swipegames/bet") ||
+		path.startsWith("/swipegames/win") ||
+		path.startsWith("/swipegames/refund") ||
+		path.startsWith("/api/swipegames/balance") ||
+		path.startsWith("/api/swipegames/bet") ||
+		path.startsWith("/api/swipegames/win") ||
+		path.startsWith("/api/swipegames/refund") ||
 		path.startsWith("/webhooks/") ||
 		path.startsWith("/admin") ||
 		path.startsWith("/bonus-engine/callback/") ||

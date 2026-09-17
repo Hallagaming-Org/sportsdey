@@ -19,6 +19,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import {
+	friendlyCasinoLaunchError,
+	isPlayerInsufficientFundsError,
+} from "@/lib/casino-launch-error";
+import {
 	CLASSIC_CATEGORIES,
 	CLASSIC_CATEGORY_EMOJIS,
 	CLASSIC_CATEGORY_LABELS,
@@ -32,6 +36,7 @@ import {
 	filterClassicGames,
 	isSlotegratorLobbyGame,
 	launchClassicGame,
+	popularLobbyGames,
 	resolveKnownLobbyImage,
 } from "@/lib/classic-lobby";
 import {
@@ -49,6 +54,12 @@ import {
 	launchScorpioGame,
 	type ScorpioLobbyGame,
 } from "@/lib/scorpio-catalog";
+import {
+	fetchSwipeGamesLobbyGames,
+	isSwipeGamesGame,
+	launchSwipeGamesGame,
+	type SwipeGamesLobbyGame,
+} from "@/lib/swipegames-catalog";
 import { cn } from "@/lib/utils";
 import FilerAToZ from "@/logos/FilerAToZ";
 
@@ -68,7 +79,7 @@ export const Route = createFileRoute("/games")({
 	}),
 });
 
-type LobbyGame = ScorpioLobbyGame | ClassicLobbyGame;
+type LobbyGame = ScorpioLobbyGame | ClassicLobbyGame | SwipeGamesLobbyGame;
 
 const DEFAULT_GRADIENT =
 	"linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460)";
@@ -166,6 +177,14 @@ function GamesPage() {
 		retry: 1,
 	});
 
+	const swipegamesQuery = useQuery<SwipeGamesLobbyGame[]>({
+		queryKey: ["swipegames-games"],
+		enabled: !isSessionLoading,
+		queryFn: fetchSwipeGamesLobbyGames,
+		staleTime: 60_000,
+		retry: 1,
+	});
+
 	const classicGames = classicQuery.data ?? [];
 	const scorpioGames = useMemo(
 		() =>
@@ -176,9 +195,11 @@ function GamesPage() {
 		[scorpioQuery.data, classicQuery.data],
 	);
 
+	const swipegamesGames = swipegamesQuery.data ?? [];
+
 	const allGames = useMemo(
-		() => mergeLobbyGames(classicGames, scorpioGames),
-		[classicGames, scorpioGames],
+		() => [...mergeLobbyGames(classicGames, scorpioGames), ...swipegamesGames],
+		[classicGames, scorpioGames, swipegamesGames],
 	);
 
 	const allGamesVisible = useMemo(
@@ -188,17 +209,26 @@ function GamesPage() {
 
 	const isLoading =
 		isSessionLoading ||
-		((classicQuery.isLoading || scorpioQuery.isLoading) &&
+		((classicQuery.isLoading ||
+			scorpioQuery.isLoading ||
+			swipegamesQuery.isLoading) &&
 			allGames.length === 0);
-	const isFetching = classicQuery.isFetching || scorpioQuery.isFetching;
+	const isFetching =
+		classicQuery.isFetching ||
+		scorpioQuery.isFetching ||
+		swipegamesQuery.isFetching;
 	const error =
-		classicQuery.isError && scorpioQuery.isError && allGames.length === 0
+		classicQuery.isError &&
+		scorpioQuery.isError &&
+		swipegamesQuery.isError &&
+		allGames.length === 0
 			? (classicQuery.error ?? scorpioQuery.error)
 			: null;
 
 	const refetch = () => {
 		void classicQuery.refetch();
 		void scorpioQuery.refetch();
+		void swipegamesQuery.refetch();
 	};
 
 	const categoryTabs = useMemo(
@@ -227,12 +257,32 @@ function GamesPage() {
 			const scorpioCount = scorpioGames.filter((g) =>
 				scorpioMatchesCategory(g, slug),
 			).length;
-			counts[slug] = (counts[slug] ?? 0) + scorpioCount;
+			const swipeCount =
+				slug === "slots"
+					? swipegamesGames.filter((g) => g.enabled).length
+					: 0;
+			counts[slug] = (counts[slug] ?? 0) + scorpioCount + swipeCount;
 		}
+		counts.popular = popularLobbyGames(
+			excludeScorpioStoredGames(classicGames),
+			scorpioGames,
+		).length;
 		return counts;
-	}, [classicGames, scorpioGames]);
+	}, [classicGames, scorpioGames, swipegamesGames]);
 
 	const filteredGames = useMemo(() => {
+		if (selectedCategory === "popular") {
+			let popular = popularLobbyGames(
+				excludeScorpioStoredGames(classicGames),
+				scorpioGames,
+			);
+			if (search) {
+				const q = search.toLowerCase();
+				popular = popular.filter((g) => g.name.toLowerCase().includes(q));
+			}
+			return popular;
+		}
+
 		const classicFiltered = filterClassicGames(
 			classicGames,
 			selectedCategory,
@@ -266,8 +316,30 @@ function GamesPage() {
 			? scorpioFiltered.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code))
 			: scorpioFiltered;
 
-		return mergeLobbyGames(visibleClassicFiltered, visibleScorpioFiltered);
-	}, [classicGames, scorpioGames, selectedCategory, search]);
+		let swipeFiltered = swipegamesGames.filter((g) => g.enabled);
+		if (
+			selectedCategory &&
+			selectedCategory !== "slots" &&
+			selectedCategory !== "popular"
+		) {
+			swipeFiltered = [];
+		} else if (selectedCategory === "popular") {
+			swipeFiltered = [];
+		}
+		if (search) {
+			const q = search.toLowerCase();
+			swipeFiltered = swipeFiltered.filter(
+				(g) =>
+					g.name.toLowerCase().includes(q) ||
+					g.code.toLowerCase().includes(q),
+			);
+		}
+
+		return [
+			...mergeLobbyGames(visibleClassicFiltered, visibleScorpioFiltered),
+			...swipeFiltered,
+		];
+	}, [classicGames, scorpioGames, swipegamesGames, selectedCategory, search]);
 
 	const sortedGames = useMemo(() => {
 		const list = [...filteredGames];
@@ -336,7 +408,8 @@ function GamesPage() {
 	};
 
 	const supportsDualLaunch = (game: LobbyGame) =>
-		!isScorpioGame(game) && isSlotegratorLobbyGame(game);
+		isSwipeGamesGame(game) ||
+		(!isScorpioGame(game) && isSlotegratorLobbyGame(game));
 
 	const handleGameLaunch = async (
 		game: LobbyGame,
@@ -344,6 +417,7 @@ function GamesPage() {
 	) => {
 		const needsAuth =
 			isScorpioGame(game) ||
+			isSwipeGamesGame(game) ||
 			parseScorpioStoredCode(game.code) != null ||
 			mode === "real";
 		if (needsAuth && !session?.user) {
@@ -371,6 +445,19 @@ function GamesPage() {
 						category: selectedCategory || undefined,
 					},
 					state: { gameUrl, casinoProvider: "scorpio" } as never,
+				});
+			} else if (isSwipeGamesGame(game)) {
+				gameUrl = await launchSwipeGamesGame({
+					gameId: game.code,
+					mode,
+				});
+				navigate({
+					to: "/game/$gameId",
+					params: { gameId: game.code },
+					search: {
+						category: selectedCategory || undefined,
+					},
+					state: { gameUrl, casinoProvider: "swipegames" } as never,
 				});
 			} else {
 				const stored = parseScorpioStoredCode(game.code);
@@ -401,7 +488,8 @@ function GamesPage() {
 						state: { gameUrl, casinoProvider: "classic" } as never,
 					});
 				}
-			}		} catch (err) {
+			}
+		} catch (err) {
 			const status =
 				err instanceof ApiError
 					? err.status
@@ -421,18 +509,11 @@ function GamesPage() {
 				goSignIn();
 				return;
 			}
-			if (/insufficient|not enough|balance/i.test(message)) {
+			if (isPlayerInsufficientFundsError(message, status)) {
 				setShowBalanceModal(true);
 				return;
 			}
-			const friendly = /demo url|does not support demo|demo mode/i.test(message)
-				? "Demo is not available for this game. Try Play Now."
-				: /immediate_exit|could not start|closed the session|zero limits/i.test(
-							message,
-						)
-					? "This game is not playable yet on our Slotegrator contract. Try another title or provider."
-					: message;
-			setLaunchError(friendly);
+			setLaunchError(friendlyCasinoLaunchError(message));
 		} finally {
 			setLoadingGame(null);
 		}
@@ -498,7 +579,7 @@ function GamesPage() {
 		const image = resolveKnownLobbyImage(game);
 		const fallback =
 			"fallbackImageUrl" in game ? (game.fallbackImageUrl ?? null) : null;
-		if (!isScorpioGame(game)) {
+		if (!isScorpioGame(game) && !isSwipeGamesGame(game)) {
 			const known = CLASSIC_KNOWN_GAMES[game.code];
 			return {
 				name: game.name,

@@ -1,11 +1,13 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
 import { canonicalLobbySlug } from "@/lib/lobby-categories";
+import { CLASSIC_THUNDR_CODES } from "@/lib/classic-lobby-codes";
 import {
-	CLASSIC_HIDDEN_FROM_ALL_CODES,
-	CLASSIC_THUNDR_CODES,
-} from "@/lib/classic-lobby-codes";
-import { isScorpioStoredCode } from "@/lib/lobby-games";
+	dedupeLobbyGamesByName,
+	isScorpioStoredCode,
+	mergeLobbyGames,
+} from "@/lib/lobby-games";
+import type { ScorpioLobbyGame } from "@/lib/scorpio-catalog";
 import { resolveServerUrl } from "@/lib/server-url";
 import BlackjackLogo from "@/logos/blackjack.svg?react";
 import BlocksLogo from "@/logos/blocks.svg?react";
@@ -338,6 +340,22 @@ export function getUniquePopularGames(
 	limit: number,
 ): ClassicLobbyGame[] {
 	return pickGamesByOrderedNames(games, POPULAR_GAME_NAMES, limit);
+}
+
+/**
+ * Popular / Hot Casino tiles: merge catalogs, then pick HOT names while
+ * preferring in-house originals and Scorpio over GIS uuid duplicates.
+ */
+export function popularLobbyGames(
+	classic: ClassicLobbyGame[],
+	scorpio: ScorpioLobbyGame[],
+	limit: number = Number.POSITIVE_INFINITY,
+) {
+	return pickGamesByOrderedNames(
+		dedupeLobbyGamesByName(mergeLobbyGames(classic, scorpio)),
+		HOT_CASINO_GAME_NAMES,
+		limit,
+	);
 }
 
 /** Query params already supported by `GET /games`. */

@@ -4,6 +4,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { friendlyCasinoLaunchError } from "@/lib/casino-launch-error";
 import {
 	fetchScorpioLobbyGames,
 	launchScorpioGame,
@@ -91,7 +92,7 @@ function PlayGamePage() {
 					return;
 				}
 				if (isMounted) {
-					setError(message);
+					setError(friendlyCasinoLaunchError(message));
 				}
 			}
 		};

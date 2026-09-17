@@ -10,7 +10,8 @@ Quick map of casino/operator-wallet integrations in this repo.
 | Thndr | `POST /thndr/play/{gameId}` | `/thndr/*` | `thundr_sessions`, `thundr_transactions` |
 | Slotegrator | `POST /slotegrator/launch` | `/slotegrator/*` | `slotitegration_*` |
 | Lagos Rush / Pockets | `POST /lagos-rush/launcher` | `/pockets/*` | `pockets_transactions` |
-| Scorpio Play | **Not implemented** | seamless `command` callbacks (external docs) | — |
+| Scorpio Play | `POST /scorpio/launch` | `POST /scorpio/callback` | `scorpio_players`, `scorpio_transactions` |
+| Swipe Games | `POST /swipegames/launch` | `GET /swipegames/balance`, `POST /swipegames/{bet,win,refund}` | `swipegames_sessions`, `swipegames_transactions` |
 
 **Shared:** `user`, `wallet` (and usually `wallet_transaction`).  
 **No shared service layer today** for debit/credit — extract `lib/casino-wallet.ts` before adding Scorpio to avoid a fifth copy of that logic.  
@@ -36,3 +37,20 @@ These are **Scorpio-hosted** endpoints. We **call** them; we do **not** mount `/
 **Env (Wrangler / `.env`):** `SCORPIO_API_URL` (or `SCORPIO_BASE_URL`), `SCORPIO_API_TOKEN`, `SCORPIO_CALLBACK_URL`, `SCORPIO_SERVER_IP`, `SCORPIO_ALLOWED_IPS`. Callback: `POST /scorpio/callback`.
 
 Details: [casino-provider.md — Scorpio Main API placement](./casino-provider.md#scorpio-play-main-api-where-each-endpoint-belongs).
+
+## Swipe Games
+
+Types are generated from the public OpenAPI specs (`apps/server/src/integrations/swipegames/openapi/`, regenerate with `pnpm run generate:swipegames-openapi`). There is no Node SDK on Cloudflare Workers — we sign Core API calls with `SWIPEGAMES_API_KEY` and verify reverse calls with `SWIPEGAMES_INTEGRATION_API_KEY`.
+
+| Their endpoint | Ours |
+|----------------|------|
+| `POST /create-new-game` | wrapped by `POST /swipegames/launch` and `/launch-demo` |
+| `GET /games` | cached by `GET /swipegames/games` |
+| `GET/POST/DELETE /free-rounds` | admin ` /swipegames/free-rounds` |
+| Reverse `GET /balance`, `POST /bet\|win\|refund` | same paths under `/swipegames` |
+
+Give Swipe Games this reverse-call base URL: `{SERVER_URL}/swipegames` (staging `https://staging-api.sportsdey.com/swipegames`, prod `https://api.sportsdey.com/swipegames`).
+
+**Env:** `SWIPEGAMES_CID`, `SWIPEGAMES_EXT_CID`, `SWIPEGAMES_API_KEY`, `SWIPEGAMES_INTEGRATION_API_KEY`, `SWIPEGAMES_ENV` (`staging` \| `production`). Schema tables need an Adnate migration before real-money play.
+
+Amounts are NGN main-unit decimal strings (`"0.90"`); wallet stays kobo. `txID` is the idempotency key. Free-round `type: "free"` is tracking-only; bonus withdrawal is `type: "regular"` with `frID`.
