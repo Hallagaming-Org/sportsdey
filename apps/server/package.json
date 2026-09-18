@@ -39,7 +39,7 @@
 		"test:luckyworld": "node --import tsx --test src/routes/casino-provider.ledger.test.ts src/routes/casino-provider.smoke.test.ts",
 		"test:slotegrator": "node --import tsx --test src/utils/slotegrator-sign.test.ts",
 		"test:scorpio": "node --import tsx --test src/utils/scorpio-security.test.ts src/utils/scorpio-callback.test.ts src/utils/scorpio-callback.smoke.test.ts src/utils/scorpio-game-flags.test.ts",
-		"test:swipegames": "node --import tsx --test src/integrations/swipegames/sign.test.ts src/integrations/swipegames/money.test.ts src/integrations/swipegames/adapter.test.ts src/integrations/swipegames/routes.sign.test.ts",
+		"test:swipegames": "node --import tsx --test src/integrations/swipegames/sign.test.ts src/integrations/swipegames/money.test.ts src/integrations/swipegames/adapter.test.ts src/integrations/swipegames/config.test.ts src/integrations/swipegames/routes.sign.test.ts",
 		"generate:swipegames-openapi": "npx --yes openapi-typescript@7 src/integrations/swipegames/openapi/core.yaml -o src/integrations/swipegames/generated/core.ts && npx --yes openapi-typescript@7 src/integrations/swipegames/openapi/integration.yaml -o src/integrations/swipegames/generated/integration.ts",
 		"test:sms": "node --import tsx --test src/utils/africastalking.test.ts src/utils/webengage-sms.test.ts src/utils/webengage-dlr.test.ts",
 		"test:bet-boost": "node --import tsx --test src/schemas/sportsbook/bet-boost.test.ts src/sportsbook/accumulator-bonus.test.ts",

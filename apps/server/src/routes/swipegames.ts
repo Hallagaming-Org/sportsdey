@@ -12,10 +12,13 @@ import {
 import { mapSwipeGamesLobbyGame } from "@/integrations/swipegames/catalog";
 import { SwipeGamesClient, SwipeGamesApiError } from "@/integrations/swipegames/client";
 import {
+	assertSwipeGamesCallbackIp,
 	getSwipeGamesConfig,
 	requireSwipeGamesConfig,
 	SwipeGamesConfigError,
+	SwipeGamesIpForbiddenError,
 } from "@/integrations/swipegames/config";
+import { getClientIp } from "@/utils/request";
 import { nairaDecimalToKobo } from "@/integrations/swipegames/money";
 import {
 	verifyQuerySignature,
@@ -126,6 +129,10 @@ function adapterErrorResponses() {
 		},
 		401: {
 			description: "Invalid signature",
+			content: { "application/json": { schema: AdapterErrorSchema } },
+		},
+		403: {
+			description: "Callback IP is not allowlisted",
 			content: { "application/json": { schema: AdapterErrorSchema } },
 		},
 		404: {
@@ -374,10 +381,22 @@ const deleteFreeRoundsRoute = createRoute({
 	},
 });
 
+function ipDenied() {
+	return { message: "IP is not allowed", code: "ip_not_allowed" };
+}
+
 swipegamesRoute.openapi(balanceRoute, async (c) => {
 	const config = getSwipeGamesConfig(c.env);
 	if (!config) {
 		return c.json({ message: "Swipe Games is not configured" }, 500);
+	}
+	try {
+		assertSwipeGamesCallbackIp(getClientIp(c), config);
+	} catch (error) {
+		if (error instanceof SwipeGamesIpForbiddenError) {
+			return c.json(ipDenied(), 403);
+		}
+		throw error;
 	}
 	const signature =
 		c.req.header("x-request-sign") ?? c.req.header("X-REQUEST-SIGN");
@@ -402,7 +421,11 @@ async function readVerifiedJson<T>(c: {
 	};
 }): Promise<
 	| { ok: true; body: T }
-	| { ok: false; status: 401 | 400; body: { message: string } }
+	| {
+			ok: false;
+			status: 401 | 400 | 403;
+			body: { message: string; code?: string };
+	  }
 > {
 	const config = getSwipeGamesConfig(c.env);
 	if (!config) {
@@ -411,6 +434,19 @@ async function readVerifiedJson<T>(c: {
 			status: 400,
 			body: { message: "Swipe Games is not configured" },
 		};
+	}
+	try {
+		assertSwipeGamesCallbackIp(
+			c.req.header("cf-connecting-ip") ||
+				c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+				"",
+			config,
+		);
+	} catch (error) {
+		if (error instanceof SwipeGamesIpForbiddenError) {
+			return { ok: false, status: 403, body: ipDenied() };
+		}
+		throw error;
 	}
 	const raw = new Uint8Array(await c.req.arrayBuffer());
 	const signature =
@@ -430,7 +466,7 @@ async function readVerifiedJson<T>(c: {
 swipegamesRoute.openapi(betRoute, async (c) => {
 	const verified = await readVerifiedJson<BetRequest>(c);
 	if (!verified.ok) {
-		return c.json(verified.body, verified.status === 401 ? 401 : 400);
+		return c.json(verified.body, verified.status);
 	}
 	const db = drizzle(c.env.DB, { schema });
 	const result = await handleBet(db, verified.body);
@@ -469,7 +505,7 @@ swipegamesRoute.openapi(betRoute, async (c) => {
 swipegamesRoute.openapi(winRoute, async (c) => {
 	const verified = await readVerifiedJson<WinRequest>(c);
 	if (!verified.ok) {
-		return c.json(verified.body, verified.status === 401 ? 401 : 400);
+		return c.json(verified.body, verified.status);
 	}
 	const db = drizzle(c.env.DB, { schema });
 	const result = await handleWin(db, verified.body);
@@ -479,7 +515,7 @@ swipegamesRoute.openapi(winRoute, async (c) => {
 swipegamesRoute.openapi(refundRoute, async (c) => {
 	const verified = await readVerifiedJson<RefundRequest>(c);
 	if (!verified.ok) {
-		return c.json(verified.body, verified.status === 401 ? 401 : 400);
+		return c.json(verified.body, verified.status);
 	}
 	const db = drizzle(c.env.DB, { schema });
 	const result = await handleRefund(db, verified.body);

@@ -51,6 +51,8 @@ Types are generated from the public OpenAPI specs (`apps/server/src/integrations
 
 Give Swipe Games this reverse-call base URL: `{SERVER_URL}/swipegames` (staging `https://staging-api.sportsdey.com/swipegames`, prod `https://api.sportsdey.com/swipegames`).
 
-**Env:** `SWIPEGAMES_CID`, `SWIPEGAMES_EXT_CID`, `SWIPEGAMES_API_KEY`, `SWIPEGAMES_INTEGRATION_API_KEY`, `SWIPEGAMES_ENV` (`staging` \| `production`). Schema tables need an Adnate migration before real-money play.
+Whitelist their reverse-call IPs on `/swipegames/balance|bet|win|refund` ([docs](https://swipegames.github.io/public-api/swipegames-integration/#please-whitelist-our-ip-addresses-to-allow-requests-from-our-servers-to-your-api)): staging `18.185.156.20`, production `3.65.138.8`. Override with `SWIPEGAMES_ALLOWED_IPS`.
+
+**Env:** `SWIPEGAMES_CID`, `SWIPEGAMES_EXT_CID`, `SWIPEGAMES_API_KEY`, `SWIPEGAMES_INTEGRATION_API_KEY`, `SWIPEGAMES_ENV` (`staging` \| `production`), `SWIPEGAMES_ALLOWED_IPS`. Schema tables need an Adnate migration before real-money play.
 
 Amounts are NGN main-unit decimal strings (`"0.90"`); wallet stays kobo. `txID` is the idempotency key. Free-round `type: "free"` is tracking-only; bonus withdrawal is `type: "regular"` with `frID`.
