@@ -1,4 +1,5 @@
-import type { ScorpioLobbyGame } from "@/lib/scorpio-catalog";
+import { isClassicKnownGameCode } from "./classic-lobby-codes";
+import type { ScorpioLobbyGame } from "./scorpio-catalog";
 
 type ClassicCatalogGame = {
 	id: string;
@@ -79,23 +80,69 @@ export function d1ScorpioFallbackGames(
 export type LobbyGame = ScorpioLobbyGame | ClassicCatalogGame;
 
 /**
+ * Lower is better. Hot Casino / Popular should not pick a GIS uuid over a
+ * working Scorpio or in-house original with the same display name.
+ */
+export function lobbyLaunchPreference(game: {
+	code: string;
+	provider?: string;
+}): number {
+	if (isClassicKnownGameCode(game.code)) return 0;
+	if (game.provider === "scorpio" || isScorpioStoredCode(game.code)) return 1;
+	return 2;
+}
+
+/** Keep one tile per display name, preferring originals then Scorpio then GIS. */
+export function dedupeLobbyGamesByName<
+	T extends { id: string; name: string; code: string; provider?: string },
+>(games: T[]): T[] {
+	const bestByName = new Map<string, T>();
+	for (const game of games) {
+		const key = game.name.toLowerCase().trim();
+		if (!key) continue;
+		const existing = bestByName.get(key);
+		if (
+			!existing ||
+			lobbyLaunchPreference(game) < lobbyLaunchPreference(existing)
+		) {
+			bestByName.set(key, game);
+		}
+	}
+
+	const seen = new Set<string>();
+	const out: T[] = [];
+	for (const game of games) {
+		const key = game.name.toLowerCase().trim();
+		if (!key || seen.has(key)) continue;
+		const winner = bestByName.get(key);
+		if (!winner) continue;
+		seen.add(key);
+		out.push(winner);
+	}
+	return out;
+}
+
+/**
  * Merge catalogs for Casino:
  * - Drop D1 `scorpio:*` rows from the Classic/Slotegrator list (wrong launch + often no art)
  * - Keep live Scorpio tiles (nested thumbnails + `/scorpio/launch`)
+ * - Drop unprefixed D1 copies whose code matches a live Scorpio game (those used to
+ *   hide Scorpio and GIS-launch, which always fails)
+ * - Keep in-house originals even when Scorpio reuses a short code (`slots`, `blackjack`)
  * - Add D1 Scorpio rows only when the live catalog does not already have that game
  */
 export function mergeLobbyGames<C extends ClassicCatalogGame>(
 	classic: C[],
 	scorpio: ScorpioLobbyGame[],
 ): Array<C | ScorpioLobbyGame> {
-	const classicOnly = excludeScorpioStoredGames(classic);
-	const classicCodes = new Set(
-		classicOnly.map((game) => game.code.trim().toLowerCase()).filter(Boolean),
+	const liveScorpioCodes = new Set(
+		scorpio.map((game) => game.code.trim().toLowerCase()).filter(Boolean),
 	);
-	const scorpioOnly = scorpio.filter((game) => {
+	const classicOnly = excludeScorpioStoredGames(classic).filter((game) => {
 		const code = game.code.trim().toLowerCase();
-		return Boolean(code) && !classicCodes.has(code);
+		if (!code || isClassicKnownGameCode(game.code)) return true;
+		return !liveScorpioCodes.has(code);
 	});
-	const fallback = d1ScorpioFallbackGames(classic, scorpioOnly);
-	return [...classicOnly, ...scorpioOnly, ...fallback];
+	const fallback = d1ScorpioFallbackGames(classic, scorpio);
+	return [...classicOnly, ...scorpio, ...fallback];
 }

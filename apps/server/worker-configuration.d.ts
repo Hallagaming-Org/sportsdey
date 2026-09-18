@@ -63,6 +63,12 @@ declare namespace Cloudflare {
 		SCORPIO_CALLBACK_URL: string;
 		SCORPIO_SERVER_IP: string;
 		SCORPIO_ALLOWED_IPS: string;
+		SWIPEGAMES_CID?: string;
+		SWIPEGAMES_EXT_CID?: string;
+		SWIPEGAMES_API_KEY?: string;
+		SWIPEGAMES_INTEGRATION_API_KEY?: string;
+		SWIPEGAMES_ENV?: "staging" | "production";
+		SWIPEGAMES_ALLOWED_IPS?: string;
 		DATABET_CERT: Fetcher;
 		AFRICASTALKING_API_KEY: string;
 		AFRICASTALKING_USERNAME: string;

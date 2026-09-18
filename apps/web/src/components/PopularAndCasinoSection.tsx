@@ -14,6 +14,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
 import {
+	friendlyCasinoLaunchError,
+	isPlayerInsufficientFundsError,
+} from "@/lib/casino-launch-error";
+import {
 	CLASSIC_KNOWN_GAMES,
 	type ClassicLaunchMode,
 	type ClassicLobbyGame,
@@ -26,6 +30,7 @@ import {
 } from "@/lib/classic-lobby";
 import { overlayScorpioLobbyCategories } from "@/lib/lobby-categories";
 import {
+	dedupeLobbyGamesByName,
 	excludeScorpioStoredGames,
 	parseScorpioStoredCode,
 } from "@/lib/lobby-games";
@@ -34,6 +39,12 @@ import {
 	launchScorpioGame,
 	type ScorpioLobbyGame,
 } from "@/lib/scorpio-catalog";
+import {
+	fetchSwipeGamesLobbyGames,
+	isSwipeGamesGame,
+	launchSwipeGamesGame,
+	type SwipeGamesLobbyGame,
+} from "@/lib/swipegames-catalog";
 import {
 	getSportsbookTheme,
 	isSportsbookConfigured,
@@ -50,6 +61,7 @@ const WIDGET_LOAD_TIMEOUT_MS = 5000;
 
 type HotLobbyGame =
 	| ScorpioLobbyGame
+	| SwipeGamesLobbyGame
 	| (ClassicLobbyGame & { provider: "classic"; providerName: string });
 
 function isScorpioHotGame(game: HotLobbyGame): game is ScorpioLobbyGame {
@@ -448,6 +460,13 @@ function HotCasinoPanel() {
 		staleTime: 60_000,
 	});
 
+	const swipegamesQuery = useQuery<SwipeGamesLobbyGame[]>({
+		queryKey: ["swipegames-games"],
+		queryFn: fetchSwipeGamesLobbyGames,
+		enabled: !isSessionLoading,
+		staleTime: 60_000,
+	});
+
 	const isLoading =
 		(scorpioQuery.isLoading && !scorpioQuery.data) ||
 		(classicQuery.isLoading && !classicQuery.data);
@@ -455,10 +474,14 @@ function HotCasinoPanel() {
 		scorpioQuery.isError &&
 		classicQuery.isError &&
 		!(scorpioQuery.data?.length || classicQuery.data?.length);
-	const isFetching = scorpioQuery.isFetching || classicQuery.isFetching;
+	const isFetching =
+		scorpioQuery.isFetching ||
+		classicQuery.isFetching ||
+		swipegamesQuery.isFetching;
 	const refetch = () => {
 		void scorpioQuery.refetch();
 		void classicQuery.refetch();
+		void swipegamesQuery.refetch();
 	};
 
 	const hotGames = useMemo(() => {
@@ -479,23 +502,17 @@ function HotCasinoPanel() {
 			classicQuery.data ?? [],
 		).filter((game) => game.enabled);
 
-		// Prefer classic/Slotegrator when the same title exists in both catalogs.
-		const merged: HotLobbyGame[] = [...classic, ...scorpio];
-		const seenNames = new Set<string>();
-		const deduped: HotLobbyGame[] = [];
-		for (const game of merged) {
-			const key = game.name.toLowerCase().trim();
-			if (seenNames.has(key)) continue;
-			seenNames.add(key);
-			deduped.push(game);
-		}
+		const swipegames: HotLobbyGame[] = (swipegamesQuery.data ?? []).filter(
+			(game) => game.enabled,
+		);
 
+		const merged: HotLobbyGame[] = [...classic, ...scorpio, ...swipegames];
 		return pickGamesByOrderedNames(
-			deduped,
+			dedupeLobbyGamesByName(merged),
 			HOT_CASINO_GAME_NAMES,
 			HOT_CASINO_LIMIT,
 		);
-	}, [classicQuery.data, scorpioQuery.data]);
+	}, [classicQuery.data, scorpioQuery.data, swipegamesQuery.data]);
 
 	const goSignIn = useCallback(() => {
 		navigate({
@@ -507,12 +524,14 @@ function HotCasinoPanel() {
 	}, [navigate]);
 
 	const supportsDualLaunch = (game: HotLobbyGame) =>
-		!isScorpioHotGame(game) && isSlotegratorLobbyGame(game);
+		isSwipeGamesGame(game) ||
+		(!isScorpioHotGame(game) && isSlotegratorLobbyGame(game));
 
 	const handleGameLaunch = useCallback(
 		async (game: HotLobbyGame, mode: ClassicLaunchMode = "real") => {
 			const needsAuth =
 				isScorpioHotGame(game) ||
+				isSwipeGamesGame(game) ||
 				parseScorpioStoredCode(game.code) != null ||
 				mode === "real";
 			if (needsAuth && !session?.user) {
@@ -536,6 +555,17 @@ function HotCasinoPanel() {
 						params: { gameId: game.code },
 						search: {},
 						state: { gameUrl, casinoProvider: "scorpio" } as never,
+					});
+				} else if (isSwipeGamesGame(game)) {
+					gameUrl = await launchSwipeGamesGame({
+						gameId: game.code,
+						mode,
+					});
+					navigate({
+						to: "/game/$gameId",
+						params: { gameId: game.code },
+						search: {},
+						state: { gameUrl, casinoProvider: "swipegames" } as never,
 					});
 				} else {
 					const stored = parseScorpioStoredCode(game.code);
@@ -562,7 +592,8 @@ function HotCasinoPanel() {
 							state: { gameUrl, casinoProvider: "classic" } as never,
 						});
 					}
-				}			} catch (error) {
+				}
+			} catch (error) {
 				const message =
 					error instanceof Error ? error.message : "Failed to launch game";
 				const status = error instanceof ApiError ? error.status : null;
@@ -574,20 +605,11 @@ function HotCasinoPanel() {
 					goSignIn();
 					return;
 				}
-				if (/insufficient|not enough|balance/i.test(message)) {
+				if (isPlayerInsufficientFundsError(message, status)) {
 					setShowBalanceModal(true);
 					return;
 				}
-				const friendly = /demo url|does not support demo|demo mode/i.test(
-					message,
-				)
-					? "Demo is not available for this game. Try Play Now."
-					: /immediate_exit|could not start|closed the session|zero limits/i.test(
-								message,
-							)
-						? "This game is not playable yet on our Slotegrator contract. Try another title."
-						: message;
-				toast.error(friendly);
+				toast.error(friendlyCasinoLaunchError(message));
 			} finally {
 				setLoadingId(null);
 			}
@@ -673,9 +695,10 @@ function HotCasinoPanel() {
 			<div className="custom-scrollbar grid min-h-[110px] snap-x snap-mandatory auto-cols-[110px] grid-flow-col gap-3 overflow-x-auto pr-1 pb-2">
 				{hotGames.map((game) => {
 					const isLoadingThis = loadingId === game.id;
-					const known = !isScorpioHotGame(game)
-						? CLASSIC_KNOWN_GAMES[game.code]
-						: undefined;
+					const known =
+						!isScorpioHotGame(game) && !isSwipeGamesGame(game)
+							? CLASSIC_KNOWN_GAMES[game.code]
+							: undefined;
 					const image = resolveKnownLobbyImage(game);
 					const fallback =
 						"fallbackImageUrl" in game

@@ -25,6 +25,7 @@ export const BONUS_ENGINE_NATIVE_PROVIDER_ID = {
 	LUCKYWORLD: "luckyworld",
 	THNDR: "thndr",
 	SPORTSDEY_ORIGINALS: "sportsdey-originals",
+	SWIPEGAMES: "swipegames",
 } as const;
 
 export const BONUS_ENGINE_NATIVE_CASINO_PROVIDERS: readonly BonusEngineNativeCasinoProvider[] =

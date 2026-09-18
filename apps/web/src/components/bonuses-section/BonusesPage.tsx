@@ -3,7 +3,6 @@ import {
 	useMutation,
 	useQuery,
 	useQueryClient,
-	type QueryClient,
 } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -17,6 +16,7 @@ import {
 	cancelPlayerBonus,
 	fetchBonusCampaigns,
 	fetchPlayerBonuses,
+	invalidateBonusAndWallet,
 	type BonusCard as BonusCardModel,
 } from "@/lib/bonuses";
 import {
@@ -52,7 +52,14 @@ export function BonusesPage() {
 		mutationFn: activatePlayerBonus,
 		onSuccess: async () => {
 			toast.success("Bonus activated");
-			await invalidateBonusQueries(queryClient);
+			await invalidateBonusAndWallet(queryClient);
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof ApiError
+					? error.message
+					: "Could not activate this bonus. Try again.",
+			);
 		},
 	});
 
@@ -60,7 +67,14 @@ export function BonusesPage() {
 		mutationFn: cancelPlayerBonus,
 		onSuccess: async () => {
 			toast.success("Bonus cancelled");
-			await invalidateBonusQueries(queryClient);
+			await invalidateBonusAndWallet(queryClient);
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof ApiError
+					? error.message
+					: "Could not cancel this bonus. Try again.",
+			);
 		},
 	});
 
@@ -236,12 +250,4 @@ function BonusesGridSkeleton() {
 			))}
 		</div>
 	);
-}
-
-async function invalidateBonusQueries(queryClient: QueryClient): Promise<void> {
-	await Promise.all([
-		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.LIST }),
-		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.CAMPAIGNS }),
-		queryClient.invalidateQueries({ queryKey: ["wallet"] }),
-	]);
 }

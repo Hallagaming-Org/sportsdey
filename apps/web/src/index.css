@@ -306,7 +306,9 @@ body {
 	width: 100%;
 	min-width: 0;
 	max-width: 100%;
-	overflow-x: auto;
+	/* Clip instead of auto so the page body never grows a horizontal
+	   scrollbar; wide odds tables scroll inside the center column. */
+	overflow-x: clip;
 }
 
 #betting__container > div > div:nth-child(2) > div:first-child {

@@ -113,6 +113,7 @@ flowchart TB
 | **WebEngage** | web + server | Product analytics / CRM events |
 | **Data.Bet (Databet)** | web + server | Sportsbook UI + settlement APIs |
 | **Scorpio Play** | server (+ web catalog) | Casino aggregation / seamless wallet |
+| **Swipe Games** | server (+ web catalog) | Direct HTTP Core API + signed reverse wallet calls |
 | **Slotegrator / Thndr / Lagos Rush / Spribe** | server | Additional casino integrations |
 | **API-Sports / YouTube** | server | Sports data and match videos |
 | **Nginx** | `apps/proxy` | Ops reverse proxy (not app runtime) |
@@ -346,6 +347,7 @@ There is **no** named end-user RBAC enum; authorization for players is “authen
 | `slotitegration_sessions`, `slotitegration_transactions` | Slotegrator |
 | `pockets_transactions` | Lagos Rush pockets wallet |
 | `scorpio_players`, `scorpio_transactions` | Scorpio player map + wallet txs |
+| `swipegames_sessions`, `swipegames_transactions` | Swipe Games sessions + wallet txs |
 | `user_file`, `kyc` | Uploads + KYC |
 | `user_notification` | In-app notifications |
 | `gdrive_file` | Image catalog helper |

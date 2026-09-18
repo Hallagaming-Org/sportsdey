@@ -34,7 +34,6 @@ const BANKS = [
 const BASE_METHOD_TABS: { key: DepositMethod; label: string }[] = [
 	{ key: "direct_banking", label: "Direct Banking" },
 	{ key: "card", label: "Card" },
-	{ key: "crypto", label: "Crypto" },
 ];
 
 type BankTransferDetails = {
@@ -94,7 +93,6 @@ export function DepositModal({
 
 	const methodTabs = useMemo(() => {
 		if (!isOpenfortEnabled()) return BASE_METHOD_TABS;
-		// Insert Crypto after Card: Bank Transfer → Card → Crypto → Direct Banking
 		return [
 			BASE_METHOD_TABS[0],
 			BASE_METHOD_TABS[1],
@@ -106,8 +104,7 @@ export function DepositModal({
 	if (!isOpen) return null;
 
 	const selectedBankName = BANKS.find((b) => b.key === selectedBank)?.name;
-	const showNairaCheckout =
-		activeMethod !== "direct_banking" && activeMethod !== "crypto";
+	const showNairaCheckout = activeMethod !== "crypto";
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();

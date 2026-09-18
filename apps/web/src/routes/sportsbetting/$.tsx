@@ -265,10 +265,10 @@ export function SportsbookPage() {
 	}
 
 	return (
-		<div className="relative min-w-0 bg-transparent p-0">
+		<div className="relative min-w-0 max-w-full overflow-x-clip bg-transparent p-0">
 			<div
 				id={SPORTSBOOK_CONTAINER_ID}
-				className="min-h-[calc(100vh-200px)] min-w-0 w-full bg-transparent p-0"
+				className="min-h-[calc(100vh-200px)] min-w-0 w-full max-w-full bg-transparent p-0"
 			/>
 			<SportsbookBetslip />
 
