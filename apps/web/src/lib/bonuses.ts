@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api";
-import { BONUS_API_ROUTE, BONUS_QUERY_KEY } from "@/lib/bonuses.constant";
+import { BONUS_API_ROUTE, BONUS_QUERY_KEY, BONUS_TYPE_QUERY_PARAM } from "@/lib/bonuses.constant";
 import type { QueryClient } from "@tanstack/react-query";
 import {
 	normalizeBonusCampaign,
@@ -18,9 +18,8 @@ export {
 
 export async function fetchPlayerBonuses(): Promise<BonusCard[]> {
 	const data = await apiRequest<Record<string, unknown>[]>(BONUS_API_ROUTE.LIST, {
-		method: "POST",
+		method: "GET",
 		credentials: "include",
-		body: JSON.stringify({}),
 	});
 	const rows = Array.isArray(data) ? data : [];
 	return rows
@@ -34,9 +33,8 @@ export async function fetchAllUserBonuses(): Promise<Record<string, unknown>[]> 
 		const data = await apiRequest<Record<string, unknown>[]>(
 			BONUS_API_ROUTE.GETALL_USER_BONUS,
 			{
-				method: "POST",
+				method: "GET",
 				credentials: "include",
-				body: JSON.stringify({}),
 			},
 		);
 		//console.log("getall_User_bonus", data); this is what we will use to show the bonus balance in the balances section
@@ -50,12 +48,14 @@ export async function fetchAllUserBonuses(): Promise<Record<string, unknown>[]> 
 export async function fetchBonusCampaigns(payload: {
 	bonusType: string;
 }): Promise<BonusCard[]> {
+	const search = new URLSearchParams({
+		[BONUS_TYPE_QUERY_PARAM]: payload.bonusType,
+	});
 	const data = await apiRequest<Record<string, unknown>[]>(
-		BONUS_API_ROUTE.CAMPAIGNS,
+		`${BONUS_API_ROUTE.CAMPAIGNS}?${search.toString()}`,
 		{
-			method: "POST",
+			method: "GET",
 			credentials: "include",
-			body: JSON.stringify({ bonus_type: payload.bonusType }),
 		},
 	);
 	const rows = Array.isArray(data) ? data : [];
