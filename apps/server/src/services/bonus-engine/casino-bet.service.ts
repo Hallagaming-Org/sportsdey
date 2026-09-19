@@ -10,6 +10,7 @@ import {
 import { nativeCasinoProviderByGameCode } from "./casino-catalog.constant";
 import {
 	reportBonusEngineBet,
+	reportBonusEngineBetResult,
 	runBonusEngineBackground,
 } from "./events.service";
 
@@ -118,7 +119,10 @@ export async function reportCasinoBet(report: CasinoBetReport): Promise<void> {
 			bet: {
 				userId: report.userId,
 				betId: report.betId,
+				internalBetId: report.betId,
 				amount: report.amount,
+				realBetAmount: report.amount,
+				bonusBetAmount: 0,
 				productType: BONUS_ENGINE_PRODUCT_TYPE.CASINO,
 				currency: report.currency,
 				providerId: identity.providerId,
@@ -175,4 +179,63 @@ export async function reportCasinoBetInBackground(
 ): Promise<void> {
 	const { executionCtx, ...rest } = report;
 	await runBonusEngineBackground(executionCtx, reportCasinoBet(rest));
+}
+
+export type CasinoBetResultReport = {
+	env: CloudflareBindings;
+	userId: string;
+	betId: string;
+	/** Major units (naira). */
+	totalWinAmount: number;
+	isWin?: 0 | 1;
+	isRollback?: 0 | 1;
+	isUnsettle?: 0 | 1;
+	isResettle?: 0 | 1;
+};
+
+export async function reportCasinoBetResult(
+	report: CasinoBetResultReport,
+): Promise<void> {
+	try {
+		const isRollback = report.isRollback ?? 0;
+		const isWin = report.isWin ?? (report.totalWinAmount > 0 && !isRollback ? 1 : 0);
+		const result = await reportBonusEngineBetResult({
+			env: report.env,
+			result: {
+				userId: report.userId,
+				betId: report.betId,
+				internalBetId: report.betId,
+				totalWinAmount: report.totalWinAmount,
+				realWinAmount: report.totalWinAmount,
+				bonusWinAmount: 0,
+				isWin,
+				isResettle: report.isResettle ?? 0,
+				isUnsettle: report.isUnsettle ?? 0,
+				isRollback,
+			},
+		});
+		if (!result.ok) {
+			console.error("Bonus Engine casino betResult report failed", {
+				betId: report.betId,
+				userId: report.userId,
+				status: result.status,
+				error: result.error,
+			});
+		}
+	} catch (error) {
+		console.error("Bonus Engine casino betResult report error", {
+			betId: report.betId,
+			userId: report.userId,
+			error,
+		});
+	}
+}
+
+export async function reportCasinoBetResultInBackground(
+	report: CasinoBetResultReport & {
+		executionCtx: ExecutionContext | undefined;
+	},
+): Promise<void> {
+	const { executionCtx, ...rest } = report;
+	await runBonusEngineBackground(executionCtx, reportCasinoBetResult(rest));
 }

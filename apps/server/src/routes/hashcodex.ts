@@ -1,19 +1,28 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/d1";
-import * as schema from "@/db/schema";
-import { debitWallet, creditWallet } from "@/db/atomic-wallet";
-import {
-	BONUS_ENGINE_NATIVE_PROVIDER_ID,
-	optionalExecutionCtx,
-	reportCasinoBetInBackground,
-} from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
 const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-/** Hashcodex hosts Sportsdey Crash; its wallet calls carry no game code. */
-const SPORTSDEY_CRASH_GAME_CODE = "sportsdey-crash";
+/**
+ * SECURITY: this route is intentionally disabled.
+ *
+ * The previous implementation let ANY authenticated user credit their own
+ * main wallet (`{ action: "credit", amount }`) with no provider signature,
+ * no idempotency key, and an unconditional `amount * 100` conversion — an
+ * open self-credit exploit (money printer) plus a 100x unit inflation bug.
+ *
+ * Sportsdey Crash wallet integration must be rebuilt as a server-to-server
+ * callback before this route returns:
+ * - HMAC (or equivalent) signature from the Hashcodex backend, never a user session
+ * - a provider transaction id claimed via unique insert BEFORE any wallet mutation
+ *   (see `settleWithClaim` in services/casino-settlement.ts)
+ * - amounts normalized exactly once via `toKobo` in utils/casino-money.ts
+ * - WIN credits require a prior matching BET debit
+ *
+ * Until that ships, Sportsdey Crash is offline for real money.
+ * Bonus-engine bet-result reporting for Crash cannot be attached here while
+ * the wallet path is disabled.
+ */
 
 const DepositSchema = z
 	.object({
@@ -23,23 +32,6 @@ const DepositSchema = z
 		amount: z.number().positive().openapi({ description: "Amount in kobo" }),
 	})
 	.openapi("HashcodexDepositSchema");
-
-const DepositResponseSchema = z
-	.object({
-		success: z.literal(true).openapi({ description: "Success status" }),
-		data: z
-			.object({
-				balance: z
-					.number()
-					.openapi({ description: "New wallet balance in kobo" }),
-				amount: z
-					.number()
-					.openapi({ description: "Transaction amount in kobo" }),
-				action: z.string().openapi({ description: "credit or debit" }),
-			})
-			.openapi({ description: "Response data" }),
-	})
-	.openapi("HashcodexDepositResponseSchema");
 
 const DepositErrorSchema = z
 	.object({
@@ -53,9 +45,9 @@ const depositRoute = createRoute({
 	method: "post",
 	path: "/deposit",
 	tags: ["Hashcodex"],
-	summary: "Deposit or withdraw from wallet via Hashcodex",
+	summary: "Disabled — Sportsdey Crash wallet integration is offline",
 	description:
-		"Add (credit) or remove (debit) funds from the authenticated user's wallet. Debit only succeeds if sufficient balance exists.",
+		"Disabled pending a signed server-to-server rework. The previous user-session credit path was a self-credit vulnerability.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -67,24 +59,8 @@ const depositRoute = createRoute({
 		},
 	},
 	responses: {
-		200: {
-			description: "Transaction successful",
-			content: {
-				"application/json": {
-					schema: DepositResponseSchema,
-				},
-			},
-		},
-		400: {
-			description: "Invalid request or insufficient balance",
-			content: {
-				"application/json": {
-					schema: DepositErrorSchema,
-				},
-			},
-		},
-		401: {
-			description: "Unauthorized - user not authenticated",
+		503: {
+			description: "Route disabled for security rework",
 			content: {
 				"application/json": {
 					schema: DepositErrorSchema,
@@ -95,120 +71,22 @@ const depositRoute = createRoute({
 });
 
 hashcodexRoute.openapi(depositRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Unauthorized",
-				details: null,
-			},
-			401,
-		);
-	}
-
-	const result = DepositSchema.safeParse(await c.req.json());
-	if (!result.success) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Invalid request",
-				details: result.error.issues,
-			},
-			400,
-		);
-	}
-
-	const { action, amount } = result.data;
-	const db = drizzle(c.env.DB, { schema });
-	const amountInKobo = amount * 100;
-
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, user.id))
-		.limit(1);
-
-	if (!wallet) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Wallet not found. Please fund your wallet first.",
-				details: null,
-			},
-			400,
-		);
-	}
-
-	if (action === "debit" && wallet.balance < amountInKobo) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Insufficient balance",
-				details: null,
-			},
-			400,
-		);
-	}
-
-	const reference = `hcx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-	const updatedWallet = action === "credit"
-		? await creditWallet(db, user.id, amountInKobo)
-		: await debitWallet(db, user.id, amountInKobo);
-	if (!updatedWallet) {
-		return c.json(
-			{ success: false, error: "Insufficient balance or failed to update user balance" },
-			500,
-		);
-	}
-	const newBalance = updatedWallet.balance;
-
-	const [txn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: user.id,
-			amount: amountInKobo,
-			type: action,
-			reference,
-			status: "completed",
-			paymentMethod: "hashcodex",
-			balance: newBalance,
-			metadata: JSON.stringify({
-				source: "hashcodex",
-			}),
-		})
-		.returning();
-
-	if (!txn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record transaction" },
-			500,
-		);
-	}
-
-	if (action === "debit") {
-		await reportCasinoBetInBackground({
-			env: c.env,
-			executionCtx: optionalExecutionCtx(c),
-			userId: user.id,
-			betId: reference,
-			amount,
-			gameRef: SPORTSDEY_CRASH_GAME_CODE,
-			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SPORTSDEY_ORIGINALS,
-		});
-	}
-
+	console.warn(
+		JSON.stringify({
+			tag: "money_movement",
+			provider: "hashcodex",
+			action: "rejected_disabled_route",
+			userId: c.get("user")?.id ?? null,
+		}),
+	);
 	return c.json(
 		{
-			success: true as const,
-			data: {
-				balance: newBalance / 100,
-				amount,
-				action,
-			},
+			success: false as const,
+			error:
+				"Sportsdey Crash wallet transactions are temporarily disabled for maintenance.",
+			details: null,
 		},
-		200,
+		503,
 	);
 });
 

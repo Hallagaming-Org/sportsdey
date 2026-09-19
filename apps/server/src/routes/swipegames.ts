@@ -34,6 +34,7 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -509,6 +510,28 @@ swipegamesRoute.openapi(winRoute, async (c) => {
 	}
 	const db = drizzle(c.env.DB, { schema });
 	const result = await handleWin(db, verified.body);
+	if (result.ok) {
+		const [row] = await db
+			.select({ userId: schema.swipegamesSessions.userId })
+			.from(schema.swipegamesSessions)
+			.where(eq(schema.swipegamesSessions.sessionId, verified.body.sessionID))
+			.limit(1);
+		if (row) {
+			try {
+				const amountKobo = nairaDecimalToKobo(verified.body.amount);
+				await reportCasinoBetResultInBackground({
+					env: c.env,
+					executionCtx: optionalExecutionCtx(c),
+					userId: row.userId,
+					betId: verified.body.txID,
+					totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+					isWin: amountKobo > 0 ? 1 : 0,
+				});
+			} catch (error) {
+				console.error("Swipe Games bonus-engine betResult report failed", error);
+			}
+		}
+	}
 	return c.json(result.body, result.status);
 });
 
@@ -519,6 +542,29 @@ swipegamesRoute.openapi(refundRoute, async (c) => {
 	}
 	const db = drizzle(c.env.DB, { schema });
 	const result = await handleRefund(db, verified.body);
+	if (result.ok) {
+		const [row] = await db
+			.select({ userId: schema.swipegamesSessions.userId })
+			.from(schema.swipegamesSessions)
+			.where(eq(schema.swipegamesSessions.sessionId, verified.body.sessionID))
+			.limit(1);
+		if (row) {
+			try {
+				const amountKobo = nairaDecimalToKobo(verified.body.amount);
+				await reportCasinoBetResultInBackground({
+					env: c.env,
+					executionCtx: optionalExecutionCtx(c),
+					userId: row.userId,
+					betId: verified.body.txID,
+					totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+					isWin: 0,
+					isRollback: 1,
+				});
+			} catch (error) {
+				console.error("Swipe Games bonus-engine betResult report failed", error);
+			}
+		}
+	}
 	return c.json(result.body, result.status);
 });
 

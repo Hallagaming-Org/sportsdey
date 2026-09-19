@@ -1,4 +1,5 @@
 export {
+	BONUS_ENGINE_BET_TYPE,
 	BONUS_ENGINE_BODY_FIELD,
 	BONUS_ENGINE_BONUS_ACTIVATE_REFERENCE_PREFIX,
 	BONUS_ENGINE_BONUS_STATUS,
@@ -41,6 +42,7 @@ export type {
 	BonusEngineLoyaltyPointsUpdatePayload,
 	BonusEngineBalanceCallbackPayload,
 	BonusEngineReportBetInput,
+	BonusEngineReportBetResultInput,
 	BonusEngineReportDepositInput,
 	BonusEngineUserBonusActionBody,
 	BonusEngineUserBonusItem,
@@ -85,16 +87,21 @@ export {
 	optionalExecutionCtx,
 	reportCasinoBet,
 	reportCasinoBetInBackground,
+	reportCasinoBetResult,
+	reportCasinoBetResultInBackground,
 	resolveCasinoBetIdentity,
 } from "./casino-bet.service";
 export type {
 	CasinoBetIdentity,
 	CasinoBetReport,
+	CasinoBetResultReport,
 	CasinoCatalogGame,
 } from "./casino-bet.service";
 export {
 	buildBonusEngineBetReportBody,
+	buildBonusEngineBetResultBody,
 	reportBonusEngineBet,
+	reportBonusEngineBetResult,
 	reportBonusEngineDeposit,
 	runBonusEngineBackground,
 } from "./events.service";
@@ -114,7 +121,12 @@ export {
 	getBonusEngineLoyaltyPoints,
 	redeemBonusEngineLoyaltyPoints,
 } from "./loyalty.service";
-export { listBonusEngineMissions, mergeMissionListWithLocalProgress } from "./mission.service";
+export {
+	listBonusEngineMissions,
+	mergeMissionListWithLocalProgress,
+	parseBonusEngineMissionProgress,
+	refreshBonusEngineMissionProgressForUser,
+} from "./mission.service";
 export {
 	attachLiveSportsbookPaths,
 	attachMissionSportsbookPaths,

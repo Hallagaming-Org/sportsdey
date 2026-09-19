@@ -21,7 +21,10 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
+import { logMoneyMovement } from "@/services/casino-settlement";
+import { toKobo } from "@/utils/casino-money";
 import type { CloudflareBindings } from "../types";
 
 const casinoProviderRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -128,6 +131,15 @@ async function recordLuckyWalletTx(
 		action: string;
 	},
 ): Promise<void> {
+	logMoneyMovement({
+		provider: "luckyworld",
+		action: input.action,
+		userId: input.userId,
+		txId: input.providerTxId,
+		amountKobo: input.amount,
+		claimStatus: "settled",
+		balanceAfter: input.balance,
+	});
 	await db.insert(schema.walletTransaction).values({
 		id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 		userId: input.userId,
@@ -612,7 +624,12 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		.limit(1);
 
 	const oldBalanceKobo = wallet?.balance ?? 0;
-	const amountKobo = Math.round(amount / 10);
+	let amountKobo: number;
+	try {
+		amountKobo = toKobo(amount, "luckyworld");
+	} catch {
+		return c.json({ code: 400, error: "Invalid amount" }, 400);
+	}
 
 	if (!wallet || oldBalanceKobo < amountKobo) {
 		return c.json(
@@ -812,7 +829,38 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		.limit(1);
 
 	const oldBalanceKobo = wallet?.balance ?? 0;
-	const amountKobo = Math.round(amount / 10);
+	let amountKobo: number;
+	try {
+		amountKobo = toKobo(amount, "luckyworld");
+	} catch {
+		return c.json({ code: 400, error: "Invalid amount" }, 400);
+	}
+
+	if (result.data.action === "win") {
+		// A win payout must correspond to a bet we actually debited in this
+		// session. "rain" promo drops are exempt. Prevents unpaired-win credits.
+		const [priorBet] = await db
+			.select({ id: schema.gameTransactions.id })
+			.from(schema.gameTransactions)
+			.where(
+				and(
+					eq(schema.gameTransactions.userId, user_id),
+					eq(schema.gameTransactions.sessionToken, session_token),
+					eq(schema.gameTransactions.type, "BET"),
+				),
+			)
+			.limit(1);
+		if (!priorBet) {
+			return c.json(
+				{
+					code: 404,
+					error: "No bet found for this session",
+				},
+				404,
+			);
+		}
+	}
+
 	const operatorTxId = newOperatorTxId();
 
 	const claimed = await claimGameTx(db, {
@@ -884,6 +932,15 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		// Ledger already claimed; returning 500 would reprint the win on retry.
 	}
 
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: user_id,
+		betId: provider_tx_id,
+		totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+		isWin: 1,
+	});
+
 	return c.json(
 		{
 			code: 200,
@@ -919,7 +976,6 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 
 	const {
 		user_id,
-		amount,
 		rollback_provider_tx_id,
 		session_token,
 		provider,
@@ -1004,7 +1060,9 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		.limit(1);
 
 	const oldBalanceKobo = wallet?.balance ?? 0;
-	const amountKobo = Math.round(amount / 10);
+	// SECURITY: reverse exactly what was originally settled. The request's
+	// amount is caller-controlled and must never set the rollback size.
+	const amountKobo = existingTx.amount;
 	const adjustment = existingTx.type === "BET" ? amountKobo : -amountKobo;
 	const operatorTxId = newOperatorTxId();
 
@@ -1092,6 +1150,16 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	} catch {
 		// Money already moved under a unique rollback id; 500 would reprint it.
 	}
+
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: user_id,
+		betId: rollback_provider_tx_id,
+		totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+		isWin: 0,
+		isRollback: 1,
+	});
 
 	return c.json(
 		{

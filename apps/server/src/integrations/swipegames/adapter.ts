@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
@@ -248,6 +248,26 @@ export async function handleWin(
 			undefined,
 			error instanceof Error ? error.message : String(error),
 		);
+	}
+
+	if (amountKobo > 0) {
+		// A payout must correspond to a bet recorded for this round (free-round
+		// bets are tracked with amount 0, so bonus withdrawals still pass).
+		// Prevents unpaired-win credits.
+		const [priorBet] = await db
+			.select({ id: schema.swipegamesTransactions.id })
+			.from(schema.swipegamesTransactions)
+			.where(
+				and(
+					eq(schema.swipegamesTransactions.userId, session.userId),
+					eq(schema.swipegamesTransactions.roundId, request.roundID),
+					eq(schema.swipegamesTransactions.type, "bet"),
+				),
+			)
+			.limit(1);
+		if (!priorBet) {
+			return fail(404, "No bet found for round");
+		}
 	}
 
 	const ledgerId = generateUUIDv7();

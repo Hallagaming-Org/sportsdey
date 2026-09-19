@@ -44,7 +44,14 @@ import {
 	updateOperator,
 } from "@/utils/scorpio";
 import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
+} from "@/services/bonus-engine";
+import {
 	processScorpioCallback,
+	resolveScorpioUserId,
 	scorpioCallbackResponse,
 } from "@/utils/scorpio-callback";
 import {
@@ -1085,6 +1092,7 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 				command: knownCommand,
 				statusCode: result.statusCode,
 			});
+			await reportScorpioBonusEngine(c, normalized, result.statusCode);
 			return c.json(result, 200);
 		}
 		const rawPlayerId =
@@ -1114,7 +1122,67 @@ mountScorpioRoute(callbackRoute, async (c: ScorpioContext) => {
 		statusCode: result.statusCode,
 	});
 
+	await reportScorpioBonusEngine(
+		c,
+		parsed.data as unknown as Record<string, unknown>,
+		result.statusCode,
+	);
+
 	return c.json(result, 200);
 });
+
+async function reportScorpioBonusEngine(
+	c: ScorpioContext,
+	body: Record<string, unknown>,
+	statusCode: string,
+): Promise<void> {
+	try {
+		if (statusCode !== "OK") return;
+		const command = String(body.command ?? "");
+		if (command !== "bet" && command !== "win" && command !== "cancel") return;
+
+		const transactionId = String(body.transactionId ?? "").trim();
+		if (!transactionId) return;
+
+		const db = drizzle(c.env.DB, { schema });
+		const userId = await resolveScorpioUserId(db, String(body.playerId ?? ""));
+		if (!userId) return;
+
+		const amount = Number(body.amount);
+		const gameRef = String(body.gameCode ?? "").trim() || undefined;
+		const currency = String(body.currency ?? "NGN");
+		const executionCtx = optionalExecutionCtx(c);
+
+		if (command === "bet") {
+			if (!Number.isFinite(amount) || amount <= 0) return;
+			await reportCasinoBetInBackground({
+				env: c.env,
+				executionCtx,
+				userId,
+				betId: transactionId,
+				amount,
+				currency,
+				gameRef,
+				fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SCORPIO,
+			});
+			return;
+		}
+
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx,
+			userId,
+			betId:
+				command === "cancel"
+					? String(body.referenceId ?? transactionId).trim() || transactionId
+					: transactionId,
+			totalWinAmount: Number.isFinite(amount) ? amount : 0,
+			isWin: command === "win" ? 1 : 0,
+			isRollback: command === "cancel" ? 1 : 0,
+		});
+	} catch (error) {
+		console.error("Bonus Engine scorpio report error", error);
+	}
+}
 
 export default scorpioRoute;

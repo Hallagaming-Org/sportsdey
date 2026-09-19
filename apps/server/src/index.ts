@@ -19,6 +19,7 @@ import adminExportsRoute from "./routes/admin-exports";
 import adminLogNotesRoute from "./routes/admin-log-notes";
 import adminNotificationsRoute from "./routes/admin-notifications";
 import adminOverviewRoute from "./routes/admin-overview";
+import adminReconciliationRoute from "./routes/admin-reconciliation";
 import adminPromotionsRoute from "./routes/admin-promotions";
 import adminTicketOverviewRoute from "./routes/admin-ticket-overview";
 import adminTicketsRoute from "./routes/admin-tickets";
@@ -27,6 +28,7 @@ import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
 import { optionalExecutionCtx } from "./services/bonus-engine";
+import { runWalletReconciliation } from "./services/wallet-reconciliation";
 import type { CloudflareBindings } from "./types";
 import type { ExportQueueMessage } from "./types/exports";
 import { isD1CapacityError } from "./utils/d1-errors";
@@ -254,6 +256,7 @@ app.route("/admin", adminLogNotesRoute);
 app.route("/admin", adminNotificationsRoute);
 app.route("/admin", adminActivityRoute);
 app.route("/admin", adminOverviewRoute);
+app.route("/admin", adminReconciliationRoute);
 app.route("/cms", adminCmsRoute);
 app.route("/cms", cmsRoute);
 
@@ -294,5 +297,12 @@ export default {
 	async scheduled(_controller: unknown, env: CloudflareBindings) {
 		await requeueStaleChunks(env);
 		await deleteExpiredExports(env);
+		// Money-safety net: alert (never mutate) when a wallet balance no longer
+		// matches the signed sum of its ledger entries.
+		try {
+			await runWalletReconciliation(env);
+		} catch (error) {
+			console.error("wallet reconciliation failed", error);
+		}
 	},
 };

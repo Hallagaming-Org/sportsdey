@@ -1,9 +1,11 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
 import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
+import { settleWithClaim } from "@/services/casino-settlement";
+import { CasinoMoneyError, toKobo } from "@/utils/casino-money";
 import {
 	ThundrBalanceQuerySchema,
 	ThundrBalanceRequestSchema,
@@ -24,6 +26,7 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -298,21 +301,32 @@ thundrRoute.post("/transactions", async (c) => {
 		);
 	}
 
-	const existingTx = await db.query.thundrTransactions.findFirst({
-		where: eq(schema.thundrTransactions.transactionId, tx.transactionId),
-	});
+	// Idempotency claim key. ROLLBACK dedupes on the ORIGINAL bet id so the
+	// same bet can only ever be rolled back once, even if the provider retries
+	// with a fresh rollback transactionId.
+	const claimTransactionId =
+		tx.type === "ROLLBACK"
+			? `rollback:${tx.originalTransactionId}`
+			: tx.transactionId;
 
-	if (existingTx) {
-		return c.json(
+	const echoResponse = (row: typeof schema.thundrTransactions.$inferSelect) =>
+		c.json(
 			ThundrTransactionResponseSchema.parse({
-				transactionId: existingTx.transactionId,
-				userId: existingTx.userId,
+				transactionId: tx.transactionId,
+				userId: row.userId,
 				currency: "NGN",
-				amount: existingTx.amount,
-				type: existingTx.type as "BET" | "WIN" | "LOSE" | "DRAW" | "ROLLBACK",
+				amount: row.amount,
+				type: row.type as "BET" | "WIN" | "LOSE" | "DRAW" | "ROLLBACK",
 			}),
 			200,
 		);
+
+	const existingTx = await db.query.thundrTransactions.findFirst({
+		where: eq(schema.thundrTransactions.transactionId, claimTransactionId),
+	});
+
+	if (existingTx) {
+		return echoResponse(existingTx);
 	}
 
 	const operatorTxId = `thndr_tx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
@@ -324,11 +338,27 @@ thundrRoute.post("/transactions", async (c) => {
 		.limit(1);
 
 	const currentBalanceKobo = wallet?.balance ?? 0;
-	let newBalanceKobo = currentBalanceKobo;
 	let txAmountKobo = 0;
 
+	if (tx.type === "BET" || tx.type === "WIN" || tx.type === "DRAW") {
+		try {
+			txAmountKobo = toKobo(tx.amount, "kobo");
+		} catch (error) {
+			return c.json(
+				{
+					success: false,
+					error:
+						error instanceof CasinoMoneyError
+							? error.message
+							: "Invalid amount",
+				},
+				400,
+			);
+		}
+	}
+
 	if (tx.type === "BET") {
-		if (currentBalanceKobo < tx.amount) {
+		if (!wallet || currentBalanceKobo < txAmountKobo) {
 			return c.json(
 				ThundrInsufficientBalanceErrorSchema.parse({
 					errors: [{ code: "INSUFFICIENT_BALANCE", isClientSafe: true }],
@@ -336,76 +366,29 @@ thundrRoute.post("/transactions", async (c) => {
 				403,
 			);
 		}
-		txAmountKobo = tx.amount;
-		const updatedWallet = await debitWallet(db, session.userId, txAmountKobo);
+	}
 
-		if (!updatedWallet) {
-			return c.json({ success: false, error: "Failed to update wallet" }, 500);
-		}
-		newBalanceKobo = updatedWallet.balance;
-
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: session.userId,
-				amount: txAmountKobo,
-				type: "debit",
-				reference: null,
-				status: "success",
-				paymentMethod: "thndr games",
-				balance: newBalanceKobo,
-				metadata: JSON.stringify({
-					game: "thundr",
-					roundId: tx.roundId,
-					gameId: tx.gameId,
-					action: "bet",
-				}),
-			})
-			.returning();
-
-		if (!walletTxn?.id) {
+	if ((tx.type === "WIN" || tx.type === "DRAW") && txAmountKobo > 0) {
+		// A payout must correspond to a bet we actually debited for this round;
+		// otherwise a spoofed/mis-sequenced callback mints money.
+		const priorBet = await db.query.thundrTransactions.findFirst({
+			where: and(
+				eq(schema.thundrTransactions.userId, session.userId),
+				eq(schema.thundrTransactions.roundId, tx.roundId),
+				eq(schema.thundrTransactions.type, "BET"),
+			),
+		});
+		if (!priorBet) {
 			return c.json(
-				{ success: false, error: "Failed to record wallet transaction" },
-				500,
+				ThundrTransactionErrorResponseSchema.parse({
+					errors: [{ code: "BET_NOT_FOUND", isClientSafe: true }],
+				}),
+				403,
 			);
 		}
-	} else if (tx.type === "WIN" || tx.type === "DRAW") {
-		txAmountKobo = tx.amount;
-		const updatedWallet = await creditWallet(db, session.userId, txAmountKobo);
+	}
 
-		if (!updatedWallet) {
-			return c.json({ success: false, error: "Failed to update wallet" }, 500);
-		}
-		newBalanceKobo = updatedWallet.balance;
-
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: session.userId,
-				amount: txAmountKobo,
-				type: "credit",
-				reference: null,
-				status: "success",
-				paymentMethod: "thndr games",
-				balance: newBalanceKobo,
-				metadata: JSON.stringify({
-					game: "thundr",
-					roundId: tx.roundId,
-					gameId: tx.gameId,
-					action: "win",
-				}),
-			})
-			.returning();
-
-		if (!walletTxn?.id) {
-			return c.json(
-				{ success: false, error: "Failed to record wallet transaction" },
-				500,
-			);
-		}
-	} else if (tx.type === "ROLLBACK") {
+	if (tx.type === "ROLLBACK") {
 		const [originalTx] = await db
 			.select()
 			.from(schema.thundrTransactions)
@@ -413,74 +396,113 @@ thundrRoute.post("/transactions", async (c) => {
 				eq(schema.thundrTransactions.transactionId, tx.originalTransactionId),
 			)
 			.limit(1);
-
-		if (originalTx && originalTx.type === "BET") {
-			txAmountKobo = originalTx.amount;
-			const updatedWallet = await creditWallet(
-				db,
-				session.userId,
-				txAmountKobo,
-			);
-
-			if (!updatedWallet) {
-				return c.json(
-					{ success: false, error: "Failed to update wallet" },
-					500,
-				);
-			}
-			newBalanceKobo = updatedWallet.balance;
-
-			const [walletTxn] = await db
-				.insert(schema.walletTransaction)
-				.values({
-					id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-					userId: session.userId,
-					amount: txAmountKobo,
-					type: "refund",
-					reference: null,
-					status: "success",
-					paymentMethod: "thndr games",
-					balance: newBalanceKobo,
-					metadata: JSON.stringify({
-						game: "thundr",
-						originalTransactionId: tx.originalTransactionId,
-						action: "rollback",
-					}),
-				})
-				.returning();
-
-			if (!walletTxn?.id) {
-				return c.json(
-					{ success: false, error: "Failed to record wallet transaction" },
-					500,
-				);
-			}
-		}
+		// Only BET rollbacks re-credit, and only for the ORIGINAL stored amount.
+		// Anything else records a zero-amount marker so retries still dedupe.
+		txAmountKobo =
+			originalTx && originalTx.type === "BET" ? originalTx.amount : 0;
 	}
 
-	const [thundrTxn] = await db
-		.insert(schema.thundrTransactions)
-		.values({
-			id: operatorTxId,
-			transactionId: tx.transactionId,
-			userId: session.userId,
-			type: tx.type,
-			amount: txAmountKobo,
-			balanceBefore: currentBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			roundId: tx.roundId,
-			gameId: tx.gameId,
-			sessionId: tx.sessionId,
-			originalTransactionId:
-				tx.type === "ROLLBACK" ? tx.originalTransactionId : null,
-		})
-		.returning();
+	const walletTxnType =
+		tx.type === "BET" ? "debit" : tx.type === "ROLLBACK" ? "refund" : "credit";
+	const walletTxnAction =
+		tx.type === "BET" ? "bet" : tx.type === "ROLLBACK" ? "rollback" : "win";
 
-	if (!thundrTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record transaction" },
-			500,
-		);
+	const outcome = await settleWithClaim<
+		typeof schema.thundrTransactions.$inferSelect
+	>({
+		context: {
+			provider: "thndr",
+			action: walletTxnAction,
+			userId: session.userId,
+			txId: tx.transactionId,
+			roundId: tx.roundId,
+			amountKobo: txAmountKobo,
+		},
+		insertClaim: () =>
+			db.insert(schema.thundrTransactions).values({
+				id: operatorTxId,
+				transactionId: claimTransactionId,
+				userId: session.userId,
+				type: tx.type,
+				amount: txAmountKobo,
+				balanceBefore: currentBalanceKobo,
+				balanceAfter: currentBalanceKobo,
+				roundId: tx.roundId,
+				gameId: tx.gameId,
+				sessionId: tx.sessionId,
+				originalTransactionId:
+					tx.type === "ROLLBACK" ? tx.originalTransactionId : null,
+			}),
+		findExisting: () =>
+			db.query.thundrTransactions.findFirst({
+				where: eq(
+					schema.thundrTransactions.transactionId,
+					claimTransactionId,
+				),
+			}),
+		releaseClaim: () =>
+			db
+				.delete(schema.thundrTransactions)
+				.where(
+					eq(schema.thundrTransactions.transactionId, claimTransactionId),
+				),
+		mutateWallet: () => {
+			if (txAmountKobo === 0) {
+				// LOSE / no-op rollback: nothing to move; keep current balance.
+				return Promise.resolve({ balance: currentBalanceKobo });
+			}
+			return tx.type === "BET"
+				? debitWallet(db, session.userId, txAmountKobo)
+				: creditWallet(db, session.userId, txAmountKobo);
+		},
+		finalize: async (balanceAfter) => {
+			if (txAmountKobo === 0) return;
+			const balanceBefore =
+				tx.type === "BET"
+					? balanceAfter + txAmountKobo
+					: balanceAfter - txAmountKobo;
+			await db
+				.update(schema.thundrTransactions)
+				.set({ balanceBefore, balanceAfter })
+				.where(
+					eq(schema.thundrTransactions.transactionId, claimTransactionId),
+				);
+			await db.insert(schema.walletTransaction).values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: session.userId,
+				amount: txAmountKobo,
+				type: walletTxnType,
+				reference: `thndr:${claimTransactionId}`,
+				status: "success",
+				paymentMethod: "thndr games",
+				balance: balanceAfter,
+				metadata: JSON.stringify({
+					game: "thundr",
+					roundId: tx.roundId,
+					gameId: tx.gameId,
+					action: walletTxnAction,
+					...(tx.type === "ROLLBACK"
+						? { originalTransactionId: tx.originalTransactionId }
+						: {}),
+				}),
+			});
+		},
+	});
+
+	if (outcome.status === "duplicate") {
+		return echoResponse(outcome.existing);
+	}
+
+	if (outcome.status === "wallet_failed") {
+		if (tx.type === "BET") {
+			return c.json(
+				ThundrInsufficientBalanceErrorSchema.parse({
+					errors: [{ code: "INSUFFICIENT_BALANCE", isClientSafe: true }],
+				}),
+				403,
+			);
+		}
+		return c.json({ success: false, error: "Failed to update wallet" }, 500);
 	}
 
 	if (tx.type === "BET") {
@@ -493,6 +515,25 @@ thundrRoute.post("/transactions", async (c) => {
 			currency: "NGN",
 			gameRef: tx.gameId,
 			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.THNDR,
+		});
+	} else if (tx.type === "WIN" || tx.type === "DRAW") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.transactionId,
+			totalWinAmount: casinoBetAmountFromKobo(txAmountKobo),
+			isWin: 1,
+		});
+	} else if (tx.type === "ROLLBACK") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.originalTransactionId || tx.transactionId,
+			totalWinAmount: casinoBetAmountFromKobo(txAmountKobo),
+			isWin: 0,
+			isRollback: 1,
 		});
 	}
 

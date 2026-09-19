@@ -6,6 +6,14 @@ type WalletDb = {
 };
 
 /**
+ * Only positive safe-integer kobo amounts may mutate a balance. Anything else
+ * (zero, negative, fractional, NaN) is treated as a failed mutation so callers
+ * release their idempotency claims instead of moving money.
+ */
+const isValidMutationAmount = (amount: number): boolean =>
+	Number.isSafeInteger(amount) && amount > 0;
+
+/**
  * Wallet mutations must be expressed as SQL arithmetic. Reading a balance in
  * application code and writing the calculated value loses concurrent updates.
  */
@@ -14,6 +22,7 @@ export const debitWallet = async (
 	userId: string,
 	amount: number,
 ) => {
+	if (!isValidMutationAmount(amount)) return undefined;
 	const [wallet] = await db
 		.update(schema.wallet)
 		.set({
@@ -36,6 +45,7 @@ export const creditWallet = async (
 	userId: string,
 	amount: number,
 ) => {
+	if (!isValidMutationAmount(amount)) return undefined;
 	const [wallet] = await db
 		.update(schema.wallet)
 		.set({

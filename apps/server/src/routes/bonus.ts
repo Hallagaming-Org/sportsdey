@@ -1,4 +1,4 @@
-import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
+import { createRoute, OpenAPIHono, type RouteHandler } from "@hono/zod-openapi";
 import {
 	BonusActionRequestSchema,
 	BonusActionSuccessSchema,
@@ -16,6 +16,7 @@ import {
 	isBonusEngineUnhandledException,
 	listBonusEngineCampaigns,
 	listBonusEngineUserBonuses,
+	BONUS_ENGINE_PATH,
 	BONUS_ENGINE_UPSTREAM_ROUTE_MISSING,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
@@ -149,39 +150,55 @@ bonusRoute.openapi(campaignsRoute, async (c) => {
 	);
 });
 
+const playerBonusListResponses = {
+	200: {
+		description: "Player bonuses fetched",
+		content: {
+			"application/json": { schema: BonusListSuccessSchema },
+		},
+	},
+	401: {
+		description: "Unauthorized",
+		content: { "application/json": { schema: BonusEngineErrorSchema } },
+	},
+	400: {
+		description: "Upstream client error",
+		content: { "application/json": { schema: BonusEngineErrorSchema } },
+	},
+	502: {
+		description: "Bonus Engine upstream error",
+		content: { "application/json": { schema: BonusEngineErrorSchema } },
+	},
+	503: {
+		description: "Bonus Engine not configured",
+		content: { "application/json": { schema: BonusEngineErrorSchema } },
+	},
+} as const;
+
 const listRoute = createRoute({
 	method: "post",
 	path: "/list",
 	tags: ["Bonuses"],
 	summary: "Fetch player bonus assignments for the authenticated player",
 	security: [{ BearerAuth: [] }],
-	responses: {
-		200: {
-			description: "Player bonuses fetched",
-			content: {
-				"application/json": { schema: BonusListSuccessSchema },
-			},
-		},
-		401: {
-			description: "Unauthorized",
-			content: { "application/json": { schema: BonusEngineErrorSchema } },
-		},
-		400: {
-			description: "Upstream client error",
-			content: { "application/json": { schema: BonusEngineErrorSchema } },
-		},
-		502: {
-			description: "Bonus Engine upstream error",
-			content: { "application/json": { schema: BonusEngineErrorSchema } },
-		},
-		503: {
-			description: "Bonus Engine not configured",
-			content: { "application/json": { schema: BonusEngineErrorSchema } },
-		},
-	},
+	responses: playerBonusListResponses,
 });
 
-bonusRoute.openapi(listRoute, async (c) => {
+const getAllUserBonusRoute = createRoute({
+	method: "post",
+	path: BONUS_ENGINE_PATH.GETALL_USER_BONUS,
+	tags: ["Bonuses"],
+	summary:
+		"Get all available bonuses for the player (Bonus Engine POST /getall_User_bonus)",
+	security: [{ BearerAuth: [] }],
+	responses: playerBonusListResponses,
+});
+
+
+const handleGetAllUserBonuses: RouteHandler<
+	typeof getAllUserBonusRoute,
+	{ Bindings: CloudflareBindings }
+> = async (c) => {
 	const user = c.get("user");
 	if (!user?.id) {
 		return c.json({ success: false as const, error: "Unauthorized" }, 401);
@@ -238,7 +255,10 @@ bonusRoute.openapi(listRoute, async (c) => {
 		},
 		200,
 	);
-});
+};
+
+bonusRoute.openapi(listRoute, handleGetAllUserBonuses);
+bonusRoute.openapi(getAllUserBonusRoute, handleGetAllUserBonuses);
 
 const activateRoute = createRoute({
 	method: "post",

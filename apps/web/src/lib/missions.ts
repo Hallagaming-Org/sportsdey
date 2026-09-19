@@ -13,6 +13,7 @@ export type {
 } from "./missions-normalize";
 export {
 	applyMissionLevelLocks,
+	isActiveEngineMission,
 	normalizeMissionRecord,
 	resolveMissionAction,
 } from "./missions-normalize";
