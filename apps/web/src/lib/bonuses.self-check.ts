@@ -7,6 +7,7 @@ import {
 	resolveBonusAction,
 } from "./bonuses-normalize.ts";
 import {
+	BONUS_API_ROUTE,
 	BONUS_TYPE_DEFAULT,
 	isBonusCampaignType,
 } from "./bonuses.constant.ts";
@@ -130,6 +131,7 @@ assert.equal(
 assert.equal(BONUS_TYPE_DEFAULT, "welcome");
 assert.equal(isBonusCampaignType("welcome"), true);
 assert.equal(isBonusCampaignType("unknown"), false);
+assert.equal(BONUS_API_ROUTE.GETALL_USER_BONUS, "bonus/getall_User_bonus");
 
 assert.equal(promotionsAssignedBonuses([assignment, ready]).length, 2);
 assert.equal(activeAssignedBonuses([assignment, ready]).length, 1);
