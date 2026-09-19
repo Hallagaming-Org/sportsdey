@@ -6,6 +6,7 @@ import {
 	MISSION_ROUTE,
 	MISSION_SPORTSBOOK_FOOTBALL_PREMATCH,
 	MISSION_SPORTSBOOK_PATH_FIELD,
+	MISSION_STATUS,
 	MISSION_TRIGGER_KEYWORD,
 	isDatabetTournamentGin,
 	sportsbookHrefFromSplat,
@@ -36,6 +37,7 @@ export type MissionCard = {
 	rewardPoints: number;
 	rewardLabel: string;
 	status: "active" | "completed" | "locked" | "upcoming" | "ended";
+	missionStatus: string;
 	lockedMessage: string | null;
 	actionLabel: string;
 	actionHref: string;
@@ -168,6 +170,7 @@ export function normalizeMissionRecord(
 		rewardPoints,
 		rewardLabel,
 		status,
+		missionStatus,
 		lockedMessage: null,
 		actionLabel:
 			status === "completed" ? MISSION_ACTION_LABEL.COMPLETED : action.label,
@@ -221,6 +224,16 @@ export function applyMissionLevelLocks(cards: MissionCard[]): MissionCard[] {
 			actionLabel: MISSION_ACTION_LABEL.LOCKED,
 		};
 	});
+}
+
+/**
+ * True when Bonus Engine still lists the mission as ACTIVE.
+ * Period tabs and the mission grid ignore completed, inactive, and other engine statuses.
+ */
+export function isActiveEngineMission(
+	mission: Pick<MissionCard, "missionStatus">,
+): boolean {
+	return mission.missionStatus === MISSION_STATUS.ACTIVE;
 }
 
 export function resolveMissionAction(payload: {
@@ -599,13 +612,16 @@ function resolveMissionStatus(payload: {
 	endAt: string | null;
 }): MissionCard["status"] {
 	if (
-		payload.missionStatus === "COMPLETED" ||
-		payload.missionStatus === "COMPLETE" ||
+		payload.missionStatus === MISSION_STATUS.COMPLETED ||
+		payload.missionStatus === MISSION_STATUS.COMPLETE ||
 		payload.progressPercentage >= 100
 	) {
 		return "completed";
 	}
-	if (payload.missionStatus === "INACTIVE" || payload.numericStatus === 0) {
+	if (
+		payload.missionStatus === MISSION_STATUS.INACTIVE ||
+		payload.numericStatus === 0
+	) {
 		return "ended";
 	}
 
