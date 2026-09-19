@@ -36,6 +36,14 @@ export const LagosRushDebitRequestSchema = z.object({
 	playerId: z.string().openapi({ description: "User ID" }),
 	amount: z.number().openapi({ description: "Amount in kobo" }),
 	currency: z.string().openapi({ description: "Currency code" }),
+	transactionId: z
+		.string()
+		.min(1)
+		.optional()
+		.openapi({
+			description:
+				"Provider transaction ID — required; used as the idempotency key so retries never double-debit",
+		}),
 });
 
 export const LagosRushDebitResponseSchema = z
@@ -59,6 +67,14 @@ export const LagosRushCreditRequestSchema = z
 		playerId: z.string().openapi({ description: "Player ID" }),
 		amount: z.number().openapi({ description: "Amount in kobo" }),
 		currency: z.string().openapi({ description: "Currency code" }),
+		transactionId: z
+			.string()
+			.min(1)
+			.optional()
+			.openapi({
+				description:
+					"Provider transaction ID — required; used as the idempotency key so retries never double-credit",
+			}),
 	})
 	.openapi("LagosRushCreditRequest");
 
@@ -83,6 +99,14 @@ export const LagosRushRefundRequestSchema = z
 		playerId: z.string().openapi({ description: "Player ID" }),
 		amount: z.number().openapi({ description: "Amount in kobo" }),
 		currency: z.string().openapi({ description: "Currency code" }),
+		transactionId: z
+			.string()
+			.min(1)
+			.optional()
+			.openapi({
+				description:
+					"Provider transaction ID — required; used as the idempotency key so retries never double-refund",
+			}),
 	})
 	.openapi("LagosRushRefundRequest");
 

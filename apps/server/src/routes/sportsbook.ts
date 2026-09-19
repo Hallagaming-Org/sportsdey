@@ -1531,7 +1531,9 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 	});
 
 	const isFreebetWin = bet.betFreebetId && settleType === 1;
-	const shouldCredit = !bet.betFreebetId || isFreebetWin;
+	// Losses settle with amount 0 — nothing to credit, and creditWallet
+	// rejects non-positive amounts by design.
+	const shouldCredit = (!bet.betFreebetId || isFreebetWin) && settleAmount > 0;
 
 	if (wallet && shouldCredit) {
 		const walletUpdate = await creditWallet(db, bet.userId, settleAmount);
@@ -2146,7 +2148,7 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 		where: eq(schema.wallet.userId, bet.userId),
 	});
 
-	if (wallet) {
+	if (wallet && refundAmountKobo > 0) {
 		const walletUpdate = await creditWallet(db, bet.userId, refundAmountKobo);
 		if (!walletUpdate) {
 			return c.json(

@@ -2,12 +2,14 @@
  * Halla wallet callbacks — same shape as /pockets/*, but amounts are Naira.
  * Converts to/from kobo for the Sportsdey wallet (Lagos Rush /pockets stays kobo).
  *
+ * Money calls require the provider transactionId and settle claim-first via
+ * `settlePocketsTransaction`, so provider retries never move money twice.
+ *
  * Mounted at: POST /halla/pockets/{balance|debit|credit|refund}
  */
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import {
 	LagosRushBalanceRequestSchema,
@@ -26,7 +28,12 @@ import {
 	reportCasinoBetInBackground,
 	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
-import { koboToNaira, nairaToKobo } from "@/utils/halla-money";
+import {
+	settlePocketsTransaction,
+	type PocketsSettleResult,
+} from "@/services/pockets-settlement";
+import { CasinoMoneyError, toKobo } from "@/utils/casino-money";
+import { koboToNaira } from "@/utils/halla-money";
 import type { CloudflareBindings } from "../types";
 
 const hallaPocketsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -44,6 +51,61 @@ const authError = {
 	success: false as const,
 	error: "Invalid API key",
 };
+
+/**
+ * Validates the idempotency key + Naira amount for a money call.
+ * `transactionId` is mandatory: without it a provider retry is
+ * indistinguishable from a new transaction and duplicates money movement.
+ */
+function parseMoneyCall(input: {
+	amount: number;
+	transactionId?: string;
+}):
+	| { ok: true; providerTxId: string; amountKobo: number }
+	| { ok: false; error: string } {
+	if (!input.transactionId) {
+		return {
+			ok: false,
+			error: "transactionId is required for idempotent processing",
+		};
+	}
+	try {
+		const amountKobo = toKobo(input.amount, "naira");
+		if (amountKobo <= 0) {
+			return { ok: false, error: "Amount must be a positive Naira amount" };
+		}
+		return { ok: true, providerTxId: input.transactionId, amountKobo };
+	} catch (error) {
+		return {
+			ok: false,
+			error:
+				error instanceof CasinoMoneyError ? error.message : "Invalid amount",
+		};
+	}
+}
+
+function settleErrorResponse(result: PocketsSettleResult): {
+	body: { success: false; error: string };
+	status: 400 | 500;
+} {
+	switch (result.status) {
+		case "invalid_amount":
+			return {
+				body: { success: false, error: "Invalid amount" },
+				status: 400,
+			};
+		case "insufficient":
+			return {
+				body: { success: false, error: "Insufficient balance" },
+				status: 400,
+			};
+		default:
+			return {
+				body: { success: false, error: "Failed to update wallet" },
+				status: 500,
+			};
+	}
+}
 
 const balanceRoute = createRoute({
 	method: "post",
@@ -128,7 +190,8 @@ const debitRoute = createRoute({
 	path: "/debit",
 	tags: ["Halla Mini Games"],
 	summary: "Debit user wallet (Naira amount)",
-	description: "Debits Sportsdey wallet; request amount is Naira, stored as kobo",
+	description:
+		"Debits Sportsdey wallet; request amount is Naira, stored as kobo. Requires the provider transactionId; retries with the same id are idempotent.",
 	security: [{ ApiKeyAuth: [] }],
 	request: {
 		body: {
@@ -178,98 +241,52 @@ hallaPocketsRoute.openapi(debitRoute, async (c) => {
 		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
+	const parsed = parseMoneyCall(result.data);
+	if (!parsed.ok) {
+		return c.json({ success: false as const, error: parsed.error }, 400);
+	}
+
 	const { playerId, amount: amountNaira, currency } = result.data;
-	const amountKobo = nairaToKobo(amountNaira);
 	const db = drizzle(c.env.DB, { schema });
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, playerId))
-		.limit(1);
-
-	const oldBalanceKobo = wallet?.balance ?? 0;
-
-	if (oldBalanceKobo < amountKobo) {
-		return c.json(
-			{ success: false as const, error: "Insufficient balance" },
-			400,
-		);
-	}
-
-	const updatedWallet = await debitWallet(db, playerId, amountKobo);
-	if (!updatedWallet) {
-		return c.json({ success: false as const, error: "Failed to update wallet" }, 500);
-	}
-	const newBalanceKobo = updatedWallet.balance;
-	const transactionId = crypto.randomUUID();
-
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: playerId,
-			amount: amountKobo,
-			type: "debit",
-			reference: null,
-			status: "success",
-			paymentMethod: "halla",
-			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game: "halla",
-				currency,
-				action: "bet",
-				amountNaira,
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [debitTxn] = await db
-		.insert(schema.pocketsTransactions)
-		.values({
-			id: transactionId,
-			userId: playerId,
-			type: "DEBIT",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			currency,
-		})
-		.returning();
-
-	if (!debitTxn?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record debit transaction" },
-			500,
-		);
-	}
-
-	// Halla callbacks carry no game code, so the bet reports at provider level.
-	await reportCasinoBetInBackground({
-		env: c.env,
-		executionCtx: optionalExecutionCtx(c),
-		userId: playerId,
-		betId: transactionId,
-		amount: amountNaira,
+	const settle = await settlePocketsTransaction({
+		db,
+		provider: "halla",
+		paymentMethod: "halla",
+		action: "debit",
+		playerId,
+		providerTxId: parsed.providerTxId,
+		amountKobo: parsed.amountKobo,
 		currency,
-		fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.HALLA,
+		metadata: { game: "halla", currency, action: "bet", amountNaira },
 	});
+
+	if (settle.status !== "settled" && settle.status !== "duplicate") {
+		const { body: errBody, status } = settleErrorResponse(settle);
+		return c.json(errBody, status);
+	}
+
+	if (settle.status === "settled") {
+		// Halla callbacks carry no game code, so the bet reports at provider level.
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			amount: amountNaira,
+			currency,
+			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.HALLA,
+		});
+	}
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				oldBalance: koboToNaira(oldBalanceKobo),
-				newBalance: koboToNaira(newBalanceKobo),
+				oldBalance: koboToNaira(settle.oldBalanceKobo),
+				newBalance: koboToNaira(settle.newBalanceKobo),
 				currency,
-				transactionId,
+				transactionId: settle.transactionId,
 			},
 		},
 		200,
@@ -281,7 +298,8 @@ const creditRoute = createRoute({
 	path: "/credit",
 	tags: ["Halla Mini Games"],
 	summary: "Credit user wallet (Naira amount)",
-	description: "Credits Sportsdey wallet; request amount is Naira, stored as kobo",
+	description:
+		"Credits Sportsdey wallet; request amount is Naira, stored as kobo. Requires the provider transactionId; retries with the same id are idempotent.",
 	security: [{ ApiKeyAuth: [] }],
 	request: {
 		body: {
@@ -331,88 +349,50 @@ hallaPocketsRoute.openapi(creditRoute, async (c) => {
 		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
+	const parsed = parseMoneyCall(result.data);
+	if (!parsed.ok) {
+		return c.json({ success: false as const, error: parsed.error }, 400);
+	}
+
 	const { playerId, amount: amountNaira, currency } = result.data;
-	const amountKobo = nairaToKobo(amountNaira);
 	const db = drizzle(c.env.DB, { schema });
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, playerId))
-		.limit(1);
-
-	const oldBalanceKobo = wallet?.balance ?? 0;
-	const updatedWallet = await creditWallet(db, playerId, amountKobo);
-	if (!updatedWallet) {
-		return c.json({ success: false as const, error: "Failed to update wallet" }, 500);
-	}
-	const newBalanceKobo = updatedWallet.balance;
-	const transactionId = crypto.randomUUID();
-
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: playerId,
-			amount: amountKobo,
-			type: "credit",
-			reference: null,
-			status: "success",
-			paymentMethod: "halla",
-			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game: "halla",
-				currency,
-				action: "win",
-				amountNaira,
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [creditTxn] = await db
-		.insert(schema.pocketsTransactions)
-		.values({
-			id: transactionId,
-			userId: playerId,
-			type: "CREDIT",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			currency,
-		})
-		.returning();
-
-	if (!creditTxn?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record credit transaction" },
-			500,
-		);
-	}
-
-	await reportCasinoBetResultInBackground({
-		env: c.env,
-		executionCtx: optionalExecutionCtx(c),
-		userId: playerId,
-		betId: transactionId,
-		totalWinAmount: amountNaira,
-		isWin: 1,
+	const settle = await settlePocketsTransaction({
+		db,
+		provider: "halla",
+		paymentMethod: "halla",
+		action: "credit",
+		playerId,
+		providerTxId: parsed.providerTxId,
+		amountKobo: parsed.amountKobo,
+		currency,
+		metadata: { game: "halla", currency, action: "win", amountNaira },
 	});
+
+	if (settle.status !== "settled" && settle.status !== "duplicate") {
+		const { body: errBody, status } = settleErrorResponse(settle);
+		return c.json(errBody, status);
+	}
+
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			totalWinAmount: amountNaira,
+			isWin: 1,
+		});
+	}
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				oldBalance: koboToNaira(oldBalanceKobo),
-				newBalance: koboToNaira(newBalanceKobo),
+				oldBalance: koboToNaira(settle.oldBalanceKobo),
+				newBalance: koboToNaira(settle.newBalanceKobo),
 				currency,
-				transactionId,
+				transactionId: settle.transactionId,
 			},
 		},
 		200,
@@ -424,7 +404,8 @@ const refundRoute = createRoute({
 	path: "/refund",
 	tags: ["Halla Mini Games"],
 	summary: "Refund user wallet (Naira amount)",
-	description: "Refunds Sportsdey wallet; request amount is Naira, stored as kobo",
+	description:
+		"Refunds Sportsdey wallet; request amount is Naira, stored as kobo. Requires the provider transactionId; retries with the same id are idempotent.",
 	security: [{ ApiKeyAuth: [] }],
 	request: {
 		body: {
@@ -474,89 +455,51 @@ hallaPocketsRoute.openapi(refundRoute, async (c) => {
 		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
+	const parsed = parseMoneyCall(result.data);
+	if (!parsed.ok) {
+		return c.json({ success: false as const, error: parsed.error }, 400);
+	}
+
 	const { playerId, amount: amountNaira, currency } = result.data;
-	const amountKobo = nairaToKobo(amountNaira);
 	const db = drizzle(c.env.DB, { schema });
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, playerId))
-		.limit(1);
-
-	const oldBalanceKobo = wallet?.balance ?? 0;
-	const updatedWallet = await creditWallet(db, playerId, amountKobo);
-	if (!updatedWallet) {
-		return c.json({ success: false as const, error: "Failed to update wallet" }, 500);
-	}
-	const newBalanceKobo = updatedWallet.balance;
-	const transactionId = crypto.randomUUID();
-
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-			userId: playerId,
-			amount: amountKobo,
-			type: "refund",
-			reference: null,
-			status: "success",
-			paymentMethod: "halla",
-			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game: "halla",
-				currency,
-				action: "refund",
-				amountNaira,
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [refundTxn] = await db
-		.insert(schema.pocketsTransactions)
-		.values({
-			id: transactionId,
-			userId: playerId,
-			type: "REFUND",
-			amount: amountKobo,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			currency,
-		})
-		.returning();
-
-	if (!refundTxn?.id) {
-		return c.json(
-			{ success: false as const, error: "Failed to record refund transaction" },
-			500,
-		);
-	}
-
-	await reportCasinoBetResultInBackground({
-		env: c.env,
-		executionCtx: optionalExecutionCtx(c),
-		userId: playerId,
-		betId: transactionId,
-		totalWinAmount: amountNaira,
-		isWin: 0,
-		isRollback: 1,
+	const settle = await settlePocketsTransaction({
+		db,
+		provider: "halla",
+		paymentMethod: "halla",
+		action: "refund",
+		playerId,
+		providerTxId: parsed.providerTxId,
+		amountKobo: parsed.amountKobo,
+		currency,
+		metadata: { game: "halla", currency, action: "refund", amountNaira },
 	});
+
+	if (settle.status !== "settled" && settle.status !== "duplicate") {
+		const { body: errBody, status } = settleErrorResponse(settle);
+		return c.json(errBody, status);
+	}
+
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			totalWinAmount: amountNaira,
+			isWin: 0,
+			isRollback: 1,
+		});
+	}
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				oldBalance: koboToNaira(oldBalanceKobo),
-				newBalance: koboToNaira(newBalanceKobo),
+				oldBalance: koboToNaira(settle.oldBalanceKobo),
+				newBalance: koboToNaira(settle.newBalanceKobo),
 				currency,
-				transactionId,
+				transactionId: settle.transactionId,
 			},
 		},
 		200,
