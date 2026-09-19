@@ -94,10 +94,25 @@ export async function getBonusEngineLoyaltyHistory(payload: {
 }): Promise<
 	BonusEngineApiResult<BonusEngineEnvelope<BonusEngineLoyaltyHistoryItem[]>>
 > {
-	return signedLoyaltyRequest({
+	const tokenResult = await getBonusEngineAccessToken(payload.env);
+	if (!tokenResult.ok || !tokenResult.data) {
+		return {
+			ok: false,
+			status: tokenResult.status,
+			error: tokenResult.error ?? "Failed to obtain Bonus Engine access token",
+		};
+	}
+
+	const config = getBonusEngineConfig(payload.env);
+	return bonusEngineRequest({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.LOYALTY_HISTORY,
-		userId: payload.userId,
+		accessToken: tokenResult.data,
+		body: buildBonusEngineLoyaltyScopedBody({
+			clientId: config.clientId,
+			projectId: config.projectId,
+			userId: payload.userId,
+		}),
 	});
 }
 
