@@ -27,7 +27,7 @@ function mapUpstreamStatus(status: number): 400 | 401 | 502 | 503 {
 }
 
 const pointsRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: "/points",
 	tags: ["Loyalty"],
 	summary: "Fetch current loyalty points for the authenticated player",
@@ -199,7 +199,7 @@ loyaltyRoute.openapi(redeemRoute, async (c) => {
 });
 
 const historyRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: "/history",
 	tags: ["Loyalty"],
 	summary: "Fetch loyalty points history for the authenticated player",
@@ -284,7 +284,7 @@ loyaltyRoute.openapi(historyRoute, async (c) => {
 });
 
 const listsRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: "/lists",
 	tags: ["Loyalty"],
 	summary: "Fetch all active loyalty campaigns for the project",
