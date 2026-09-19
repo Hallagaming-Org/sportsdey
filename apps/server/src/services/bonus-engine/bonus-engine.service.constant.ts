@@ -12,6 +12,7 @@ export const BONUS_ENGINE_PATH = {
 	LOYALTY_HISTORY: "/loyalty/history",
 	LOYALTY_LISTS: "/loyalty/lists",
 	MISSION_LIST: "/mission/list",
+	MISSION_PROGRESS: "/mission/progress",
 	LIST_ACTIVE_CAMPAIGN: "/list_active_campaign",
 	GETALL_USER_BONUS: "/getall_User_bonus",
 	ACTIVATE_BONUS: "/activate_bonus",
@@ -58,6 +59,10 @@ export const BONUS_ENGINE_FALLBACK_CASINO_PROVIDER = {
 export const BONUS_ENGINE_PRODUCT_TYPE = {
 	CASINO: "casino",
 	SPORTSBOOK: "sportsbook",
+} as const;
+
+export const BONUS_ENGINE_BET_TYPE = {
+	NORMAL: "normal",
 } as const;
 
 export const BONUS_ENGINE_CAMPAIGN_TYPE = {
@@ -162,7 +167,11 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	REAL_AMOUNT_CHANGE: "real_amount_change",
 	BONUS_AMOUNT_CHANGE: "bonus_amount_change",
 	BET_ID: "bet_id",
+	INTERNAL_BET_ID: "internal_bet_id",
 	AMOUNT: "amount",
+	BET_TYPE: "bet_type",
+	REAL_BET_AMOUNT: "real_bet_amount",
+	BONUS_BET_AMOUNT: "bonus_bet_amount",
 	PRODUCT_TYPE: "product_type",
 	CURRENCY: "currency",
 	PROVIDER_ID: "provider_id",
@@ -170,6 +179,20 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	SPORT_ID: "sport_id",
 	EVENT_ID: "event_id",
 	LEAGUE_ID: "league_id",
+	MARKET_ID: "market_id",
+	ODDS: "odds",
+	TICKET: "ticket",
+	REAL_WALLET_BALANCE: "real_wallet_balance",
+	BONUS_WALLET_BALANCE: "bonus_wallet_balance",
+	TOTAL_WIN_AMOUNT: "total_win_amount",
+	REAL_WIN_AMOUNT: "real_win_amount",
+	BONUS_WIN_AMOUNT: "bonus_win_amount",
+	IS_WIN: "isWin",
+	IS_RESETTLE: "isResettle",
+	IS_UNSETTLE: "isUnsettle",
+	IS_ROLLBACK: "isRollback",
+	RESULT_TIME: "result_time",
+	MISSION_ID: "mission_id",
 } as const;
 
 export const BONUS_ENGINE_REPORT_RETRY_ATTEMPTS = 3;
