@@ -6,6 +6,7 @@ import * as schema from "@/db/schema";
 import {
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import { verifySlotitegrationSignature } from "@/utils";
 import {
@@ -861,6 +862,15 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			totalWinAmount: amount,
+			isWin: 1,
+		});
+
 		const balance = newBalance / 100;
 
 		return c.json({ balance, transaction_id: txId }, 200);
@@ -1071,6 +1081,15 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: betTransactionId || transactionId,
+			totalWinAmount: amount,
+			isWin: 1,
+		});
+
 		const balance = newBalance / 100;
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
@@ -1274,6 +1293,16 @@ slotegratorRoute.post("/", async (c) => {
 			.limit(1);
 
 		const balance = (finalWallet?.balance ?? 0) / 100;
+
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			totalWinAmount: 0,
+			isWin: 0,
+			isRollback: 1,
+		});
 
 		return c.json(
 			{ balance, transaction_id: txId, rollback_transactions: rolledBackTxIds },
