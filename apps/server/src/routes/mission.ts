@@ -20,7 +20,7 @@ function mapUpstreamStatus(status: number): 400 | 401 | 502 | 503 {
 }
 
 const listRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: "/list",
 	tags: ["Missions"],
 	summary: "Fetch mission list for the authenticated player",

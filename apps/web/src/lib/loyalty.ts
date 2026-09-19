@@ -34,9 +34,8 @@ export {
 
 export async function fetchLoyaltyPoints(): Promise<LoyaltyPointsSummary> {
 	const data = await apiRequest<Record<string, unknown>>(LOYALTY_ROUTE.POINTS, {
-		method: "POST",
+		method: "GET",
 		credentials: "include",
-		body: JSON.stringify({}),
 	});
 	return normalizeLoyaltyPoints(data);
 }
@@ -60,9 +59,8 @@ export async function fetchLoyaltyHistory(): Promise<LoyaltyHistoryEntry[]> {
 	const data = await apiRequest<Record<string, unknown>[]>(
 		LOYALTY_ROUTE.HISTORY,
 		{
-			method: "POST",
+			method: "GET",
 			credentials: "include",
-			body: JSON.stringify({}),
 		},
 	);
 	const rows = Array.isArray(data) ? data : [];
@@ -71,9 +69,8 @@ export async function fetchLoyaltyHistory(): Promise<LoyaltyHistoryEntry[]> {
 
 export async function fetchLoyaltyLists(): Promise<LoyaltyCampaignCard[]> {
 	const data = await apiRequest<Record<string, unknown>[]>(LOYALTY_ROUTE.LISTS, {
-		method: "POST",
+		method: "GET",
 		credentials: "include",
-		body: JSON.stringify({}),
 	});
 	const rows = Array.isArray(data) ? data : [];
 	return rows

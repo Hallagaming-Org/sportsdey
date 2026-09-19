@@ -12,6 +12,7 @@ export {
 	BONUS_ENGINE_DEFAULT_CURRENCY,
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
+	BONUS_ENGINE_LOYALTY_MESSAGE,
 	BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX,
 	BONUS_ENGINE_PATH,
 	BONUS_ENGINE_PRODUCT_TYPE,
@@ -120,6 +121,7 @@ export {
 	getBonusEngineLoyaltyLists,
 	getBonusEngineLoyaltyPoints,
 	redeemBonusEngineLoyaltyPoints,
+	shouldTreatLoyaltyHistoryAsEmpty,
 } from "./loyalty.service";
 export {
 	listBonusEngineMissions,

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import { MISSION_API_ROUTE } from "./missions.constant";
 import {
 	applyMissionLevelLocks,
 	normalizeMissionRecord,
@@ -19,10 +20,9 @@ export {
 } from "./missions-normalize";
 
 export async function fetchMissionList(): Promise<MissionCard[]> {
-	const data = await apiRequest<Record<string, unknown>[]>("mission/list", {
-		method: "POST",
+	const data = await apiRequest<Record<string, unknown>[]>(MISSION_API_ROUTE.LIST, {
+		method: "GET",
 		credentials: "include",
-		body: JSON.stringify({}),
 	});
 	const cards = (Array.isArray(data) ? data : []).map(normalizeMissionRecord);
 	return applyMissionLevelLocks(cards);

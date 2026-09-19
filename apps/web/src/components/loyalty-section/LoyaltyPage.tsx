@@ -14,6 +14,7 @@ import {
 	pickPrimaryCampaignLevels,
 	redeemLoyaltyPoints,
 } from "@/lib/loyalty";
+import { LOYALTY_ERROR_MESSAGE } from "@/lib/loyalty.constant";
 import { LoyaltyHeader } from "./LoyaltyHeader";
 import { LoyaltyHistoryTable } from "./LoyaltyHistoryTable";
 import { LoyaltyPageSkeleton } from "./LoyaltyPageSkeleton";
@@ -128,10 +129,8 @@ export function LoyaltyPage() {
 								Recent Activity
 							</h2>
 							{historyQuery.isError ? (
-								<p className="rounded-2xl border border-[#1B2722] bg-[#151616] px-4 py-8 text-center text-sm text-red-400">
-									{historyQuery.error instanceof ApiError
-										? historyQuery.error.message
-										: "Could not load loyalty history."}
+								<p className="rounded-2xl border border-[#1B2722] bg-[#151616] px-4 py-8 text-center text-sm text-[#8C8F8F]">
+									{LOYALTY_ERROR_MESSAGE.HISTORY}
 								</p>
 							) : (
 								<LoyaltyHistoryTable entries={historyQuery.data ?? []} />
