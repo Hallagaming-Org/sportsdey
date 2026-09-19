@@ -70,7 +70,7 @@ export async function scorpioCallbackResponse(
 	}
 }
 
-async function resolveScorpioUserId(
+export async function resolveScorpioUserId(
 	db: Db,
 	playerId: string,
 ): Promise<string | null> {
