@@ -7,6 +7,7 @@ import {
 	BONUS_ENGINE_NATIVE_PROVIDER_ID,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -196,6 +197,15 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 			amount,
 			gameRef: SPORTSDEY_CRASH_GAME_CODE,
 			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SPORTSDEY_ORIGINALS,
+		});
+	} else if (action === "credit") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: user.id,
+			betId: reference,
+			totalWinAmount: amount,
+			isWin: 1,
 		});
 	}
 
