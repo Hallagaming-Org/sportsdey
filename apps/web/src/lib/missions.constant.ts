@@ -7,6 +7,10 @@ export const MISSION_ROUTE = {
 	INVITE: "/account#account-referral-id",
 } as const;
 
+export const MISSION_API_ROUTE = {
+	LIST: "mission/list",
+} as const;
+
 /** Data.Bet prematch football lobby (SportsDey basename `/sportsbetting`). */
 export const MISSION_SPORTSBOOK_FOOTBALL_PREMATCH =
 	"sports/prematch/football";
