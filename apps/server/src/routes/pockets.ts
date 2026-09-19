@@ -19,6 +19,7 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -419,6 +420,15 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 		);
 	}
 
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		totalWinAmount: casinoBetAmountFromKobo(amount),
+		isWin: 1,
+	});
+
 	return c.json(
 		{
 			success: true,
@@ -566,6 +576,16 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 			500,
 		);
 	}
+
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		totalWinAmount: casinoBetAmountFromKobo(amount),
+		isWin: 0,
+		isRollback: 1,
+	});
 
 	return c.json(
 		{
