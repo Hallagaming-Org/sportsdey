@@ -24,6 +24,7 @@ import {
 	BONUS_ENGINE_NATIVE_PROVIDER_ID,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import { koboToNaira, nairaToKobo } from "@/utils/halla-money";
 import type { CloudflareBindings } from "../types";
@@ -395,6 +396,15 @@ hallaPocketsRoute.openapi(creditRoute, async (c) => {
 		);
 	}
 
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		totalWinAmount: amountNaira,
+		isWin: 1,
+	});
+
 	return c.json(
 		{
 			success: true as const,
@@ -528,6 +538,16 @@ hallaPocketsRoute.openapi(refundRoute, async (c) => {
 			500,
 		);
 	}
+
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		totalWinAmount: amountNaira,
+		isWin: 0,
+		isRollback: 1,
+	});
 
 	return c.json(
 		{
