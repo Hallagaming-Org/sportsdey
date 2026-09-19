@@ -96,6 +96,12 @@ export const ThundrTransactionErrorSchema = z.discriminatedUnion("code", [
 		code: z.literal("INVALID_SIGNATURE").openapi({ description: "Error code" }),
 		isClientSafe: z.literal(true).openapi({ description: "Is client safe" }),
 	}),
+	z.object({
+		code: z.literal("BET_NOT_FOUND").openapi({
+			description: "WIN/DRAW payout has no matching BET for the round",
+		}),
+		isClientSafe: z.literal(true).openapi({ description: "Is client safe" }),
+	}),
 ]);
 
 export const ThundrTransactionErrorResponseSchema = z

@@ -380,9 +380,18 @@ export async function fetchClassicLobbyGames(
 	const games = await apiRequest<ClassicLobbyGame[]>(
 		qs ? `games?${qs}` : "games",
 	);
-	const enabled = games.filter((game) => game.enabled);
+	const enabled = games.filter(
+		(game) => game.enabled && !CLASSIC_OFFLINE_CODES.has(game.code),
+	);
 	return enabled;
 }
+
+/**
+ * Games whose wallet integration is disabled server-side (Hashcodex /
+ * Sportsdey Crash self-credit vulnerability rework). Hidden from the lobby
+ * until the signed server-to-server wallet callback ships.
+ */
+const CLASSIC_OFFLINE_CODES = new Set(["sportsdey-crash", "spin_and_win"]);
 
 export function filterClassicGames(
 	allGames: ClassicLobbyGame[],

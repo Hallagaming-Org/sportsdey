@@ -1,6 +1,7 @@
 import { and, eq, gte, sql } from "drizzle-orm";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import { toKobo } from "@/utils/casino-money";
 import { generateUUIDv7 } from "@/utils/uuid";
 
 type Db = DrizzleD1Database<typeof schema>;
@@ -30,7 +31,7 @@ function callbackResult(
 
 /** Scorpio amounts are major currency units; wallet stores kobo. */
 export function scorpioAmountToKobo(amount: number): number {
-	return Math.round(amount * 100);
+	return toKobo(amount, "naira");
 }
 
 export function koboToScorpioBalance(kobo: number): number {
@@ -288,6 +289,30 @@ export async function handleScorpioWin(
 	}
 
 	const amountKobo = scorpioAmountToKobo(input.amount);
+
+	if (amountKobo > 0) {
+		// A win payout must correspond to a bet we actually debited for this
+		// round. Prevents unpaired-win credits from spoofed or mis-sequenced
+		// callbacks.
+		const [priorBet] = await db
+			.select({ id: schema.scorpioTransactions.id })
+			.from(schema.scorpioTransactions)
+			.where(
+				and(
+					eq(schema.scorpioTransactions.userId, input.playerId),
+					eq(schema.scorpioTransactions.roundId, input.roundId),
+					eq(schema.scorpioTransactions.type, "BET"),
+				),
+			)
+			.limit(1);
+		if (!priorBet) {
+			return callbackResult(
+				"ERR_TRANSACTION_DOES_NOT_EXIST",
+				await getWalletKobo(db, input.playerId),
+			);
+		}
+	}
+
 	const [wallet] = await db
 		.select()
 		.from(schema.wallet)

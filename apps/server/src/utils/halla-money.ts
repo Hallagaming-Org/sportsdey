@@ -1,7 +1,8 @@
 /** Halla Minigod sends/expects major NGN units; Sportsdey wallet stores kobo. */
+import { toKobo } from "@/utils/casino-money";
 
 export function nairaToKobo(naira: number): number {
-	return Math.round(naira * 100);
+	return toKobo(naira, "naira");
 }
 
 export function koboToNaira(kobo: number): number {
