@@ -1,9 +1,11 @@
 
 import assert from "node:assert/strict";
 import {
+	isActiveEngineMission,
 	normalizeMissionRecord,
 	resolveMissionAction,
 } from "./missions-normalize.ts";
+import { MISSION_STATUS } from "./missions.constant.ts";
 
 const wagerMission = normalizeMissionRecord({
 	_id: "6a759deaae8a0edf2509e7e9",
@@ -33,6 +35,8 @@ const wagerMission = normalizeMissionRecord({
 });
 
 assert.equal(wagerMission.actionKind, "casino");
+assert.equal(wagerMission.missionStatus, MISSION_STATUS.ACTIVE);
+assert.equal(isActiveEngineMission(wagerMission), true);
 assert.equal(wagerMission.actionHref, "/games");
 assert.equal(
 	wagerMission.actionSearch?.play,
@@ -174,6 +178,15 @@ assert.equal(
 	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:bef631c0-4f2c-4baa-879e-fa15c90fb911",
 );
 assert.equal(germanyCategory.categories[0]?.name, "Germany");
+
+const completedMission = normalizeMissionRecord({
+	_id: "completed-mission",
+	mission_name: "Done",
+	mission_status: "COMPLETED",
+	status: 1,
+});
+assert.equal(completedMission.missionStatus, MISSION_STATUS.COMPLETED);
+assert.equal(isActiveEngineMission(completedMission), false);
 
 const emptyLeagueSport = resolveMissionAction({
 	triggerTypes: ["Wager X and Get X"],
