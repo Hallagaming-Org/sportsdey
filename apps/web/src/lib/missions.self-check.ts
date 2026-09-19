@@ -5,7 +5,7 @@ import {
 	normalizeMissionRecord,
 	resolveMissionAction,
 } from "./missions-normalize.ts";
-import { MISSION_STATUS } from "./missions.constant.ts";
+import { MISSION_API_ROUTE, MISSION_STATUS } from "./missions.constant.ts";
 
 const wagerMission = normalizeMissionRecord({
 	_id: "6a759deaae8a0edf2509e7e9",
@@ -206,5 +206,6 @@ const invite = resolveMissionAction({
 });
 assert.equal(invite.kind, "invite");
 assert.equal(invite.href, "/account#account-referral-id");
+assert.equal(MISSION_API_ROUTE.LIST, "mission/list");
 
 console.log("missions.self-check: ok");

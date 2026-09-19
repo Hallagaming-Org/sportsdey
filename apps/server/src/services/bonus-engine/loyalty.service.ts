@@ -1,6 +1,7 @@
 import type { CloudflareBindings } from "../../types";
 import {
 	BONUS_ENGINE_BODY_FIELD,
+	BONUS_ENGINE_LOYALTY_MESSAGE,
 	BONUS_ENGINE_PATH,
 } from "./bonus-engine.service.constant";
 import type {
@@ -13,7 +14,7 @@ import type {
 	BonusEngineLoyaltyRedeemData,
 	BonusEngineLoyaltyScopedBody,
 } from "./bonus-engine.service.type";
-import { bonusEngineRequest } from "./client";
+import { bonusEngineRequest, isBonusEngineJsonNotFound, isBonusEngineUnhandledException } from "./client";
 import { getBonusEngineConfig } from "./config";
 import { getBonusEngineAccessToken } from "./token.service";
 
@@ -114,6 +115,32 @@ export async function getBonusEngineLoyaltyHistory(payload: {
 			userId: payload.userId,
 		}),
 	});
+}
+
+/**
+ * True when Bonus Engine failed a history read in a way that means "no rows"
+ * (JSON 404, null crash, or their generic fetch error) rather than a
+ * misconfigured host. The BFF maps these to an empty list.
+ */
+export function shouldTreatLoyaltyHistoryAsEmpty(
+	result: BonusEngineApiResult<unknown>,
+): boolean {
+	if (result.ok) return false;
+	if (isBonusEngineJsonNotFound(result)) return true;
+	if (isBonusEngineUnhandledException(result.error)) return true;
+	return isLoyaltyHistoryEmptyEngineError(result.error);
+}
+
+function isLoyaltyHistoryEmptyEngineError(error?: string): boolean {
+	const message = error?.trim().toLowerCase() ?? "";
+	if (!message) return false;
+	return (
+		message ===
+			BONUS_ENGINE_LOYALTY_MESSAGE.HISTORY_ENGINE_FETCH_FAILED.toLowerCase() ||
+		message.includes("fetching loyalty history") ||
+		message.includes("no loyalty history") ||
+		message.includes("history not found")
+	);
 }
 
 export async function getBonusEngineLoyaltyLists(payload: {

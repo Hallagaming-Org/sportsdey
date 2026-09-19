@@ -54,17 +54,13 @@ function publicBonusEngineListMessage(
 }
 
 const campaignsRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: "/campaigns",
 	tags: ["Bonuses"],
 	summary: "Fetch active bonus campaigns for the authenticated player",
 	security: [{ BearerAuth: [] }],
 	request: {
-		body: {
-			content: {
-				"application/json": { schema: BonusCampaignsRequestSchema },
-			},
-		},
+		query: BonusCampaignsRequestSchema,
 	},
 	responses: {
 		200: {
@@ -107,11 +103,11 @@ bonusRoute.openapi(campaignsRoute, async (c) => {
 		);
 	}
 
-	const body = c.req.valid("json");
+	const query = c.req.valid("query");
 	const result = await listBonusEngineCampaigns({
 		env: c.env,
 		userId: user.id,
-		bonusType: body.bonus_type,
+		bonusType: query.bonus_type,
 	});
 	if (!result.ok && isBonusEngineJsonNotFound(result)) {
 		return c.json(
@@ -176,7 +172,7 @@ const playerBonusListResponses = {
 } as const;
 
 const listRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: "/list",
 	tags: ["Bonuses"],
 	summary: "Fetch player bonus assignments for the authenticated player",
@@ -185,7 +181,7 @@ const listRoute = createRoute({
 });
 
 const getAllUserBonusRoute = createRoute({
-	method: "post",
+	method: "get",
 	path: BONUS_ENGINE_PATH.GETALL_USER_BONUS,
 	tags: ["Bonuses"],
 	summary:

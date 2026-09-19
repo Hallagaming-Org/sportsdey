@@ -5,6 +5,10 @@ export const LOYALTY_ROUTE = {
 	LISTS: "loyalty/lists",
 } as const;
 
+export const LOYALTY_ERROR_MESSAGE = {
+	HISTORY: "Could not load loyalty history.",
+} as const;
+
 export const LOYALTY_TIER_ID = {
 	IRON: "iron",
 	BRONZE: "bronze",

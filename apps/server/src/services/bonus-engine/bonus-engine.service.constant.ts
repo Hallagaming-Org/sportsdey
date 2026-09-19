@@ -152,6 +152,12 @@ export const BONUS_ENGINE_LOYALTY_PATHS_WITH_QUERY_SIGNATURE = new Set<string>([
 	BONUS_ENGINE_PATH.LOYALTY_REDEEM,
 ]);
 
+export const BONUS_ENGINE_LOYALTY_MESSAGE = {
+	HISTORY_EMPTY: "No loyalty history found",
+	HISTORY_UNAVAILABLE: "Could not load loyalty history",
+	HISTORY_ENGINE_FETCH_FAILED: "Server error while fetching loyalty history.",
+} as const;
+
 export const BONUS_ENGINE_BODY_FIELD = {
 	CLIENT_ID: "client_id",
 	PROJECT_ID: "project_id",

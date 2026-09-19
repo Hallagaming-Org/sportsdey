@@ -9,6 +9,7 @@ import {
 import {
 	BONUS_API_ROUTE,
 	BONUS_TYPE_DEFAULT,
+	BONUS_TYPE_QUERY_PARAM,
 	isBonusCampaignType,
 } from "./bonuses.constant.ts";
 
@@ -132,6 +133,7 @@ assert.equal(BONUS_TYPE_DEFAULT, "welcome");
 assert.equal(isBonusCampaignType("welcome"), true);
 assert.equal(isBonusCampaignType("unknown"), false);
 assert.equal(BONUS_API_ROUTE.GETALL_USER_BONUS, "bonus/getall_User_bonus");
+assert.equal(BONUS_TYPE_QUERY_PARAM, "bonus_type");
 
 assert.equal(promotionsAssignedBonuses([assignment, ready]).length, 2);
 assert.equal(activeAssignedBonuses([assignment, ready]).length, 1);

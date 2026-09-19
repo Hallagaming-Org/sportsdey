@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Camera, Edit, Loader2, User } from "lucide-react";
+import { Camera, Edit, Loader2, Lock, User } from "lucide-react";
 import {
 	type ChangeEvent,
 	type FormEvent,
@@ -9,12 +9,14 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
+import { AccountSecurityPanel } from "@/components/account-security";
 import { DobPicker } from "@/components/dob-picker";
 import { Input } from "@/components/ui/input";
 import { syncAffnookRegistrationReferral } from "@/lib/affnook";
 import { apiRequest, apiUploadFile } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
+import { cn } from "@/lib/utils";
 import {
 	loginWebengageUser,
 	setWebengageSdkUserProfile,
@@ -70,6 +72,9 @@ function AccountPage() {
 	const [isEditing, setIsEditing] = useState(false);
 	const [showEditLocked, setShowEditLocked] = useState(false);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [activeTab, setActiveTab] = useState<"information" | "security">(
+		"information",
+	);
 
 	const {
 		data: profile,
@@ -362,249 +367,279 @@ function AccountPage() {
 		<div className="px-4 py-2 lg:container lg:mx-auto">
 			<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
 				<div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-[#2F3033] dark:bg-[#0D0D0D]">
-					{/* Header section */}
-					<div className="flex items-center justify-between border-gray-100 border-b p-6 dark:border-[#2F3033]">
-						<div>
-							<h2 className="font-bold text-gray-900 text-xl dark:text-white">
-								Account Information
-							</h2>
-							<p className="text-gray-500 text-sm dark:text-[#8C8F8F]">
-								{canEditProfile
-									? "You can edit your profile once. Further changes go through admin."
-									: "Profile edits are locked. Contact admin for changes."}
-							</p>
-						</div>
-						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-[#1C1D1F]">
-							<User className="h-5 w-5 text-gray-500 dark:text-[#8C8F8F]" />
-						</div>
+					<div
+						className="flex w-full border-gray-100 border-b dark:border-[#2F3033]"
+						role="tablist"
+						aria-label="Account sections"
+					>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={activeTab === "information"}
+							onClick={() => setActiveTab("information")}
+							className={cn(
+								"-mb-px flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-2 py-4 font-medium text-sm transition-colors",
+								activeTab === "information"
+									? "border-accent text-accent"
+									: "border-transparent text-gray-500 hover:text-gray-900 dark:text-[#8C8F8F] dark:hover:text-white",
+							)}
+						>
+							<User className="h-4 w-4 shrink-0" />
+							Account Information
+						</button>
+						<button
+							type="button"
+							role="tab"
+							aria-selected={activeTab === "security"}
+							onClick={() => setActiveTab("security")}
+							className={cn(
+								"-mb-px flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-2 py-4 font-medium text-sm transition-colors",
+								activeTab === "security"
+									? "border-accent text-accent"
+									: "border-transparent text-gray-500 hover:text-gray-900 dark:text-[#8C8F8F] dark:hover:text-white",
+							)}
+						>
+							<Lock className="h-4 w-4 shrink-0" />
+							Account Security
+						</button>
 					</div>
 
-					<div className="relative p-6 pb-8">
-						{/* Edit profile link - top right */}
-						<div className="absolute top-6 right-6 mb-4 flex justify-end">
-							<button
-								type="button"
-								onClick={handleToggleEdit}
-								className="flex cursor-pointer items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-primary dark:text-[#8C8F8F] dark:hover:text-white"
-							>
-								<Edit className="h-4 w-4" />
-								<span>{isEditing ? "Cancel edit" : "Edit profile"}</span>
-							</button>
-						</div>
-
-						{/* Profile photo - centered circle */}
-						<div className="mt-6 mb-3 flex justify-center">
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept={PROFILE_IMAGE_ACCEPT}
-								className="sr-only"
-								onChange={handleAvatarSelected}
-							/>
-							<button
-								type="button"
-								onClick={handleAvatarClick}
-								disabled={uploadAvatarMutation.isPending || !isEditing}
-								aria-label="Update profile picture"
-								className="relative cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-wait"
-							>
-								{profileImage ? (
-									<img
-										src={profileImage}
-										alt={displayName}
-										className="h-32 w-32 rounded-full border border-gray-200 object-cover dark:border-gray-700"
-									/>
-								) : (
-									<div className="flex h-32 w-32 items-center justify-center rounded-full border border-gray-200 bg-[#F0F0F0] font-semibold text-3xl text-muted-foreground dark:border-[#2F3033] dark:bg-[#1C1D1F] dark:text-[#8C8F8F]">
-										{initials}
-									</div>
-								)}
-								<div className="absolute right-1 bottom-1 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md dark:border dark:border-[#2F3033] dark:bg-[#1C1D1F]">
-									{uploadAvatarMutation.isPending ? (
-										<Loader2 className="h-4 w-4 animate-spin text-gray-600 dark:text-[#8C8F8F]" />
-									) : (
-										<Camera className="h-4 w-4 text-gray-600 dark:text-[#8C8F8F]" />
-									)}
-								</div>
-							</button>
-						</div>
-						<div className="mb-10 flex justify-center">
-							<p className="text-[10px] text-gray-500 md:text-sm dark:text-[#8C8F8F]">
-								{displayName}
-							</p>
-						</div>
-
-						{showEditLocked && (
-							<div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
-								<p>
-									You've already updated your profile. Contact admin via email
-									if you want any further changes:{" "}
-									<a
-										href={`mailto:${PROFILE_ADMIN_EMAIL}`}
-										className="font-medium underline underline-offset-2"
-									>
-										{PROFILE_ADMIN_EMAIL}
-									</a>
+					{activeTab === "security" ? (
+						<AccountSecurityPanel />
+					) : (
+						<div className="relative p-6 pb-8">
+							<div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+								<p className="text-gray-500 text-sm dark:text-[#8C8F8F]">
+									{canEditProfile
+										? "You can edit your profile once. Further changes go through admin."
+										: "Profile edits are locked. Contact admin for changes."}
 								</p>
-							</div>
-						)}
-
-						{/* Form fields */}
-						<form onSubmit={handleSubmit}>
-							<div className="space-y-4">
-								{/* Full Name Field */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.fullName}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Full name:
-									</label>
-									<Input
-										id={inputIds.fullName}
-										type="text"
-										value={formState.fullName}
-										onChange={(event) =>
-											updateField("fullName", event.target.value)
-										}
-										disabled={!isEditing}
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-
-								{/* Email Field */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.email}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Email address:
-									</label>
-									<Input
-										id={inputIds.email}
-										type="email"
-										value={formState.email}
-										onChange={(event) =>
-											updateField("email", event.target.value)
-										}
-										disabled={!isEditing}
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-
-								{/* Date of birth */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.dob}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Date of birth:
-									</label>
-									<DobPicker
-										id={inputIds.dob}
-										value={formState.dob}
-										onChange={(next) => updateField("dob", next)}
-										disabled={!isEditing}
-										placeholder="Select date of birth"
-										className="flex-1"
-										triggerClassName="h-[42px] rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-sm shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-
-								{/* Country Field */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.country}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Country:
-									</label>
-									<Input
-										id={inputIds.country}
-										type="text"
-										value={formState.country}
-										onChange={(event) =>
-											updateField("country", event.target.value)
-										}
-										disabled={!isEditing}
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-
-								{/* Mobile Number Field */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.mobileNumbers}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Mobile number:
-									</label>
-									<Input
-										id={inputIds.mobileNumbers}
-										type="tel"
-										value={formState.mobileNumbers}
-										onChange={(event) =>
-											updateField("mobileNumbers", event.target.value)
-										}
-										disabled={!isEditing}
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-
-								{/* Referral Code Field */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.referralCode}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Referral code:
-									</label>
-									<Input
-										id={inputIds.referralCode}
-										type="text"
-										value={formState.referralCode}
-										onChange={(event) =>
-											updateField("referralCode", event.target.value)
-										}
-										disabled={!isEditing}
-										placeholder="Enter referral code"
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-
-								{/* Referral ID Field */}
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-									<label
-										htmlFor={inputIds.referralId}
-										className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
-									>
-										Referral ID:
-									</label>
-									<Input
-										id={inputIds.referralId}
-										type="text"
-										value={formState.referralId}
-										onChange={(event) =>
-											updateField("referralId", event.target.value)
-										}
-										disabled={true}
-										className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
-									/>
-								</div>
-							</div>
-
-							{/* Save Changes button */}
-							<div className="mt-8">
 								<button
-									type="submit"
-									disabled={!isEditing || updateUserMutation.isPending}
-									className="w-full cursor-pointer rounded-lg bg-[#EBEBEB] px-4 py-4 font-medium text-[#8C8F8F] text-sm transition-colors hover:bg-[#E0E0E0] disabled:cursor-default disabled:opacity-70 dark:bg-[#1C1D1F] dark:hover:bg-[#2A2B2A] [&:not(:disabled)]:bg-accent [&:not(:disabled)]:text-white [&:not(:disabled)]:dark:bg-accent [&:not(:disabled)]:dark:text-white"
+									type="button"
+									onClick={handleToggleEdit}
+									className="flex shrink-0 cursor-pointer items-center gap-1.5 self-end text-muted-foreground text-sm transition-colors hover:text-primary sm:self-start dark:text-[#8C8F8F] dark:hover:text-white"
 								>
-									{updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+									<Edit className="h-4 w-4" />
+									<span>{isEditing ? "Cancel edit" : "Edit profile"}</span>
 								</button>
 							</div>
-						</form>
-					</div>
+
+							{/* Profile photo - centered circle */}
+							<div className="mt-6 mb-3 flex justify-center">
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept={PROFILE_IMAGE_ACCEPT}
+									className="sr-only"
+									onChange={handleAvatarSelected}
+								/>
+								<button
+									type="button"
+									onClick={handleAvatarClick}
+									disabled={uploadAvatarMutation.isPending || !isEditing}
+									aria-label="Update profile picture"
+									className="relative cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-wait"
+								>
+									{profileImage ? (
+										<img
+											src={profileImage}
+											alt={displayName}
+											className="h-32 w-32 rounded-full border border-gray-200 object-cover dark:border-gray-700"
+										/>
+									) : (
+										<div className="flex h-32 w-32 items-center justify-center rounded-full border border-gray-200 bg-[#F0F0F0] font-semibold text-3xl text-muted-foreground dark:border-[#2F3033] dark:bg-[#1C1D1F] dark:text-[#8C8F8F]">
+											{initials}
+										</div>
+									)}
+									<div className="absolute right-1 bottom-1 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-md dark:border dark:border-[#2F3033] dark:bg-[#1C1D1F]">
+										{uploadAvatarMutation.isPending ? (
+											<Loader2 className="h-4 w-4 animate-spin text-gray-600 dark:text-[#8C8F8F]" />
+										) : (
+											<Camera className="h-4 w-4 text-gray-600 dark:text-[#8C8F8F]" />
+										)}
+									</div>
+								</button>
+							</div>
+							<div className="mb-10 flex justify-center">
+								<p className="text-[10px] text-gray-500 md:text-sm dark:text-[#8C8F8F]">
+									{displayName}
+								</p>
+							</div>
+
+							{showEditLocked && (
+								<div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+									<p>
+										You've already updated your profile. Contact admin via email
+										if you want any further changes:{" "}
+										<a
+											href={`mailto:${PROFILE_ADMIN_EMAIL}`}
+											className="font-medium underline underline-offset-2"
+										>
+											{PROFILE_ADMIN_EMAIL}
+										</a>
+									</p>
+								</div>
+							)}
+
+							{/* Form fields */}
+							<form onSubmit={handleSubmit}>
+								<div className="space-y-4">
+									{/* Full Name Field */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.fullName}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Full name:
+										</label>
+										<Input
+											id={inputIds.fullName}
+											type="text"
+											value={formState.fullName}
+											onChange={(event) =>
+												updateField("fullName", event.target.value)
+											}
+											disabled={!isEditing}
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+
+									{/* Email Field */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.email}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Email address:
+										</label>
+										<Input
+											id={inputIds.email}
+											type="email"
+											value={formState.email}
+											onChange={(event) =>
+												updateField("email", event.target.value)
+											}
+											disabled={!isEditing}
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+
+									{/* Date of birth */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.dob}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Date of birth:
+										</label>
+										<DobPicker
+											id={inputIds.dob}
+											value={formState.dob}
+											onChange={(next) => updateField("dob", next)}
+											disabled={!isEditing}
+											placeholder="Select date of birth"
+											className="flex-1"
+											triggerClassName="h-[42px] rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-sm shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+
+									{/* Country Field */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.country}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Country:
+										</label>
+										<Input
+											id={inputIds.country}
+											type="text"
+											value={formState.country}
+											onChange={(event) =>
+												updateField("country", event.target.value)
+											}
+											disabled={!isEditing}
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-left shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+
+									{/* Mobile Number Field */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.mobileNumbers}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Mobile number:
+										</label>
+										<Input
+											id={inputIds.mobileNumbers}
+											type="tel"
+											value={formState.mobileNumbers}
+											onChange={(event) =>
+												updateField("mobileNumbers", event.target.value)
+											}
+											disabled={!isEditing}
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+
+									{/* Referral Code Field */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.referralCode}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Referral code:
+										</label>
+										<Input
+											id={inputIds.referralCode}
+											type="text"
+											value={formState.referralCode}
+											onChange={(event) =>
+												updateField("referralCode", event.target.value)
+											}
+											disabled={!isEditing}
+											placeholder="Enter referral code"
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+
+									{/* Referral ID Field */}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+										<label
+											htmlFor={inputIds.referralId}
+											className="shrink-0 font-medium text-gray-900 text-sm sm:w-48 dark:text-white"
+										>
+											Referral ID:
+										</label>
+										<Input
+											id={inputIds.referralId}
+											type="text"
+											value={formState.referralId}
+											onChange={(event) =>
+												updateField("referralId", event.target.value)
+											}
+											disabled={true}
+											className="h-[42px] flex-1 rounded-lg border-none bg-[#F4F4F4] px-4 py-2 text-center shadow-none disabled:opacity-100 dark:bg-[#1C1D1F] dark:text-[#8C8F8F]"
+										/>
+									</div>
+								</div>
+
+								{/* Save Changes button */}
+								<div className="mt-8">
+									<button
+										type="submit"
+										disabled={!isEditing || updateUserMutation.isPending}
+										className="w-full cursor-pointer rounded-lg bg-[#EBEBEB] px-4 py-4 font-medium text-[#8C8F8F] text-sm transition-colors hover:bg-[#E0E0E0] disabled:cursor-default disabled:opacity-70 dark:bg-[#1C1D1F] dark:hover:bg-[#2A2B2A] [&:not(:disabled)]:bg-accent [&:not(:disabled)]:text-white [&:not(:disabled)]:dark:bg-accent [&:not(:disabled)]:dark:text-white"
+									>
+										{updateUserMutation.isPending
+											? "Saving..."
+											: "Save Changes"}
+									</button>
+								</div>
+							</form>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

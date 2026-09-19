@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+	BONUS_ENGINE_BODY_FIELD,
 	BONUS_ENGINE_CAMPAIGN_TYPE_VALUES,
 	BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
 } from "@/services/bonus-engine/bonus-engine.service.constant";
@@ -34,7 +35,7 @@ export const LoyaltyRedeemRequestSchema = z
 		}),
 		loyalty_id: z.string().min(1).optional().openapi({
 			description:
-				"Active campaign `_id` from `POST /loyalty/lists` (forwarded as Bonus Engine `loyalty_id` when present)",
+				"Active campaign `_id` from `GET /loyalty/lists` (forwarded as Bonus Engine `loyalty_id` when present)",
 		}),
 	})
 	.openapi("LoyaltyRedeemRequest");
@@ -96,6 +97,7 @@ export const BonusCampaignsRequestSchema = z
 		bonus_type: z.enum(BONUS_ENGINE_CAMPAIGN_TYPE_VALUES).default(
 			BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
 		).openapi({
+			param: { name: BONUS_ENGINE_BODY_FIELD.BONUS_TYPE, in: "query" },
 			description:
 				"Bonus Engine `bonus_type` filter. Always sent; defaults to welcome.",
 			example: BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE,
@@ -123,7 +125,7 @@ export const BonusActionRequestSchema = z
 	.object({
 		userbonus_id: z.string().min(1).openapi({
 			description:
-				"Player bonus assignment `_id` from `POST /getall_User_bonus` (forwarded as Bonus Engine `userbonus_id`)",
+				"Player bonus assignment `_id` from `GET /bonus/getall_User_bonus` (forwarded as Bonus Engine `userbonus_id`)",
 			example: "66d7fbf439d19fb08c09a37c",
 		}),
 	})
