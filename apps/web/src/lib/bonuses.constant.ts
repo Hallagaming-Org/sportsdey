@@ -6,6 +6,8 @@ export const BONUS_API_ROUTE = {
 	CANCEL: "bonus/cancel",
 } as const;
 
+export const BONUS_TYPE_QUERY_PARAM = "bonus_type" as const;
+
 export const BONUS_PLAY_ROUTE = {
 	SPORTS: "/sportsbetting/sports/prematch",
 	CASINO: "/games",
