@@ -14,6 +14,8 @@ import {
 	getBonusEngineLoyaltyPoints,
 	isBonusEngineConfigured,
 	redeemBonusEngineLoyaltyPoints,
+	shouldTreatLoyaltyHistoryAsEmpty,
+	BONUS_ENGINE_LOYALTY_MESSAGE,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -249,21 +251,31 @@ loyaltyRoute.openapi(historyRoute, async (c) => {
 		env: c.env,
 		userId: user.id,
 	});
-	if (!result.ok && result.status === 404) {
+	if (shouldTreatLoyaltyHistoryAsEmpty(result)) {
+		console.warn("Bonus Engine loyalty history unavailable; returning empty", {
+			userId: user.id,
+			status: result.status,
+			error: result.error,
+		});
 		return c.json(
 			{
 				success: true as const,
 				data: [],
-				message: result.error ?? "No loyalty history found",
+				message: BONUS_ENGINE_LOYALTY_MESSAGE.HISTORY_EMPTY,
 			},
 			200,
 		);
 	}
 	if (!result.ok) {
+		console.error("Bonus Engine loyalty history failed", {
+			userId: user.id,
+			status: result.status,
+			error: result.error,
+		});
 		return c.json(
 			{
 				success: false as const,
-				error: result.error ?? "Failed to fetch loyalty history",
+				error: BONUS_ENGINE_LOYALTY_MESSAGE.HISTORY_UNAVAILABLE,
 			},
 			mapUpstreamStatus(result.status),
 		);
