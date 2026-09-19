@@ -20,6 +20,8 @@ const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
  * - WIN credits require a prior matching BET debit
  *
  * Until that ships, Sportsdey Crash is offline for real money.
+ * Bonus-engine bet-result reporting for Crash cannot be attached here while
+ * the wallet path is disabled.
  */
 
 const DepositSchema = z

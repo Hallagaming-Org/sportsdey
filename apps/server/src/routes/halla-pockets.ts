@@ -26,6 +26,7 @@ import {
 	BONUS_ENGINE_NATIVE_PROVIDER_ID,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import {
 	settlePocketsTransaction,
@@ -373,6 +374,17 @@ hallaPocketsRoute.openapi(creditRoute, async (c) => {
 		return c.json(errBody, status);
 	}
 
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			totalWinAmount: amountNaira,
+			isWin: 1,
+		});
+	}
+
 	return c.json(
 		{
 			success: true as const,
@@ -466,6 +478,18 @@ hallaPocketsRoute.openapi(refundRoute, async (c) => {
 	if (settle.status !== "settled" && settle.status !== "duplicate") {
 		const { body: errBody, status } = settleErrorResponse(settle);
 		return c.json(errBody, status);
+	}
+
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			totalWinAmount: amountNaira,
+			isWin: 0,
+			isRollback: 1,
+		});
 	}
 
 	return c.json(

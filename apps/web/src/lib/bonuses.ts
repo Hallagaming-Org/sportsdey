@@ -28,6 +28,25 @@ export async function fetchPlayerBonuses(): Promise<BonusCard[]> {
 		.map((row, index) => normalizeUserBonus(row, index));
 }
 
+
+export async function fetchAllUserBonuses(): Promise<Record<string, unknown>[]> {
+	try {
+		const data = await apiRequest<Record<string, unknown>[]>(
+			BONUS_API_ROUTE.GETALL_USER_BONUS,
+			{
+				method: "POST",
+				credentials: "include",
+				body: JSON.stringify({}),
+			},
+		);
+		//console.log("getall_User_bonus", data); this is what we will use to show the bonus balance in the balances section
+		return Array.isArray(data) ? data : [];
+	} catch (error) {
+		console.error("getall_User_bonus failed", error);
+		throw error;
+	}
+}
+
 export async function fetchBonusCampaigns(payload: {
 	bonusType: string;
 }): Promise<BonusCard[]> {
@@ -70,6 +89,7 @@ export async function invalidateBonusAndWallet(
 ): Promise<void> {
 	await Promise.all([
 		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.LIST }),
+		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.GETALL_USER_BONUS }),
 		queryClient.invalidateQueries({ queryKey: BONUS_QUERY_KEY.CAMPAIGNS }),
 		queryClient.invalidateQueries({ queryKey: ["wallet"] }),
 	]);

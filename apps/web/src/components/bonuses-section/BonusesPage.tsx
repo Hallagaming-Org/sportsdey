@@ -14,6 +14,7 @@ import { useSession } from "@/lib/auth/client";
 import {
 	activatePlayerBonus,
 	cancelPlayerBonus,
+	// fetchAllUserBonuses,
 	fetchBonusCampaigns,
 	fetchPlayerBonuses,
 	invalidateBonusAndWallet,
@@ -41,6 +42,13 @@ export function BonusesPage() {
 		retry: false,
 	});
 
+
+	// useQuery({
+	// 	queryKey: BONUS_QUERY_KEY.GETALL_USER_BONUS,
+	// 	queryFn: fetchAllUserBonuses,
+	// 	enabled: Boolean(session?.user),
+	// 	retry: false,
+	// });
 	const campaignsQuery = useQuery({
 		queryKey: BONUS_QUERY_KEY.campaigns(campaignType),
 		queryFn: () => fetchBonusCampaigns({ bonusType: campaignType }),

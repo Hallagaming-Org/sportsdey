@@ -43,6 +43,7 @@ type BetReport = Record<string, unknown>;
 let sqlite: DatabaseSync;
 let env: Record<string, unknown>;
 let betReports: BetReport[];
+let betResultReports: BetReport[];
 let originalFetch: typeof globalThis.fetch;
 
 function createSchema(db: DatabaseSync) {
@@ -199,12 +200,22 @@ function createSchema(db: DatabaseSync) {
 /** Captures outbound Bonus Engine calls and answers them like the engine would. */
 function stubBonusEngineFetch() {
 	originalFetch = globalThis.fetch;
-	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-		const url = typeof input === "string" ? input : input.toString();
+	globalThis.fetch = (async (
+		input: Parameters<typeof globalThis.fetch>[0],
+		init?: Parameters<typeof globalThis.fetch>[1],
+	) => {
+		const url = typeof input === "string" ? input : String(input);
 		const body = typeof init?.body === "string" ? init.body : "{}";
 
 		if (url.includes("access_token")) {
 			return new Response(JSON.stringify({ token: "stub-access-token" }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		}
+		if (url.includes("/betResult")) {
+			betResultReports.push(JSON.parse(body) as BetReport);
+			return new Response(JSON.stringify({ success: true }), {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
 			});
@@ -215,6 +226,24 @@ function stubBonusEngineFetch() {
 				status: 200,
 				headers: { "Content-Type": "application/json" },
 			});
+		}
+		if (url.includes("/mission/progress")) {
+			return new Response(
+				JSON.stringify({
+					success: true,
+					data: { progress_percentage: 40, current: 2, target: 5 },
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		}
+		if (url.includes("/mission/list")) {
+			return new Response(
+				JSON.stringify({
+					success: true,
+					data: [{ _id: MISSION_ID, title: "Play Lagos Rush" }],
+				}),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
 		}
 		throw new Error(`unexpected outbound fetch: ${url}`);
 	}) as typeof globalThis.fetch;
@@ -319,6 +348,7 @@ function progressRow():
 
 beforeEach(() => {
 	betReports = [];
+	betResultReports = [];
 	sqlite = new DatabaseSync(":memory:");
 	createSchema(sqlite);
 	const { DB } = createMemoryD1(sqlite);
@@ -378,12 +408,44 @@ describe("mission progress end-to-end (real handlers, stubbed engine)", () => {
 		);
 		assert.equal(report?.game_id, "LAGOSRUSH");
 		// 20,000 kobo staked must report as 200 naira, not 20,000.
-		assert.equal(report?.amount, 200);
+		assert.equal(report?.real_bet_amount, 200);
+		assert.equal(report?.bonus_bet_amount, 0);
+		assert.equal(report?.bet_type, "normal");
+		assert.equal(report?.internal_bet_id, report?.bet_id);
+		assert.equal(report?.amount, undefined);
 		assert.equal(report?.currency, "NGN");
 		assert.equal(report?.client_id, "client-e2e");
 		assert.equal(report?.project_id, "project-e2e");
 		assert.equal(report?.sport_id, undefined);
 		assert.equal(report?.league_id, undefined);
+		assert.equal(progressRow()?.progress_percentage, 40);
+	});
+
+	it("reports a Lagos Rush win on POST /betResult", async () => {
+		const response = await pocketsRoute.request(
+			"/credit",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"x-api-key": POCKETS_API_KEY,
+				},
+				body: JSON.stringify({
+					playerId: USER_ID,
+					amount: 50_000,
+					currency: "NGN",
+					transactionId: "lagos-rush-e2e-win-1",
+				}),
+			},
+			env,
+		);
+
+		assert.equal(response.status, 200, await response.text());
+		assert.equal(betResultReports.length, 1);
+		assert.equal(betResultReports[0]?.isWin, 1);
+		assert.equal(betResultReports[0]?.isRollback, 0);
+		assert.equal(betResultReports[0]?.total_win_amount, 500);
+		assert.equal(betResultReports[0]?.user_id, USER_ID);
 	});
 
 	it("reports a Halla bet at provider level when no game code is sent", async () => {
@@ -413,7 +475,7 @@ describe("mission progress end-to-end (real handlers, stubbed engine)", () => {
 		);
 		assert.equal(betReports[0]?.game_id, undefined);
 		// Halla speaks naira already, so the amount passes through untouched.
-		assert.equal(betReports[0]?.amount, 150);
+		assert.equal(betReports[0]?.real_bet_amount, 150);
 	});
 
 	it("reports a Slotegrator bet with the synced provider id", async () => {
@@ -433,7 +495,7 @@ describe("mission progress end-to-end (real handlers, stubbed engine)", () => {
 		assert.equal(betReports[0]?.provider_id, "982");
 		assert.equal(betReports[0]?.game_id, SLOTEGRATOR_GAME_UUID);
 		// Slotegrator already speaks major units.
-		assert.equal(betReports[0]?.amount, 75.5);
+		assert.equal(betReports[0]?.real_bet_amount, 75.5);
 	});
 
 	it("reports a bet for a game missing from the catalog, not silently dropping it", async () => {

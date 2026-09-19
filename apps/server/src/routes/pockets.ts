@@ -18,6 +18,7 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import {
 	settlePocketsTransaction,
@@ -379,6 +380,17 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 		return c.json(errBody, status);
 	}
 
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			totalWinAmount: casinoBetAmountFromKobo(parsed.amountKobo),
+			isWin: 1,
+		});
+	}
+
 	return c.json(
 		{
 			success: true as const,
@@ -473,6 +485,18 @@ pocketsRoute.openapi(refundRoute, async (c) => {
 	if (settle.status !== "settled" && settle.status !== "duplicate") {
 		const { body: errBody, status } = settleErrorResponse(settle);
 		return c.json(errBody, status);
+	}
+
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: parsed.providerTxId,
+			totalWinAmount: casinoBetAmountFromKobo(parsed.amountKobo),
+			isWin: 0,
+			isRollback: 1,
+		});
 	}
 
 	return c.json(

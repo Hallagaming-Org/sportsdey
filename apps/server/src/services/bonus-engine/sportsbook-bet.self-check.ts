@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { BONUS_ENGINE_PRODUCT_TYPE } from "./bonus-engine.service.constant";
-import { buildBonusEngineBetReportBody } from "./events.service";
+import { buildBonusEngineBetReportBody, buildBonusEngineBetResultBody } from "./events.service";
 import { matchTopEuropeanChampionship } from "./reference-data.service.constant";
 import { extractSportsbookBetReportIds } from "./sportsbook-bet.service";
 
@@ -43,6 +43,12 @@ assert.equal(sportsBody.game_id, undefined);
 assert.equal(sportsBody.sport_id, "1");
 assert.equal(sportsBody.event_id, "987654");
 assert.equal(sportsBody.league_id, "17");
+assert.equal(sportsBody.bet_id, "bet-1");
+assert.equal(sportsBody.internal_bet_id, "bet-1");
+assert.equal(sportsBody.bet_type, "normal");
+assert.equal(sportsBody.real_bet_amount, 100);
+assert.equal(sportsBody.bonus_bet_amount, 0);
+assert.equal(sportsBody.amount, undefined);
 
 const casinoBody = buildBonusEngineBetReportBody({
 	clientId: "client",
@@ -61,6 +67,29 @@ assert.equal(casinoBody.sport_id, undefined);
 assert.equal(casinoBody.league_id, undefined);
 assert.equal(casinoBody.provider_id, "netent");
 assert.equal(casinoBody.game_id, "starburst");
+assert.equal(casinoBody.real_bet_amount, 50);
+assert.equal(casinoBody.bonus_bet_amount, 0);
+assert.equal(casinoBody.amount, undefined);
+
+const resultBody = buildBonusEngineBetResultBody({
+	clientId: "client",
+	projectId: "project",
+	result: {
+		userId: "user-1",
+		betId: "bet-1",
+		totalWinAmount: 250,
+		isWin: 1,
+		resultTime: "2026-09-18T12:00:00.000Z",
+		realWalletBalance: 1000,
+		bonusWalletBalance: 0,
+	},
+});
+assert.equal(resultBody.isWin, 1);
+assert.equal(resultBody.isRollback, 0);
+assert.equal(resultBody.total_win_amount, 250);
+assert.equal(resultBody.real_win_amount, 250);
+assert.equal(resultBody.bonus_win_amount, 0);
+assert.equal(resultBody.result_time, "2026-09-18T12:00:00.000Z");
 
 assert.equal(matchTopEuropeanChampionship("Premier League")?.name, "Premier League");
 assert.equal(matchTopEuropeanChampionship("Premier League 2"), undefined);

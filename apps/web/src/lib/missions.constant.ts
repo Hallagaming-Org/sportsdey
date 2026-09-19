@@ -70,3 +70,10 @@ export const MISSION_REWARD_TYPE = {
 	POINTS: "Points",
 	REAL_CASH: "Real Cash",
 } as const;
+
+export const MISSION_STATUS = {
+	ACTIVE: "ACTIVE",
+	COMPLETED: "COMPLETED",
+	COMPLETE: "COMPLETE",
+	INACTIVE: "INACTIVE",
+} as const;

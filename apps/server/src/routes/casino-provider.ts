@@ -21,6 +21,7 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import { logMoneyMovement } from "@/services/casino-settlement";
 import { toKobo } from "@/utils/casino-money";
@@ -931,6 +932,15 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		// Ledger already claimed; returning 500 would reprint the win on retry.
 	}
 
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: user_id,
+		betId: provider_tx_id,
+		totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+		isWin: 1,
+	});
+
 	return c.json(
 		{
 			code: 200,
@@ -1140,6 +1150,16 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 	} catch {
 		// Money already moved under a unique rollback id; 500 would reprint it.
 	}
+
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: user_id,
+		betId: rollback_provider_tx_id,
+		totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+		isWin: 0,
+		isRollback: 1,
+	});
 
 	return c.json(
 		{
