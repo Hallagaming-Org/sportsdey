@@ -24,6 +24,7 @@ import {
 	casinoBetAmountFromKobo,
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../types";
 
@@ -493,6 +494,25 @@ thundrRoute.post("/transactions", async (c) => {
 			currency: "NGN",
 			gameRef: tx.gameId,
 			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.THNDR,
+		});
+	} else if (tx.type === "WIN" || tx.type === "DRAW") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.transactionId,
+			totalWinAmount: casinoBetAmountFromKobo(txAmountKobo),
+			isWin: 1,
+		});
+	} else if (tx.type === "ROLLBACK") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.originalTransactionId || tx.transactionId,
+			totalWinAmount: casinoBetAmountFromKobo(txAmountKobo),
+			isWin: 0,
+			isRollback: 1,
 		});
 	}
 
