@@ -28,15 +28,40 @@ const SPORTSBOOK_HOST_CHROME_CSS = `
 	min-width: 0;
 	max-width: 100%;
 }
-[data-id="BreakpointProvider"] .flex > * {
-	min-width: 0;
-}
 [data-id="BreakpointProvider"] .flex > [style*="320px"],
 [data-id="BreakpointProvider"] .flex > [class*="320px"] {
 	flex: 0 0 320px !important;
 	flex-shrink: 0 !important;
 	min-width: 320px !important;
 	max-width: 320px !important;
+}
+/* Left sports column: do not stretch to the center column's height.
+   That leftover height was rendering as a gap between Show More and
+   Football / Basketball. Hug content so the list stays continuous. */
+[data-id="BreakpointProvider"] .flex > [style*="320px"]:first-child,
+[data-id="BreakpointProvider"] .flex > [class*="320px"]:first-child {
+	align-self: flex-start !important;
+	height: auto !important;
+	min-height: 0 !important;
+	max-height: none !important;
+}
+[data-id="BreakpointProvider"] .flex > [style*="320px"]:first-child .flex,
+[data-id="BreakpointProvider"] .flex > [class*="320px"]:first-child .flex {
+	align-content: flex-start;
+}
+[data-id="BreakpointProvider"] .flex > [style*="320px"]:first-child .size-all-inherit,
+[data-id="BreakpointProvider"] .flex > [class*="320px"]:first-child .size-all-inherit {
+	height: auto !important;
+	min-height: 0 !important;
+	max-height: none !important;
+}
+/* Center odds cells were inheriting min-width:0 from a previous overflow
+   patch and shrinking below a comfortable tap target. */
+[data-id="BreakpointProvider"] .text-textOdd {
+	min-width: 2.75rem;
+	padding-inline: 0.5rem;
+	padding-block: 0.375rem;
+	box-sizing: border-box;
 }
 `;
 

@@ -79,8 +79,31 @@ function pinSideColumn(el: HTMLElement) {
 }
 
 /**
+ * The left sports nav lives in a sticky wrapper that inherits the stretched
+ * 3-column row height. Featured leagues (`Show More`) and the sport-type
+ * list (`Football`, `Basketball`, …) are siblings in a wrapping flex, so the
+ * leftover height becomes a dead gap between them. Hug content instead.
+ */
+function packLeftNavColumn(el: HTMLElement) {
+	el.style.setProperty("align-self", "flex-start", "important");
+	el.style.setProperty("height", "auto", "important");
+	el.style.setProperty("min-height", "0", "important");
+	el.style.setProperty("max-height", "none", "important");
+	for (const inherit of el.querySelectorAll<HTMLElement>(".size-all-inherit")) {
+		inherit.style.setProperty("height", "auto", "important");
+		inherit.style.setProperty("min-height", "0", "important");
+		inherit.style.setProperty("max-height", "none", "important");
+	}
+	for (const flex of el.querySelectorAll<HTMLElement>(".flex")) {
+		flex.style.setProperty("align-content", "flex-start", "important");
+	}
+}
+
+/**
  * Pin 320px nav/betslip columns in the live shadow tree and let the
  * middle column scroll internally instead of overflowing the page.
+ * Pack the left sports list so leftover row height does not sit between
+ * "Show More" and the Football / Basketball sub-list.
  */
 export function constrainSportsbookThreeColumnRows(root: ParentNode) {
 	const sides = root.querySelectorAll<HTMLElement>(
@@ -90,21 +113,28 @@ export function constrainSportsbookThreeColumnRows(root: ParentNode) {
 
 	for (const side of sides) {
 		const row = side.parentElement;
-		if (!row || seen.has(row) || row.children.length !== 3) continue;
+		if (!row || seen.has(row)) continue;
+		const childCount = row.children.length;
+		if (childCount !== 2 && childCount !== 3) continue;
 		const left = row.children[0];
 		const center = row.children[1];
-		const right = row.children[2];
-		if (!looksLikeSideColumn(left) || !looksLikeSideColumn(right)) continue;
-		if (!(center instanceof HTMLElement)) continue;
+		if (!looksLikeSideColumn(left) || !(center instanceof HTMLElement)) {
+			continue;
+		}
+		if (childCount === 3) {
+			const right = row.children[2];
+			if (!looksLikeSideColumn(right)) continue;
+			pinSideColumn(right);
+			center.style.setProperty("flex", "1 1 0%", "important");
+			center.style.setProperty("min-width", "0", "important");
+			center.style.setProperty("overflow-x", "auto", "important");
+		}
 		seen.add(row);
 
 		row.style.setProperty("max-width", "100%", "important");
 		row.style.setProperty("min-width", "0", "important");
 		row.style.setProperty("width", "100%", "important");
 		pinSideColumn(left);
-		pinSideColumn(right);
-		center.style.setProperty("flex", "1 1 0%", "important");
-		center.style.setProperty("min-width", "0", "important");
-		center.style.setProperty("overflow-x", "auto", "important");
+		packLeftNavColumn(left);
 	}
 }

@@ -1,4 +1,4 @@
-import { ChevronLeft, Copy, Info, X } from "lucide-react";
+import { ChevronLeft, Copy, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DepositCryptoPanel } from "@/components/deposit-crypto-panel";
@@ -97,7 +97,6 @@ export function DepositModal({
 			BASE_METHOD_TABS[0],
 			BASE_METHOD_TABS[1],
 			{ key: "crypto" as const, label: "Crypto" },
-			BASE_METHOD_TABS[2],
 		];
 	}, []);
 
@@ -108,7 +107,7 @@ export function DepositModal({
 
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
-		if (activeMethod === "direct_banking" || activeMethod === "crypto") {
+		if (activeMethod === "crypto") {
 			return;
 		}
 
@@ -117,22 +116,9 @@ export function DepositModal({
 			return;
 		}
 
-		if (activeMethod === "direct_banking" && selectedBank === "opay") {
-			onSubmit("opay");
-			return;
+		if (activeMethod === "direct_banking" && selectedBank) {
+			onSubmit(selectedBank as DepositProvider);
 		}
-
-		if (activeMethod === "direct_banking" && selectedBank === "paystack") {
-			onSubmit("paystack");
-			return;
-		}
-
-		if (activeMethod === "direct_banking" && selectedBank === "kuda") {
-			onSubmit("kuda");
-			return;
-		}
-
-		if (activeMethod === "direct_banking" && selectedBank === "palmpay") onSubmit("palmpay");
 	};
 
 	const handleCopyAccountNumber = () => {
@@ -305,14 +291,6 @@ export function DepositModal({
 
 						{activeMethod === "direct_banking" && (
 							<>
-								<div className="mb-4 flex items-start gap-3 rounded-lg bg-[#B5B7B5] px-4 py-3">
-									<Info className="mt-0.5 h-4 w-4 shrink-0 text-black" />
-									<p className="text-black text-sm">
-										Please ensure your wallet/account has sufficient balance to
-										complete the Deposit.
-									</p>
-								</div>
-
 								<p className="mb-4 text-center font-semibold text-white">
 									Select a Bank
 								</p>

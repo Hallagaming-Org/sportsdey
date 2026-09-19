@@ -10,6 +10,7 @@ import { queryParamsToCanonicalJSON, toCanonicalJSON } from "./canonical-json";
 const INTEGRATION_KEY = "integration-test-key";
 const SESSION_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 const USER_ID = "swipegames-user-1";
+const STAGING_IP = "18.185.156.20";
 
 function env(DB: D1Database = {} as D1Database) {
 	return {
@@ -102,6 +103,7 @@ describe("Swipe Games reverse-call signature gate", () => {
 				headers: {
 					"content-type": "application/json",
 					"x-request-sign": "deadbeef",
+					"cf-connecting-ip": STAGING_IP,
 				},
 				body: canonical,
 			},
@@ -119,7 +121,10 @@ describe("Swipe Games reverse-call signature gate", () => {
 			"/swipegames/balance?sessionID=abc",
 			{
 				method: "GET",
-				headers: { "x-request-sign": "00".repeat(32) },
+				headers: {
+					"x-request-sign": "00".repeat(32),
+					"cf-connecting-ip": STAGING_IP,
+				},
 			},
 			env(),
 		);
@@ -135,7 +140,13 @@ describe("Swipe Games reverse-call signature gate", () => {
 			.digest("hex");
 		const response = await app.request(
 			`/swipegames/balance?sessionID=${SESSION_ID}`,
-			{ method: "GET", headers: { "x-request-sign": signature } },
+			{
+				method: "GET",
+				headers: {
+					"x-request-sign": signature,
+					"cf-connecting-ip": STAGING_IP,
+				},
+			},
 			memoryEnv(),
 		);
 		assert.equal(response.status, 200);
@@ -156,5 +167,28 @@ describe("Swipe Games reverse-call signature gate", () => {
 		);
 		assert.equal(response.status, 200);
 		assert.deepEqual(await response.json(), []);
+	});
+
+	it("rejects GET /balance from an IP that is not on the Swipe Games allowlist", async () => {
+		const app = new OpenAPIHono();
+		app.route("/swipegames", swipegamesRoute);
+		const params = { sessionID: SESSION_ID };
+		const signature = createHmac("sha256", INTEGRATION_KEY)
+			.update(queryParamsToCanonicalJSON(params))
+			.digest("hex");
+		const response = await app.request(
+			`/swipegames/balance?sessionID=${SESSION_ID}`,
+			{
+				method: "GET",
+				headers: {
+					"x-request-sign": signature,
+					"cf-connecting-ip": "1.2.3.4",
+				},
+			},
+			memoryEnv(),
+		);
+		assert.equal(response.status, 403);
+		const json = (await response.json()) as { code?: string };
+		assert.equal(json.code, "ip_not_allowed");
 	});
 });

@@ -221,13 +221,13 @@ function WalletRecentTransactionsView({
 										{/* Icon Circle */}
 										<div
 											className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-												tx.isCredit ? "bg-[#D9F5D0]" : "bg-[#FFD9D4]"
+												tx.isCredit ? "bg-[#D7F2D3]" : "bg-[#FFDCDC]"
 											}`}
 										>
 											<WalletIcon
 												width={20}
 												height={20}
-												className="text-[#4F7D42]"
+												className={tx.isCredit ? "text-[#157305]" : "text-[#BD221C]"}
 											/>
 										</div>
 
