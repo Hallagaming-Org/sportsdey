@@ -1,6 +1,7 @@
 export const BONUS_API_ROUTE = {
 	CAMPAIGNS: "bonus/campaigns",
 	LIST: "bonus/list",
+	GETALL_USER_BONUS: "bonus/getall_User_bonus",
 	ACTIVATE: "bonus/activate",
 	CANCEL: "bonus/cancel",
 } as const;
@@ -132,6 +133,7 @@ export const BONUS_PLACEHOLDER_IDS = new Set([
 
 export const BONUS_QUERY_KEY = {
 	LIST: ["bonuses", "list"] as const,
+	GETALL_USER_BONUS: ["bonuses", "getall_User_bonus"] as const,
 	CAMPAIGNS: ["bonuses", "campaigns"] as const,
 	campaigns: (bonusType: string) =>
 		["bonuses", "campaigns", bonusType] as const,
