@@ -109,7 +109,12 @@ export type BonusEngineReportDepositInput = {
 export type BonusEngineReportBetInput = {
 	userId: string;
 	betId: string;
+	internalBetId?: string;
+	/** Stake in major units. Sent as `real_bet_amount` unless split below. */
 	amount: number;
+	realBetAmount?: number;
+	bonusBetAmount?: number;
+	betType?: string;
 	productType: string;
 	currency?: string;
 	providerId?: string;
@@ -117,6 +122,27 @@ export type BonusEngineReportBetInput = {
 	sportId?: string;
 	eventId?: string;
 	leagueId?: string;
+	marketId?: string;
+	odds?: string;
+	ticket?: string;
+	realWalletBalance?: number;
+	bonusWalletBalance?: number;
+};
+
+export type BonusEngineReportBetResultInput = {
+	userId: string;
+	betId: string;
+	internalBetId?: string;
+	totalWinAmount: number;
+	realWinAmount?: number;
+	bonusWinAmount?: number;
+	isWin: 0 | 1;
+	isResettle?: 0 | 1;
+	isUnsettle?: 0 | 1;
+	isRollback?: 0 | 1;
+	resultTime?: string;
+	realWalletBalance?: number;
+	bonusWalletBalance?: number;
 };
 
 export type BonusEngineLoyaltyPointsUpdatePayload = {
