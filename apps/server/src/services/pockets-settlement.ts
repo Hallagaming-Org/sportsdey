@@ -21,7 +21,7 @@ type Db = DrizzleD1Database<typeof schema>;
 export type PocketsSettleInput = {
 	db: Db;
 	/** Claim-key prefix; keeps Lagos Rush and Halla ids from colliding. */
-	provider: "pockets" | "halla";
+	provider: "pockets" | "halla" | "hashcodex";
 	/** `wallet_transaction.paymentMethod` label. */
 	paymentMethod: string;
 	action: "debit" | "credit" | "refund";
