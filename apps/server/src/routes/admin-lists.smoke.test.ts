@@ -188,6 +188,7 @@ function createListEnv() {
 			balance_after integer,
 			session_token text NOT NULL,
 			game text NOT NULL,
+			round_id text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE thundr_transactions (

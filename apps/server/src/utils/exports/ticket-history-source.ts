@@ -154,8 +154,15 @@ export function buildTicketHistoryPageQuery(input: {
 				`SELECT t.id AS id, u.name AS player_name, t.amount AS amount,
 					NULL AS potential_win,
 					CASE WHEN t.type = 'WIN' THEN t.amount ELSE NULL END AS payout,
-					'Casino' AS game_type, COALESCE(g.name, t.game) AS game_name,
-					'Spribe' AS provider, '' AS round_id, '' AS odds,
+					'Casino' AS game_type,
+					CASE LOWER(t.game)
+						WHEN 'sportsdey-crash' THEN 'SportsDey Crash'
+						WHEN 'spin_and_win' THEN 'Spin and Win'
+						ELSE COALESCE(g.name, t.game)
+					END AS game_name,
+					CASE WHEN LOWER(t.game) IN ('sportsdey-crash', 'spin_and_win')
+						THEN 'SportsDey' ELSE 'LuckyWorld' END AS provider,
+					COALESCE(t.round_id, '') AS round_id, '' AS odds,
 					t.created_at AS created_at, t.balance_before AS balance_before,
 					t.balance_after AS balance_after,
 					CASE WHEN t.type = 'WIN' THEN 'Won' ELSE 'Active' END AS status
