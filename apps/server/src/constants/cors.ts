@@ -24,6 +24,7 @@ export const CORS_ALLOW_HEADERS = [
 	"Authorization",
 	"Content-Type",
 	"X-WebEngage-Secret",
+	"X-Hashcodex-Signature",
 ];
 
 /** Build the allowlist for browser + native app origins. */

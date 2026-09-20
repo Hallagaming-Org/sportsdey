@@ -287,9 +287,6 @@ export function resolveKnownLobbyImage(game: {
 	return game.imageUrl ?? null;
 }
 
-const SPORTSDEY_CRASH_URL =
-	"https://binary.sportsdey.com/sportsdayApi/connectSportsDay?type=casino";
-
 function scoreLobbyNameMatch(gameName: string, target: string): number {
 	const g = gameName.toLowerCase().trim();
 	const t = target.toLowerCase().trim();
@@ -380,18 +377,9 @@ export async function fetchClassicLobbyGames(
 	const games = await apiRequest<ClassicLobbyGame[]>(
 		qs ? `games?${qs}` : "games",
 	);
-	const enabled = games.filter(
-		(game) => game.enabled && !CLASSIC_OFFLINE_CODES.has(game.code),
-	);
+	const enabled = games.filter((game) => game.enabled);
 	return enabled;
 }
-
-/**
- * Games whose wallet integration is disabled server-side (Hashcodex /
- * Sportsdey Crash self-credit vulnerability rework). Hidden from the lobby
- * until the signed server-to-server wallet callback ships.
- */
-const CLASSIC_OFFLINE_CODES = new Set(["sportsdey-crash", "spin_and_win"]);
 
 export function filterClassicGames(
 	allGames: ClassicLobbyGame[],
@@ -502,8 +490,7 @@ export function isSlotegratorLobbyGame(game: Pick<ClassicLobbyGame, "code">) {
 export type ClassicLaunchMode = "demo" | "real";
 
 /**
- * Launch a Classic (Slotegrator / Thndr / Lagos Rush / LuckyWorld) game.
- * Returns null when the game opens in a new tab (sportsdey-crash).
+ * Launch a Classic (Slotegrator / Thndr / Lagos Rush / LuckyWorld / Hashcodex) game.
  *
  * For Slotegrator: pass `mode: "demo"` → `/slotegrator/launch-demo`,
  * or `mode: "real"` → `/slotegrator/launch` (wallet session).
@@ -516,11 +503,6 @@ export async function launchClassicGame(
 		throw new Error("Game not found");
 	}
 
-	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
-		window.open(SPORTSDEY_CRASH_URL, "_blank");
-		return null;
-	}
-
 	const base = resolveServerUrl();
 	const knownGame = CLASSIC_KNOWN_GAMES[game.code];
 	const isKnownGame = !!knownGame;
@@ -528,7 +510,10 @@ export async function launchClassicGame(
 	let path: string;
 	let body: Record<string, unknown>;
 
-	if (isKnownGame) {
+	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
+		path = "/hashcodex/launch";
+		body = { gameCode: game.code };
+	} else if (isKnownGame) {
 		if (["XCAPEHB", "EAGLEHB", "LUCKYRISEHB"].includes(game.code)) {
 			path = `/casino/play/${game.code}`;
 			body = {};

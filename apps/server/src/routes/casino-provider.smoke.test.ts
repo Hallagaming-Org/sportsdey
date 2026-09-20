@@ -71,6 +71,7 @@ function createSmokeEnv(betProviderTxId: string) {
 			balance_after integer,
 			session_token text NOT NULL,
 			game text NOT NULL,
+			round_id text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE UNIQUE INDEX game_transactions_provider_tx_id_unique

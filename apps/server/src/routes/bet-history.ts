@@ -4,6 +4,10 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { toWAT } from "@/utils";
 import { lookupGameName } from "@/utils/game-display-name";
+import {
+	nativeCasinoGameName,
+	nativeCasinoProvider,
+} from "@/utils/native-casino-games";
 import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
 import {
 	collectTicketOdds,
@@ -403,6 +407,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 			amount: schema.gameTransactions.amount,
 			createdAt: schema.gameTransactions.createdAt,
 			game: schema.gameTransactions.game,
+			roundId: schema.gameTransactions.roundId,
 		})
 		.from(schema.gameTransactions)
 		.where(and(...casinoFilters))
@@ -431,33 +436,40 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 		return name;
 	}
 
+	const gameLedger: CasinoLedgerRow[] = [];
 	for (const row of casinoRows) {
-		if (isCasinoWinType(row.type) && row.amount <= 0) continue;
-
-		let gameName = "Casino";
-		if (row.game) {
+		let gameName = nativeCasinoGameName(row.game) ?? "Casino";
+		if (gameName === "Casino" && row.game) {
 			const name = await getGameName(row.game);
 			if (name) gameName = name;
 		}
-
-		const amountNaira = row.amount / 100;
-		const status = deriveStatusFromCasino(row.type, row.amount);
-		const won = status === "success";
-
-		allItems.push({
+		gameLedger.push({
 			id: row.id,
-			ticketId: row.id,
-			type: `Casino - ${gameName}`,
-			amount: amountNaira,
-			multiplier: 0,
-			status,
-			placedAt: toWAT(row.createdAt),
-			totalOdds: null,
-			potentialWin: won ? amountNaira : null,
-			actualPayout: won ? amountNaira : 0,
-			settledAt: toWAT(row.createdAt),
-			betType: "Casino",
+			type: row.type,
+			amount: row.amount,
 			createdAt: row.createdAt,
+			roundId: row.roundId,
+			gameLabel: gameName,
+		});
+	}
+	for (const item of collapseCasinoLedgerRows(gameLedger)) {
+		allItems.push({
+			id: item.id,
+			ticketId: item.id,
+			type: `Casino - ${item.gameLabel}`,
+			amount: item.amount,
+			multiplier:
+				(item.payout ?? 0) > 0 && item.amount > 0
+					? (item.payout ?? 0) / item.amount
+					: 0,
+			status: item.status,
+			placedAt: toWAT(item.createdAt),
+			totalOdds: null,
+			potentialWin: item.status === "success" ? item.payout : null,
+			actualPayout: item.payout,
+			settledAt: toWAT(item.createdAt),
+			betType: "Casino",
+			createdAt: item.createdAt,
 		});
 	}
 
@@ -920,6 +932,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			amount: schema.gameTransactions.amount,
 			balanceBefore: schema.gameTransactions.balanceBefore,
 			game: schema.gameTransactions.game,
+			roundId: schema.gameTransactions.roundId,
 			createdAt: schema.gameTransactions.createdAt,
 		})
 		.from(schema.gameTransactions)
@@ -932,7 +945,7 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 		.get();
 
 	if (casinoBet) {
-		let gameName = "Casino";
+		let gameName = nativeCasinoGameName(casinoBet.game) ?? "Casino";
 		if (casinoBet.game) {
 			const [game] = await db
 				.select({ name: schema.game.name })
@@ -941,7 +954,34 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				.limit(1);
 			if (game?.name) gameName = game.name;
 		}
-		return c.json(processCasinoTransaction(casinoBet, gameName, "ICRASH"), 200);
+		const roundTxs = casinoBet.roundId
+			? await db
+					.select({
+						id: schema.gameTransactions.id,
+						type: schema.gameTransactions.type,
+						amount: schema.gameTransactions.amount,
+						balanceBefore: schema.gameTransactions.balanceBefore,
+						game: schema.gameTransactions.game,
+						roundId: schema.gameTransactions.roundId,
+						createdAt: schema.gameTransactions.createdAt,
+					})
+					.from(schema.gameTransactions)
+					.where(
+						and(
+							eq(schema.gameTransactions.userId, user.id),
+							eq(schema.gameTransactions.roundId, casinoBet.roundId),
+						),
+					)
+				: [];
+		return c.json(
+			processCasinoTransaction(
+				casinoBet,
+				gameName,
+				nativeCasinoProvider(casinoBet.game) ?? "LuckyWorld",
+				roundTxs,
+			),
+			200,
+		);
 	}
 
 	// Try Slotegrator

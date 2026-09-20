@@ -558,6 +558,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		game,
 		currency,
 		provider,
+		action_id,
 	} = result.data;
 
 	const existingTx = await findGameTxByProviderId(db, provider_tx_id);
@@ -652,6 +653,7 @@ casinoProviderRoute.openapi(withdrawRoute, async (c) => {
 		balanceAfter: oldBalanceKobo - amountKobo,
 		sessionToken: session_token,
 		game,
+		roundId: action_id,
 	});
 
 	if (!claimed.claimed) {
@@ -762,6 +764,7 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		provider,
 		game,
 		currency,
+		action_id,
 	} = result.data;
 
 	const existingTx = await findGameTxByProviderId(db, provider_tx_id);
@@ -873,6 +876,7 @@ casinoProviderRoute.openapi(depositRoute, async (c) => {
 		balanceAfter: oldBalanceKobo + amountKobo,
 		sessionToken: session_token,
 		game,
+		roundId: action_id,
 	});
 
 	if (!claimed.claimed) {
@@ -980,6 +984,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		session_token,
 		provider,
 		game,
+		action_id,
 	} = result.data;
 
 	const rollbackTxId = rollbackLedgerTxId(rollback_provider_tx_id);
@@ -1086,6 +1091,7 @@ casinoProviderRoute.openapi(rollbackRoute, async (c) => {
 		balanceAfter: oldBalanceKobo + adjustment,
 		sessionToken: session_token,
 		game,
+		roundId: action_id,
 	});
 
 	if (!claimed.claimed) {

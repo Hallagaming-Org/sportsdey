@@ -579,6 +579,9 @@ export const gameTransactions = sqliteTable("game_transactions", {
 	balanceAfter: integer("balance_after"),
 	sessionToken: text("session_token").notNull(),
 	game: text("game").notNull(),
+	// The provider action/round ID joins the debit and resulting credit into
+	// one player-facing history item. Legacy rows intentionally remain null.
+	roundId: text("round_id"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),

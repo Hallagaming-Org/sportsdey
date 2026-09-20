@@ -42,6 +42,8 @@ declare namespace Cloudflare {
 		THNDR_BASE_URL: string;
 		THNDR_OPERATOR_ID: string;
 		THNDR_SERVER_SECRET: string;
+		HASHCODEX_SERVER_SECRET?: string;
+		HASHCODEX_LAUNCH_URL?: string;
 		LAGOS_RUSH_API_KEY: string;
 		LAGOS_RUSH_BASE_URL: string;
 		POCKETS_SECRET_KEY: string;

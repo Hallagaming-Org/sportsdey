@@ -12,6 +12,10 @@ import { createHmac } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { createMemoryD1 } from "../test-support/memory-d1";
+import {
+	computeHashcodexSignature,
+	HASHCODEX_SIGNATURE_HEADER,
+} from "../utils/hashcodex-security";
 import hallaPocketsRoute from "./halla-pockets";
 import hashcodexRoute from "./hashcodex";
 import pocketsRoute from "./pockets";
@@ -26,6 +30,7 @@ const THNDR_SESSION = "thndr-idem-session";
 const SLOT_MERCHANT_ID = "slot-idem-merchant";
 const SLOT_MERCHANT_KEY = "slot-idem-key";
 const SLOT_SESSION = "slot-idem-session";
+const HASHCODEX_SECRET = "hashcodex-idem-secret";
 
 let sqlite: DatabaseSync;
 let env: Record<string, unknown>;
@@ -156,6 +161,7 @@ beforeEach(() => {
 		THNDR_SERVER_SECRET: THNDR_SECRET,
 		SLOTITEGRATION_MERCHANT_ID: SLOT_MERCHANT_ID,
 		SLOTITEGRATION_MERCHANT_KEY: SLOT_MERCHANT_KEY,
+		HASHCODEX_SERVER_SECRET: HASHCODEX_SECRET,
 	};
 	// Bonus Engine reporting is background/best-effort; keep it offline.
 	originalFetch = globalThis.fetch;
@@ -382,11 +388,7 @@ describe("Thndr /transactions idempotency", () => {
 		assert.equal(winB.status, 200, await winB.text());
 		assert.equal(walletBalance(), START_KOBO - 10_000 + 25_000);
 		assert.equal(
-			countRows(
-				"thundr_transactions",
-				"transaction_id = ?",
-				"th-win-1",
-			),
+			countRows("thundr_transactions", "transaction_id = ?", "th-win-1"),
 			1,
 		);
 	});
@@ -539,7 +541,10 @@ describe("Slotegrator callback idempotency", () => {
 	});
 
 	it("credits a win once for parallel duplicates", async () => {
-		assert.equal((await postSlotegrator(slotBet("sl-bet-2", "100"))).status, 200);
+		assert.equal(
+			(await postSlotegrator(slotBet("sl-bet-2", "100"))).status,
+			200,
+		);
 		const win = {
 			action: "win",
 			player_id: USER_ID,
@@ -597,7 +602,7 @@ describe("Slotegrator callback idempotency", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Hashcodex (Sportsdey Crash) — disabled route
+// Hashcodex (Sportsdey Crash) — signed wallet + disabled self-credit
 // ---------------------------------------------------------------------------
 
 describe("Hashcodex self-credit route", () => {
@@ -612,6 +617,130 @@ describe("Hashcodex self-credit route", () => {
 			env,
 		);
 		assert.equal(res.status, 503);
+		assert.equal(walletBalance(), START_KOBO);
+	});
+
+	it("requires a logged-in user to launch", async () => {
+		const res = await hashcodexRoute.request(
+			"/launch",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ gameCode: "sportsdey-crash" }),
+			},
+			env,
+		);
+		assert.equal(res.status, 401);
+	});
+});
+
+describe("Hashcodex signed wallet callback", () => {
+	async function postWallet(body: Record<string, unknown>, sign = true) {
+		const raw = JSON.stringify(body);
+		const headers: Record<string, string> = {
+			"Content-Type": "application/json",
+		};
+		if (sign) {
+			headers[HASHCODEX_SIGNATURE_HEADER] = computeHashcodexSignature(
+				raw,
+				HASHCODEX_SECRET,
+			);
+		}
+		return hashcodexRoute.request(
+			"/wallet",
+			{ method: "POST", headers, body: raw },
+			env,
+		);
+	}
+
+	it("rejects an unsigned credit", async () => {
+		const res = await postWallet(
+			{
+				playerId: USER_ID,
+				action: "credit",
+				amount: 500,
+				transactionId: "win-unsigned",
+				originalTransactionId: "bet-missing",
+			},
+			false,
+		);
+		assert.equal(res.status, 401);
+		assert.equal(walletBalance(), START_KOBO);
+	});
+
+	it("rejects a win with no matching debit", async () => {
+		const res = await postWallet({
+			playerId: USER_ID,
+			action: "credit",
+			amount: 50,
+			transactionId: "win-orphan",
+			originalTransactionId: "bet-never-happened",
+			roundId: "round-1",
+		});
+		assert.equal(res.status, 403);
+		assert.equal(walletBalance(), START_KOBO);
+	});
+
+	it("debits then credits once; duplicate win does not double-pay", async () => {
+		const bet = await postWallet({
+			playerId: USER_ID,
+			action: "debit",
+			amount: 10,
+			transactionId: "bet-1",
+			roundId: "round-a",
+		});
+		assert.equal(bet.status, 200, await bet.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000);
+
+		const winBody = {
+			playerId: USER_ID,
+			action: "credit",
+			amount: 25,
+			transactionId: "win-1",
+			originalTransactionId: "bet-1",
+			roundId: "round-a",
+		};
+		const win = await postWallet(winBody);
+		assert.equal(win.status, 200, await win.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000 + 2_500);
+
+		const [again, parallel] = await Promise.all([
+			postWallet(winBody),
+			postWallet({ ...winBody, transactionId: "win-1-retry" }),
+		]);
+		assert.equal(again.status, 200);
+		assert.equal(parallel.status, 200);
+		assert.equal(walletBalance(), START_KOBO - 1_000 + 2_500);
+	});
+
+	it("refunds the original debit amount once", async () => {
+		const bet = await postWallet({
+			playerId: USER_ID,
+			action: "debit",
+			amount: 20,
+			transactionId: "bet-refund",
+			roundId: "round-r",
+		});
+		assert.equal(bet.status, 200, await bet.text());
+		assert.equal(walletBalance(), START_KOBO - 2_000);
+
+		const refundBody = {
+			playerId: USER_ID,
+			action: "refund",
+			amount: 99,
+			transactionId: "refund-1",
+			originalTransactionId: "bet-refund",
+			roundId: "round-r",
+		};
+		const refund = await postWallet(refundBody);
+		assert.equal(refund.status, 200, await refund.text());
+		assert.equal(walletBalance(), START_KOBO);
+
+		const again = await postWallet({
+			...refundBody,
+			transactionId: "refund-2",
+		});
+		assert.equal(again.status, 200);
 		assert.equal(walletBalance(), START_KOBO);
 	});
 });
