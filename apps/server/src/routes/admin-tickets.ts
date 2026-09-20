@@ -24,6 +24,10 @@ import {
 	lookupGameName,
 	pickCatalogGameName,
 } from "@/utils/game-display-name";
+import {
+	nativeCasinoGameName,
+	nativeCasinoProvider,
+} from "@/utils/native-casino-games";
 import type { StoredBetOdd } from "@/utils/ticket-selection-labels";
 import {
 	formatTicketSelection,
@@ -703,10 +707,10 @@ const handleGetTicketsList = async (
 				createdAtCol: schema.gameTransactions.createdAt,
 				balanceBeforeCol: schema.gameTransactions.balanceBefore,
 				balanceAfterCol: schema.gameTransactions.balanceAfter,
-				roundIdCol: null,
+				roundIdCol: schema.gameTransactions.roundId,
 				gameIdCol: schema.gameTransactions.game,
 				winTypes: ["WIN"],
-				provider: "ISCRASH",
+				provider: "LuckyWorld",
 			},
 			{
 				table: schema.thundrTransactions,
@@ -870,7 +874,7 @@ const handleGetTicketsList = async (
 			t.gameCode,
 			t.provider,
 			t.providerId,
-		);
+		) ?? nativeCasinoGameName(t.gameCode);
 		return {
 			id: t.id,
 			userId: t.userId,
@@ -892,7 +896,7 @@ const handleGetTicketsList = async (
 			balanceAfter:
 				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
 			roundId: t.roundId,
-			provider: t.provider,
+			provider: nativeCasinoProvider(t.gameCode) ?? t.provider,
 			gameName,
 		};
 	});
@@ -1169,10 +1173,10 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				createdAtCol: schema.gameTransactions.createdAt,
 				balanceBeforeCol: schema.gameTransactions.balanceBefore,
 				balanceAfterCol: schema.gameTransactions.balanceAfter,
-				roundIdCol: null,
+				roundIdCol: schema.gameTransactions.roundId,
 				gameIdCol: schema.gameTransactions.game,
 				winTypes: ["WIN"],
-				provider: "Spribe",
+				provider: "LuckyWorld",
 			},
 			{
 				table: schema.thundrTransactions,
@@ -1300,7 +1304,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			t.gameCode,
 			t.provider,
 			t.providerId,
-		);
+		) ?? nativeCasinoGameName(t.gameCode);
 		return {
 			id: t.id,
 			userId: t.userId,
@@ -1322,7 +1326,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			balanceAfter:
 				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
 			roundId: t.roundId,
-			provider: t.provider,
+			provider: nativeCasinoProvider(t.gameCode) ?? t.provider,
 			gameName,
 		};
 	});
@@ -1607,11 +1611,11 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			createdAtCol: schema.gameTransactions.createdAt,
 			balanceBeforeCol: schema.gameTransactions.balanceBefore,
 			balanceAfterCol: schema.gameTransactions.balanceAfter,
-			roundIdCol: null,
+			roundIdCol: schema.gameTransactions.roundId,
 			gameIdCol: schema.gameTransactions.game,
 			sessionTokenCol: schema.gameTransactions.sessionToken,
 			winTypes: ["WIN"],
-			provider: "ICRASH",
+			provider: "LuckyWorld",
 		},
 		{
 			table: schema.thundrTransactions,
@@ -1703,14 +1707,15 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			.get();
 
 		if (row) {
-			let gameName: string | null = null;
+			let gameName: string | null = nativeCasinoGameName(row.gameCode);
 			if (row.gameCode) {
-				gameName = await lookupGameName(
+				const catalogGameName = await lookupGameName(
 					db,
 					row.gameCode,
 					source.provider,
 					row.providerId ?? null,
 				);
+				if (catalogGameName) gameName = catalogGameName;
 			}
 			const isWin = source.winTypes.includes(row.outcomeType);
 			let stakeAmount = row.betAmount;
@@ -1776,7 +1781,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 						balanceAfter:
 							row.balanceAfter != null ? formatAmount(row.balanceAfter) : null,
 					},
-					provider: source.provider,
+					provider: nativeCasinoProvider(row.gameCode) ?? source.provider,
 					gameName,
 					roundId: row.roundId ?? null,
 					sessionId: row.sessionToken ?? null,
