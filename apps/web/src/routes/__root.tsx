@@ -9,21 +9,21 @@ import {
 	useMatches,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Provider } from "react-redux";
 import z from "zod";
-import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
 import { ScrollToTop } from "@/components/scroll-to-top";
-import Sidebar from "@/components/sidebar";
 import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useDesktopMedia } from "@/hooks/use-desktop-media";
 import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
+import { getSportsbookBootstrapScript } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
 import {
 	loginWebengageUser,
@@ -32,6 +32,9 @@ import {
 import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
+
+const Sidebar = lazy(() => import("@/components/sidebar"));
+const DesktopFooter = lazy(() => import("@/components/desktop-footer"));
 
 const INTER_FONT_HREF =
 	"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
@@ -213,6 +216,15 @@ function RootDocument() {
 		"/bet-history/$ticketId",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
+	const isDesktop = useDesktopMedia();
+	const databetBootstrap = getSportsbookBootstrapScript();
+	const databetOrigin = (() => {
+		try {
+			return databetBootstrap ? new URL(databetBootstrap).origin : "";
+		} catch {
+			return "";
+		}
+	})();
 
 	return (
 		<Provider store={store}>
@@ -253,9 +265,19 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 							href="https://fonts.gstatic.com"
 							crossOrigin="anonymous"
 						/>
+						{isSportsbookRoute && databetOrigin ? (
+							<link
+								rel="preconnect"
+								href={databetOrigin}
+								crossOrigin="anonymous"
+							/>
+						) : null}
 						<link rel="preload" as="style" href={INTER_FONT_HREF} />
 						<link rel="stylesheet" href={INTER_FONT_HREF} />
 						<link rel="stylesheet" href={appCss} />
+						{isSportsbookRoute && databetBootstrap ? (
+							<link rel="modulepreload" href={databetBootstrap} />
+						) : null}
 					</head>
 					<body suppressHydrationWarning>
 						<noscript>
@@ -323,11 +345,15 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 													{!isGameRoute && shouldShowSidebar && (
 														<aside
 															className={cn(
-																"no-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6",
+																"no-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:min-h-[32rem] lg:self-start lg:overflow-y-auto lg:pb-6",
 																isSportsbookRoute ? "pr-2" : "pr-4",
 															)}
 														>
-															<Sidebar />
+															{isDesktop ? (
+																<Suspense fallback={<div className="h-[32rem]" />}>
+																	<Sidebar />
+																</Suspense>
+															) : null}
 														</aside>
 													)}
 													<section
@@ -346,7 +372,15 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 														<AppDownloadBanner />
 													</div>
 												)} */}
-												{!isGameRoute && <DesktopFooter />}
+												{!isGameRoute && (
+													<Suspense
+														fallback={
+															<div className="min-h-[28rem] border-[#1B2722] border-t bg-[#000606]" />
+														}
+													>
+														<DesktopFooter />
+													</Suspense>
+												)}
 											</main>
 
 											{!isGameRoute && (

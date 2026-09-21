@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, Undo2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { apiRequest } from "@/lib/api";
@@ -14,9 +14,10 @@ import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
 import WorldIcon from "@/logos/world.svg?react";
 import { WalletBalanceMenu } from "./wallet-balance-menu";
-import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
+
+const Sidebar = lazy(() => import("./sidebar"));
 
 // type HeaderProps = {
 // 	hideSportsNav?: boolean;
@@ -88,7 +89,7 @@ export default function Header(
 	};
 
 	return (
-		<div className="z-30 w-full pb-4 lg:pb-0">
+		<div className="z-30 w-full min-h-[88px] pb-4 lg:min-h-20 lg:pb-0">
 			<div className="w-full bg-white text-foreground lg:bg-black dark:bg-[#121212] dark:lg:bg-black">
 				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 py-2 sm:px-2 lg:hidden">
 					<div className="flex shrink-0 items-center gap-1.5">
@@ -113,14 +114,17 @@ export default function Header(
 						>
 							<img
 								src="/sportsdey-logo.png"
+								width={128}
+								height={32}
 								className="hidden h-7 w-auto sm:h-8 dark:block"
-								alt="sportsdey's logo"
+								alt="SportsDey"
+								decoding="async"
 							/>
 							<NewSportsdeyLogo className="block h-7 w-auto sm:h-8 dark:hidden" />
 						</Link>
 					</div>
 
-					<div className="flex shrink-0 items-center gap-1.5">
+					<div className="flex h-8 min-w-[9.5rem] shrink-0 items-center justify-end gap-1.5">
 						{!!session?.user && (
 							<WalletBalanceMenu
 								wallet={walletData}
@@ -181,11 +185,18 @@ export default function Header(
 						>
 							<img
 								src="/sportsdey-logo.png"
-								className="h-8"
-								alt="sportsdey's logo"
+								width={128}
+								height={32}
+								className="h-8 w-auto"
+								alt="SportsDey"
+								decoding="async"
 							/>
 						</Link>
-						<div className="flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 font-extrabold text-[10px] text-secondary transition-colors hover:bg-white/20 dark:bg-white/5 dark:text-white">
+						<div
+							className="flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 font-extrabold text-[10px] text-secondary transition-colors hover:bg-white/20 dark:bg-white/5 dark:text-white"
+							role="status"
+							aria-label="Language: English"
+						>
 							<WorldIcon className="h-3.5 w-3.5" />
 							<span>EN</span>
 							<ChevronDown className="h-2.5 w-2.5" />
@@ -377,8 +388,11 @@ export default function Header(
 						<div className="flex min-w-0 justify-between p-4">
 							<img
 								src="/sportsdey-logo.png"
-								className="hidden h-10 dark:block"
-								alt="sportsdey's logo"
+								width={160}
+								height={40}
+								className="hidden h-10 w-auto dark:block"
+								alt="SportsDey"
+								decoding="async"
 							/>
 							<NewSportsdeyLogo className="block h-10 w-auto dark:hidden" />
 							<button
@@ -397,7 +411,11 @@ export default function Header(
 						</div>
 
 						<div className="h-[calc(100vh-80px)] space-y-6 overflow-y-auto px-4 pt-4 pb-8">
-							<Sidebar onItemClick={() => setOpen(false)} isMobile />
+							{open ? (
+								<Suspense fallback={<div className="h-96" />}>
+									<Sidebar onItemClick={() => setOpen(false)} isMobile />
+								</Suspense>
+							) : null}
 
 							<div className="w-full px-2 pt-2 pb-12">
 								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">
@@ -405,12 +423,13 @@ export default function Header(
 								</h3>
 
 								<div className="flex flex-wrap items-center gap-3">
-									{socials.map(({ icon: Icon, id, link }) => (
+									{socials.map(({ icon: Icon, id, link, label }) => (
 										<a
 											key={id}
 											href={link}
 											target="_blank"
 											rel="noopener noreferrer"
+											aria-label={label}
 											className="flex size-8 items-center justify-center rounded-full border border-gray-300 bg-transparent p-1 text-gray-900 transition-colors hover:bg-gray-100 dark:border-[#2F3033] dark:text-[#8C8F8F] dark:hover:bg-[#2F3033] dark:hover:text-white"
 										>
 											<Icon />

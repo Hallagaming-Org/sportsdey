@@ -1,7 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
+import { SportsbookSkeleton } from "@/components/sportsbook-skeleton";
 import { Button } from "@/components/ui/button";
 import { ensureAccumulatorBoostsSynced } from "@/lib/accumulator-sync";
 import { ApiError, apiRequest } from "@/lib/api";
@@ -52,11 +52,50 @@ export function SportsbookPage() {
 	const [token, setToken] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isSportsbookPainted, setIsSportsbookPainted] = useState(false);
 	const initializedTokenRef = useRef<string | null>(null);
 	const previousThemeRef = useRef<boolean | null>(null);
 	const tokenRequestIdRef = useRef(0);
 	const accumulatorSyncUserRef = useRef<string | null>(null);
 	const navigate = useNavigate();
+
+	useEffect(() => {
+		if (!isSportsbookConfigured()) return;
+		void loadSportsbookBootstrapScript(getSportsbookBootstrapScript()).catch(
+			() => {
+				// Token init reports load failures once bettingLoader.load runs.
+			},
+		);
+	}, []);
+
+	useEffect(() => {
+		const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
+		if (!host) return;
+
+		const markPainted = () => {
+			const root = host.shadowRoot;
+			if (root && root.childElementCount > 0) {
+				setIsSportsbookPainted(true);
+				return true;
+			}
+			return false;
+		};
+
+		if (markPainted()) return;
+		const observer = new MutationObserver(() => {
+			if (markPainted()) observer.disconnect();
+		});
+		observer.observe(host, { childList: true, subtree: true });
+		const timeoutId = window.setTimeout(() => {
+			if (host.childElementCount > 0 || host.shadowRoot) {
+				setIsSportsbookPainted(true);
+			}
+		}, 8000);
+		return () => {
+			observer.disconnect();
+			window.clearTimeout(timeoutId);
+		};
+	}, []);
 
 	useEffect(() => {
 		const isDarkMode = document.documentElement.classList.contains("dark");
@@ -133,15 +172,23 @@ export function SportsbookPage() {
 		}
 		accumulatorSyncUserRef.current = session.user.id;
 
-		void ensureAccumulatorBoostsSynced()
-			.then((status) => {
-				if (status === "synced") {
-					return loadToken({ silent: true });
-				}
-			})
-			.catch((err) => {
-				console.warn("Accumulator boost sync failed on sportsbook load", err);
-			});
+		const run = () => {
+			void ensureAccumulatorBoostsSynced()
+				.then((status) => {
+					if (status === "synced") {
+						return loadToken({ silent: true });
+					}
+				})
+				.catch(() => {
+					// Boost sync is best-effort; the lobby still loads.
+				});
+		};
+		if ("requestIdleCallback" in window) {
+			const idleId = window.requestIdleCallback(run, { timeout: 5000 });
+			return () => window.cancelIdleCallback(idleId);
+		}
+		const timeoutId = window.setTimeout(run, 1500);
+		return () => window.clearTimeout(timeoutId);
 	}, [isSessionLoading, session?.user, loadToken]);
 
 	useEffect(() => {
@@ -265,18 +312,14 @@ export function SportsbookPage() {
 	}
 
 	return (
-		<div className="relative min-w-0 max-w-full overflow-x-clip bg-transparent p-0">
+		<div className="relative min-h-[calc(100dvh-12.5rem)] min-w-0 max-w-full overflow-x-clip bg-transparent p-0">
 			<div
 				id={SPORTSBOOK_CONTAINER_ID}
-				className="min-h-[calc(100vh-200px)] min-w-0 w-full max-w-full bg-transparent p-0"
+				className="relative min-h-[calc(100dvh-12.5rem)] min-w-0 w-full max-w-full bg-transparent p-0 [contain:layout]"
 			/>
 			<SportsbookBetslip />
 
-			{isLoading && (
-				<div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/80 dark:bg-[#202120]/80">
-					<Loader2 className="h-8 w-8 animate-spin text-primary" />
-				</div>
-			)}
+			{(!isSportsbookPainted || isLoading) && !error && <SportsbookSkeleton />}
 
 			{!isLoading && error && (
 				<div className="absolute inset-0 flex items-center justify-center p-6">
