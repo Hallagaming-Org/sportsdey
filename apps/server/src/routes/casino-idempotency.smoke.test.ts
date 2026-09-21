@@ -97,6 +97,9 @@ function createSchema(db: DatabaseSync) {
 			balance_before integer,
 			balance_after integer,
 			currency text NOT NULL,
+			provider text,
+			game_code text,
+			round_id text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE thundr_sessions (
@@ -688,9 +691,22 @@ describe("Hashcodex signed wallet callback", () => {
 			amount: 10,
 			transactionId: "bet-1",
 			roundId: "round-a",
+			gameCode: "sportsdey-crash",
 		});
 		assert.equal(bet.status, 200, await bet.text());
 		assert.equal(walletBalance(), START_KOBO - 1_000);
+		const context = sqlite
+			.prepare(
+				"SELECT provider, game_code, round_id FROM pockets_transactions WHERE id = ?",
+			)
+			.get("hashcodex:debit:bet-1") as {
+			provider: string;
+			game_code: string;
+			round_id: string;
+		};
+		assert.equal(context.provider, "hashcodex");
+		assert.equal(context.game_code, "sportsdey-crash");
+		assert.equal(context.round_id, "round-a");
 
 		const winBody = {
 			playerId: USER_ID,
@@ -699,6 +715,7 @@ describe("Hashcodex signed wallet callback", () => {
 			transactionId: "win-1",
 			originalTransactionId: "bet-1",
 			roundId: "round-a",
+			gameCode: "sportsdey-crash",
 		};
 		const win = await postWallet(winBody);
 		assert.equal(win.status, 200, await win.text());

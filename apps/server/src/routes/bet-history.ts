@@ -551,7 +551,38 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	}
 	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(slotLedger));
 
-	// ===== 5. FETCH SCORPIO TRANSACTIONS =====
+	// ===== 5. FETCH SPORTSDEY ORIGINALS (signed Hashcodex callbacks) =====
+	const originalsFilters: any[] = [
+		eq(schema.pocketsTransactions.userId, user.id),
+		eq(schema.pocketsTransactions.provider, "hashcodex"),
+	];
+	if (search) {
+		originalsFilters.push(like(schema.pocketsTransactions.id, `%${search}%`));
+	}
+	const originalRows = await db
+		.select({
+			id: schema.pocketsTransactions.id,
+			type: schema.pocketsTransactions.type,
+			amount: schema.pocketsTransactions.amount,
+			createdAt: schema.pocketsTransactions.createdAt,
+			gameCode: schema.pocketsTransactions.gameCode,
+			roundId: schema.pocketsTransactions.roundId,
+		})
+		.from(schema.pocketsTransactions)
+		.where(and(...originalsFilters))
+		.orderBy(desc(schema.pocketsTransactions.createdAt))
+		.limit(MAX_PER_SOURCE);
+	const originalsLedger: CasinoLedgerRow[] = originalRows.map((row) => ({
+		id: row.id,
+		type: row.type,
+		amount: row.amount,
+		createdAt: row.createdAt,
+		roundId: row.roundId,
+		gameLabel: nativeCasinoGameName(row.gameCode) ?? "SportsDey Originals",
+	}));
+	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(originalsLedger));
+
+	// ===== 6. FETCH SCORPIO TRANSACTIONS =====
 	const scorpioFilters: any[] = [
 		eq(schema.scorpioTransactions.userId, user.id),
 	];
@@ -596,7 +627,7 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	}
 	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(scorpioLedger));
 
-	// ===== 6. SORT AND PAGINATE =====
+	// ===== 7. SORT AND PAGINATE =====
 	allItems.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
 	const settledItems = allItems.filter((item) => item.status !== "pending");
@@ -978,6 +1009,58 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 				casinoBet,
 				gameName,
 				nativeCasinoProvider(casinoBet.game) ?? "LuckyWorld",
+				roundTxs,
+			),
+			200,
+		);
+	}
+
+	// SportsDey Crash / Spin and Win settle through signed Hashcodex callbacks.
+	const originalBet = await db
+		.select({
+			id: schema.pocketsTransactions.id,
+			type: schema.pocketsTransactions.type,
+			amount: schema.pocketsTransactions.amount,
+			balanceBefore: schema.pocketsTransactions.balanceBefore,
+			gameCode: schema.pocketsTransactions.gameCode,
+			roundId: schema.pocketsTransactions.roundId,
+			createdAt: schema.pocketsTransactions.createdAt,
+		})
+		.from(schema.pocketsTransactions)
+		.where(
+			and(
+				eq(schema.pocketsTransactions.id, id),
+				eq(schema.pocketsTransactions.userId, user.id),
+				eq(schema.pocketsTransactions.provider, "hashcodex"),
+			),
+		)
+		.get();
+
+	if (originalBet) {
+		const roundTxs = originalBet.roundId
+			? await db
+					.select({
+						id: schema.pocketsTransactions.id,
+						type: schema.pocketsTransactions.type,
+						amount: schema.pocketsTransactions.amount,
+						balanceBefore: schema.pocketsTransactions.balanceBefore,
+						roundId: schema.pocketsTransactions.roundId,
+						createdAt: schema.pocketsTransactions.createdAt,
+					})
+					.from(schema.pocketsTransactions)
+					.where(
+						and(
+							eq(schema.pocketsTransactions.userId, user.id),
+							eq(schema.pocketsTransactions.provider, "hashcodex"),
+							eq(schema.pocketsTransactions.roundId, originalBet.roundId),
+						),
+					)
+				: [];
+		return c.json(
+			processCasinoTransaction(
+				originalBet,
+				nativeCasinoGameName(originalBet.gameCode) ?? "SportsDey Originals",
+				"SportsDey",
 				roundTxs,
 			),
 			200,

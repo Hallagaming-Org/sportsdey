@@ -676,6 +676,9 @@ export const pocketsTransactions = sqliteTable("pockets_transactions", {
 	balanceBefore: integer("balance_before"),
 	balanceAfter: integer("balance_after"),
 	currency: text("currency").notNull(),
+	provider: text("provider"),
+	gameCode: text("game_code"),
+	roundId: text("round_id"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),

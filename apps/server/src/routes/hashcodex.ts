@@ -502,6 +502,8 @@ hashcodexRoute.openapi(walletRoute, async (c) => {
 		providerTxId: claimTxId,
 		amountKobo,
 		currency: "NGN",
+		gameCode,
+		roundId: body.roundId,
 		metadata: {
 			source: "hashcodex",
 			gameCode,

@@ -29,6 +29,8 @@ export type PocketsSettleInput = {
 	providerTxId: string;
 	amountKobo: number;
 	currency: string;
+	gameCode?: string;
+	roundId?: string;
 	metadata: Record<string, unknown>;
 };
 
@@ -89,6 +91,9 @@ export async function settlePocketsTransaction(
 				balanceBefore: wallet.balance,
 				balanceAfter: wallet.balance,
 				currency: input.currency,
+				provider: input.provider,
+				gameCode: input.gameCode,
+				roundId: input.roundId,
 			}),
 		findExisting: async () => {
 			const [row] = await db

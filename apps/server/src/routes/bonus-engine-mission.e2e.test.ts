@@ -123,6 +123,9 @@ function createSchema(db: DatabaseSync) {
 			balance_before integer,
 			balance_after integer,
 			currency text NOT NULL,
+			provider text,
+			game_code text,
+			round_id text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE slotitegration_transactions (
