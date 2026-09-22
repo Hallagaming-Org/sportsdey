@@ -38,6 +38,11 @@ export type {
 	BonusEngineLoyaltyScopedBody,
 	BonusEngineMissionCompletePayload,
 	BonusEngineMissionListItem,
+	BonusEngineTournamentJoinBody,
+	BonusEngineTournamentLeaderboardBody,
+	BonusEngineTournamentLeaderboardItem,
+	BonusEngineTournamentListBody,
+	BonusEngineTournamentListItem,
 	BonusEngineMissionProgressPayload,
 	BonusEngineLoyaltyLevelUpPayload,
 	BonusEngineLoyaltyPointsUpdatePayload,
@@ -167,4 +172,13 @@ export {
 	scheduleBonusEnginePlayerOnAppLogin,
 	syncBonusEnginePlayerOnAppLogin,
 } from "./player.service";
+export {
+	buildBonusEngineTournamentJoinBody,
+	buildBonusEngineTournamentLeaderboardBody,
+	buildBonusEngineTournamentListBody,
+	getBonusEngineTournamentLeaderboard,
+	joinBonusEngineTournament,
+	listBonusEngineTournaments,
+	unwrapTournamentLeaderboardRows,
+} from "./tournament.service";
 export { getBonusEngineAccessToken } from "./token.service";
