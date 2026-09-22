@@ -3,6 +3,7 @@ import {
 	activeAssignedBonuses,
 	normalizeBonusCampaign,
 	normalizeUserBonus,
+	pickReadyBonusOffer,
 	promotionsAssignedBonuses,
 	resolveBonusAction,
 } from "./bonuses-normalize.ts";
@@ -138,5 +139,62 @@ assert.equal(BONUS_TYPE_QUERY_PARAM, "bonus_type");
 assert.equal(promotionsAssignedBonuses([assignment, ready]).length, 2);
 assert.equal(activeAssignedBonuses([assignment, ready]).length, 1);
 assert.equal(promotionsAssignedBonuses([depositCampaign]).length, 0);
+
+const welcomeReady = normalizeUserBonus({
+	_id: "welcome-ready",
+	bonus_type: "welcome",
+	product_type: "casino",
+	user_action: "ASSIGNED",
+	status: "INACTIVE",
+	bonus_amount: 500,
+});
+const loginReady = normalizeUserBonus({
+	_id: "login-ready",
+	bonus_type: "login",
+	product_type: "casino",
+	user_action: "ASSIGNED",
+	status: "INACTIVE",
+	bonus_amount: 100,
+});
+const depositReady = normalizeUserBonus({
+	_id: "deposit-ready",
+	bonus_type: "deposit",
+	product_type: "casino",
+	user_action: "ASSIGNED",
+	status: "INACTIVE",
+	bonus_amount: 200,
+});
+assert.equal(
+	pickReadyBonusOffer({
+		bonuses: [loginReady, welcomeReady, depositReady],
+		types: ["welcome", "login"],
+		dismissedIds: new Set(),
+	})?.id,
+	"welcome-ready",
+);
+assert.equal(
+	pickReadyBonusOffer({
+		bonuses: [loginReady, welcomeReady, depositReady],
+		types: ["welcome", "login"],
+		dismissedIds: new Set(["welcome-ready"]),
+	})?.id,
+	"login-ready",
+);
+assert.equal(
+	pickReadyBonusOffer({
+		bonuses: [loginReady, welcomeReady, depositReady],
+		types: ["deposit"],
+		dismissedIds: new Set(),
+	})?.id,
+	"deposit-ready",
+);
+assert.equal(
+	pickReadyBonusOffer({
+		bonuses: [assignment, depositCampaign],
+		types: ["login"],
+		dismissedIds: new Set(),
+	}),
+	null,
+);
 
 console.log("bonuses.self-check: ok");
