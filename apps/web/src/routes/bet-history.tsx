@@ -308,8 +308,8 @@ function BetHistoryPage() {
 	const tabCounts = data?.counts;
 
 	const tabs: { key: FilterTab; label: string; count?: number }[] = [
-		{ key: "all", label: "All", count: tabCounts?.all },
-		{ key: "settled", label: "Settled", count: tabCounts?.settled },
+		{ key: "all", label: "All"},
+		{ key: "settled", label: "Settled"},
 		{ key: "unsettled", label: "Unsettled", count: tabCounts?.unsettled },
 	];
 
