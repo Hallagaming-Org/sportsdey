@@ -13,6 +13,7 @@ export {
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
 	BONUS_ENGINE_LOYALTY_MESSAGE,
+	BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE,
 	BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX,
 	BONUS_ENGINE_PATH,
 	BONUS_ENGINE_PRODUCT_TYPE,
@@ -179,6 +180,7 @@ export {
 	getBonusEngineTournamentLeaderboard,
 	joinBonusEngineTournament,
 	listBonusEngineTournaments,
+	mapBonusEngineTournamentJoinError,
 	unwrapTournamentLeaderboardRows,
 } from "./tournament.service";
 export { getBonusEngineAccessToken } from "./token.service";
