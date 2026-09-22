@@ -95,7 +95,7 @@ export type BonusEngineTournamentJoinBody = {
 export type BonusEngineTournamentLeaderboardBody = {
 	client_id: string;
 	project_id: string;
-	tournament_id: string;
+	tournamentId: string;
 };
 
 export type BonusEngineTournamentLeaderboardItem = Record<string, unknown>;
