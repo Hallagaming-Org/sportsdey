@@ -78,6 +78,28 @@ export type BonusEngineLoyaltyHistoryItem = {
 
 export type BonusEngineMissionListItem = Record<string, unknown>;
 
+export type BonusEngineTournamentListBody = {
+	client_id: string;
+	project_id: string;
+};
+
+export type BonusEngineTournamentListItem = Record<string, unknown>;
+
+export type BonusEngineTournamentJoinBody = {
+	project_id: string;
+	client_id: string;
+	tournamentId: string;
+	user_id: string;
+};
+
+export type BonusEngineTournamentLeaderboardBody = {
+	client_id: string;
+	project_id: string;
+	tournamentId: string;
+};
+
+export type BonusEngineTournamentLeaderboardItem = Record<string, unknown>;
+
 export type BonusEngineBonusCampaignItem = Record<string, unknown>;
 
 export type BonusEngineUserBonusItem = Record<string, unknown>;

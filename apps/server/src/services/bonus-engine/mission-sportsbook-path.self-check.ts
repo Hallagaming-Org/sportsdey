@@ -8,7 +8,7 @@ import {
 	BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS,
 	pickCanonicalSportsbookTournament,
 } from "./reference-data.service.constant";
-import type { BonusEngineChampionshipRow } from "./reference-data.service.type.ts";
+import type { BonusEngineChampionshipRow } from "./reference-data.service.type";
 
 const bundesliga = BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS.find(
 	(championship) => championship.name === "Bundesliga",

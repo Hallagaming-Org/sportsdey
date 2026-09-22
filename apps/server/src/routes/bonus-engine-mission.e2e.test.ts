@@ -19,7 +19,6 @@ import {
 } from "@/services/bonus-engine";
 import { createMemoryD1 } from "../test-support/memory-d1";
 import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
-import hallaPocketsRoute from "./halla-pockets";
 import pocketsRoute from "./pockets";
 import slotegratorRoute from "./slotegrator";
 
@@ -123,6 +122,9 @@ function createSchema(db: DatabaseSync) {
 			balance_before integer,
 			balance_after integer,
 			currency text NOT NULL,
+			provider text,
+			game_code text,
+			round_id text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE slotitegration_transactions (
@@ -190,11 +192,6 @@ function createSchema(db: DatabaseSync) {
 		"982",
 		"Play'n GO",
 	);
-	// A Halla row seeded before provider metadata existed (provider_id NULL),
-	// to prove the native catalog still resolves it.
-	db.prepare(
-		"INSERT INTO game (id, name, code, enabled) VALUES (?, ?, ?, 1)",
-	).run("game-row-halla-bomb", "Halla Bomb", "HALLABOMB");
 }
 
 /** Captures outbound Bonus Engine calls and answers them like the engine would. */
@@ -446,36 +443,6 @@ describe("mission progress end-to-end (real handlers, stubbed engine)", () => {
 		assert.equal(betResultReports[0]?.isRollback, 0);
 		assert.equal(betResultReports[0]?.total_win_amount, 500);
 		assert.equal(betResultReports[0]?.user_id, USER_ID);
-	});
-
-	it("reports a Halla bet at provider level when no game code is sent", async () => {
-		const response = await hallaPocketsRoute.request(
-			"/debit",
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"x-api-key": POCKETS_API_KEY,
-				},
-				body: JSON.stringify({
-					playerId: USER_ID,
-					amount: 150,
-					currency: "NGN",
-					transactionId: "halla-e2e-tx-1",
-				}),
-			},
-			env,
-		);
-
-		assert.equal(response.status, 200, await response.text());
-		assert.equal(betReports.length, 1);
-		assert.equal(
-			betReports[0]?.provider_id,
-			BONUS_ENGINE_NATIVE_PROVIDER_ID.HALLA,
-		);
-		assert.equal(betReports[0]?.game_id, undefined);
-		// Halla speaks naira already, so the amount passes through untouched.
-		assert.equal(betReports[0]?.real_bet_amount, 150);
 	});
 
 	it("reports a Slotegrator bet with the synced provider id", async () => {

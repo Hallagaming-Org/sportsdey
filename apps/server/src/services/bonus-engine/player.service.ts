@@ -10,6 +10,12 @@ import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
 import { getBonusEngineWalletBalances } from "./persistence.service";
 import { getBonusEngineAccessToken } from "./token.service";
 
+/**
+ * Syncs a SportsDey player through Bonus Engine `POST /login`.
+ * Existing players get a session/balance refresh. Unknown `user_id` values
+ * currently return vendor `411 PLAYER_NOT_FOUND` — this engine does not
+ * upsert new players on `/login`.
+ */
 export async function loginBonusEnginePlayer(payload: {
 	env: CloudflareBindings;
 	player: BonusEngineLoginInput;

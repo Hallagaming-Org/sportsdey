@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseMissionRealCashReward } from "./rewards.service.ts";
+import { parseMissionRealCashReward } from "./rewards.service";
 
 assert.deepEqual(parseMissionRealCashReward({ type: "Real Cash", value: 200 }), {
 	amountMajor: 200,

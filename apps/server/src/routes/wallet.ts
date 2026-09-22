@@ -58,6 +58,22 @@ import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import { maskBankAccountNumber } from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
+/**
+ * Reads the SportsDey game-wallet (bonus ₦) for GET /wallet.
+ * Header uses this, not Engine `/bonus-engine/callback/balance`.
+ */
+async function bonusBalanceNaira(
+	db: ReturnType<typeof drizzle<typeof schema>>,
+	userId: string,
+): Promise<number> {
+	const [row] = await db
+		.select({ balance: schema.gameWallet.balance })
+		.from(schema.gameWallet)
+		.where(eq(schema.gameWallet.userId, userId))
+		.limit(1);
+	return (row?.balance ?? 0) / 100;
+}
+
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 /** Paystack rejects `.local` placeholder emails used by phone OTP accounts. */
@@ -70,18 +86,6 @@ function paystackCustomerEmail(user: {
 	}
 	const digits = (user.mobileNumber || user.email).replace(/\D/g, "");
 	return `phone_${digits || "user"}@users.sportsdey.com`;
-}
-
-async function bonusBalanceNaira(
-	db: ReturnType<typeof drizzle<typeof schema>>,
-	userId: string,
-): Promise<number> {
-	const [row] = await db
-		.select({ balance: schema.gameWallet.balance })
-		.from(schema.gameWallet)
-		.where(eq(schema.gameWallet.userId, userId))
-		.limit(1);
-	return (row?.balance ?? 0) / 100;
 }
 
 const fundWalletRoute = createRoute({

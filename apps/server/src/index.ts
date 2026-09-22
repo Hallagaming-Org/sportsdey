@@ -37,7 +37,6 @@ import {
 	processExportMessage,
 	requeueStaleChunks,
 } from "./utils/exports/service";
-import { extractBearerToken } from "./utils/webengage-sms-auth";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -63,58 +62,11 @@ app.onError((err, c) => {
 	);
 });
 
-const authCache: ReturnType<typeof createAuth> | null = null;
-
 function getAuth(
 	env: CloudflareBindings,
 	executionCtx?: ReturnType<typeof optionalExecutionCtx>,
 ) {
 	return createAuth(env, executionCtx);
-}
-
-type AuthContext = {
-	env: CloudflareBindings;
-	req: { raw: Request };
-};
-
-function getRawBearerToken(request: Request): string | null {
-	const bearer = extractBearerToken(request);
-	if (bearer && isRawSessionBearer(bearer)) return bearer;
-	return null;
-}
-
-async function resolveAuthRequest(c: AuthContext) {
-	const rawBearer = getRawBearerToken(c.req.raw);
-
-	if (rawBearer) {
-		return withSignedSessionCookie(
-			c.req.raw,
-			rawBearer,
-			c.env.BETTER_AUTH_SECRET,
-			{
-				nodeEnv: c.env.NODE_ENV,
-				authUrl: c.env.BETTER_AUTH_URL,
-			},
-		);
-	}
-	return c.req.raw;
-}
-
-/** Headers-only auth resolution — safe for middleware that must not consume the body. */
-async function resolveAuthHeaders(c: AuthContext) {
-	const rawBearer = getRawBearerToken(c.req.raw);
-	if (rawBearer) {
-		return withSignedSessionHeaders(
-			c.req.raw,
-			rawBearer,
-			c.env.BETTER_AUTH_SECRET,
-			{
-				nodeEnv: c.env.NODE_ENV,
-				authUrl: c.env.BETTER_AUTH_URL,
-			},
-		);
-	}
-	return c.req.raw.headers;
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {

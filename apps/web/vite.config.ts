@@ -97,6 +97,23 @@ function proxyBonusApiToLocalApi() {
 	};
 }
 
+/**
+ * Proxies Bonus Engine tournament API (`/tournament/*`) without swallowing the
+ * TanStack `/tournaments` page — Vite prefix matching treats `/tournaments` as
+ * under `/tournament`.
+ */
+function proxyTournamentApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/tournaments" || path.startsWith("/tournaments/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
 function proxyLoyaltyApiToLocalApi() {
 	return {
 		...proxyToLocalApi(),
@@ -194,6 +211,7 @@ export default defineConfig(({ command, mode }) => {
 				"/loyalty": proxyLoyaltyApiToLocalApi(),
 				"/mission": proxyMissionApiToLocalApi(),
 				"/bonus": proxyBonusApiToLocalApi(),
+				"/tournament": proxyTournamentApiToLocalApi(),
 				"/games": proxyGamesApiToLocalApi(),
 				"/bonus-engine": proxyToLocalApi(),
 				"/gamification": proxyToLocalApi(),

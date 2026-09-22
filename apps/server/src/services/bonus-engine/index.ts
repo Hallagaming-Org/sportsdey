@@ -13,6 +13,7 @@ export {
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_INVALID_SIGNATURE_STATUS,
 	BONUS_ENGINE_LOYALTY_MESSAGE,
+	BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE,
 	BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX,
 	BONUS_ENGINE_PATH,
 	BONUS_ENGINE_PRODUCT_TYPE,
@@ -38,6 +39,11 @@ export type {
 	BonusEngineLoyaltyScopedBody,
 	BonusEngineMissionCompletePayload,
 	BonusEngineMissionListItem,
+	BonusEngineTournamentJoinBody,
+	BonusEngineTournamentLeaderboardBody,
+	BonusEngineTournamentLeaderboardItem,
+	BonusEngineTournamentListBody,
+	BonusEngineTournamentListItem,
 	BonusEngineMissionProgressPayload,
 	BonusEngineLoyaltyLevelUpPayload,
 	BonusEngineLoyaltyPointsUpdatePayload,
@@ -55,8 +61,10 @@ export {
 } from "./config";
 export {
 	extractBonusEngineMessage,
+	isBonusEngineEnvelopeFailure,
 	isBonusEngineJsonNotFound,
 	isBonusEngineUnhandledException,
+	readBonusEngineEnvelopeStatus,
 } from "./client";
 export {
 	hashBonusEngineIdempotencyKey,
@@ -165,4 +173,14 @@ export {
 	scheduleBonusEnginePlayerOnAppLogin,
 	syncBonusEnginePlayerOnAppLogin,
 } from "./player.service";
+export {
+	buildBonusEngineTournamentJoinBody,
+	buildBonusEngineTournamentLeaderboardBody,
+	buildBonusEngineTournamentListBody,
+	getBonusEngineTournamentLeaderboard,
+	joinBonusEngineTournament,
+	listBonusEngineTournaments,
+	mapBonusEngineTournamentJoinError,
+	unwrapTournamentLeaderboardRows,
+} from "./tournament.service";
 export { getBonusEngineAccessToken } from "./token.service";

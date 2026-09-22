@@ -46,6 +46,7 @@ assert.equal(wagerMission.actionLabel, "Play Football Golden Cup");
 assert.equal(wagerMission.rewardPoints, 50);
 assert.equal(wagerMission.rewardLabel, "50 Points");
 assert.equal(wagerMission.progressTarget, 1000);
+assert.equal(wagerMission.description, "Wager 1000 and Get 50 Points");
 
 const loginBetMission = normalizeMissionRecord({
 	_id: "6a759ee7ae8a0edf2509e9af",
@@ -82,6 +83,37 @@ assert.equal(
 	"5abf4e6f5e6d47199da5a68f18b92cd8",
 );
 assert.equal(loginBetMission.actionLabel, "Play Basketball");
+assert.equal(loginBetMission.rewardLabel, "₦200");
+assert.equal(
+	loginBetMission.description,
+	"Login > 7 consecutive days and bet > 100 on specific condition",
+);
+
+const loginMinBetZero = normalizeMissionRecord({
+	_id: "login-min-bet-zero",
+	mission_name: "Login streak",
+	mission_triggers: [
+		{
+			type: "Login > 5 consecutive days and bet > X on specific condition",
+			parameters: {
+				days: "1",
+				min_bet: "0",
+				rewards: [{ type: "Points", amount: 50 }],
+			},
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(
+	loginMinBetZero.description,
+	"Login > 1 consecutive days and bet > 0 on specific condition",
+);
+assert.equal(loginMinBetZero.rewardLabel, "50 Points");
+assert.notEqual(
+	loginMinBetZero.description,
+	"Complete the required play to earn rewards.",
+);
 
 const depositOnly = resolveMissionAction({
 	triggerTypes: ["Deposit X and Get X"],
@@ -148,6 +180,42 @@ assert.equal(
 	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
 );
 assert.equal(leagueMission.leagues[0]?.name, "Premier League");
+assert.equal(leagueMission.description, "Bet 1000 and Get 5000 Points");
+
+const betAndGetCard = normalizeMissionRecord({
+	_id: "bet-x-get-x",
+	mission_name: "Bet mission",
+	mission_triggers: [
+		{
+			type: "Bet X and Get X",
+			parameters: {
+				amount: "25",
+				rewards: [{ type: "Points", amount: 20 }],
+			},
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(betAndGetCard.description, "Bet 25 and Get 20 Points");
+
+const realCashCard = normalizeMissionRecord({
+	_id: "bet-real-cash",
+	mission_name: "Cash mission",
+	mission_triggers: [
+		{
+			type: "Bet X and Get X",
+			parameters: {
+				amount: "25",
+				rewards: [{ type: "Real Cash", amount: 20 }],
+			},
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(realCashCard.description, "Bet 25 and Get ₦20");
+assert.equal(realCashCard.rewardLabel, "₦20");
 
 const germanyCategory = normalizeMissionRecord({
 	_id: "6a9698b190c3b87c20108712",

@@ -12,6 +12,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Provider } from "react-redux";
 import z from "zod";
+import { BonusOfferHost } from "@/components/bonus-offer-host";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
@@ -292,6 +293,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
+									<BonusOfferHost />
 									<DeferredFonts />
 									<WebengageIdentity />
 									<ScrollToTop />

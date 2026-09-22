@@ -70,6 +70,18 @@ export const MISSION_TRIGGER_KEYWORD = {
 	WAGER_OR_BET: /\b(wager|bet|login)\b/i,
 } as const;
 
+export const MISSION_TRIGGER_PLACEHOLDER = "X";
+
+/**
+ * Admin login-style types often bake a number (or `X`) before `days`.
+ * `parameters.days` transposes into that slot.
+ */
+export const MISSION_TRIGGER_DAYS_SLOT = new RegExp(
+	`(${MISSION_TRIGGER_PLACEHOLDER}|\\d+)(\\s+(?:consecutive\\s+)?days?\\b)`,
+	"i",
+);
+
+export const MISSION_CURRENCY_SYMBOL = "₦";
 export const MISSION_REWARD_TYPE = {
 	POINTS: "Points",
 	REAL_CASH: "Real Cash",

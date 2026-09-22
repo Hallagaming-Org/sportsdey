@@ -4,6 +4,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { BONUS_HOW_IT_WORKS_STEPS } from "@/lib/bonuses.constant";
 
 export function BonusesHeader() {
 	return (
@@ -34,19 +35,11 @@ export function BonusesHeader() {
 						className="w-80 border-[#1B2722] bg-[#151616] text-[#C8CBCB] text-sm"
 					>
 						<p className="font-semibold text-white">How bonuses work</p>
-						<ul className="mt-3 list-disc space-y-2 pl-4 text-[#8C8F8F]">
-							<li>
-								Admin publishes campaigns. Assigned bonuses show under Your
-								bonuses.
-							</li>
-							<li>
-								Activate to credit bonus funds to your bonus wallet, then play
-								the listed games or sports.
-							</li>
-							<li>
-								Bets and deposits already report to Bonus Engine for wagering.
-							</li>
-						</ul>
+						<ol className="mt-3 list-decimal space-y-2.5 pl-4 text-[#8C8F8F]">
+							{BONUS_HOW_IT_WORKS_STEPS.map((step) => (
+								<li key={step}>{step}</li>
+							))}
+						</ol>
 					</PopoverContent>
 				</Popover>
 			</div>

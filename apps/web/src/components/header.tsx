@@ -13,9 +13,9 @@ import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
 import WorldIcon from "@/logos/world.svg?react";
-import { WalletBalanceMenu } from "./wallet-balance-menu";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
+import { WalletBalanceMenu } from "./wallet-balance-menu";
 
 const Sidebar = lazy(() => import("./sidebar"));
 

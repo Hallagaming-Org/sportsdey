@@ -7,7 +7,10 @@ import {
 	MISSION_SPORTSBOOK_FOOTBALL_PREMATCH,
 	MISSION_SPORTSBOOK_PATH_FIELD,
 	MISSION_STATUS,
+	MISSION_CURRENCY_SYMBOL,
+	MISSION_TRIGGER_DAYS_SLOT,
 	MISSION_TRIGGER_KEYWORD,
+	MISSION_TRIGGER_PLACEHOLDER,
 	isDatabetTournamentGin,
 	sportsbookHrefFromSplat,
 	sportsbookTournamentSplat,
@@ -59,6 +62,7 @@ type ParsedMissionTriggers = {
 	progressTarget: number;
 	rewardPoints: number;
 	rewardLabel: string | null;
+	description: string | null;
 };
 
 type ResolvedMissionAction = {
@@ -136,8 +140,14 @@ export function normalizeMissionRecord(
 			leagues,
 			categories,
 		});
+	const rawDescription = asString(
+		record.description ?? record.details ?? record.objective,
+	);
 	const description =
-		asString(record.description ?? record.details ?? record.objective) ||
+		triggers.description ||
+		(rawDescription && !hasTriggerPlaceholder(rawDescription)
+			? rawDescription
+			: "") ||
 		fallbackDescription({
 			actionKind: action.kind,
 			providers,
@@ -442,6 +452,7 @@ function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
 			progressTarget: 0,
 			rewardPoints: 0,
 			rewardLabel: null,
+			description: null,
 		};
 	}
 
@@ -449,6 +460,7 @@ function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
 	let progressTarget = 0;
 	let rewardPoints = 0;
 	let rewardLabel: string | null = null;
+	let description: string | null = null;
 
 	for (const entry of value) {
 		if (typeof entry === "string") {
@@ -466,9 +478,10 @@ function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
 				: null;
 		if (!parameters) continue;
 
+		const betAmount = asNumber(parameters.amount);
 		progressTarget = Math.max(
 			progressTarget,
-			asNumber(parameters.amount),
+			betAmount,
 			asNumber(parameters.min_bet),
 			asNumber(parameters.days),
 		);
@@ -486,12 +499,95 @@ function parseMissionTriggers(value: unknown): ParsedMissionTriggers {
 				rewardPoints += amount;
 			}
 			if (!rewardLabel) {
-				rewardLabel = `${amount} ${rewardType}`;
+				rewardLabel = formatMissionReward({
+					amount,
+					type: rewardType,
+				});
 			}
+		}
+
+		if (!description && type) {
+			description = fillTriggerPlaceholders({
+				template: type,
+				parameters,
+				rewardLabel,
+			});
 		}
 	}
 
-	return { types, progressTarget, rewardPoints, rewardLabel };
+	return { types, progressTarget, rewardPoints, rewardLabel, description };
+}
+
+/**
+ * Transposes Admin `parameters` into the trigger type so the card copy
+ * matches the configured rule instead of generic fallback text.
+ * `days` fills the days clause even when Admin baked a number instead of `X`.
+ * Remaining `X` tokens take stake (`amount` / `min_bet`, including 0) then reward.
+ */
+function fillTriggerPlaceholders(payload: {
+	template: string;
+	parameters: Record<string, unknown>;
+	rewardLabel: string | null;
+}): string | null {
+	const withDays = fillDaysInTriggerType({
+		template: payload.template,
+		days: parameterDisplay(payload.parameters.days),
+	});
+	const stake =
+		parameterDisplay(payload.parameters.amount) ??
+		parameterDisplay(payload.parameters.min_bet);
+	const values: string[] = [];
+	if (stake != null) {
+		values.push(stake);
+		if (payload.rewardLabel) values.push(payload.rewardLabel);
+	}
+
+	let index = 0;
+	const filled = withDays.replace(
+		new RegExp(`\\b${MISSION_TRIGGER_PLACEHOLDER}\\b`, "g"),
+		() => {
+			const value = values[index];
+			index += 1;
+			return value ?? MISSION_TRIGGER_PLACEHOLDER;
+		},
+	);
+	if (hasTriggerPlaceholder(filled)) return null;
+	if (filled !== payload.template) return filled;
+	return null;
+}
+
+/**
+ * Replaces the number or `X` immediately before `day` / `days` with `parameters.days`.
+ */
+function fillDaysInTriggerType(payload: {
+	template: string;
+	days: string | null;
+}): string {
+	if (payload.days == null) return payload.template;
+	return payload.template.replace(MISSION_TRIGGER_DAYS_SLOT, `${payload.days}$2`);
+}
+
+/**
+ * Raw Admin parameter as display text. `0` is kept; missing/blank is not.
+ */
+function parameterDisplay(value: unknown): string | null {
+	if (typeof value === "number" && Number.isFinite(value)) return String(value);
+	if (typeof value === "string" && value.trim() !== "") return value.trim();
+	return null;
+}
+
+/**
+ * Points stay `{amount} {type}`. Real Cash is naira only — no type label.
+ */
+function formatMissionReward(payload: { amount: number; type: string }): string {
+	if (payload.type.toLowerCase() === MISSION_REWARD_TYPE.REAL_CASH.toLowerCase()) {
+		return `${MISSION_CURRENCY_SYMBOL}${payload.amount.toLocaleString("en-NG")}`;
+	}
+	return `${payload.amount} ${payload.type}`;
+}
+
+function hasTriggerPlaceholder(text: string): boolean {
+	return new RegExp(`\\b${MISSION_TRIGGER_PLACEHOLDER}\\b`).test(text);
 }
 
 function firstPlayableGame(
@@ -688,7 +784,12 @@ function fallbackDescription(payload: {
 	progressTarget: number;
 	triggerTypes: string[];
 }): string {
-	if (payload.triggerTypes[0]) return payload.triggerTypes[0];
+	if (
+		payload.triggerTypes[0] &&
+		!hasTriggerPlaceholder(payload.triggerTypes[0])
+	) {
+		return payload.triggerTypes[0];
+	}
 	if (payload.games.length > 0) {
 		const names = payload.games
 			.slice(0, 2)
@@ -708,6 +809,9 @@ function fallbackDescription(payload: {
 	}
 	if (payload.providers.length > 0) {
 		return `Complete the required play on ${payload.providers.map((provider) => provider.name).join(", ")}.`;
+	}
+	if (payload.triggerTypes[0]) {
+		return payload.triggerTypes[0];
 	}
 	const byKind: Record<MissionActionKind, string> = {
 		sports: `Place ${payload.progressTarget} qualifying sports bet${payload.progressTarget === 1 ? "" : "s"}.`,
