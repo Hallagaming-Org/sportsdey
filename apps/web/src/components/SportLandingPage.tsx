@@ -118,7 +118,7 @@ export default function SportLandingPage({
 								key={`news-skel-${i}`}
 								className="flex min-w-[55%] snap-start flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm lg:w-auto lg:min-w-0 lg:snap-none dark:border-0 dark:bg-card"
 							>
-								<Skeleton className="h-36 w-full rounded-none sm:aspect-video" />
+								<Skeleton className="aspect-video w-full rounded-none" />
 								<div className="flex flex-1 flex-col space-y-3 p-4">
 									<Skeleton className="h-4 w-full" />
 									<Skeleton className="h-4 w-3/4" />
@@ -148,7 +148,7 @@ export default function SportLandingPage({
 										params={{ slug: news.slug?.current || "unknown" }}
 										className="group flex flex-1 cursor-pointer flex-col space-y-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card"
 									>
-										<div className="relative w-full overflow-hidden rounded-lg pb-[56.25%]">
+										<div className="relative aspect-video w-full overflow-hidden rounded-lg">
 											{news.image ? (
 												<ImageWithSkeleton
 													src={news.image.card}
@@ -203,7 +203,7 @@ export default function SportLandingPage({
 								key={`video-skel-${i}`}
 								className="flex min-w-[55%] snap-start flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm lg:w-auto lg:min-w-0 lg:snap-none dark:border-0 dark:bg-card"
 							>
-								<Skeleton className="h-36 w-full rounded-none sm:aspect-video" />
+								<Skeleton className="aspect-video w-full rounded-none" />
 								<div className="space-y-2 p-3">
 									<Skeleton className="h-4 w-full" />
 									<Skeleton className="h-4 w-2/3" />
@@ -235,7 +235,7 @@ export default function SportLandingPage({
 									onClick={() => setSelectedVideoId(video.videoId)}
 									className="group flex snap-start min-w-[55%] flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-0 dark:bg-card lg:w-auto lg:min-w-0 lg:snap-none cursor-pointer"
 								>
-									<div className="relative h-36 w-full overflow-hidden bg-gray-900 sm:aspect-video">
+									<div className="relative aspect-video w-full overflow-hidden bg-gray-900">
 										<img
 											src={`https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`}
 											alt={video.title}

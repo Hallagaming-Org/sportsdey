@@ -18,7 +18,7 @@ export const walletMenuItems: WalletMenuItem[] = [
 	{ label: "Wallet", icon: WalletIcon, path: "/wallet" },
 	// { label: "Bet History", icon: HistoryIcon },
 	{ label: "KYC Verification", icon: BettingIcon, path: "/kyc" },
-	{ label: "Engage", icon: LikeIcon },
+	{ label: "Engage", icon: LikeIcon, path: "/missions" },
 	// { label: "Settings", icon: SettingsIcon },
 ];
 

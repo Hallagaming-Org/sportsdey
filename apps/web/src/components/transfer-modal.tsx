@@ -42,10 +42,6 @@ export function TransferModal({
 			setTransferSuccess(
 				`₦${formatAmount(data.amount)} transferred to ${data.recipientName}`,
 			);
-			trackWebengageEvent("transfer_funds initated", {
-				"wallet id": recipientWalletId.trim(),
-				amount: data.amount,
-			});
 			setTimeout(() => {
 				handleClose();
 			}, 2000);
@@ -91,6 +87,11 @@ export function TransferModal({
 		}
 
 		setTransferError("");
+		// Server emits initiated then completed in order for P2P transfers.
+		trackWebengageEvent("transfer_funds_initiated", {
+			wallet_id: recipientWalletId.trim(),
+			amount,
+		});
 		transferMutation.mutate({
 			recipientWalletId: recipientWalletId.trim(),
 			amount,
@@ -98,8 +99,8 @@ export function TransferModal({
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-			<div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
+		<div className="fixed inset-0 z-50 flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-y-contain bg-black/40 p-3 sm:items-center sm:p-4">
+			<div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-md min-w-0 overflow-y-auto overscroll-y-contain rounded-2xl bg-white p-5 shadow-lg [-webkit-overflow-scrolling:touch] sm:p-6 dark:bg-[#202120]">
 				<div className="flex items-center justify-between">
 					<h2 className="font-semibold text-primary text-xl dark:text-white">
 						Transfer Funds

@@ -23,6 +23,7 @@ import { Route as NewsRouteImport } from './routes/news'
 import { Route as KycRouteImport } from './routes/kyc'
 import { Route as GeneralBettingRulesRouteImport } from './routes/general-betting-rules'
 import { Route as GamesRouteImport } from './routes/games'
+import { Route as GameExitRouteImport } from './routes/game-exit'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as FaqsRouteImport } from './routes/faqs'
 import { Route as FaqRouteImport } from './routes/faq'
@@ -58,13 +59,16 @@ import { Route as KycVerifyRouteImport } from './routes/kyc.verify'
 import { Route as IndexMatchesRouteImport } from './routes/index.matches'
 import { Route as IndexGameIdRouteImport } from './routes/index.$gameId'
 import { Route as GameGameIdRouteImport } from './routes/game.$gameId'
+import { Route as BetHistoryTicketIdRouteImport } from './routes/bet-history.$ticketId'
 import { Route as BasketballMatchesRouteImport } from './routes/basketball.matches'
 import { Route as BasketballIdRouteImport } from './routes/basketball/$Id'
 import { Route as AuthorsSlugRouteImport } from './routes/authors.$slug'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as AuthPhoneSignInRouteImport } from './routes/auth/phone-sign-in'
 import { Route as AuthOtpRouteImport } from './routes/auth/otp'
+import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth/complete-profile'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthLayoutRouteImport } from './routes/auth/_layout'
@@ -141,6 +145,11 @@ const GeneralBettingRulesRoute = GeneralBettingRulesRouteImport.update({
 const GamesRoute = GamesRouteImport.update({
   id: '/games',
   path: '/games',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GameExitRoute = GameExitRouteImport.update({
+  id: '/game-exit',
+  path: '/game-exit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FavoritesRoute = FavoritesRouteImport.update({
@@ -318,6 +327,11 @@ const GameGameIdRoute = GameGameIdRouteImport.update({
   path: '/game/$gameId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BetHistoryTicketIdRoute = BetHistoryTicketIdRouteImport.update({
+  id: '/$ticketId',
+  path: '/$ticketId',
+  getParentRoute: () => BetHistoryRoute,
+} as any)
 const BasketballMatchesRoute = BasketballMatchesRouteImport.update({
   id: '/matches',
   path: '/matches',
@@ -343,6 +357,11 @@ const AuthSignInRoute = AuthSignInRouteImport.update({
   path: '/auth/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/auth/reset-password',
+  path: '/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthPhoneSignInRoute = AuthPhoneSignInRouteImport.update({
   id: '/auth/phone-sign-in',
   path: '/auth/phone-sign-in',
@@ -351,6 +370,11 @@ const AuthPhoneSignInRoute = AuthPhoneSignInRouteImport.update({
 const AuthOtpRoute = AuthOtpRouteImport.update({
   id: '/auth/otp',
   path: '/auth/otp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: '/auth/forgot-password',
+  path: '/auth/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
@@ -397,12 +421,13 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
   '/basketball': typeof BasketballRouteWithChildren
-  '/bet-history': typeof BetHistoryRoute
+  '/bet-history': typeof BetHistoryRouteWithChildren
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
+  '/game-exit': typeof GameExitRoute
   '/games': typeof GamesRoute
   '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
@@ -420,13 +445,16 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthLayoutRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/authors/$slug': typeof AuthorsSlugRoute
   '/basketball/$Id': typeof BasketballIdRoute
   '/basketball/matches': typeof BasketballMatchesRoute
+  '/bet-history/$ticketId': typeof BetHistoryTicketIdRoute
   '/game/$gameId': typeof GameGameIdRoute
   '/index/$gameId': typeof IndexGameIdRoute
   '/index/matches': typeof IndexMatchesRoute
@@ -461,11 +489,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
-  '/bet-history': typeof BetHistoryRoute
+  '/bet-history': typeof BetHistoryRouteWithChildren
   '/betting': typeof BettingRoute
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
+  '/game-exit': typeof GameExitRoute
   '/games': typeof GamesRoute
   '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -477,13 +506,16 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthLayoutRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/authors/$slug': typeof AuthorsSlugRoute
   '/basketball/$Id': typeof BasketballIdRoute
   '/basketball/matches': typeof BasketballMatchesRoute
+  '/bet-history/$ticketId': typeof BetHistoryTicketIdRoute
   '/game/$gameId': typeof GameGameIdRoute
   '/index/$gameId': typeof IndexGameIdRoute
   '/index/matches': typeof IndexMatchesRoute
@@ -520,12 +552,13 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/account': typeof AccountRoute
   '/basketball': typeof BasketballRouteWithChildren
-  '/bet-history': typeof BetHistoryRoute
+  '/bet-history': typeof BetHistoryRouteWithChildren
   '/betting': typeof BettingRoute
   '/boxing': typeof BoxingRouteWithChildren
   '/faq': typeof FaqRoute
   '/faqs': typeof FaqsRoute
   '/favorites': typeof FavoritesRoute
+  '/game-exit': typeof GameExitRoute
   '/games': typeof GamesRoute
   '/general-betting-rules': typeof GeneralBettingRulesRoute
   '/kyc': typeof KycRouteWithChildren
@@ -543,13 +576,16 @@ export interface FileRoutesById {
   '/auth/_layout': typeof AuthLayoutRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/otp': typeof AuthOtpRoute
   '/auth/phone-sign-in': typeof AuthPhoneSignInRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/authors/$slug': typeof AuthorsSlugRoute
   '/basketball/$Id': typeof BasketballIdRoute
   '/basketball/matches': typeof BasketballMatchesRoute
+  '/bet-history/$ticketId': typeof BetHistoryTicketIdRoute
   '/game/$gameId': typeof GameGameIdRoute
   '/index/$gameId': typeof IndexGameIdRoute
   '/index/matches': typeof IndexMatchesRoute
@@ -593,6 +629,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/faqs'
     | '/favorites'
+    | '/game-exit'
     | '/games'
     | '/general-betting-rules'
     | '/kyc'
@@ -610,13 +647,16 @@ export interface FileRouteTypes {
     | '/auth'
     | '/auth/callback'
     | '/auth/complete-profile'
+    | '/auth/forgot-password'
     | '/auth/otp'
     | '/auth/phone-sign-in'
+    | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/authors/$slug'
     | '/basketball/$Id'
     | '/basketball/matches'
+    | '/bet-history/$ticketId'
     | '/game/$gameId'
     | '/index/$gameId'
     | '/index/matches'
@@ -656,6 +696,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/faqs'
     | '/favorites'
+    | '/game-exit'
     | '/games'
     | '/general-betting-rules'
     | '/privacy-policy'
@@ -667,13 +708,16 @@ export interface FileRouteTypes {
     | '/auth'
     | '/auth/callback'
     | '/auth/complete-profile'
+    | '/auth/forgot-password'
     | '/auth/otp'
     | '/auth/phone-sign-in'
+    | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/authors/$slug'
     | '/basketball/$Id'
     | '/basketball/matches'
+    | '/bet-history/$ticketId'
     | '/game/$gameId'
     | '/index/$gameId'
     | '/index/matches'
@@ -715,6 +759,7 @@ export interface FileRouteTypes {
     | '/faq'
     | '/faqs'
     | '/favorites'
+    | '/game-exit'
     | '/games'
     | '/general-betting-rules'
     | '/kyc'
@@ -732,13 +777,16 @@ export interface FileRouteTypes {
     | '/auth/_layout'
     | '/auth/callback'
     | '/auth/complete-profile'
+    | '/auth/forgot-password'
     | '/auth/otp'
     | '/auth/phone-sign-in'
+    | '/auth/reset-password'
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/authors/$slug'
     | '/basketball/$Id'
     | '/basketball/matches'
+    | '/bet-history/$ticketId'
     | '/game/$gameId'
     | '/index/$gameId'
     | '/index/matches'
@@ -775,12 +823,13 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   AccountRoute: typeof AccountRoute
   BasketballRoute: typeof BasketballRouteWithChildren
-  BetHistoryRoute: typeof BetHistoryRoute
+  BetHistoryRoute: typeof BetHistoryRouteWithChildren
   BettingRoute: typeof BettingRoute
   BoxingRoute: typeof BoxingRouteWithChildren
   FaqRoute: typeof FaqRoute
   FaqsRoute: typeof FaqsRoute
   FavoritesRoute: typeof FavoritesRoute
+  GameExitRoute: typeof GameExitRoute
   GamesRoute: typeof GamesRoute
   GeneralBettingRulesRoute: typeof GeneralBettingRulesRoute
   KycRoute: typeof KycRouteWithChildren
@@ -798,8 +847,10 @@ export interface RootRouteChildren {
   AuthLayoutRoute: typeof AuthLayoutRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
+  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthOtpRoute: typeof AuthOtpRoute
   AuthPhoneSignInRoute: typeof AuthPhoneSignInRoute
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   AuthSignInRoute: typeof AuthSignInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
   AuthorsSlugRoute: typeof AuthorsSlugRoute
@@ -914,6 +965,13 @@ declare module '@tanstack/react-router' {
       path: '/games'
       fullPath: '/games'
       preLoaderRoute: typeof GamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/game-exit': {
+      id: '/game-exit'
+      path: '/game-exit'
+      fullPath: '/game-exit'
+      preLoaderRoute: typeof GameExitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/favorites': {
@@ -1161,6 +1219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameGameIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bet-history/$ticketId': {
+      id: '/bet-history/$ticketId'
+      path: '/$ticketId'
+      fullPath: '/bet-history/$ticketId'
+      preLoaderRoute: typeof BetHistoryTicketIdRouteImport
+      parentRoute: typeof BetHistoryRoute
+    }
     '/basketball/matches': {
       id: '/basketball/matches'
       path: '/matches'
@@ -1196,6 +1261,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/phone-sign-in': {
       id: '/auth/phone-sign-in'
       path: '/auth/phone-sign-in'
@@ -1208,6 +1280,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/otp'
       fullPath: '/auth/otp'
       preLoaderRoute: typeof AuthOtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/forgot-password': {
+      id: '/auth/forgot-password'
+      path: '/auth/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/complete-profile': {
@@ -1278,6 +1357,18 @@ const BasketballRouteChildren: BasketballRouteChildren = {
 
 const BasketballRouteWithChildren = BasketballRoute._addFileChildren(
   BasketballRouteChildren,
+)
+
+interface BetHistoryRouteChildren {
+  BetHistoryTicketIdRoute: typeof BetHistoryTicketIdRoute
+}
+
+const BetHistoryRouteChildren: BetHistoryRouteChildren = {
+  BetHistoryTicketIdRoute: BetHistoryTicketIdRoute,
+}
+
+const BetHistoryRouteWithChildren = BetHistoryRoute._addFileChildren(
+  BetHistoryRouteChildren,
 )
 
 interface BoxingRouteChildren {
@@ -1407,12 +1498,13 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   AccountRoute: AccountRoute,
   BasketballRoute: BasketballRouteWithChildren,
-  BetHistoryRoute: BetHistoryRoute,
+  BetHistoryRoute: BetHistoryRouteWithChildren,
   BettingRoute: BettingRoute,
   BoxingRoute: BoxingRouteWithChildren,
   FaqRoute: FaqRoute,
   FaqsRoute: FaqsRoute,
   FavoritesRoute: FavoritesRoute,
+  GameExitRoute: GameExitRoute,
   GamesRoute: GamesRoute,
   GeneralBettingRulesRoute: GeneralBettingRulesRoute,
   KycRoute: KycRouteWithChildren,
@@ -1430,8 +1522,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLayoutRoute: AuthLayoutRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
+  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthOtpRoute: AuthOtpRoute,
   AuthPhoneSignInRoute: AuthPhoneSignInRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
   AuthSignInRoute: AuthSignInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
   AuthorsSlugRoute: AuthorsSlugRoute,

@@ -20,14 +20,96 @@ import {
 	LagosRushRefundResponseSchema,
 	MinigodErrorSchema,
 } from "@/schemas/minigod";
+import {
+	settlePocketsTransaction,
+	type PocketsSettleResult,
+} from "@/services/pockets-settlement";
+import { CasinoMoneyError, toKobo } from "@/utils/casino-money";
 import type { CloudflareBindings } from "../types";
 
 const pocketsRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-function validatePocketsApiKey(c: any): boolean {
+/** D1 `game.code` for Lagos Rush; the provider callbacks carry no game id. */
+const LAGOS_RUSH_GAME_CODE = "LAGOSRUSH";
+
+function validatePocketsApiKey(c: {
+	req: { header: (name: string) => string | undefined };
+	env: CloudflareBindings;
+}): boolean {
 	const apiKey = c.req.header("x-api-key");
 	const secretKey = c.env.POCKETS_SECRET_KEY;
-	return apiKey === secretKey;
+	return Boolean(secretKey) && apiKey === secretKey;
+}
+
+const authError = {
+	success: false as const,
+	error: "Invalid API key",
+};
+
+type MoneyCallInput = {
+	playerId: string;
+	amount: number;
+	currency: string;
+	transactionId?: string;
+};
+
+/**
+ * Validates the idempotency key + amount for a money call.
+ * `transactionId` is mandatory: without it a provider retry is
+ * indistinguishable from a new transaction and duplicates money movement.
+ */
+function parseMoneyCall(
+	input: MoneyCallInput,
+):
+	| { ok: true; providerTxId: string; amountKobo: number }
+	| { ok: false; error: string } {
+	if (!input.transactionId) {
+		return {
+			ok: false,
+			error: "transactionId is required for idempotent processing",
+		};
+	}
+	try {
+		const amountKobo = toKobo(input.amount, "kobo");
+		if (amountKobo <= 0) {
+			return { ok: false, error: "Amount must be a positive kobo integer" };
+		}
+		return { ok: true, providerTxId: input.transactionId, amountKobo };
+	} catch (error) {
+		return {
+			ok: false,
+			error:
+				error instanceof CasinoMoneyError ? error.message : "Invalid amount",
+		};
+	}
+}
+
+function settleErrorResponse(result: PocketsSettleResult): {
+	body: { success: false; error: string };
+	status: 400 | 500;
+} {
+	switch (result.status) {
+		case "invalid_amount":
+			return {
+				body: { success: false, error: "Invalid amount" },
+				status: 400,
+			};
+		case "insufficient":
+			return {
+				body: { success: false, error: "Insufficient balance" },
+				status: 400,
+			};
+		case "wallet_missing":
+			return {
+				body: { success: false, error: "Failed to update wallet" },
+				status: 500,
+			};
+		default:
+			return {
+				body: { success: false, error: "Failed to update wallet" },
+				status: 500,
+			};
+	}
 }
 
 const balanceRoute = createRoute({
@@ -76,26 +158,14 @@ const balanceRoute = createRoute({
 
 pocketsRoute.openapi(balanceRoute, async (c) => {
 	if (!validatePocketsApiKey(c)) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid API key",
-			},
-			401,
-		);
+		return c.json(authError, 401);
 	}
 
 	const body = await c.req.json();
 	const result = LagosRushBalanceRequestSchema.safeParse(body);
 
 	if (!result.success) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid request body",
-			},
-			400,
-		);
+		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
 	const { playerId, currency } = result.data;
@@ -107,13 +177,11 @@ pocketsRoute.openapi(balanceRoute, async (c) => {
 		.where(eq(schema.wallet.userId, playerId))
 		.limit(1);
 
-	const balanceInKobo = wallet?.balance ?? 0;
-
 	return c.json(
 		{
-			success: true,
+			success: true as const,
 			data: {
-				balance: balanceInKobo,
+				balance: wallet?.balance ?? 0,
 				currency,
 			},
 		},
@@ -126,7 +194,8 @@ const debitRoute = createRoute({
 	path: "/debit",
 	tags: ["Lagos Rush Casino"],
 	summary: "Debit user wallet",
-	description: "Debits user's wallet balance for Lagos Rush casino game",
+	description:
+		"Debits user's wallet balance for Lagos Rush. Requires the provider transactionId; retries with the same id are idempotent.",
 	security: [{ ApiKeyAuth: [] }],
 	request: {
 		body: {
@@ -167,103 +236,52 @@ const debitRoute = createRoute({
 
 pocketsRoute.openapi(debitRoute, async (c) => {
 	if (!validatePocketsApiKey(c)) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid API key",
-			},
-			401,
-		);
+		return c.json(authError, 401);
 	}
 
 	const body = await c.req.json();
 	const result = LagosRushDebitRequestSchema.safeParse(body);
 
 	if (!result.success) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid request body",
-			},
-			400,
-		);
+		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
-	const { playerId, amount, currency } = result.data;
+	const parsed = parseMoneyCall(result.data);
+	if (!parsed.ok) {
+		return c.json({ success: false as const, error: parsed.error }, 400);
+	}
+
+	const { playerId, currency } = result.data;
 	const db = drizzle(c.env.DB, { schema });
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, playerId))
-		.limit(1);
+	const settle = await settlePocketsTransaction({
+		db,
+		provider: "pockets",
+		paymentMethod: "lagos rush",
+		action: "debit",
+		playerId,
+		providerTxId: parsed.providerTxId,
+		amountKobo: parsed.amountKobo,
+		currency,
+		metadata: { game: "lagos rush", currency, action: "bet" },
+	});
 
-	const oldBalanceKobo = wallet?.balance ?? 0;
-
-	if (oldBalanceKobo < amount) {
-		return c.json(
-			{
-				success: false,
-				error: "Insufficient balance",
-			},
-			400,
-		);
+	if (settle.status !== "settled" && settle.status !== "duplicate") {
+		const { body: errBody, status } = settleErrorResponse(settle);
+		return c.json(errBody, status);
 	}
 
-	const newBalanceKobo = oldBalanceKobo - amount;
-
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId))
-		.returning();
-
-	if (!updatedWallet?.id) {
-		return c.json({ success: false, error: "Failed to update wallet" }, 500);
-	}
-
-	const transactionId = crypto.randomUUID();
-
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+	if (settle.status === "settled") {
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
 			userId: playerId,
-			amount: amount,
-			type: "debit",
-			reference: null,
-			status: "success",
-			paymentMethod: "lagos rush",
-			balance: newBalanceKobo,
-			metadata: JSON.stringify({ game: "lagos rush", currency, action: "bet" }),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [debitTxn] = await db
-		.insert(schema.pocketsTransactions)
-		.values({
-			id: transactionId,
-			userId: playerId,
-			type: "DEBIT",
-			amount: amount,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
+			betId: parsed.providerTxId,
+			amount: casinoBetAmountFromKobo(parsed.amountKobo),
 			currency,
-		})
-		.returning();
-
-	if (!debitTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record debit transaction" },
-			500,
-		);
+			gameRef: LAGOS_RUSH_GAME_CODE,
+			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.LAGOS_RUSH,
+		});
 	}
 
 	await reportCasinoBetInBackground({
@@ -279,12 +297,12 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 
 	return c.json(
 		{
-			success: true,
+			success: true as const,
 			data: {
-				oldBalance: oldBalanceKobo,
-				newBalance: newBalanceKobo,
+				oldBalance: settle.oldBalanceKobo,
+				newBalance: settle.newBalanceKobo,
 				currency,
-				transactionId,
+				transactionId: settle.transactionId,
 			},
 		},
 		200,
@@ -296,7 +314,8 @@ const creditRoute = createRoute({
 	path: "/credit",
 	tags: ["Lagos Rush Casino"],
 	summary: "Credit user wallet",
-	description: "Credits user's wallet balance for Lagos Rush casino game",
+	description:
+		"Credits user's wallet balance for Lagos Rush casino game. Requires the provider transactionId; retries with the same id are idempotent.",
 	security: [{ ApiKeyAuth: [] }],
 	request: {
 		body: {
@@ -337,93 +356,50 @@ const creditRoute = createRoute({
 
 pocketsRoute.openapi(creditRoute, async (c) => {
 	if (!validatePocketsApiKey(c)) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid API key",
-			},
-			401,
-		);
+		return c.json(authError, 401);
 	}
 
 	const body = await c.req.json();
 	const result = LagosRushCreditRequestSchema.safeParse(body);
 
 	if (!result.success) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid request body",
-			},
-			400,
-		);
+		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
-	const { playerId, amount, currency } = result.data;
+	const parsed = parseMoneyCall(result.data);
+	if (!parsed.ok) {
+		return c.json({ success: false as const, error: parsed.error }, 400);
+	}
+
+	const { playerId, currency } = result.data;
 	const db = drizzle(c.env.DB, { schema });
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, playerId))
-		.limit(1);
+	const settle = await settlePocketsTransaction({
+		db,
+		provider: "pockets",
+		paymentMethod: "lagos rush",
+		action: "credit",
+		playerId,
+		providerTxId: parsed.providerTxId,
+		amountKobo: parsed.amountKobo,
+		currency,
+		metadata: { game: "lagos rush", currency, action: "win" },
+	});
 
-	const oldBalanceKobo = wallet?.balance ?? 0;
-
-	const newBalanceKobo = oldBalanceKobo + amount;
-
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId))
-		.returning();
-
-	if (!updatedWallet?.id) {
-		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	if (settle.status !== "settled" && settle.status !== "duplicate") {
+		const { body: errBody, status } = settleErrorResponse(settle);
+		return c.json(errBody, status);
 	}
 
-	const transactionId = crypto.randomUUID();
-
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
 			userId: playerId,
-			amount: amount,
-			type: "credit",
-			reference: null,
-			status: "success",
-			paymentMethod: "lagos rush",
-			balance: newBalanceKobo,
-			metadata: JSON.stringify({ game: "lagos rush", currency, action: "win" }),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [creditTxn] = await db
-		.insert(schema.pocketsTransactions)
-		.values({
-			id: transactionId,
-			userId: playerId,
-			type: "CREDIT",
-			amount: amount,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			currency,
-		})
-		.returning();
-
-	if (!creditTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record credit transaction" },
-			500,
-		);
+			betId: parsed.providerTxId,
+			totalWinAmount: casinoBetAmountFromKobo(parsed.amountKobo),
+			isWin: 1,
+		});
 	}
 
 	await reportCasinoBetResultInBackground({
@@ -437,12 +413,12 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 
 	return c.json(
 		{
-			success: true,
+			success: true as const,
 			data: {
-				oldBalance: oldBalanceKobo,
-				newBalance: newBalanceKobo,
+				oldBalance: settle.oldBalanceKobo,
+				newBalance: settle.newBalanceKobo,
 				currency,
-				transactionId,
+				transactionId: settle.transactionId,
 			},
 		},
 		200,
@@ -454,7 +430,8 @@ const refundRoute = createRoute({
 	path: "/refund",
 	tags: ["Lagos Rush Casino"],
 	summary: "Refund user wallet",
-	description: "Refunds user's wallet balance for Lagos Rush casino game",
+	description:
+		"Refunds user's wallet balance for Lagos Rush casino game. Requires the provider transactionId; retries with the same id are idempotent.",
 	security: [{ ApiKeyAuth: [] }],
 	request: {
 		body: {
@@ -495,107 +472,61 @@ const refundRoute = createRoute({
 
 pocketsRoute.openapi(refundRoute, async (c) => {
 	if (!validatePocketsApiKey(c)) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid API key",
-			},
-			401,
-		);
+		return c.json(authError, 401);
 	}
 
 	const body = await c.req.json();
 	const result = LagosRushRefundRequestSchema.safeParse(body);
 
 	if (!result.success) {
-		return c.json(
-			{
-				success: false,
-				error: "Invalid request body",
-			},
-			400,
-		);
+		return c.json({ success: false as const, error: "Invalid request body" }, 400);
 	}
 
-	const { playerId, amount, currency } = result.data;
+	const parsed = parseMoneyCall(result.data);
+	if (!parsed.ok) {
+		return c.json({ success: false as const, error: parsed.error }, 400);
+	}
+
+	const { playerId, currency } = result.data;
 	const db = drizzle(c.env.DB, { schema });
 
-	const [wallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, playerId))
-		.limit(1);
+	const settle = await settlePocketsTransaction({
+		db,
+		provider: "pockets",
+		paymentMethod: "lagos rush",
+		action: "refund",
+		playerId,
+		providerTxId: parsed.providerTxId,
+		amountKobo: parsed.amountKobo,
+		currency,
+		metadata: { game: "lagos rush", currency, action: "refund" },
+	});
 
-	const oldBalanceKobo = wallet?.balance ?? 0;
-
-	const newBalanceKobo = oldBalanceKobo + amount;
-
-	const [updatedWallet] = await db
-		.update(schema.wallet)
-		.set({ balance: newBalanceKobo })
-		.where(eq(schema.wallet.userId, playerId))
-		.returning();
-
-	if (!updatedWallet?.id) {
-		return c.json({ success: false, error: "Failed to update wallet" }, 500);
+	if (settle.status !== "settled" && settle.status !== "duplicate") {
+		const { body: errBody, status } = settleErrorResponse(settle);
+		return c.json(errBody, status);
 	}
 
-	const transactionId = crypto.randomUUID();
-
-	const [walletTxn] = await db
-		.insert(schema.walletTransaction)
-		.values({
-			id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+	if (settle.status === "settled") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
 			userId: playerId,
-			amount: amount,
-			type: "refund",
-			reference: null,
-			status: "success",
-			paymentMethod: "lagos rush",
-			balance: newBalanceKobo,
-			metadata: JSON.stringify({
-				game: "lagos rush",
-				currency,
-				action: "refund",
-			}),
-		})
-		.returning();
-
-	if (!walletTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record wallet transaction" },
-			500,
-		);
-	}
-
-	const [refundTxn] = await db
-		.insert(schema.pocketsTransactions)
-		.values({
-			id: transactionId,
-			userId: playerId,
-			type: "REFUND",
-			amount: amount,
-			balanceBefore: oldBalanceKobo,
-			balanceAfter: newBalanceKobo,
-			currency,
-		})
-		.returning();
-
-	if (!refundTxn?.id) {
-		return c.json(
-			{ success: false, error: "Failed to record refund transaction" },
-			500,
-		);
+			betId: parsed.providerTxId,
+			totalWinAmount: casinoBetAmountFromKobo(parsed.amountKobo),
+			isWin: 0,
+			isRollback: 1,
+		});
 	}
 
 	return c.json(
 		{
-			success: true,
+			success: true as const,
 			data: {
-				oldBalance: oldBalanceKobo,
-				newBalance: newBalanceKobo,
+				oldBalance: settle.oldBalanceKobo,
+				newBalance: settle.newBalanceKobo,
 				currency,
-				transactionId,
+				transactionId: settle.transactionId,
 			},
 		},
 		200,

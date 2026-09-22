@@ -34,6 +34,6 @@ export default defineConfig({
 				token: process.env.CLOUDFLARE_D1_TOKEN!,
 			}
 		: {
-				url: ".wrangler/state/v3/d1/d091e50e-e19f-40dc-ad77-e7050c7bbbad.sqlite",
+				url: ".wrangler/state/v3/d1/miniflare-D1DatabaseObject/66bbd296fc96c739ea5e99144fd0328a7a8d0ec85f88878beb314aaa7e307eba.sqlite",
 			},
 });

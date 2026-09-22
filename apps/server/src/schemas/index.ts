@@ -1,11 +1,13 @@
 import { z } from "@hono/zod-openapi";
 
 export * from "./basketball";
+export * from "./admin-exports";
 export * from "./casino";
 export * from "./casino-provider";
 export * from "./football";
 export * from "./monnify";
 export * from "./notifications";
+export * from "./scorpio";
 export * from "./sportsbook";
 export * from "./tennis";
 export * from "./wallet";

@@ -7,6 +7,8 @@ export type ReceiptDetail = {
 	label: string;
 	value: ReactNode;
 	copyable?: boolean;
+	/** Full value to copy when `value` is truncated for display */
+	copyValue?: string;
 	valueClassName?: string;
 };
 
@@ -166,8 +168,8 @@ export function TransactionReceipt({
 				</div>
 			</div>
 
-			<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-[2px]">
-				<div className="relative mx-auto flex w-full max-w-md flex-col rounded-3xl border border-gray-600 bg-[#000606] text-white shadow-xl overflow-hidden max-h-[90vh]">
+			<div className="fixed inset-0 z-50 flex min-h-[100dvh] items-start justify-center overflow-y-auto overscroll-y-contain bg-black/60 p-3 backdrop-blur-[2px] sm:items-center sm:p-4">
+				<div className="relative my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md min-w-0 flex-col overflow-hidden rounded-3xl border border-gray-600 bg-[#000606] text-white shadow-xl">
 					<div className="flex items-center px-4 py-6">
 						<button type="button" onClick={onBack} className="cursor-pointer flex h-8 w-8 items-center justify-center rounded-full border border-[#6C7073] text-[#6C7073] transition-colors hover:bg-white/10">
 							<X className="h-4 w-4" />
@@ -176,7 +178,7 @@ export function TransactionReceipt({
 						<div className="w-8" />
 					</div>
 
-					<div className="flex-1 overflow-y-auto px-6">
+					<div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 [-webkit-overflow-scrolling:touch] sm:px-6">
 						<div className="mb-6 flex items-center rounded-xl bg-[#EAFFE7] gap-x-2 p-4 shadow-sm">
 							<div className="w-11 h-11 flex justify-center items-center bg-[#23BF09] rounded-[8px]">
 								<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
@@ -199,7 +201,7 @@ export function TransactionReceipt({
 										<span className="text-[#6C7073]">{detail.label}</span>
 										<div className="flex items-center gap-2">
 											<span
-												className={`font-medium text-[10px] ${detail.valueClassName || "text-white"}`}
+												className={`max-w-[220px] truncate text-right font-medium text-sm ${detail.valueClassName || "text-white"}`}
 											>
 												{detail.value}
 											</span>
@@ -207,7 +209,11 @@ export function TransactionReceipt({
 												<button
 													type="button"
 													onClick={() => {
-														const textToCopy = typeof detail.value === "string" ? detail.value : String(detail.value);
+														const textToCopy =
+															detail.copyValue ||
+															(typeof detail.value === "string"
+																? detail.value
+																: String(detail.value));
 														handleCopy(textToCopy);
 													}}
 													className="cursor-pointer text-[#00D600] transition-opacity hover:opacity-80"
@@ -227,7 +233,7 @@ export function TransactionReceipt({
 							type="button"
 							onClick={handleShare}
 							disabled={isSharing}
-							className="w-full flex items-center justify-center cursor-pointer rounded-lg bg-[#00D600] py-4 font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+							className="w-full flex items-center justify-center cursor-pointer rounded-lg bg-[#00D600] py-4 font-bold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
 						>
 							{isSharing ? "Generating..." : "Download"}
 						</button>

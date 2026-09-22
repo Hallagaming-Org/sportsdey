@@ -3,6 +3,10 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import { getSanityClient, getSanityServerClient, urlFor } from "../lib/sanity";
 import type { CloudflareBindings } from "../types";
 
@@ -23,11 +27,6 @@ const CmsContentQuerySchema = z
 			.enum(["title"])
 			.optional()
 			.openapi({ description: "Sort by field" }),
-		page: z.coerce
-			.number()
-			.optional()
-			.default(1)
-			.openapi({ description: "Page number" }),
 		fromDate: z.string().optional().openapi({
 			description:
 				"Filter content published on or after this date (ISO format: YYYY-MM-DD)",
@@ -55,9 +54,8 @@ const CreateCmsContentSchema = z.object({
 	authorName: z.string().min(1).openapi({ description: "Author full name" }),
 });
 
-const UpdateCmsContentSchema = CreateCmsContentSchema.partial().openapi(
-	"UpdateCmsContent",
-);
+const UpdateCmsContentSchema =
+	CreateCmsContentSchema.partial().openapi("UpdateCmsContent");
 
 const CmsContentResponseSchema = z.object({
 	_id: z.string(),
@@ -75,6 +73,14 @@ const CmsContentResponseSchema = z.object({
 const CmsAuthorOptionSchema = z.object({
 	_id: z.string(),
 	name: z.string(),
+});
+
+const CmsContentListSchema = z.object({
+	content: CmsContentResponseSchema.array(),
+	total: z.number(),
+	page: z.number(),
+	limit: z.number(),
+	totalPages: z.number(),
 });
 
 const CmsContentDetailResponseSchema = z.object({
@@ -103,6 +109,12 @@ function slugify(text: string): string {
 
 function isDraft(id: string): boolean {
 	return id.startsWith("drafts.");
+}
+
+function categoryToType(
+	category: string | undefined,
+): "news" | "videos" | "ads" {
+	return category === "videos" || category === "ads" ? category : "news";
 }
 
 function formatDate(dateString: string): string {
@@ -222,6 +234,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -259,7 +272,7 @@ cmsRoute.openapi(
 		path: "/content",
 		summary: "List CMS content",
 		description:
-			"List published CMS content with optional search, filtering, sorting and pagination. Returns only verified (published) content.",
+			"Paginated published CMS content. Use GET /cms/content/all for the full unpaginated set.",
 		request: {
 			query: CmsContentQuerySchema,
 		},
@@ -267,7 +280,7 @@ cmsRoute.openapi(
 			200: {
 				content: {
 					"application/json": {
-						schema: successResponseSchema(CmsContentResponseSchema.array()),
+						schema: successResponseSchema(CmsContentListSchema),
 					},
 				},
 				description: "Successfully retrieved content",
@@ -284,13 +297,8 @@ cmsRoute.openapi(
 		tags: ["CMS"],
 	}),
 	async (c) => {
-		const { search, type, sortBy, page, fromDate, toDate } =
-			c.req.valid("query");
+		const { search, type, sortBy, fromDate, toDate } = c.req.valid("query");
 		const client = getSanityClient(c.env);
-
-		const pageSize = 10;
-		const start = (page - 1) * pageSize;
-		const end = start + pageSize;
 
 		let filterConditions = '_type == "news" && !(_id in path("drafts.**"))';
 		const params: Record<string, unknown> = {};
@@ -310,11 +318,10 @@ cmsRoute.openapi(
 			}
 		}
 
-		const { fromDate: fromBoundary, toDate: toBoundary } =
-			parseQueryDateRange({
-				fromDate,
-				toDate,
-			}) as { fromDate?: number; toDate?: number };
+		const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
+			fromDate,
+			toDate,
+		}) as { fromDate?: number; toDate?: number };
 
 		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
@@ -340,12 +347,8 @@ cmsRoute.openapi(
 			if (toBoundary && publishedMs > toBoundary) return false;
 			return true;
 		});
-		const paginatedContent = filteredContent.slice(start, end);
-
-		const transformedContent = paginatedContent.map((item: SanityContent) => {
-			const category = item.category;
-			const type =
-				category === "videos" || category === "ads" ? category : "news";
+		const transformedContent = filteredContent.map((item: SanityContent) => {
+			const type = categoryToType(item.category);
 			return {
 				_id: item._id,
 				title: item.title,
@@ -362,17 +365,27 @@ cmsRoute.openapi(
 			};
 		});
 
-		const total = filteredContent.length;
-		const totalPages = Math.ceil(total / pageSize);
+		const total = transformedContent.length;
+		const page = Math.max(
+			1,
+			Number.parseInt(c.req.query("page") || "1", 10) || 1,
+		);
+		const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+		const limit = Math.min(
+			100,
+			Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+		);
+		const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+		const paged = transformedContent.slice((page - 1) * limit, page * limit);
 
 		return c.json(
 			{
 				success: true as const,
 				data: {
-					content: transformedContent,
+					content: paged,
 					total,
 					page,
-					limit: pageSize,
+					limit,
 					totalPages,
 				},
 			},
@@ -385,9 +398,9 @@ cmsRoute.openapi(
 	createRoute({
 		method: "get",
 		path: "/content/all",
-		summary: "List all CMS content",
+		summary: "List all CMS content (unpaginated)",
 		description:
-			"List all CMS content including drafts. Requires admin authentication.",
+			"List every CMS content item including drafts in a single response — no pagination. Filters (search, type, fromDate, toDate) still apply. Requires admin authentication.",
 		security: [{ BearerAuth: [] }],
 		request: {
 			query: CmsContentQuerySchema,
@@ -446,23 +459,19 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
 		}
 
-		const { search, type, sortBy, page, fromDate, toDate } =
-			c.req.valid("query");
-		const { fromDate: fromBoundary, toDate: toBoundary } =
-			parseQueryDateRange({
-				fromDate,
-				toDate,
-			}) as { fromDate?: number; toDate?: number };
+		const { search, type, sortBy, fromDate, toDate } = c.req.valid("query");
+		const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
+			fromDate,
+			toDate,
+		}) as { fromDate?: number; toDate?: number };
 		const client = getSanityClient(c.env);
 
-		const pageSize = 10;
-		const start = (page - 1) * pageSize;
-		const end = start + pageSize;
 		const sortOrder = sortBy === "title" ? "title asc" : "publishedAt desc";
 
 		let filterConditions = '_type == "news"';
@@ -492,10 +501,7 @@ cmsRoute.openapi(
 			"author": author->{_id, name, image}
 		}`;
 
-		const allContent = await client.fetch<Array<SanityContent>>(
-			query,
-			params,
-		);
+		const allContent = await client.fetch<Array<SanityContent>>(query, params);
 
 		const filteredContent = allContent.filter((item) => {
 			const publishedAt = new Date(item.publishedAt);
@@ -505,12 +511,9 @@ cmsRoute.openapi(
 			if (toBoundary && publishedMs > toBoundary) return false;
 			return true;
 		});
-		const paginatedContent = filteredContent.slice(start, end);
 
-		const transformedContent = paginatedContent.map((item: SanityContent) => {
-			const category = item.category;
-			const type =
-				category === "videos" || category === "ads" ? category : "news";
+		const transformedContent = filteredContent.map((item: SanityContent) => {
+			const type = categoryToType(item.category);
 			return {
 				_id: item._id,
 				title: item.title,
@@ -529,19 +532,10 @@ cmsRoute.openapi(
 			};
 		});
 
-		const total = filteredContent.length;
-		const totalPages = Math.ceil(total / pageSize);
-
 		return c.json(
 			{
 				success: true as const,
-				data: {
-					content: transformedContent,
-					total,
-					page,
-					limit: pageSize,
-					totalPages,
-				},
+				data: transformedContent,
 			},
 			200,
 		);
@@ -621,9 +615,7 @@ cmsRoute.openapi(
 				.filter(Boolean)
 				.join("\n") ?? "";
 
-		const category = content.category;
-		const type =
-			category === "videos" || category === "ads" ? category : "news";
+		const type = categoryToType(content.category);
 
 		return c.json(
 			{
@@ -737,6 +729,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -782,10 +775,7 @@ cmsRoute.openapi(
 			  }
 			| undefined;
 		if (bannerImage) {
-			const base64Data = bannerImage.replace(
-				/^data:image\/\w+;base64,/,
-				"",
-			);
+			const base64Data = bannerImage.replace(/^data:image\/\w+;base64,/, "");
 			const buffer = Buffer.from(base64Data, "base64");
 			const asset = await client.assets.upload("image", buffer, {
 				filename: `${slugify(title)}.jpg`,
@@ -846,6 +836,11 @@ cmsRoute.openapi(
 		}
 
 		const createdDoc = await client.create(doc);
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.uploadContent,
+		);
 
 		return c.json(
 			{
@@ -853,7 +848,7 @@ cmsRoute.openapi(
 				data: {
 					_id: createdDoc._id,
 					title: createdDoc.title as string,
-					status: "pending",
+					status: "pending" as const,
 				},
 			},
 			200,
@@ -957,6 +952,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -997,8 +993,7 @@ cmsRoute.openapi(
 					details: [
 						{
 							field: "body",
-							message:
-								"Provide at least one field to update the CMS content",
+							message: "Provide at least one field to update the CMS content",
 							code: "invalid_body",
 						},
 					],
@@ -1157,6 +1152,11 @@ cmsRoute.openapi(
 		}
 
 		await patchRequest.commit();
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.updateContent,
+		);
 
 		return c.json(
 			{
@@ -1254,6 +1254,7 @@ cmsRoute.openapi(
 				{
 					success: false as const,
 					error: "Forbidden - post_upload_content permission required",
+					details: null,
 				},
 				403,
 			);
@@ -1303,6 +1304,11 @@ cmsRoute.openapi(
 		}
 
 		await client.delete(id);
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.deleteContent,
+		);
 
 		return c.json(
 			{

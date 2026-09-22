@@ -1,7 +1,129 @@
+import {
+	constrainSportsbookThreeColumnRows,
+	type DatabetLayoutConfig,
+	patchDatabetLayoutConfig,
+} from "./sportsbook-layout";
+
 export const SPORTSBOOK_CONTAINER_ID = "betting__container";
+
+/**
+ * DataBet paints its SPA shell with colorsPrimary2 (#000) and a 16px inset.
+ * That shell is inside the open shadow root — not the gray panels (secondary
+ * colors). Strip only the shell so the widget sits on the page background.
+ */
+const SPORTSBOOK_HOST_CHROME_STYLE_ID = "sportsdey-sportsbook-host-chrome";
+const SPORTSBOOK_HOST_CHROME_CSS = `
+.ft-b1_reg.bg-colorsPrimary2 {
+	background-color: transparent !important;
+}
+.ft-b1_reg.bg-colorsPrimary2 > .relative.flex.grow > .size-all-inherit {
+	padding: 0 !important;
+}
+[data-id="BreakpointProvider"] {
+	min-width: 0 !important;
+	max-width: 100% !important;
+	width: 100% !important;
+}
+[data-id="BreakpointProvider"] .flex {
+	min-width: 0;
+	max-width: 100%;
+}
+[data-id="BreakpointProvider"] .flex > [style*="320px"],
+[data-id="BreakpointProvider"] .flex > [class*="320px"] {
+	flex: 0 0 320px !important;
+	flex-shrink: 0 !important;
+	min-width: 320px !important;
+	max-width: 320px !important;
+}
+/* Left sports column: do not stretch to the center column's height.
+   That leftover height was rendering as a gap between Show More and
+   Football / Basketball. Hug content so the list stays continuous. */
+[data-id="BreakpointProvider"] .flex > [style*="320px"]:first-child,
+[data-id="BreakpointProvider"] .flex > [class*="320px"]:first-child {
+	align-self: flex-start !important;
+	height: auto !important;
+	min-height: 0 !important;
+	max-height: none !important;
+}
+[data-id="BreakpointProvider"] .flex > [style*="320px"]:first-child .flex,
+[data-id="BreakpointProvider"] .flex > [class*="320px"]:first-child .flex {
+	align-content: flex-start;
+}
+[data-id="BreakpointProvider"] .flex > [style*="320px"]:first-child .size-all-inherit,
+[data-id="BreakpointProvider"] .flex > [class*="320px"]:first-child .size-all-inherit {
+	height: auto !important;
+	min-height: 0 !important;
+	max-height: none !important;
+}
+/* Center odds cells were inheriting min-width:0 from a previous overflow
+   patch and shrinking below a comfortable tap target. */
+[data-id="BreakpointProvider"] .text-textOdd {
+	min-width: 2.75rem;
+	padding-inline: 0.5rem;
+	padding-block: 0.375rem;
+	box-sizing: border-box;
+}
+`;
+
+export function installSportsbookHostChromeFix(host: HTMLElement): () => void {
+	let shadowObserver: MutationObserver | null = null;
+	let observingRoot: ShadowRoot | null = null;
+
+	const apply = () => {
+		const root = host.shadowRoot;
+		if (!root) return;
+		if (!root.getElementById(SPORTSBOOK_HOST_CHROME_STYLE_ID)) {
+			const style = document.createElement("style");
+			style.id = SPORTSBOOK_HOST_CHROME_STYLE_ID;
+			style.textContent = SPORTSBOOK_HOST_CHROME_CSS;
+			root.appendChild(style);
+		}
+		// Three-column flex patches only apply on desktop. Running them on
+		// mobile after first paint is a layout-shift source.
+		if (window.matchMedia("(min-width: 1024px)").matches) {
+			constrainSportsbookThreeColumnRows(root);
+		}
+		if (observingRoot !== root) {
+			shadowObserver?.disconnect();
+			shadowObserver = new MutationObserver(() => {
+				if (!root.getElementById(SPORTSBOOK_HOST_CHROME_STYLE_ID)) {
+					apply();
+				} else if (window.matchMedia("(min-width: 1024px)").matches) {
+					constrainSportsbookThreeColumnRows(root);
+				}
+			});
+			shadowObserver.observe(root, { childList: true, subtree: true });
+			observingRoot = root;
+		}
+	};
+
+	apply();
+	const hostObserver = new MutationObserver(apply);
+	hostObserver.observe(host, { childList: true, subtree: true });
+	const retry = window.setInterval(apply, 300);
+	const stopRetry = window.setTimeout(() => window.clearInterval(retry), 20_000);
+
+	return () => {
+		hostObserver.disconnect();
+		shadowObserver?.disconnect();
+		window.clearInterval(retry);
+		window.clearTimeout(stopRetry);
+	};
+}
 export const SPORTSBOOK_BETSLIP_ID = "betting-betslip";
 export const SPORTSBOOK_BOOTSTRAP_SCRIPT_ID = "databet-spa-bootstrap-script";
 export const SPORTSBOOK_HEADER_OFFSET = 64;
+
+/** Data.Bet prematch lobby (Live/Prematch tabs). Empty `/sportsbetting` defaults to live. */
+export const SPORTSBOOK_PREMATCH_SPLAT = "sports/prematch";
+
+export function sportsbookPrematchNavigateOptions() {
+	return {
+		to: "/sportsbetting/$" as const,
+		params: { _splat: SPORTSBOOK_PREMATCH_SPLAT },
+		search: { sports: undefined },
+	} as any;
+}
 
 export type OddFormat =
 	| "Decimal"
@@ -124,7 +246,24 @@ export type BettingLoader = {
 		options: AppInitOptions,
 		onLoad?: (bettingAPI: BettingAPI) => void,
 	) => void;
+	appConfig?: {
+		layoutConfig?: DatabetLayoutConfig;
+	};
 };
+
+/**
+ * DataBet picks mobile / tablet / desktop from the BreakpointProvider's
+ * clientWidth (not the window). Default desktop is 1440px, so a normal
+ * laptop at 100% zoom — after our sidebar and page margins — falls into
+ * tablet and drops the inline Betslip column.
+ *
+ * Keep those lower thresholds, but do not shrink the 320px Betslip column.
+ * Category pages use a 100% flex basis on the center column, which overflows
+ * the host; pin the sides and let the center fill remaining space instead.
+ */
+export function patchDatabetLayoutForHostChrome() {
+	patchDatabetLayoutConfig(window.bettingLoader?.appConfig?.layoutConfig);
+}
 
 declare global {
 	interface Window {
@@ -279,7 +418,7 @@ export function loadSportsbookBootstrapScript(
 		script.onload = () => resolve();
 		script.onerror = () =>
 			reject(new Error("Failed to load sportsbook bootstrap script."));
-		document.body.appendChild(script);
+		document.head.appendChild(script);
 	});
 }
 

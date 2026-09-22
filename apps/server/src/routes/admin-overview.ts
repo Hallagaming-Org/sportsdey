@@ -1,10 +1,20 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	lte,
+	notInArray,
+	sql,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
-import { successResponseSchema, ErrorResponseSchema } from "@/schemas";
+import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -13,8 +23,14 @@ type AdminRouteContext = { Bindings: CloudflareBindings };
 const adminOverviewRoute = new OpenAPIHono<AdminRouteContext>();
 
 const OverviewDateQuerySchema = z.object({
-	fromDate: z.string().optional().openapi({ description: "Filter start date (YYYY-MM-DD)" }),
-	toDate: z.string().optional().openapi({ description: "Filter end date (YYYY-MM-DD)" }),
+	fromDate: z
+		.string()
+		.optional()
+		.openapi({ description: "Filter start date (YYYY-MM-DD)" }),
+	toDate: z
+		.string()
+		.optional()
+		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
 });
 
 const OverviewStatsSchema = z.object({
@@ -59,11 +75,52 @@ const DayActivitySchema = z.object({
 	date: z.string(),
 	revenue: z.number(),
 	bets: z.number(),
-	users: z.number(),
+	winnings: z.number(),
+	totalDeposits: z.number(),
+	totalWithdrawals: z.number(),
 });
 
 const ActivityResponseSchema = z.object({
 	days: z.array(DayActivitySchema),
+});
+
+const TicketTrendSchema = z
+	.object({
+		totalTickets: z.number(),
+		wonTickets: z.number(),
+		lostTickets: z.number(),
+	})
+	.openapi("TicketTrend");
+
+const getTicketTrendRoute = createRoute({
+	method: "get",
+	path: "/overview/ticket-trend",
+	tags: ["Admin - Overview"],
+	summary: "Get ticket trend counts",
+	description:
+		"Retrieve total ticket count, won ticket count, and loss count. Losses are limited to explicit Slotegrator and Thndr loss outcomes.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: OverviewDateQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Ticket trend counts retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(TicketTrendSchema),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
 });
 
 const getActivityRoute = createRoute({
@@ -72,7 +129,7 @@ const getActivityRoute = createRoute({
 	tags: ["Admin - Overview"],
 	summary: "Get activity trends",
 	description:
-		"Retrieve activity data for revenue, bets placed, and new users. Defaults to last 7 days.",
+		"Retrieve activity data for revenue (GGR), settled bets, winnings, deposits, and withdrawals. Defaults to last 7 days.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: OverviewDateQuerySchema,
@@ -113,8 +170,12 @@ const getTopBetsRoute = createRoute({
 	path: "/overview/top-bets",
 	tags: ["Admin - Overview"],
 	summary: "Get top 5 biggest bets",
-	description: "Retrieve the top 5 biggest bets placed today.",
+	description:
+		"Retrieve the five biggest bets across sportsbook and casino providers for the selected date range.",
 	security: [{ BearerAuth: [] }],
+	request: {
+		query: OverviewDateQuerySchema,
+	},
 	responses: {
 		200: {
 			description: "Top bets retrieved successfully",
@@ -146,10 +207,7 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json(
-			{ success: false, error: "Forbidden - admin only" },
-			403,
-		);
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
 	}
 
 	if (
@@ -177,20 +235,21 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 	if (fromDate) userConditions.push(gte(schema.user.createdAt, fromDate));
 	if (toDate) userConditions.push(lte(schema.user.createdAt, toDate));
 
-	const [userCountResult] = userConditions.length > 0
-		? await db
-			.select({ count: sql<number>`COUNT(*)` })
-			.from(schema.user)
-			.where(and(...userConditions))
-		: await db
-			.select({ count: sql<number>`COUNT(*)` })
-			.from(schema.user);
+	const [userCountResult] =
+		userConditions.length > 0
+			? await db
+					.select({ count: sql<number>`COUNT(*)` })
+					.from(schema.user)
+					.where(and(...userConditions))
+			: await db.select({ count: sql<number>`COUNT(*)` }).from(schema.user);
 
 	const totalUsers = Number(userCountResult?.count ?? 0);
 
 	const activeConditions = [];
-	if (fromDate) activeConditions.push(gte(schema.sportsbookBet.createdAt, fromDate));
-	if (toDate) activeConditions.push(lte(schema.sportsbookBet.createdAt, toDate));
+	if (fromDate)
+		activeConditions.push(gte(schema.sportsbookBet.createdAt, fromDate));
+	if (toDate)
+		activeConditions.push(lte(schema.sportsbookBet.createdAt, toDate));
 
 	const [activePlayersResult] = await db
 		.select({
@@ -206,8 +265,10 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		eq(schema.walletTransaction.status, "pending"),
 		eq(schema.walletTransaction.paymentMethod, "paystack"),
 	];
-	if (fromDate) pendingConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) pendingConditions.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		pendingConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		pendingConditions.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [pendingPayoutsResult] = await db
 		.select({
@@ -222,8 +283,10 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		eq(schema.walletTransaction.type, "credit"),
 		eq(schema.walletTransaction.status, "success"),
 	];
-	if (fromDate) creditConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) creditConditions.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		creditConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		creditConditions.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [totalCreditsResult] = await db
 		.select({
@@ -236,8 +299,10 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		eq(schema.walletTransaction.type, "debit"),
 		eq(schema.walletTransaction.status, "success"),
 	];
-	if (fromDate) debitConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
-	if (toDate) debitConditions.push(lte(schema.walletTransaction.createdAt, toDate));
+	if (fromDate)
+		debitConditions.push(gte(schema.walletTransaction.createdAt, fromDate));
+	if (toDate)
+		debitConditions.push(lte(schema.walletTransaction.createdAt, toDate));
 
 	const [totalDebitsResult] = await db
 		.select({
@@ -247,8 +312,7 @@ adminOverviewRoute.openapi(getOverviewStatsRoute, async (c) => {
 		.where(and(...debitConditions));
 
 	const totalIncome =
-		((totalCreditsResult?.total ?? 0) - (totalDebitsResult?.total ?? 0)) /
-		100;
+		((totalCreditsResult?.total ?? 0) - (totalDebitsResult?.total ?? 0)) / 100;
 
 	return c.json({
 		success: true,
@@ -272,10 +336,7 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json(
-			{ success: false, error: "Forbidden - admin only" },
-			403,
-		);
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
 	}
 
 	if (
@@ -302,7 +363,9 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 		date: string;
 		revenue: number;
 		bets: number;
-		users: number;
+		winnings: number;
+		totalDeposits: number;
+		totalWithdrawals: number;
 	}> = [];
 
 	const now = new Date();
@@ -310,9 +373,33 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 	const rangeEnd = td ?? now;
 
 	const dayCount = Math.min(
-		Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000)) + 1,
+		Math.ceil(
+			(rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000),
+		) + 1,
 		31,
 	);
+
+	// Gaming metrics must only include settled bets (settle_type set).
+	// settle_type 1 = win, 2 = refund, 3 = loss.
+	const settledBetConditions = (dayStart: Date, dayEnd: Date) =>
+		and(
+			isNotNull(schema.sportsbookBet.settleType),
+			gte(schema.sportsbookBet.createdAt, dayStart),
+			lte(schema.sportsbookBet.createdAt, dayEnd),
+		);
+
+	// Non-deposit credit sources (settlements, game credits, internal transfers, bill payments).
+	const nonDepositPaymentMethods = [
+		"sportsbook",
+		"thndr games",
+		"slotegrator games",
+		"lagos rush",
+		"halla",
+		"lucky games",
+		"bill_payment",
+		"hashcodex",
+		"wallet_transfer",
+	];
 
 	for (let i = dayCount - 1; i >= 0; i--) {
 		const dayStart = new Date(rangeEnd.getTime() - i * 24 * 60 * 60 * 1000);
@@ -327,7 +414,18 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 						weekday: "short",
 					});
 
-		const [revenueResult] = await db
+		const [betsResult] = await db
+			.select({
+				betTurnover: sql<number>`COALESCE(SUM(${schema.sportsbookBet.stake}), 0)`,
+				winnings: sql<number>`COALESCE(SUM(CASE WHEN ${schema.sportsbookBet.settleType} = 1 THEN ${schema.sportsbookBet.settleAmount} ELSE 0 END), 0)`,
+			})
+			.from(schema.sportsbookBet)
+			.where(settledBetConditions(dayStart, dayEnd));
+
+		const betTurnover = Number(betsResult?.betTurnover ?? 0);
+		const winnings = Number(betsResult?.winnings ?? 0);
+
+		const [depositsResult] = await db
 			.select({
 				total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
 			})
@@ -335,47 +433,150 @@ adminOverviewRoute.openapi(getActivityRoute, async (c) => {
 			.where(
 				and(
 					eq(schema.walletTransaction.type, "credit"),
-					eq(schema.walletTransaction.status, "success"),
+					inArray(schema.walletTransaction.status, ["success", "completed"]),
+					notInArray(
+						schema.walletTransaction.paymentMethod,
+						nonDepositPaymentMethods,
+					),
 					gte(schema.walletTransaction.createdAt, dayStart),
 					lte(schema.walletTransaction.createdAt, dayEnd),
 				),
 			);
 
-		const [betsResult] = await db
+		const [withdrawalsResult] = await db
 			.select({
-				count: sql<number>`COUNT(*)`,
+				total: sql<number>`COALESCE(SUM(${schema.walletTransaction.amount}), 0)`,
 			})
-			.from(schema.sportsbookBet)
+			.from(schema.walletTransaction)
 			.where(
 				and(
-					gte(schema.sportsbookBet.createdAt, dayStart),
-					lte(schema.sportsbookBet.createdAt, dayEnd),
-				),
-			);
-
-		const [usersResult] = await db
-			.select({
-				count: sql<number>`COUNT(*)`,
-			})
-			.from(schema.user)
-			.where(
-				and(
-					gte(schema.user.createdAt, dayStart),
-					lte(schema.user.createdAt, dayEnd),
+					eq(schema.walletTransaction.type, "debit"),
+					inArray(schema.walletTransaction.status, ["success", "completed"]),
+					eq(schema.walletTransaction.paymentMethod, "paystack"),
+					gte(schema.walletTransaction.createdAt, dayStart),
+					lte(schema.walletTransaction.createdAt, dayEnd),
 				),
 			);
 
 		days.push({
 			date: dayLabel,
-			revenue: (revenueResult?.total ?? 0) / 100,
-			bets: Number(betsResult?.count ?? 0),
-			users: Number(usersResult?.count ?? 0),
+			// Rev (GGR) = settled bet turnover - winnings paid
+			revenue: (betTurnover - winnings) / 100,
+			bets: betTurnover / 100,
+			winnings: winnings / 100,
+			totalDeposits: (depositsResult?.total ?? 0) / 100,
+			totalWithdrawals: (withdrawalsResult?.total ?? 0) / 100,
 		});
 	}
 
 	return c.json({
 		success: true,
 		data: { days },
+	});
+});
+
+adminOverviewRoute.openapi(getTicketTrendRoute, async (c) => {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) return c.json({ success: false, error: "Unauthorized" }, 401);
+
+	const session = await validateAdminSession(c.env, token);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "general")
+	) {
+		return c.json(
+			{ success: false, error: "Forbidden - general permission required" },
+			403,
+		);
+	}
+
+	const query = c.req.valid("query");
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: query.fromDate,
+		toDate: query.toDate,
+	});
+	const db = drizzle(c.env.DB, { schema });
+
+	const dateConditions = (createdAt: any) => [
+		...(fromDate ? [gte(createdAt, fromDate)] : []),
+		...(toDate ? [lte(createdAt, toDate)] : []),
+	];
+	const countRows = async (
+		table: any,
+		createdAt: any,
+		conditions: unknown[] = [],
+	) => {
+		const whereConditions = [
+			...dateConditions(createdAt),
+			...(conditions as any[]),
+		];
+		const [result] = await db
+			.select({ count: sql<number>`COUNT(*)` })
+			.from(table)
+			.where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
+		return Number(result?.count ?? 0);
+	};
+
+	const totalTickets = await Promise.all([
+		countRows(schema.sportsbookBet, schema.sportsbookBet.createdAt),
+		countRows(schema.gameTransactions, schema.gameTransactions.createdAt),
+		countRows(schema.thundrTransactions, schema.thundrTransactions.createdAt),
+		countRows(
+			schema.slotitegrationTransactions,
+			schema.slotitegrationTransactions.createdAt,
+		),
+		countRows(schema.pocketsTransactions, schema.pocketsTransactions.createdAt),
+		countRows(schema.scorpioTransactions, schema.scorpioTransactions.createdAt),
+	]).then((counts) => counts.reduce((total, count) => total + count, 0));
+
+	const wonTickets = await Promise.all([
+		countRows(schema.sportsbookBet, schema.sportsbookBet.createdAt, [
+			eq(schema.sportsbookBet.settleType, 1),
+		]),
+		countRows(schema.gameTransactions, schema.gameTransactions.createdAt, [
+			eq(schema.gameTransactions.type, "WIN"),
+		]),
+		countRows(schema.thundrTransactions, schema.thundrTransactions.createdAt, [
+			eq(schema.thundrTransactions.type, "WIN"),
+		]),
+		countRows(
+			schema.slotitegrationTransactions,
+			schema.slotitegrationTransactions.createdAt,
+			[eq(schema.slotitegrationTransactions.type, "win")],
+		),
+		countRows(
+			schema.pocketsTransactions,
+			schema.pocketsTransactions.createdAt,
+			[eq(schema.pocketsTransactions.type, "CREDIT")],
+		),
+		countRows(
+			schema.scorpioTransactions,
+			schema.scorpioTransactions.createdAt,
+			[eq(schema.scorpioTransactions.type, "WIN")],
+		),
+	]).then((counts) => counts.reduce((total, count) => total + count, 0));
+
+	const lostTickets = await Promise.all([
+		countRows(schema.thundrTransactions, schema.thundrTransactions.createdAt, [
+			eq(schema.thundrTransactions.type, "LOSE"),
+		]),
+		countRows(
+			schema.slotitegrationTransactions,
+			schema.slotitegrationTransactions.createdAt,
+			[eq(schema.slotitegrationTransactions.type, "loss")],
+		),
+	]).then((counts) => counts.reduce((total, count) => total + count, 0));
+
+	return c.json({
+		success: true,
+		data: { totalTickets, wonTickets, lostTickets },
 	});
 });
 
@@ -390,10 +591,7 @@ adminOverviewRoute.openapi(getTopBetsRoute, async (c) => {
 		!session ||
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
-		return c.json(
-			{ success: false, error: "Forbidden - admin only" },
-			403,
-		);
+		return c.json({ success: false, error: "Forbidden - admin only" }, 403);
 	}
 
 	if (
@@ -409,26 +607,137 @@ adminOverviewRoute.openapi(getTopBetsRoute, async (c) => {
 		);
 	}
 
+	const query = c.req.valid("query");
+	const { fromDate, toDate } = parseQueryDateRange({
+		fromDate: query.fromDate,
+		toDate: query.toDate,
+	});
 	const db = drizzle(c.env.DB, { schema });
+	const dateConditions = (createdAt: any) => [
+		...(fromDate ? [gte(createdAt, fromDate)] : []),
+		...(toDate ? [lte(createdAt, toDate)] : []),
+	];
 
-	const todayStart = new Date();
-	todayStart.setHours(0, 0, 0, 0);
-
-	const topBets = await db
-		.select({
-			id: schema.sportsbookBet.id,
-			playerName: schema.user.name,
-			betType: schema.sportsbookBet.betType,
-			amount: schema.sportsbookBet.stake,
-		})
-		.from(schema.sportsbookBet)
-		.innerJoin(
-			schema.user,
-			eq(schema.sportsbookBet.userId, schema.user.id),
-		)
-		.where(gte(schema.sportsbookBet.createdAt, todayStart))
-		.orderBy(desc(schema.sportsbookBet.stake))
-		.limit(5);
+	const [
+		sportsbookBets,
+		gameBets,
+		thundrBets,
+		slotegratorBets,
+		pocketsBets,
+		scorpioBets,
+	] = await Promise.all([
+		db
+			.select({
+				id: schema.sportsbookBet.id,
+				playerName: schema.user.name,
+				betType: schema.sportsbookBet.betType,
+				amount: schema.sportsbookBet.stake,
+			})
+			.from(schema.sportsbookBet)
+			.innerJoin(schema.user, eq(schema.sportsbookBet.userId, schema.user.id))
+			.where(
+				dateConditions(schema.sportsbookBet.createdAt).length > 0
+					? and(...dateConditions(schema.sportsbookBet.createdAt))
+					: undefined,
+			)
+			.orderBy(desc(schema.sportsbookBet.stake))
+			.limit(5),
+		db
+			.select({
+				id: schema.gameTransactions.id,
+				playerName: schema.user.name,
+				amount: schema.gameTransactions.amount,
+			})
+			.from(schema.gameTransactions)
+			.innerJoin(
+				schema.user,
+				eq(schema.gameTransactions.userId, schema.user.id),
+			)
+			.where(
+				and(
+					eq(schema.gameTransactions.type, "BET"),
+					...dateConditions(schema.gameTransactions.createdAt),
+				),
+			)
+			.orderBy(desc(schema.gameTransactions.amount))
+			.limit(5),
+		db
+			.select({
+				id: schema.thundrTransactions.id,
+				playerName: schema.user.name,
+				amount: schema.thundrTransactions.amount,
+			})
+			.from(schema.thundrTransactions)
+			.innerJoin(
+				schema.user,
+				eq(schema.thundrTransactions.userId, schema.user.id),
+			)
+			.where(
+				and(
+					eq(schema.thundrTransactions.type, "BET"),
+					...dateConditions(schema.thundrTransactions.createdAt),
+				),
+			)
+			.orderBy(desc(schema.thundrTransactions.amount))
+			.limit(5),
+		db
+			.select({
+				id: schema.slotitegrationTransactions.id,
+				playerName: schema.user.name,
+				amount: schema.slotitegrationTransactions.amount,
+			})
+			.from(schema.slotitegrationTransactions)
+			.innerJoin(
+				schema.user,
+				eq(schema.slotitegrationTransactions.userId, schema.user.id),
+			)
+			.where(
+				and(
+					eq(schema.slotitegrationTransactions.type, "bet"),
+					...dateConditions(schema.slotitegrationTransactions.createdAt),
+				),
+			)
+			.orderBy(desc(schema.slotitegrationTransactions.amount))
+			.limit(5),
+		db
+			.select({
+				id: schema.pocketsTransactions.id,
+				playerName: schema.user.name,
+				amount: schema.pocketsTransactions.amount,
+			})
+			.from(schema.pocketsTransactions)
+			.innerJoin(
+				schema.user,
+				eq(schema.pocketsTransactions.userId, schema.user.id),
+			)
+			.where(
+				and(
+					eq(schema.pocketsTransactions.type, "DEBIT"),
+					...dateConditions(schema.pocketsTransactions.createdAt),
+				),
+			)
+			.orderBy(desc(schema.pocketsTransactions.amount))
+			.limit(5),
+		db
+			.select({
+				id: schema.scorpioTransactions.id,
+				playerName: schema.user.name,
+				amount: schema.scorpioTransactions.amount,
+			})
+			.from(schema.scorpioTransactions)
+			.innerJoin(
+				schema.user,
+				eq(schema.scorpioTransactions.userId, schema.user.id),
+			)
+			.where(
+				and(
+					eq(schema.scorpioTransactions.type, "BET"),
+					...dateConditions(schema.scorpioTransactions.createdAt),
+				),
+			)
+			.orderBy(desc(schema.scorpioTransactions.amount))
+			.limit(5),
+	]);
 
 	const betTypeLabels: Record<number, string> = {
 		1: "Single",
@@ -443,12 +752,41 @@ adminOverviewRoute.openapi(getTopBetsRoute, async (c) => {
 		10: "Ten-Fold",
 	};
 
-	const bets = topBets.map((b) => ({
-		id: b.id,
-		playerName: b.playerName,
-		betType: betTypeLabels[b.betType ?? 0] ?? `Accumulator ${b.betType}`,
-		amount: (b.amount ?? 0) / 100,
-	}));
+	const bets = [
+		...sportsbookBets.map((b) => ({
+			id: b.id,
+			playerName: b.playerName,
+			betType: betTypeLabels[b.betType ?? 0] ?? `Accumulator ${b.betType}`,
+			amount: (b.amount ?? 0) / 100,
+		})),
+		...gameBets.map((b) => ({
+			...b,
+			betType: "ISCRASH",
+			amount: b.amount / 100,
+		})),
+		...thundrBets.map((b) => ({
+			...b,
+			betType: "Thundr",
+			amount: b.amount / 100,
+		})),
+		...slotegratorBets.map((b) => ({
+			...b,
+			betType: "Slotegrator",
+			amount: b.amount / 100,
+		})),
+		...pocketsBets.map((b) => ({
+			...b,
+			betType: "Lagos Rush",
+			amount: b.amount / 100,
+		})),
+		...scorpioBets.map((b) => ({
+			...b,
+			betType: "Scorpio",
+			amount: b.amount / 100,
+		})),
+	]
+		.sort((a, b) => b.amount - a.amount)
+		.slice(0, 5);
 
 	return c.json({
 		success: true,

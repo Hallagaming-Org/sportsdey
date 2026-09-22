@@ -94,11 +94,25 @@ export async function signSessionToken(
 	return `${token}.${signatureB64}`;
 }
 
+function oauthCredentials(clientId?: string, clientSecret?: string) {
+	const id = clientId?.trim() ?? "";
+	const secret = clientSecret?.trim() ?? "";
+	if (!id || !secret) return undefined;
+	return { clientId: id, clientSecret: secret };
+}
+
+
 export const createAuth = (
 	env: CloudflareBindings,
 	executionCtx?: ExecutionContext,
 ) => {
 	const db = drizzle(env.DB, { schema });
+	const google = oauthCredentials(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
+	const facebook = oauthCredentials(
+		env.FACEBOOK_CLIENT_ID,
+		env.FACEBOOK_CLIENT_SECRET,
+	);
+	const apple = oauthCredentials(env.APPLE_CLIENT_ID, env.APPLE_CLIENT_SECRET);
 	const toOrigin = (value?: string) => {
 		if (!value) return "";
 		try {
@@ -115,6 +129,7 @@ export const createAuth = (
 				"https://stagingweb.sportsdey.com",
 				"https://sportsdey.com",
 				"https://binary.sportsdey.com",
+				"https://appleid.apple.com",
 				"sportsdey-mobile://",
 				"exp://**",
 				"https://admin.sportsdey.com",
@@ -133,16 +148,18 @@ export const createAuth = (
 	return betterAuth({
 		basePath: "/auth",
 		database: drizzleAdapter(db, { provider: "sqlite" }),
-		emailAndPassword: { enabled: true },
+		emailAndPassword: {
+			enabled: true,
+			sendResetPassword: async ({ user, url }) => {
+				console.info(
+					`[auth] Password reset requested for ${user.email}: ${url}`,
+				);
+			},
+		},
 		socialProviders: {
-			google: {
-				clientId: env.GOOGLE_CLIENT_ID || "",
-				clientSecret: env.GOOGLE_CLIENT_SECRET || "",
-			},
-			facebook: {
-				clientId: env.FACEBOOK_CLIENT_ID || "",
-				clientSecret: env.FACEBOOK_CLIENT_SECRET || "",
-			},
+			...(google ? { google } : {}),
+			...(facebook ? { facebook } : {}),
+			...(apple ? { apple } : {}),
 		},
 		plugins: [expo(), openAPI(), bearer()],
 		user: {
@@ -158,6 +175,11 @@ export const createAuth = (
 					type: "string",
 					required: false,
 					fieldName: "mobile_number",
+					returned: true,
+				},
+				dob: {
+					type: "string",
+					required: false,
 					returned: true,
 				},
 				verificationStatus: {
@@ -218,7 +240,10 @@ export const createAuth = (
 };
 
 /** Cookie name Better Auth expects for the session token. */
-export function getSessionCookieName(nodeEnv?: string, authUrl?: string): string {
+export function getSessionCookieName(
+	nodeEnv?: string,
+	authUrl?: string,
+): string {
 	const { useSecureCookies } = getAuthCookiePolicy({ nodeEnv, authUrl });
 	return useSecureCookies ? SECURE_SESSION_COOKIE_NAME : SESSION_COOKIE_NAME;
 }
@@ -251,5 +276,5 @@ export function createHashCookie(
 	const prefix = policy.useSecureCookies ? "__Secure-ba" : COOKIE_PREFIX;
 	const secureFlag = policy.useSecureCookies ? "; Secure" : "";
 	const sameSite = policy.sameSite === "none" ? "None" : "Lax";
-	return `${prefix}.session_token_hash=${token}; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
+	return `${prefix}.session_token_hash=${token}; Domain=.sportsdey.com; Path=/; HttpOnly; SameSite=${sameSite}${secureFlag}; Max-Age=${SESSION_MAX_AGE_SECONDS}`;
 }

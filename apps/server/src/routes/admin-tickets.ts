@@ -1,5 +1,16 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, desc, eq, like, lt, or } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	gte,
+	inArray,
+	like,
+	lt,
+	lte,
+	or,
+} from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
@@ -7,17 +18,72 @@ import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
+import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
+import {
+	loadGameNames,
+	lookupGameName,
+	pickCatalogGameName,
+} from "@/utils/game-display-name";
+import {
+	nativeCasinoGameName,
+	nativeCasinoProvider,
+} from "@/utils/native-casino-games";
+import type { StoredBetOdd } from "@/utils/ticket-selection-labels";
+import {
+	formatTicketSelection,
+	loadMarketDefinitions,
+	parseMarketId,
+} from "@/utils/ticket-selection-labels";
 import type { CloudflareBindings } from "../types";
-import { getFixtureTitlesByIds } from "@/utils/fixtures";
 
 const adminTicketsRoute = new OpenAPIHono<{
 	Bindings: CloudflareBindings;
 }>();
 
-const MAX_PER_SOURCE = 2000;
+/** Safety cap for unpaginated list responses (Workers memory / response size). */
+const MAX_UNPAGINATED_ROWS = 10_000;
+
+const BET_TYPE_LABELS: Record<number, string> = {
+	1: "Single",
+	2: "Multiple",
+	3: "System",
+	4: "Chain",
+	5: "Conditional",
+	6: "Multi-single",
+	7: "Multi-accumulator",
+	8: "Live series",
+	9: "Live accumulator",
+};
+
+function sportsbookBetTypeLabel(betType: number | null): string {
+	return betType ? (BET_TYPE_LABELS[betType] ?? "Sportsbook") : "Sportsbook";
+}
 
 function formatAmount(amount: number): string {
 	return `₦${(amount / 100).toLocaleString("en-NG")}`;
+}
+
+/** Prefer accept-event balances (real debit); fall back to place/freeze when not yet accepted. */
+function pickSportsbookEventBalances(
+	events: Array<{
+		eventType: string;
+		balanceBefore: number | null;
+		balanceAfter: number | null;
+	}>,
+): { balanceBefore: number | null; balanceAfter: number | null } {
+	const accept = events.find((e) => e.eventType === "accept");
+	if (accept) {
+		return {
+			balanceBefore: accept.balanceBefore,
+			balanceAfter: accept.balanceAfter,
+		};
+	}
+	const place = events.find((e) => e.eventType === "place");
+	const fallback = place ?? events[0];
+	return {
+		balanceBefore: fallback?.balanceBefore ?? null,
+		balanceAfter: fallback?.balanceAfter ?? null,
+	};
 }
 
 function formatDate(date: Date): string {
@@ -57,13 +123,25 @@ function mapSbOutcome(
 	return "Declined";
 }
 
-function mapCasinoOutcome(type: string): "Won" | "Active" | "Lost" {
+function mapCasinoOutcome(
+	type: string,
+): "Won" | "Active" | "Lost" | "Declined" {
 	switch (type) {
 		case "WIN":
 		case "win":
 		case "won":
 		case "CREDIT":
 			return "Won";
+		case "CANCEL":
+		case "cancel":
+		case "REFUND":
+		case "refund":
+			return "Declined";
+		case "BET":
+		case "bet":
+		case "DEBIT":
+		case "debit":
+			return "Active";
 		default:
 			return "Active";
 	}
@@ -91,31 +169,19 @@ const TicketSchema = z
 	})
 	.openapi("Ticket");
 
-const PaginationSchema = z
-	.object({
-		page: z.number().openapi({ example: 1 }),
-		limit: z.number().openapi({ example: 10 }),
-		total: z.number().openapi({ example: 42 }),
-		totalPages: z.number().openapi({ example: 5 }),
-	})
-	.openapi("Pagination");
-
 const TicketsDataSchema = z
 	.object({
 		tickets: z.array(TicketSchema),
-		pagination: PaginationSchema,
+		pagination: z.object({
+			page: z.number(),
+			limit: z.number(),
+			total: z.number(),
+			totalPages: z.number(),
+		}),
 	})
 	.openapi("TicketsData");
 
 const TicketsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({ description: "Items per page", example: "10" }),
 	type: z
 		.enum(["all", "casino", "sportsbook"])
 		.optional()
@@ -132,24 +198,21 @@ const TicketsQuerySchema = z.object({
 		.string()
 		.optional()
 		.openapi({ description: "Search by player name or bet ID" }),
+	page: z
+		.string()
+		.optional()
+		.openapi({ description: "Page number (default 1)" }),
+	limit: z
+		.string()
+		.optional()
+		.openapi({ description: "Items per page (default 10, max 100)" }),
 });
-
-
-
 
 const GetUserTicketsParamsSchema = z.object({
 	userId: z.string().openapi({ description: "User ID", example: "usr_xyz789" }),
 });
 
 const GetUserTicketsQuerySchema = z.object({
-	page: z
-		.string()
-		.optional()
-		.openapi({ description: "Page number", example: "1" }),
-	limit: z
-		.string()
-		.optional()
-		.openapi({ description: "Items per page", example: "10" }),
 	type: z
 		.enum(["all", "casino", "sportsbook"])
 		.optional()
@@ -164,10 +227,10 @@ const GetUserTicketsQuerySchema = z.object({
 		.openapi({ description: "Filter end date (YYYY-MM-DD)" }),
 });
 
-
-
 const GetTicketByIdParamsSchema = z.object({
-	id: z.string().openapi({ description: "Ticket (bet) ID", example: "bet_abc123" }),
+	id: z
+		.string()
+		.openapi({ description: "Ticket (bet) ID", example: "bet_abc123" }),
 });
 
 const TicketSelectionSchema = z
@@ -176,10 +239,26 @@ const TicketSelectionSchema = z
 		match: z.string().openapi({ example: "Arsenal vs Chelsea" }),
 		marketId: z.string().nullable().openapi({ example: "20" }),
 		oddId: z.string().nullable().openapi({ example: "1" }),
+		market: z.string().nullable().openapi({ example: "1x2" }),
+		pick: z.string().nullable().openapi({ example: "Arsenal" }),
+		marketLabel: z.string().nullable().openapi({ example: "1x2" }),
+		pickLabel: z.string().nullable().openapi({ example: "Arsenal" }),
 		odds: z.string().nullable().openapi({ example: "1.75" }),
 		oddStatus: z.number().nullable().openapi({ example: 1 }),
 	})
 	.openapi("TicketSelection");
+
+const BetBuilderSelectionSchema = z
+	.object({
+		matchId: z.string().nullable().openapi({ example: "1:1" }),
+		match: z.string().openapi({ example: "Arsenal vs Chelsea" }),
+		ratio: z.string().nullable().openapi({ example: "1.6" }),
+		status: z.number().nullable().openapi({ example: 1 }),
+		legs: z.array(TicketSelectionSchema).openapi({
+			description: "Individual odds combined within this bet builder group",
+		}),
+	})
+	.openapi("BetBuilderSelection");
 
 const TicketPlayerSchema = z
 	.object({
@@ -199,7 +278,10 @@ const TicketDetailSchema = z
 		id: z.string(),
 		gameType: z.enum(["Sportsbook", "Casino"]),
 		status: z.string(),
-		betType: z.number().nullable(),
+		betType: z.string(),
+		betTypeCode: z.number().nullable(),
+		selectionCount: z.number(),
+		selection: z.number(),
 		outcome: z.enum(["Won", "Active", "Lost", "Declined"]),
 		stake: z.string().openapi({ example: "₦50,000" }),
 		potentialWin: z.string().nullable().openapi({ example: "₦225,000" }),
@@ -211,22 +293,24 @@ const TicketDetailSchema = z
 		settledAt: z.string().nullable(),
 		player: TicketPlayerSchema,
 		selections: z.array(TicketSelectionSchema).optional(),
+		betBuilderSelections: z.array(BetBuilderSelectionSchema).optional(),
 		provider: z.string().nullable().optional(),
 		gameName: z.string().nullable().optional(),
+		multiplier: z.string().nullable().optional(),
+		betTime: z.string().nullable().optional(),
+		sessionId: z.string().nullable().optional(),
 		roundId: z.string().nullable().optional(),
 	})
 	.openapi("TicketDetail");
 
-
-
-//Ticket Route creattion  
+//Ticket Route creattion
 const getTicketsRoute = createRoute({
 	method: "get",
 	path: "/tickets",
 	tags: ["Admin - Tickets"],
 	summary: "Get all tickets",
 	description:
-		"Retrieve a paginated list of all tickets across sportsbook and casino. Supports filtering by type, date range, and search.",
+		"Paginated tickets across sportsbook and casino. Use GET /admin/tickets/all for the full unpaginated set.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: TicketsQuerySchema,
@@ -251,7 +335,6 @@ const getTicketsRoute = createRoute({
 	},
 });
 
-
 // Get user tickets route
 const getUserTicketsRoute = createRoute({
 	method: "get",
@@ -259,7 +342,7 @@ const getUserTicketsRoute = createRoute({
 	tags: ["Admin - Tickets"],
 	summary: "Get tickets for a user",
 	description:
-		"Retrieve a paginated list of tickets for a specific user across sportsbook and casino. Supports filtering by type and date range.",
+		"Retrieve all tickets for a specific user across sportsbook and casino (no pagination, capped at 10,000). Supports filtering by type and date range.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		params: GetUserTicketsParamsSchema,
@@ -321,9 +404,9 @@ const getTicketByIdRoute = createRoute({
 	},
 });
 
-
-
-adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
+const handleGetTicketsList = async (
+	c: Parameters<Parameters<typeof adminTicketsRoute.openapi>[1]>[0],
+) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -358,15 +441,28 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 	}
 
 	const url = new URL(c.req.url);
-	const rawPage = url.searchParams.get("page") || "1";
-	const rawLimit = url.searchParams.get("limit") || "10";
 	const rawType = url.searchParams.get("type") || "all";
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 	const search = url.searchParams.get("search") || undefined;
 
-	const page = Math.max(1, parseInt(rawPage, 10) || 1);
-	const limit = Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 10));
+	const unpaginated =
+		c.req.path.endsWith("/tickets/all") || c.req.path.endsWith("/tickets/all/");
+	const page = Math.max(
+		1,
+		Number.parseInt(url.searchParams.get("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(
+		url.searchParams.get("limit") || "10",
+		10,
+	);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const perSourceLimit = unpaginated
+		? MAX_UNPAGINATED_ROWS
+		: Math.min(MAX_UNPAGINATED_ROWS, page * limit);
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -393,7 +489,9 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 		roundId: string | null;
 		provider: string | null;
 		gameCode: string | null;
+		providerId: number | null;
 	}> = [];
+	let listTotal = 0;
 
 	if (type === "all" || type === "sportsbook") {
 		const sbConditions: any[] = [];
@@ -407,55 +505,180 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 			);
 		}
 
-		const sbResults = await db
-			.select({
-				id: schema.sportsbookBet.id,
-				userId: schema.sportsbookBet.userId,
-				playerName: schema.user.name,
-				betAmount: schema.sportsbookBet.stake,
-				totalOdds: schema.sportsbookBet.totalOdds,
-				settleAmount: schema.sportsbookBet.settleAmount,
-				outcome: schema.sportsbookBet.status,
-				settleType: schema.sportsbookBet.settleType,
-				createdAt: schema.sportsbookBet.createdAt,
-				balanceBefore: schema.sportsbookBetEvent.balanceBefore,
-				balanceAfter: schema.sportsbookBetEvent.balanceAfter,
-			})
-			.from(schema.sportsbookBet)
-			.innerJoin(schema.user, eq(schema.sportsbookBet.userId, schema.user.id))
-			.leftJoin(
-				schema.sportsbookBetEvent,
-				eq(schema.sportsbookBet.id, schema.sportsbookBetEvent.betId),
-			)
-			.where(sbConditions.length > 0 ? and(...sbConditions) : undefined)
-			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(MAX_PER_SOURCE);
+		if (!unpaginated) {
+			if (fromBoundary) {
+				sbConditions.push(gte(schema.sportsbookBet.createdAt, fromBoundary));
+			}
+			if (toBoundary) {
+				sbConditions.push(lte(schema.sportsbookBet.createdAt, toBoundary));
+			}
+		}
 
-		const processedBetIds = new Set<string>();
-		for (const r of sbResults) {
-			if (processedBetIds.has(r.id)) continue;
-			processedBetIds.add(r.id);
+		const sbWhere = sbConditions.length > 0 ? and(...sbConditions) : undefined;
 
-			const ts = r.createdAt.getTime();
-			if (fromBoundary && ts < fromBoundary.getTime()) continue;
-			if (toBoundary && ts > toBoundary.getTime()) continue;
+		if (unpaginated) {
+			const sbResults = await db
+				.select({
+					id: schema.sportsbookBet.id,
+					userId: schema.sportsbookBet.userId,
+					playerName: schema.user.name,
+					betAmount: schema.sportsbookBet.stake,
+					totalOdds: schema.sportsbookBet.totalOdds,
+					settleAmount: schema.sportsbookBet.settleAmount,
+					outcome: schema.sportsbookBet.status,
+					settleType: schema.sportsbookBet.settleType,
+					createdAt: schema.sportsbookBet.createdAt,
+					eventType: schema.sportsbookBetEvent.eventType,
+					balanceBefore: schema.sportsbookBetEvent.balanceBefore,
+					balanceAfter: schema.sportsbookBetEvent.balanceAfter,
+				})
+				.from(schema.sportsbookBet)
+				.innerJoin(schema.user, eq(schema.sportsbookBet.userId, schema.user.id))
+				.leftJoin(
+					schema.sportsbookBetEvent,
+					eq(schema.sportsbookBet.id, schema.sportsbookBetEvent.betId),
+				)
+				.where(sbWhere)
+				.orderBy(desc(schema.sportsbookBet.createdAt))
+				.limit(perSourceLimit);
 
-			allTickets.push({
-				id: r.id,
-				userId: r.userId,
-				playerName: r.playerName,
-				betAmount: r.betAmount,
-				totalOdds: r.totalOdds,
-				payout: r.settleAmount,
-				gameType: "Sportsbook",
-				outcome: mapSbOutcome(r.outcome, r.settleType),
-				createdAt: r.createdAt,
-				balanceBefore: r.balanceBefore,
-				balanceAfter: r.balanceAfter,
-				roundId: null,
-				provider: null,
-				gameCode: null,
-			});
+			const eventsByBetId = new Map<
+				string,
+				Array<{
+					eventType: string;
+					balanceBefore: number | null;
+					balanceAfter: number | null;
+				}>
+			>();
+			const betRows = new Map<
+				(typeof sbResults)[number]["id"],
+				(typeof sbResults)[number]
+			>();
+			for (const r of sbResults) {
+				if (!betRows.has(r.id)) betRows.set(r.id, r);
+				if (r.eventType == null) continue;
+				const list = eventsByBetId.get(r.id) ?? [];
+				list.push({
+					eventType: r.eventType,
+					balanceBefore: r.balanceBefore,
+					balanceAfter: r.balanceAfter,
+				});
+				eventsByBetId.set(r.id, list);
+			}
+
+			for (const r of betRows.values()) {
+				const ts = r.createdAt.getTime();
+				if (fromBoundary && ts < fromBoundary.getTime()) continue;
+				if (toBoundary && ts > toBoundary.getTime()) continue;
+
+				const balances = pickSportsbookEventBalances(
+					eventsByBetId.get(r.id) ?? [],
+				);
+
+				allTickets.push({
+					id: r.id,
+					userId: r.userId,
+					playerName: r.playerName,
+					betAmount: r.betAmount,
+					totalOdds: r.totalOdds,
+					payout: r.settleAmount,
+					gameType: "Sportsbook",
+					outcome: mapSbOutcome(r.outcome, r.settleType),
+					createdAt: r.createdAt,
+					balanceBefore: balances.balanceBefore,
+					balanceAfter: balances.balanceAfter,
+					roundId: null,
+					provider: null,
+					gameCode: null,
+					providerId: null,
+				});
+			}
+		} else {
+			const [sbCountRow, sbResults] = await Promise.all([
+				db
+					.select({ total: count() })
+					.from(schema.sportsbookBet)
+					.innerJoin(
+						schema.user,
+						eq(schema.sportsbookBet.userId, schema.user.id),
+					)
+					.where(sbWhere)
+					.then((rows) => rows[0]),
+				db
+					.select({
+						id: schema.sportsbookBet.id,
+						userId: schema.sportsbookBet.userId,
+						playerName: schema.user.name,
+						betAmount: schema.sportsbookBet.stake,
+						totalOdds: schema.sportsbookBet.totalOdds,
+						settleAmount: schema.sportsbookBet.settleAmount,
+						outcome: schema.sportsbookBet.status,
+						settleType: schema.sportsbookBet.settleType,
+						createdAt: schema.sportsbookBet.createdAt,
+					})
+					.from(schema.sportsbookBet)
+					.innerJoin(
+						schema.user,
+						eq(schema.sportsbookBet.userId, schema.user.id),
+					)
+					.where(sbWhere)
+					.orderBy(desc(schema.sportsbookBet.createdAt))
+					.limit(perSourceLimit),
+			]);
+			listTotal += Number(sbCountRow?.total ?? 0);
+
+			const betIds = sbResults.map((r) => r.id);
+			const eventsByBetId = new Map<
+				string,
+				Array<{
+					eventType: string;
+					balanceBefore: number | null;
+					balanceAfter: number | null;
+				}>
+			>();
+			if (betIds.length > 0) {
+				const eventRows = await db
+					.select({
+						betId: schema.sportsbookBetEvent.betId,
+						eventType: schema.sportsbookBetEvent.eventType,
+						balanceBefore: schema.sportsbookBetEvent.balanceBefore,
+						balanceAfter: schema.sportsbookBetEvent.balanceAfter,
+					})
+					.from(schema.sportsbookBetEvent)
+					.where(inArray(schema.sportsbookBetEvent.betId, betIds));
+				for (const event of eventRows) {
+					const list = eventsByBetId.get(event.betId) ?? [];
+					list.push({
+						eventType: event.eventType,
+						balanceBefore: event.balanceBefore,
+						balanceAfter: event.balanceAfter,
+					});
+					eventsByBetId.set(event.betId, list);
+				}
+			}
+
+			for (const r of sbResults) {
+				const balances = pickSportsbookEventBalances(
+					eventsByBetId.get(r.id) ?? [],
+				);
+				allTickets.push({
+					id: r.id,
+					userId: r.userId,
+					playerName: r.playerName,
+					betAmount: r.betAmount,
+					totalOdds: r.totalOdds,
+					payout: r.settleAmount,
+					gameType: "Sportsbook",
+					outcome: mapSbOutcome(r.outcome, r.settleType),
+					createdAt: r.createdAt,
+					balanceBefore: balances.balanceBefore,
+					balanceAfter: balances.balanceAfter,
+					roundId: null,
+					provider: null,
+					gameCode: null,
+					providerId: null,
+				});
+			}
 		}
 	}
 
@@ -473,6 +696,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 			gameIdCol: any;
 			winTypes: string[];
 			provider: string;
+			providerIdCol?: any;
 		}> = [
 			{
 				table: schema.gameTransactions,
@@ -483,10 +707,10 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 				createdAtCol: schema.gameTransactions.createdAt,
 				balanceBeforeCol: schema.gameTransactions.balanceBefore,
 				balanceAfterCol: schema.gameTransactions.balanceAfter,
-				roundIdCol: null,
+				roundIdCol: schema.gameTransactions.roundId,
 				gameIdCol: schema.gameTransactions.game,
 				winTypes: ["WIN"],
-				provider: "ICRASH",
+				provider: "LuckyWorld",
 			},
 			{
 				table: schema.thundrTransactions,
@@ -530,6 +754,21 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 				winTypes: ["CREDIT"],
 				provider: "Lagos Rush",
 			},
+			{
+				table: schema.scorpioTransactions,
+				idCol: schema.scorpioTransactions.id,
+				userIdCol: schema.scorpioTransactions.userId,
+				typeCol: schema.scorpioTransactions.type,
+				amountCol: schema.scorpioTransactions.amount,
+				createdAtCol: schema.scorpioTransactions.createdAt,
+				balanceBeforeCol: schema.scorpioTransactions.balanceBefore,
+				balanceAfterCol: schema.scorpioTransactions.balanceAfter,
+				roundIdCol: schema.scorpioTransactions.roundId,
+				gameIdCol: schema.scorpioTransactions.gameCode,
+				winTypes: ["WIN"],
+				provider: "Scorpio",
+				providerIdCol: schema.scorpioTransactions.providerId,
+			},
 		];
 
 		for (const source of casinoSources) {
@@ -543,6 +782,18 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 					),
 				);
 			}
+
+			if (!unpaginated) {
+				if (fromBoundary) {
+					casConditions.push(gte(source.createdAtCol, fromBoundary));
+				}
+				if (toBoundary) {
+					casConditions.push(lte(source.createdAtCol, toBoundary));
+				}
+			}
+
+			const casWhere =
+				casConditions.length > 0 ? and(...casConditions) : undefined;
 
 			const selectCols: any = {
 				id: source.idCol,
@@ -560,19 +811,33 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 			if (source.gameIdCol) {
 				selectCols.gameCode = source.gameIdCol;
 			}
+			if (source.providerIdCol) {
+				selectCols.providerId = source.providerIdCol;
+			}
 
 			const results = await db
 				.select(selectCols)
 				.from(source.table)
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
-				.where(casConditions.length > 0 ? and(...casConditions) : undefined)
+				.where(casWhere)
 				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_PER_SOURCE);
+				.limit(perSourceLimit);
+
+			if (!unpaginated) {
+				const [casCountRow] = await db
+					.select({ total: count() })
+					.from(source.table)
+					.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
+					.where(casWhere);
+				listTotal += Number(casCountRow?.total ?? 0);
+			}
 
 			for (const r of results) {
-				const ts = r.createdAt.getTime();
-				if (fromBoundary && ts < fromBoundary.getTime()) continue;
-				if (toBoundary && ts > toBoundary.getTime()) continue;
+				if (unpaginated) {
+					const ts = r.createdAt.getTime();
+					if (fromBoundary && ts < fromBoundary.getTime()) continue;
+					if (toBoundary && ts > toBoundary.getTime()) continue;
+				}
 
 				allTickets.push({
 					id: r.id,
@@ -589,6 +854,7 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 					roundId: r.roundId ?? null,
 					provider: source.provider,
 					gameCode: r.gameCode ?? null,
+					providerId: r.providerId ?? null,
 				});
 			}
 		}
@@ -596,57 +862,53 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allTickets.length;
-	const totalPages = Math.ceil(total / limit) || 1;
-	const paginated = allTickets.slice((page - 1) * limit, page * limit);
+	const rowsForNames = unpaginated
+		? allTickets.slice(0, MAX_UNPAGINATED_ROWS)
+		: allTickets.slice((page - 1) * limit, page * limit);
 
-	const gameNameCache = new Map<string, string | null>();
+	const gameNameByCode = await loadGameNames(db, rowsForNames);
 
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
-			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
-		return name;
+	const ticketsWithNames = rowsForNames.map((t) => {
+		const gameName = pickCatalogGameName(
+			gameNameByCode,
+			t.gameCode,
+			t.provider,
+			t.providerId,
+		) ?? nativeCasinoGameName(t.gameCode);
+		return {
+			id: t.id,
+			userId: t.userId,
+			playerName: t.playerName,
+			betAmount: formatAmount(t.betAmount),
+			odds: t.totalOdds,
+			potentialWin:
+				t.gameType === "Sportsbook" && t.totalOdds
+					? formatAmount(
+							Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
+						)
+					: null,
+			payout: t.payout != null ? formatAmount(t.payout) : null,
+			gameType: t.gameType,
+			outcome: t.outcome,
+			createdAt: formatDate(t.createdAt),
+			balanceBefore:
+				t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+			balanceAfter:
+				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
+			roundId: t.roundId,
+			provider: nativeCasinoProvider(t.gameCode) ?? t.provider,
+			gameName,
+		};
+	});
+
+	if (unpaginated) {
+		return c.json({
+			success: true,
+			data: paginateTicketRows(ticketsWithNames, url, true),
+		});
 	}
 
-	const ticketsWithNames = await Promise.all(
-		paginated.map(async (t) => {
-			let gameName: string | null = null;
-			if (t.gameCode) {
-				gameName = await getGameName(t.gameCode);
-			}
-			return {
-				id: t.id,
-				userId: t.userId,
-				playerName: t.playerName,
-				betAmount: formatAmount(t.betAmount),
-				odds: t.totalOdds,
-				potentialWin:
-					t.gameType === "Sportsbook" && t.totalOdds
-						? formatAmount(
-								Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
-							)
-						: null,
-				payout: t.payout != null ? formatAmount(t.payout) : null,
-				gameType: t.gameType,
-				outcome: t.outcome,
-				createdAt: formatDate(t.createdAt),
-				balanceBefore:
-					t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
-				balanceAfter:
-					t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
-				roundId: t.roundId,
-				provider: t.provider,
-				gameName,
-			};
-		}),
-	);
-
+	const totalPages = Math.max(1, Math.ceil(listTotal / limit) || 1);
 	return c.json({
 		success: true,
 		data: {
@@ -654,12 +916,82 @@ adminTicketsRoute.openapi(getTicketsRoute, async (c) => {
 			pagination: {
 				page,
 				limit,
-				total,
+				total: listTotal,
 				totalPages,
 			},
 		},
 	});
+};
+
+const getTicketsAllRoute = createRoute({
+	method: "get",
+	path: "/tickets/all",
+	tags: ["Admin - Tickets"],
+	summary: "Get every ticket (unpaginated)",
+	description:
+		"New endpoint: full ticket list in one response (capped at 10,000). Does not change GET /admin/tickets, which stays paginated.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: TicketsQuerySchema.omit({ page: true, limit: true }),
+	},
+	responses: {
+		200: {
+			description: "Tickets retrieved successfully",
+			content: {
+				"application/json": {
+					schema: successResponseSchema(TicketsDataSchema),
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		403: {
+			description: "Forbidden",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+	},
 });
+
+function paginateTicketRows(
+	tickets: Array<Record<string, unknown>>,
+	url: URL,
+	unpaginated: boolean,
+) {
+	const total = tickets.length;
+	if (unpaginated) {
+		return {
+			tickets,
+			pagination: {
+				page: 1,
+				limit: total,
+				total,
+				totalPages: 1,
+			},
+		};
+	}
+	const page = Math.max(
+		1,
+		Number.parseInt(url.searchParams.get("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(
+		url.searchParams.get("limit") || "10",
+		10,
+	);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+	return {
+		tickets: tickets.slice((page - 1) * limit, page * limit),
+		pagination: { page, limit, total, totalPages },
+	};
+}
+
+adminTicketsRoute.openapi(getTicketsRoute, handleGetTicketsList);
+adminTicketsRoute.openapi(getTicketsAllRoute, handleGetTicketsList);
 
 adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
@@ -704,14 +1036,10 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	}
 
 	const url = new URL(c.req.url);
-	const rawPage = url.searchParams.get("page") || "1";
-	const rawLimit = url.searchParams.get("limit") || "10";
 	const rawType = url.searchParams.get("type") || "all";
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 
-	const page = Math.max(1, parseInt(rawPage, 10) || 1);
-	const limit = Math.min(100, Math.max(1, parseInt(rawLimit, 10) || 10));
 	const type = ["all", "casino", "sportsbook"].includes(rawType)
 		? (rawType as "all" | "casino" | "sportsbook")
 		: "all";
@@ -738,6 +1066,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 		roundId: string | null;
 		provider: string | null;
 		gameCode: string | null;
+		providerId: number | null;
 	}> = [];
 
 	if (type === "all" || type === "sportsbook") {
@@ -752,6 +1081,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				outcome: schema.sportsbookBet.status,
 				settleType: schema.sportsbookBet.settleType,
 				createdAt: schema.sportsbookBet.createdAt,
+				eventType: schema.sportsbookBetEvent.eventType,
 				balanceBefore: schema.sportsbookBetEvent.balanceBefore,
 				balanceAfter: schema.sportsbookBetEvent.balanceAfter,
 			})
@@ -763,16 +1093,40 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			)
 			.where(eq(schema.sportsbookBet.userId, userId))
 			.orderBy(desc(schema.sportsbookBet.createdAt))
-			.limit(MAX_PER_SOURCE);
+			.limit(MAX_UNPAGINATED_ROWS);
 
-		const processedBetIds = new Set<string>();
+		const eventsByBetId = new Map<
+			string,
+			Array<{
+				eventType: string;
+				balanceBefore: number | null;
+				balanceAfter: number | null;
+			}>
+		>();
+		const betRows = new Map<
+			(typeof sbResults)[number]["id"],
+			(typeof sbResults)[number]
+		>();
 		for (const r of sbResults) {
-			if (processedBetIds.has(r.id)) continue;
-			processedBetIds.add(r.id);
+			if (!betRows.has(r.id)) betRows.set(r.id, r);
+			if (r.eventType == null) continue;
+			const list = eventsByBetId.get(r.id) ?? [];
+			list.push({
+				eventType: r.eventType,
+				balanceBefore: r.balanceBefore,
+				balanceAfter: r.balanceAfter,
+			});
+			eventsByBetId.set(r.id, list);
+		}
 
+		for (const r of betRows.values()) {
 			const ts = r.createdAt.getTime();
 			if (fromBoundary && ts < fromBoundary.getTime()) continue;
 			if (toBoundary && ts > toBoundary.getTime()) continue;
+
+			const balances = pickSportsbookEventBalances(
+				eventsByBetId.get(r.id) ?? [],
+			);
 
 			allTickets.push({
 				id: r.id,
@@ -784,11 +1138,12 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				gameType: "Sportsbook",
 				outcome: mapSbOutcome(r.outcome, r.settleType),
 				createdAt: r.createdAt,
-				balanceBefore: r.balanceBefore,
-				balanceAfter: r.balanceAfter,
+				balanceBefore: balances.balanceBefore,
+				balanceAfter: balances.balanceAfter,
 				roundId: null,
 				provider: null,
 				gameCode: null,
+				providerId: null,
 			});
 		}
 	}
@@ -807,6 +1162,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			gameIdCol: any;
 			winTypes: string[];
 			provider: string;
+			providerIdCol?: any;
 		}> = [
 			{
 				table: schema.gameTransactions,
@@ -817,10 +1173,10 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				createdAtCol: schema.gameTransactions.createdAt,
 				balanceBeforeCol: schema.gameTransactions.balanceBefore,
 				balanceAfterCol: schema.gameTransactions.balanceAfter,
-				roundIdCol: null,
+				roundIdCol: schema.gameTransactions.roundId,
 				gameIdCol: schema.gameTransactions.game,
 				winTypes: ["WIN"],
-				provider: "Spribe",
+				provider: "LuckyWorld",
 			},
 			{
 				table: schema.thundrTransactions,
@@ -864,6 +1220,21 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				winTypes: ["CREDIT"],
 				provider: "Lagos Rush",
 			},
+			{
+				table: schema.scorpioTransactions,
+				idCol: schema.scorpioTransactions.id,
+				userIdCol: schema.scorpioTransactions.userId,
+				typeCol: schema.scorpioTransactions.type,
+				amountCol: schema.scorpioTransactions.amount,
+				createdAtCol: schema.scorpioTransactions.createdAt,
+				balanceBeforeCol: schema.scorpioTransactions.balanceBefore,
+				balanceAfterCol: schema.scorpioTransactions.balanceAfter,
+				roundIdCol: schema.scorpioTransactions.roundId,
+				gameIdCol: schema.scorpioTransactions.gameCode,
+				winTypes: ["WIN"],
+				provider: "Scorpio",
+				providerIdCol: schema.scorpioTransactions.providerId,
+			},
 		];
 
 		for (const source of casinoSources) {
@@ -883,6 +1254,9 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 			if (source.gameIdCol) {
 				selectCols.gameCode = source.gameIdCol;
 			}
+			if (source.providerIdCol) {
+				selectCols.providerId = source.providerIdCol;
+			}
 
 			const results = await db
 				.select(selectCols)
@@ -890,7 +1264,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
 				.where(eq(source.userIdCol, userId))
 				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_PER_SOURCE);
+				.limit(MAX_UNPAGINATED_ROWS);
 
 			for (const r of results) {
 				const ts = r.createdAt.getTime();
@@ -912,6 +1286,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 					roundId: r.roundId ?? null,
 					provider: source.provider,
 					gameCode: r.gameCode ?? null,
+					providerId: r.providerId ?? null,
 				});
 			}
 		}
@@ -919,66 +1294,52 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 
 	allTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-	const total = allTickets.length;
-	const totalPages = Math.ceil(total / limit) || 1;
-	const paginated = allTickets.slice((page - 1) * limit, page * limit);
+	const capped = allTickets.slice(0, MAX_UNPAGINATED_ROWS);
 
-	const gameNameCache = new Map<string, string | null>();
+	const gameNameByCode = await loadGameNames(db, capped);
 
-	async function getGameName(code: string): Promise<string | null> {
-		if (gameNameCache.has(code)) return gameNameCache.get(code)!;
-		const [row] = await db
-			.select({ name: schema.game.name })
-			.from(schema.game)
-			.where(eq(schema.game.code, code))
-			.limit(1);
-		const name = row?.name ?? null;
-		gameNameCache.set(code, name);
-		return name;
-	}
-
-	const ticketsWithNames = await Promise.all(
-		paginated.map(async (t) => {
-			let gameName: string | null = null;
-			if (t.gameCode) {
-				gameName = await getGameName(t.gameCode);
-			}
-			return {
-				id: t.id,
-				userId: t.userId,
-				playerName: t.playerName,
-				betAmount: formatAmount(t.betAmount),
-				potentialWin:
-					t.gameType === "Sportsbook" && t.totalOdds
-						? formatAmount(
-								Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
-							)
-						: null,
-				payout: t.payout != null ? formatAmount(t.payout) : null,
-				odds: t.totalOdds,
-				gameType: t.gameType,
-				outcome: t.outcome,
-				createdAt: formatDate(t.createdAt),
-				balanceBefore:
-					t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
-				balanceAfter:
-					t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
-				roundId: t.roundId,
-				provider: t.provider,
-				gameName,
-			};
-		}),
-	);
+	const ticketsWithNames = capped.map((t) => {
+		const gameName = pickCatalogGameName(
+			gameNameByCode,
+			t.gameCode,
+			t.provider,
+			t.providerId,
+		) ?? nativeCasinoGameName(t.gameCode);
+		return {
+			id: t.id,
+			userId: t.userId,
+			playerName: t.playerName,
+			betAmount: formatAmount(t.betAmount),
+			potentialWin:
+				t.gameType === "Sportsbook" && t.totalOdds
+					? formatAmount(
+							Math.round(t.betAmount * Number.parseFloat(t.totalOdds)),
+						)
+					: null,
+			payout: t.payout != null ? formatAmount(t.payout) : null,
+			odds: t.totalOdds,
+			gameType: t.gameType,
+			outcome: t.outcome,
+			createdAt: formatDate(t.createdAt),
+			balanceBefore:
+				t.balanceBefore != null ? formatAmount(t.balanceBefore) : null,
+			balanceAfter:
+				t.balanceAfter != null ? formatAmount(t.balanceAfter) : null,
+			roundId: t.roundId,
+			provider: nativeCasinoProvider(t.gameCode) ?? t.provider,
+			gameName,
+		};
+	});
 
 	return c.json({
 		success: true,
 		data: {
 			tickets: ticketsWithNames,
 			pagination: {
-				page,
-				limit,
-				total,
-				totalPages,
+				page: 1,
+				limit: ticketsWithNames.length,
+				total: ticketsWithNames.length,
+				totalPages: 1,
 			},
 		},
 	});
@@ -987,17 +1348,33 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
-		return c.json({ success: false, error: "Unauthorized", details: null }, 401);
+		return c.json(
+			{ success: false, error: "Unauthorized", details: null },
+			401,
+		);
 	}
 
 	const session = await validateAdminSession(c.env, token);
-	if (!session || (session.role !== "admin" && session.role !== "super_admin")) {
-		return c.json({ success: false, error: "Forbidden - admin only", details: null }, 403);
+	if (
+		!session ||
+		(session.role !== "admin" && session.role !== "super_admin")
+	) {
+		return c.json(
+			{ success: false, error: "Forbidden - admin only", details: null },
+			403,
+		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "view_ticket_history")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_ticket_history")
+	) {
 		return c.json(
-			{ success: false, error: "Forbidden - view_ticket_history permission required", details: null },
+			{
+				success: false,
+				error: "Forbidden - view_ticket_history permission required",
+				details: null,
+			},
 			403,
 		);
 	}
@@ -1005,7 +1382,6 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 	const { id } = c.req.valid("param");
 	const db = drizzle(c.env.DB, { schema });
 
-	
 	const bet = await db
 		.select({
 			id: schema.sportsbookBet.id,
@@ -1043,40 +1419,128 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			.where(eq(schema.sportsbookBetEvent.betId, id))
 			.orderBy(schema.sportsbookBetEvent.createdAt);
 
-
-		const wasCashedOut = events.some((e) => e.eventType === "cash_out_accepted");
+		const wasCashedOut = events.some(
+			(e) => e.eventType === "cash_out_accepted",
+		);
 		const balanceBefore = events[0]?.balanceBefore ?? null;
 		const balanceAfter = events[events.length - 1]?.balanceAfter ?? null;
 
-		let rawSelections: Array<Record<string, any>> = [];
+		let rawSelections: StoredBetOdd[] = [];
+		let rawBetBuilderOdds: Array<{
+			match_id?: string;
+			ratio?: string;
+			status?: number;
+			odds?: StoredBetOdd[];
+		}> = [];
 		try {
-			const parsed = bet.betData ? JSON.parse(bet.betData) : null;
-			if (parsed && Array.isArray(parsed.bet_odds)) {
-				rawSelections = parsed.bet_odds;
+			if (bet.betData) {
+				const rawBetData = JSON.parse(bet.betData);
+
+				if (rawBetData && Array.isArray(rawBetData.bet_odds)) {
+					rawSelections = rawBetData.bet_odds as StoredBetOdd[];
+				}
+
+				if (rawBetData && Array.isArray(rawBetData.bet_builder_odds)) {
+					rawBetBuilderOdds =
+						rawBetData.bet_builder_odds as typeof rawBetBuilderOdds;
+				}
 			}
-		} catch {
+		} catch (error) {
+			console.error("[getTicketById] Failed to parse betData:", error);
 			rawSelections = [];
+			rawBetBuilderOdds = [];
 		}
 
+		const regularMatchIds = rawSelections
+			.map((s) => s.match_id)
+			.filter(Boolean);
+		const builderGroupMatchIds = rawBetBuilderOdds
+			.map((b) => b.match_id)
+			.filter(Boolean);
+		const builderLegMatchIds = rawBetBuilderOdds.flatMap((b) =>
+			Array.isArray(b.odds)
+				? b.odds.map((o) => o.match_id).filter(Boolean)
+				: [],
+		);
+
 		const sportEventIds = Array.from(
-			new Set(rawSelections.map((s) => s.match_id).filter(Boolean)),
+			new Set([
+				...regularMatchIds,
+				...builderGroupMatchIds,
+				...builderLegMatchIds,
+			]),
 		) as string[];
 
 		const titleById = await getFixtureTitlesByIds(c.env, sportEventIds);
+		const marketTypeIds = [
+			...rawSelections,
+			...rawBetBuilderOdds.flatMap((builder) =>
+				Array.isArray(builder.odds) ? builder.odds : [],
+			),
+		]
+			.map((odd) =>
+				typeof odd.market_id === "string"
+					? parseMarketId(odd.market_id).typeId
+					: "",
+			)
+			.filter(Boolean);
+		const marketDefinitions = await loadMarketDefinitions(c.env, marketTypeIds);
 
-		const selections = rawSelections.map((s) => {
-			const title = s.match_id ? titleById.get(s.match_id) : undefined;
+		const formatSelection = (odd: StoredBetOdd) => {
+			const matchId = odd.match_id ?? null;
+			const marketId = odd.market_id ?? null;
+			const matchTitle = matchId ? (titleById.get(matchId) ?? null) : null;
+			const typeId = marketId ? parseMarketId(marketId).typeId : "";
+			const labels = formatTicketSelection({
+				odd,
+				matchTitle,
+				marketDef: typeId ? (marketDefinitions.get(typeId) ?? null) : null,
+			});
 			return {
-				matchId: s.match_id ?? null,
-				match: title ?? (s.match_id ?? "Unknown match"),
-				marketId: s.market_id ?? null,
-				oddId: s.odd_id ?? null,
-				odds: s.odd_ratio ?? null,
-				oddStatus: s.odd_status ?? null,
+				matchId,
+				match: matchDisplayName(matchTitle, matchId),
+				marketId,
+				oddId: odd.odd_id ?? null,
+				market: labels.market,
+				pick: labels.pick,
+				marketLabel: labels.market,
+				pickLabel: labels.pick,
+				odds: labels.odds,
+				oddStatus: odd.odd_status ?? null,
+			};
+		};
+
+		const selections = rawSelections.map(formatSelection);
+
+		const betBuilderSelections = rawBetBuilderOdds.map((builder) => {
+			const groupMatchId = builder.match_id;
+			const groupTitle = groupMatchId ? titleById.get(groupMatchId) : undefined;
+
+			const legs = Array.isArray(builder.odds)
+				? builder.odds.map(formatSelection)
+				: [];
+
+			return {
+				matchId: typeof groupMatchId === "string" ? groupMatchId : null,
+				match: matchDisplayName(
+					groupTitle,
+					typeof groupMatchId === "string" ? groupMatchId : null,
+				),
+				ratio: typeof builder.ratio === "string" ? builder.ratio : null,
+				status: typeof builder.status === "number" ? builder.status : null,
+				legs,
 			};
 		});
+		const selectionCount =
+			selections.length +
+			betBuilderSelections.reduce(
+				(count, selection) => count + selection.legs.length,
+				0,
+			);
 
-		const totalOddsNum = bet.totalOdds ? parseFloat(bet.totalOdds) : null;
+		const totalOddsNum = bet.totalOdds
+			? Number.parseFloat(bet.totalOdds)
+			: null;
 		const potentialWin = totalOddsNum ? bet.stake * totalOddsNum : null;
 		const actualPayout = bet.settleAmount ?? null;
 		const profit = actualPayout != null ? actualPayout - bet.stake : null;
@@ -1087,16 +1551,23 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 				id: bet.id,
 				gameType: "Sportsbook" as const,
 				status: bet.status,
-				betType: bet.betType,
+				betType: sportsbookBetTypeLabel(bet.betType),
+				betTypeCode: bet.betType,
+				selectionCount,
+				selection: selectionCount,
 				outcome: mapSbOutcome(bet.status, bet.settleType),
 				stake: formatAmount(bet.stake),
-				potentialWin: potentialWin != null ? formatAmount(Math.round(potentialWin)) : null,
+				potentialWin:
+					potentialWin != null ? formatAmount(Math.round(potentialWin)) : null,
 				actualPayout: actualPayout != null ? formatAmount(actualPayout) : null,
 				profit: profit != null ? formatAmount(profit) : null,
 				totalOdds: bet.totalOdds,
 				cashedOut: wasCashedOut,
 				createdAt: formatDate(bet.createdAt),
-				settledAt: bet.status !== "created" && bet.status !== "accepted" ? formatDate(bet.updatedAt) : null,
+				settledAt:
+					bet.status !== "created" && bet.status !== "accepted"
+						? formatDate(bet.updatedAt)
+						: null,
 				player: {
 					id: bet.userId,
 					name: bet.playerName,
@@ -1104,15 +1575,17 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					image: bet.playerImage,
 					mobileNumber: bet.playerMobileNumber,
 					verified: bet.playerVerificationStatus === "verified",
-					balanceBefore: balanceBefore != null ? formatAmount(balanceBefore) : null,
-					balanceAfter: balanceAfter != null ? formatAmount(balanceAfter) : null,
+					balanceBefore:
+						balanceBefore != null ? formatAmount(balanceBefore) : null,
+					balanceAfter:
+						balanceAfter != null ? formatAmount(balanceAfter) : null,
 				},
 				selections,
+				betBuilderSelections,
 			},
 		});
 	}
 
-	
 	const casinoSources: Array<{
 		table: any;
 		idCol: any;
@@ -1123,9 +1596,11 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		balanceBeforeCol: any;
 		balanceAfterCol: any;
 		roundIdCol: any;
+		sessionTokenCol: any;
 		gameIdCol: any;
 		winTypes: string[];
 		provider: string;
+		providerIdCol?: any;
 	}> = [
 		{
 			table: schema.gameTransactions,
@@ -1136,10 +1611,11 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			createdAtCol: schema.gameTransactions.createdAt,
 			balanceBeforeCol: schema.gameTransactions.balanceBefore,
 			balanceAfterCol: schema.gameTransactions.balanceAfter,
-			roundIdCol: null,
+			roundIdCol: schema.gameTransactions.roundId,
 			gameIdCol: schema.gameTransactions.game,
+			sessionTokenCol: schema.gameTransactions.sessionToken,
 			winTypes: ["WIN"],
-			provider: "ICRASH",
+			provider: "LuckyWorld",
 		},
 		{
 			table: schema.thundrTransactions,
@@ -1152,6 +1628,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.thundrTransactions.balanceAfter,
 			roundIdCol: schema.thundrTransactions.roundId,
 			gameIdCol: schema.thundrTransactions.gameId,
+			sessionTokenCol: schema.thundrTransactions.sessionId,
 			winTypes: ["WIN"],
 			provider: "Thndr",
 		},
@@ -1166,6 +1643,7 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.slotitegrationTransactions.balanceAfter,
 			roundIdCol: schema.slotitegrationTransactions.roundId,
 			gameIdCol: schema.slotitegrationTransactions.gameId,
+			sessionTokenCol: schema.slotitegrationTransactions.sessionId,
 			winTypes: ["win"],
 			provider: "Slotegrator",
 		},
@@ -1180,8 +1658,24 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			balanceAfterCol: schema.pocketsTransactions.balanceAfter,
 			roundIdCol: null,
 			gameIdCol: null,
+			sessionTokenCol: null,
 			winTypes: ["CREDIT"],
 			provider: "Lagos Rush",
+		},
+		{
+			table: schema.scorpioTransactions,
+			idCol: schema.scorpioTransactions.id,
+			userIdCol: schema.scorpioTransactions.userId,
+			typeCol: schema.scorpioTransactions.type,
+			amountCol: schema.scorpioTransactions.amount,
+			createdAtCol: schema.scorpioTransactions.createdAt,
+			balanceBeforeCol: schema.scorpioTransactions.balanceBefore,
+			balanceAfterCol: schema.scorpioTransactions.balanceAfter,
+			roundIdCol: schema.scorpioTransactions.roundId,
+			gameIdCol: schema.scorpioTransactions.gameCode,
+			winTypes: ["WIN"],
+			provider: "Scorpio",
+			providerIdCol: schema.scorpioTransactions.providerId,
 		},
 	];
 
@@ -1199,9 +1693,11 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			createdAt: source.createdAtCol,
 			balanceBefore: source.balanceBeforeCol,
 			balanceAfter: source.balanceAfterCol,
+			sessionToken: source.sessionTokenCol,
 		};
 		if (source.roundIdCol) selectCols.roundId = source.roundIdCol;
 		if (source.gameIdCol) selectCols.gameCode = source.gameIdCol;
+		if (source.providerIdCol) selectCols.providerId = source.providerIdCol;
 
 		const row = await db
 			.select(selectCols)
@@ -1211,35 +1707,37 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			.get();
 
 		if (row) {
-			let gameName: string | null = null;
+			let gameName: string | null = nativeCasinoGameName(row.gameCode);
 			if (row.gameCode) {
-				const [g] = await db
-					.select({ name: schema.game.name })
-					.from(schema.game)
-					.where(eq(schema.game.code, row.gameCode))
-					.limit(1);
-				gameName = g?.name ?? null;
+				const catalogGameName = await lookupGameName(
+					db,
+					row.gameCode,
+					source.provider,
+					row.providerId ?? null,
+				);
+				if (catalogGameName) gameName = catalogGameName;
 			}
 			const isWin = source.winTypes.includes(row.outcomeType);
-    		let stakeAmount = row.betAmount;
+			let stakeAmount = row.betAmount;
 
-		if (isWin) {
-			const [priorBet] = await db
-				.select({ amount: source.amountCol })
-				.from(source.table)
-				.where(
-					and(
-						eq(source.userIdCol, row.userId),
-						eq(source.table.sessionToken, row.sessionToken),
-						eq(source.typeCol, "BET"), // 
-						lt(source.createdAtCol, row.createdAt),
-					),
-				)
-				.orderBy(desc(source.createdAtCol))
-				.limit(1);
+			if (isWin && source.roundIdCol && row.roundId) {
+				const betType = source.provider === "Slotegrator" ? "bet" : "BET";
+				const [priorBet] = await db
+					.select({ amount: source.amountCol })
+					.from(source.table)
+					.where(
+						and(
+							eq(source.userIdCol, row.userId),
+							eq(source.roundIdCol, row.roundId),
+							eq(source.typeCol, betType),
+							lt(source.createdAtCol, row.createdAt),
+						),
+					)
+					.orderBy(desc(source.createdAtCol))
+					.limit(1);
 
-			if (priorBet) stakeAmount = priorBet.amount;
-		}
+				if (priorBet) stakeAmount = priorBet.amount;
+			}
 
 			return c.json({
 				success: true,
@@ -1247,9 +1745,12 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					id: row.id,
 					gameType: "Casino" as const,
 					status: row.outcomeType,
-					betType: null,
+					betType: "Casino",
+					betTypeCode: null,
+					selectionCount: 0,
+					selection: 0,
 					outcome: mapCasinoOutcome(row.outcomeType),
-					stake: formatAmount(row.stakeAmount),
+					stake: formatAmount(stakeAmount),
 					potentialWin: null,
 					actualPayout: source.winTypes.includes(row.outcomeType)
 						? formatAmount(row.betAmount)
@@ -1257,8 +1758,13 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 					profit: source.winTypes.includes(row.outcomeType)
 						? formatAmount(row.betAmount - stakeAmount)
 						: null,
+					multiplier:
+						isWin && stakeAmount > 0
+							? `${(row.betAmount / stakeAmount).toFixed(2)}x`
+							: null,
 					totalOdds: null,
 					cashedOut: false,
+					betTime: formatDate(row.createdAt),
 					createdAt: formatDate(row.createdAt),
 					settledAt: formatDate(row.createdAt),
 					player: {
@@ -1268,18 +1774,26 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 						image: row.playerImage,
 						mobileNumber: row.playerMobileNumber,
 						verified: row.playerVerificationStatus === "verified",
-						balanceBefore: row.balanceBefore != null ? formatAmount(row.balanceBefore) : null,
-						balanceAfter: row.balanceAfter != null ? formatAmount(row.balanceAfter) : null,
+						balanceBefore:
+							row.balanceBefore != null
+								? formatAmount(row.balanceBefore)
+								: null,
+						balanceAfter:
+							row.balanceAfter != null ? formatAmount(row.balanceAfter) : null,
 					},
-					provider: source.provider,
+					provider: nativeCasinoProvider(row.gameCode) ?? source.provider,
 					gameName,
 					roundId: row.roundId ?? null,
+					sessionId: row.sessionToken ?? null,
 				},
 			});
 		}
 	}
 
-	return c.json({ success: false, error: "Ticket not found", details: null }, 404);
+	return c.json(
+		{ success: false, error: "Ticket not found", details: null },
+		404,
+	);
 });
 
 export default adminTicketsRoute;

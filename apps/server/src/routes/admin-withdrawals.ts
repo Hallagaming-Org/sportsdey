@@ -3,14 +3,19 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
+import { creditWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import {
-	trackWebengageEvent,
-} from "@/lib/webengage";
+import { trackWebengageEvent } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
 import { createTransferRecipient, initiateTransfer } from "@/utils/paystack";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
+import { maskBankAccountNumber } from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
 const adminWithdrawalsRoute = new OpenAPIHono<{
@@ -288,6 +293,23 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		);
 	}
 
+	const [claimed] = await db
+		.update(schema.walletTransaction)
+		.set({ status: "processing" })
+		.where(
+			and(
+				eq(schema.walletTransaction.id, id),
+				eq(schema.walletTransaction.status, "pending_approval"),
+			),
+		)
+		.returning({ id: schema.walletTransaction.id });
+	if (!claimed) {
+		return c.json(
+			{ success: false, error: "Transaction is already being processed" },
+			409,
+		);
+	}
+
 	let meta: Record<string, unknown> = {};
 	meta = JSON.parse(txn.metadata || "{}");
 
@@ -329,7 +351,12 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 			paymentMethod: "paystack",
 			reference: transfer.reference,
 		})
-		.where(eq(schema.walletTransaction.id, id));
+		.where(
+			and(
+				eq(schema.walletTransaction.id, id),
+				eq(schema.walletTransaction.status, "processing"),
+			),
+		);
 
 	await db.insert(schema.userNotification).values({
 		id: `notif_${crypto.randomUUID()}`,
@@ -338,23 +365,32 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been approved and is being processed.`,
 	});
 
-	trackWebengageEvent(
-		c.env,
-		{
-			userId: txn.userId,
-			eventName: "withdrawal_completed",
-			eventData: {
-				amount: txn.amount / 100,
-				transaction_id: transfer.reference,
-				bank: bankCode,
-				wallet_balance_after: (txn.balance ?? 0) / 100,
-				"account number": accountNumber,
-				"account name": accountName ?? "",
-			},
-		},
-		c.executionCtx,
-	);
 
+	if (transfer.status === "success") {
+		void trackWebengageEvent(
+			c.env,
+			{
+				userId: txn.userId,
+				eventName: "withdrawal_completed",
+				eventData: {
+					amount: txn.amount / 100,
+					transaction_id: transfer.reference,
+					bank: bankCode,
+					bank_code: bankCode,
+					wallet_balance_after: (txn.balance ?? 0) / 100,
+					account_number_last4: maskBankAccountNumber(accountNumber),
+					account_name: accountName ?? "",
+				},
+			},
+			c.executionCtx,
+		);
+		await syncWebengageUserProfile(c.env, txn.userId, c.executionCtx);
+	}
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.approveWithdrawal,
+	);
 
 	return c.json({
 		success: true,
@@ -410,6 +446,23 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 		);
 	}
 
+	const [claimed] = await db
+		.update(schema.walletTransaction)
+		.set({ status: "processing" })
+		.where(
+			and(
+				eq(schema.walletTransaction.id, id),
+				eq(schema.walletTransaction.status, "pending_approval"),
+			),
+		)
+		.returning({ id: schema.walletTransaction.id });
+	if (!claimed) {
+		return c.json(
+			{ success: false, error: "Transaction is already being processed" },
+			409,
+		);
+	}
+
 	let existingMeta: Record<string, unknown> = {};
 	existingMeta = JSON.parse(txn.metadata || "{}");
 
@@ -419,13 +472,13 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 		.where(eq(schema.wallet.userId, txn.userId))
 		.limit(1);
 
-	const refundedBalance = wallet ? wallet.balance + txn.amount : txn.amount;
+	const refundedWallet = wallet
+		? await creditWallet(db, txn.userId, txn.amount)
+		: undefined;
+	const refundedBalance = refundedWallet?.balance ?? txn.amount;
 
-	if (wallet) {
-		await db
-			.update(schema.wallet)
-			.set({ balance: refundedBalance })
-			.where(eq(schema.wallet.userId, txn.userId));
+	if (wallet && !refundedWallet) {
+		return c.json({ success: false, error: "Failed to refund wallet" }, 500);
 	}
 
 	await db
@@ -440,7 +493,12 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 				balanceAfterRefund: refundedBalance,
 			}),
 		})
-		.where(eq(schema.walletTransaction.id, id));
+		.where(
+			and(
+				eq(schema.walletTransaction.id, id),
+				eq(schema.walletTransaction.status, "processing"),
+			),
+		);
 
 	await db.insert(schema.userNotification).values({
 		id: `notif_${crypto.randomUUID()}`,
@@ -448,6 +506,11 @@ adminWithdrawalsRoute.openapi(rejectRoute, async (c) => {
 		title: "Withdrawal Rejected",
 		message: `Your withdrawal of ₦${(txn.amount / 100).toLocaleString()} has been rejected. Reason: ${reason}`,
 	});
+	await recordActivityForSession(
+		c.env,
+		session.adminId,
+		adminActivityActions.rejectWithdrawal,
+	);
 
 	return c.json({
 		success: true,

@@ -93,4 +93,35 @@ export function toWAT(date: Date | string | number | null | undefined): string {
 	return new Date(ms).toISOString().replace("Z", "+01:00");
 }
 
-export { verifySlotitegrationSignature } from "./slotegrator";
+export {
+	buildSlotegratorSign,
+	createSlotegratorAuthHeaders,
+	fetchSlotegratorGames,
+	initSlotegratorDemo,
+	SlotegratorApiError,
+	verifySlotitegrationSignature,
+} from "./slotegrator";
+export {
+	ScorpioApiError,
+	createPlayer,
+	getScorpioConfig,
+	launchGame,
+	listGames,
+	listProviders,
+} from "./scorpio";
+export {
+	assertScorpioSettings,
+	getAllowedIps,
+	getConfiguredServerIp,
+	loadScorpioSettings,
+	ScorpioConfigError,
+} from "./scorpio-config";
+export {
+	assertScorpioCallbackIp,
+	computeScorpioSignature,
+	isIpAllowed,
+	ScorpioIpForbiddenError,
+	ScorpioSignatureError,
+	verifyScorpioSignature,
+} from "./scorpio-security";
+export { processScorpioCallback } from "./scorpio-callback";

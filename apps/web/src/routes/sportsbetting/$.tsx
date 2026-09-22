@@ -1,8 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SportsbookBetslip } from "@/components/sportsbook-betslip";
+import { SportsbookSkeleton } from "@/components/sportsbook-skeleton";
 import { Button } from "@/components/ui/button";
+import { ensureAccumulatorBoostsSynced } from "@/lib/accumulator-sync";
 import { ApiError, apiRequest } from "@/lib/api";
 import { signOut, useSession } from "@/lib/auth/client";
 import {
@@ -10,11 +11,34 @@ import {
 	dispatchBettingInit,
 	getSportsbookBootstrapScript,
 	isSportsbookConfigured,
+	installSportsbookHostChromeFix,
 	loadSportsbookBootstrapScript,
+	patchDatabetLayoutForHostChrome,
 	SPORTSBOOK_CONTAINER_ID,
+	SPORTSBOOK_PREMATCH_SPLAT,
 } from "@/lib/sportsbook";
 
 export const Route = createFileRoute("/sportsbetting/$")({
+	beforeLoad: ({ params }) => {
+		if (!params._splat) {
+			throw redirect({
+				to: "/sportsbetting/$",
+				params: { _splat: SPORTSBOOK_PREMATCH_SPLAT },
+				search: {},
+				replace: true,
+			});
+		}
+	},
+	validateSearch: (search: Record<string, unknown>) => ({
+		sportTypeSlug:
+			typeof search.sportTypeSlug === "string"
+				? search.sportTypeSlug
+				: undefined,
+		sportEventStatusSlug:
+			typeof search.sportEventStatusSlug === "string"
+				? search.sportEventStatusSlug
+				: undefined,
+	}),
 	component: SportsbookPage,
 });
 
@@ -28,9 +52,50 @@ export function SportsbookPage() {
 	const [token, setToken] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
+	const [isSportsbookPainted, setIsSportsbookPainted] = useState(false);
 	const initializedTokenRef = useRef<string | null>(null);
 	const previousThemeRef = useRef<boolean | null>(null);
+	const tokenRequestIdRef = useRef(0);
+	const accumulatorSyncUserRef = useRef<string | null>(null);
 	const navigate = useNavigate();
+
+	useEffect(() => {
+		if (!isSportsbookConfigured()) return;
+		void loadSportsbookBootstrapScript(getSportsbookBootstrapScript()).catch(
+			() => {
+				// Token init reports load failures once bettingLoader.load runs.
+			},
+		);
+	}, []);
+
+	useEffect(() => {
+		const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
+		if (!host) return;
+
+		const markPainted = () => {
+			const root = host.shadowRoot;
+			if (root && root.childElementCount > 0) {
+				setIsSportsbookPainted(true);
+				return true;
+			}
+			return false;
+		};
+
+		if (markPainted()) return;
+		const observer = new MutationObserver(() => {
+			if (markPainted()) observer.disconnect();
+		});
+		observer.observe(host, { childList: true, subtree: true });
+		const timeoutId = window.setTimeout(() => {
+			if (host.childElementCount > 0 || host.shadowRoot) {
+				setIsSportsbookPainted(true);
+			}
+		}, 8000);
+		return () => {
+			observer.disconnect();
+			window.clearTimeout(timeoutId);
+		};
+	}, []);
 
 	useEffect(() => {
 		const isDarkMode = document.documentElement.classList.contains("dark");
@@ -63,9 +128,12 @@ export function SportsbookPage() {
 		previousThemeRef.current = isDarkTheme;
 	}, [isDarkTheme]);
 
-	const loadToken = useCallback(async () => {
-		setIsLoading(true);
-		setError(null);
+	const loadToken = useCallback(async (options?: { silent?: boolean }) => {
+		const requestId = ++tokenRequestIdRef.current;
+		if (!options?.silent) {
+			setIsLoading(true);
+			setError(null);
+		}
 		initializedTokenRef.current = null;
 		try {
 			const data = await apiRequest<SportsbookTokenResponse>(
@@ -75,20 +143,77 @@ export function SportsbookPage() {
 					credentials: "include",
 				},
 			);
+			if (requestId !== tokenRequestIdRef.current) {
+				return;
+			}
 			setToken(data.token);
 		} catch (err) {
+			if (requestId !== tokenRequestIdRef.current) {
+				return;
+			}
 			if (err instanceof ApiError) {
 				setError(err.message);
 			} else {
 				setError("Failed to create sportsbook session. Please try again.");
 			}
 		} finally {
-			setIsLoading(false);
+			if (requestId === tokenRequestIdRef.current && !options?.silent) {
+				setIsLoading(false);
+			}
 		}
 	}, []);
 
 	useEffect(() => {
-		// if (isSessionLoading || !session?.user) return;
+		if (isSessionLoading || !session?.user) {
+			return;
+		}
+		if (accumulatorSyncUserRef.current === session.user.id) {
+			return;
+		}
+		accumulatorSyncUserRef.current = session.user.id;
+
+		const run = () => {
+			void ensureAccumulatorBoostsSynced()
+				.then((status) => {
+					if (status === "synced") {
+						return loadToken({ silent: true });
+					}
+				})
+				.catch(() => {
+					// Boost sync is best-effort; the lobby still loads.
+				});
+		};
+		if ("requestIdleCallback" in window) {
+			const idleId = window.requestIdleCallback(run, { timeout: 5000 });
+			return () => window.cancelIdleCallback(idleId);
+		}
+		const timeoutId = window.setTimeout(run, 1500);
+		return () => window.clearTimeout(timeoutId);
+	}, [isSessionLoading, session?.user, loadToken]);
+
+	useEffect(() => {
+		const host = document.getElementById(SPORTSBOOK_CONTAINER_ID);
+		if (!host) return;
+		return installSportsbookHostChromeFix(host);
+	}, []);
+
+	useEffect(() => {
+		const { pathname, search } = window.location;
+		if (!/%3A/i.test(pathname)) return;
+		try {
+			const decoded = decodeURIComponent(pathname);
+			if (decoded !== pathname) {
+				window.history.replaceState(null, "", `${decoded}${search}`);
+			}
+		} catch {
+			// keep the encoded path if it is not valid URI encoding
+		}
+	}, []);
+
+	useEffect(() => {
+		if (isSessionLoading) {
+			return;
+		}
 		void loadToken();
 	}, [isSessionLoading, session?.user, loadToken]);
 
@@ -110,9 +235,13 @@ export function SportsbookPage() {
 					return;
 				}
 
+				patchDatabetLayoutForHostChrome();
 				window.bettingLoader.load(
 					buildAppInitOptions(token, isDarkTheme),
 					(bettingAPI) => {
+						if (cancelled) {
+							return;
+						}
 						dispatchBettingInit(bettingAPI);
 						bettingAPI.subscribe("redirect", ({ destination, link }) => {
 							switch (destination) {
@@ -149,7 +278,9 @@ export function SportsbookPage() {
 						});
 					},
 				);
-				initializedTokenRef.current = token;
+				if (!cancelled) {
+					initializedTokenRef.current = token;
+				}
 			} catch {
 				if (!cancelled) {
 					setError("Failed to load sportsbook application.");
@@ -181,15 +312,14 @@ export function SportsbookPage() {
 	}
 
 	return (
-		<div className="relative my-2 space-y-4">
-			<div id={SPORTSBOOK_CONTAINER_ID} className="min-h-[calc(100vh-200px)]" />
+		<div className="relative min-h-[calc(100dvh-12.5rem)] min-w-0 max-w-full overflow-x-clip bg-transparent p-0">
+			<div
+				id={SPORTSBOOK_CONTAINER_ID}
+				className="relative min-h-[calc(100dvh-12.5rem)] min-w-0 w-full max-w-full bg-transparent p-0 [contain:layout]"
+			/>
 			<SportsbookBetslip />
 
-			{isLoading && (
-				<div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/80 dark:bg-[#202120]/80">
-					<Loader2 className="h-8 w-8 animate-spin text-primary" />
-				</div>
-			)}
+			{(!isSportsbookPainted || isLoading) && !error && <SportsbookSkeleton />}
 
 			{!isLoading && error && (
 				<div className="absolute inset-0 flex items-center justify-center p-6">

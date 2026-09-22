@@ -30,6 +30,7 @@ const TicketOverviewDataSchema = z.object({
 	totalGamesWon: z.string().openapi({ example: "₦120,000" }),
 	totalGamesLost: z.string().openapi({ example: "₦80,000" }),
 	grossGamingRevenue: z.string().openapi({ example: "₦30,000" }),
+	totalOdds: z.number().openapi({ example: 12.5 }),
 }).openapi("TicketOverviewData");
 
 const getTicketOverviewRoute = createRoute({
@@ -182,6 +183,16 @@ adminTicketOverviewRoute.openapi(getTicketOverviewRoute, async (c) => {
 
 	const sportsbookWagered = Number(sbWageredResult?.total ?? 0);
 
+	// Sportsbook total odds: sum of total_odds_value for all bets in period
+	const [sbOddsResult] = await db
+		.select({
+			total: sql<number>`COALESCE(SUM(CAST(${schema.sportsbookBet.totalOdds} AS REAL)), 0)`,
+		})
+		.from(schema.sportsbookBet)
+		.where(and(...sbWageredConditions));
+
+	const totalOdds = Number(sbOddsResult?.total ?? 0);
+
 	// Casino sources: bet types and win types differ per provider
 	const casinoSources = [
 		{
@@ -219,6 +230,15 @@ adminTicketOverviewRoute.openapi(getTicketOverviewRoute, async (c) => {
 			createdAtCol: schema.pocketsTransactions.createdAt,
 			betTypes: ["DEBIT"],
 			winTypes: ["CREDIT"],
+		},
+		{
+			table: schema.scorpioTransactions,
+			userIdCol: schema.scorpioTransactions.userId,
+			typeCol: schema.scorpioTransactions.type,
+			amountCol: schema.scorpioTransactions.amount,
+			createdAtCol: schema.scorpioTransactions.createdAt,
+			betTypes: ["BET"],
+			winTypes: ["WIN"],
 		},
 	];
 
@@ -271,6 +291,7 @@ adminTicketOverviewRoute.openapi(getTicketOverviewRoute, async (c) => {
 			totalGamesWon: formatAmount(totalGamesWon),
 			totalGamesLost: formatAmount(totalGamesLost),
 			grossGamingRevenue: formatAmount(grossGamingRevenue),
+			totalOdds,
 		},
 	});
 });

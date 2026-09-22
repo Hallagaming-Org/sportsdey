@@ -16,6 +16,14 @@ export function normalizeName(name: string): string {
 	return name.toLowerCase().trim().replace(/\s+/g, " ");
 }
 
+/** Strip punctuation so "Adrenaline Rush xcrash" matches "Adrenaline Rush: XCrash". */
+export function flexibleName(name: string): string {
+	return normalizeName(name)
+		.replace(/[^a-z0-9]+/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
 export function slugify(name: string): string {
 	return name.toLowerCase().replace(/[\/\s]+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
@@ -40,31 +48,43 @@ export async function executeD1Json<T>(
 	dbName: string,
 	env: string,
 	command: string,
+	options: { remote?: boolean } = {},
 ): Promise<T[]> {
-	return new Promise((resolve, reject) => {
-		const cmd = `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(command)} --remote --env ${env} --json`;
-		exec(cmd, { timeout: 120000 }, (error, stdout) => {
-			if (error) {
-				reject(new Error(`D1 execute failed: ${error.message}`));
-			} else {
-				try {
-					const trimmed = stdout.trim();
-					const topLevel = JSON.parse(trimmed);
-					const entries = Array.isArray(topLevel) ? topLevel : [topLevel];
-					const results: T[] = [];
-					for (const entry of entries) {
-						if (entry && entry.results) {
-							results.push(...entry.results);
+	const remoteFlag = options.remote === false ? "--local" : "--remote";
+	const cmd = `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(command)} ${remoteFlag} --env ${env} --json`;
+	let lastError: Error | null = null;
+	for (let attempt = 1; attempt <= 6; attempt++) {
+		try {
+			return await new Promise<T[]>((resolve, reject) => {
+				exec(cmd, { timeout: 300000 }, (error, stdout) => {
+					if (error) {
+						reject(new Error(`D1 execute failed: ${error.message}`));
+					} else {
+						try {
+							const trimmed = stdout.trim();
+							const topLevel = JSON.parse(trimmed);
+							const entries = Array.isArray(topLevel) ? topLevel : [topLevel];
+							const results: T[] = [];
+							for (const entry of entries) {
+								if (entry && entry.results) {
+									results.push(...entry.results);
+								}
+							}
+							resolve(results);
+						} catch {
+							console.warn("Could not parse JSON, trying table output...");
+							resolve(parseTableOutput(stdout) as T[]);
 						}
 					}
-					resolve(results);
-				} catch {
-					console.warn("Could not parse JSON, trying table output...");
-					resolve(parseTableOutput(stdout) as T[]);
-				}
-			}
-		});
-	});
+				});
+			});
+		} catch (err) {
+			lastError = err as Error;
+			console.warn(`  D1 query failed attempt ${attempt}/6: ${lastError.message.slice(0, 180)}`);
+			await sleep(Math.min(20000, 2000 * attempt));
+		}
+	}
+	throw lastError ?? new Error("D1 execute failed");
 }
 
 export function parseTableOutput(output: string): { id: string; name: string }[] {
@@ -89,12 +109,21 @@ export function parseTableOutput(output: string): { id: string; name: string }[]
 export async function fetchExistingGames(
 	dbName: string,
 	env: string,
+	options: { remote?: boolean } = {},
 ): Promise<{ id: string; name: string }[]> {
-	return executeD1Json<{ id: string; name: string }>(
-		dbName,
-		env,
-		"SELECT id, name FROM game",
-	);
+	const pageSize = 1000;
+	const all: { id: string; name: string }[] = [];
+	for (let offset = 0; ; offset += pageSize) {
+		const rows = await executeD1Json<{ id: string; name: string }>(
+			dbName,
+			env,
+			`SELECT id, name FROM game ORDER BY id LIMIT ${pageSize} OFFSET ${offset}`,
+			options,
+		);
+		all.push(...rows);
+		if (rows.length < pageSize) break;
+	}
+	return all;
 }
 
 export function buildCategoryInserts(
@@ -138,21 +167,33 @@ export function matchGames(
 	allCategoryEntries: CategoryEntry[],
 	games: { id: string; name: string }[],
 ): { matched: { gameId: string; categorySlug: string }[]; unmatched: string[] } {
-	const nameToId = new Map<string, string>();
+	const nameToIds = new Map<string, string[]>();
+	const flexibleToIds = new Map<string, string[]>();
+
+	const add = (map: Map<string, string[]>, key: string, id: string) => {
+		if (!key) return;
+		const list = map.get(key) ?? [];
+		if (!list.includes(id)) list.push(id);
+		map.set(key, list);
+	};
+
 	for (const game of games) {
-		const normalized = normalizeName(game.name);
-		if (!nameToId.has(normalized)) {
-			nameToId.set(normalized, game.id);
-		}
+		add(nameToIds, normalizeName(game.name), game.id);
+		add(flexibleToIds, flexibleName(game.name), game.id);
 	}
 
 	const matched: { gameId: string; categorySlug: string }[] = [];
 	const unmatched: string[] = [];
 
 	for (const entry of allCategoryEntries) {
-		const gameId = nameToId.get(entry.gameName);
-		if (gameId) {
-			matched.push({ gameId, categorySlug: entry.categorySlug });
+		const ids =
+			nameToIds.get(entry.gameName) ??
+			flexibleToIds.get(flexibleName(entry.gameName)) ??
+			[];
+		if (ids.length > 0) {
+			for (const gameId of ids) {
+				matched.push({ gameId, categorySlug: entry.categorySlug });
+			}
 		} else {
 			unmatched.push(entry.gameName);
 		}
@@ -161,18 +202,50 @@ export function matchGames(
 	return { matched, unmatched };
 }
 
-export function buildDeduplicatedGameCategoryValues(
+export function uniqueGameCategoryPairs(
 	matched: { gameId: string; categorySlug: string }[],
-): string[] {
+): { gameId: string; categorySlug: string }[] {
 	const uniquePairs = new Set<string>();
-	const values: string[] = [];
+	const values: { gameId: string; categorySlug: string }[] = [];
 	for (const { gameId, categorySlug } of matched) {
 		const key = `${gameId}:${categorySlug}`;
 		if (uniquePairs.has(key)) continue;
 		uniquePairs.add(key);
-		values.push(`(${escape(gameId)}, ${escape(categorySlug)})`);
+		values.push({ gameId, categorySlug });
 	}
 	return values;
+}
+
+export function gameCategoryBatchInsertSql(
+	pairs: { gameId: string; categorySlug: string }[],
+): string {
+	const unions = pairs
+		.map(
+			(p, i) =>
+				i === 0
+					? `SELECT ${escape(p.gameId)} AS game_id, ${escape(p.categorySlug)} AS category_id`
+					: `SELECT ${escape(p.gameId)}, ${escape(p.categorySlug)}`,
+		)
+		.join(" UNION ALL ");
+	return `INSERT INTO game_category (game_id, category_id) SELECT x.game_id, x.category_id FROM (${unions}) x WHERE NOT EXISTS (SELECT 1 FROM game_category gc WHERE gc.game_id = x.game_id AND gc.category_id = x.category_id)`;
+}
+
+export function gameCategoryInsertSql(pair: {
+	gameId: string;
+	categorySlug: string;
+}): string {
+	return gameCategoryBatchInsertSql([pair]);
+}
+
+/** @deprecated use uniqueGameCategoryPairs + gameCategoryInsertSql */
+export function buildDeduplicatedGameCategoryValues(
+	matched: { gameId: string; categorySlug: string }[],
+): string[] {
+	return uniqueGameCategoryPairs(matched).map(gameCategoryInsertSql);
+}
+
+function sleep(ms: number) {
+	return new Promise((r) => setTimeout(r, ms));
 }
 
 export async function executeSqlFile(
@@ -182,29 +255,65 @@ export async function executeSqlFile(
 	label: string,
 	suffix: string,
 	index: number,
+	options: {
+		remote?: boolean;
+		throwOnError?: boolean;
+		timeoutMs?: number;
+		retries?: number;
+		preferFile?: boolean;
+	} = {},
 ): Promise<void> {
+	const remote = options.remote !== false;
+	const throwOnError = options.throwOnError !== false;
+	const timeoutMs = options.timeoutMs ?? 10 * 60 * 1000;
+	const retries = options.retries ?? 8;
 	const tempFile = path.join(os.tmpdir(), `${suffix}-${Date.now()}-${index}.sql`);
 	fs.writeFileSync(tempFile, sql);
 	try {
-		await new Promise<void>((resolve, reject) => {
-			const cmd = `npx wrangler d1 execute ${dbName} --file "${tempFile}" --remote --env ${env}`;
-			console.log(`Executing ${label}...`);
-			exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
-				try {
-					fs.unlinkSync(tempFile);
-				} catch {}
-				if (error) {
-					console.error(`${label} failed:`, error.message);
-					if (stderr) console.error(stderr);
-					reject(error);
-				} else {
-					console.log(stdout);
-					resolve();
-				}
-			});
-		});
+		for (let attempt = 1; attempt <= retries; attempt++) {
+			try {
+				await new Promise<void>((resolve, reject) => {
+					const remoteFlag = remote ? "--remote" : "--local";
+					const flatSql = sql.replace(/\s+/g, " ").trim();
+					const useCommand =
+						!options.preferFile && flatSql.length < 20_000;
+					const cmd = useCommand
+						? `npx wrangler d1 execute ${dbName} --command ${JSON.stringify(flatSql)} ${remoteFlag} --env ${env}`
+						: `npx wrangler d1 execute ${dbName} --file "${tempFile}" ${remoteFlag} --env ${env}`;
+					console.log(
+						`Executing ${label} (${remote ? "remote" : "local"}, attempt ${attempt}/${retries})...`,
+					);
+					exec(cmd, { timeout: timeoutMs }, (error, stdout, stderr) => {
+						if (error) {
+							const timedOut = error.killed && error.signal === "SIGTERM";
+							reject(
+								new Error(
+									`${timedOut ? `timed out at ${timeoutMs}ms` : error.message}\n${stderr || ""}`.slice(
+										0,
+										500,
+									),
+								),
+							);
+						} else {
+							console.log(stdout);
+							resolve();
+						}
+					});
+				});
+				return;
+			} catch (err) {
+				console.warn(`  ${label} failed attempt ${attempt}: ${(err as Error).message}`);
+				if (attempt === retries) throw err;
+				await sleep(Math.min(45000, 3000 * attempt));
+			}
+		}
 	} catch (err) {
 		console.error(`Failed to execute ${label}:`, err);
+		if (throwOnError) throw err;
+	} finally {
+		try {
+			fs.unlinkSync(tempFile);
+		} catch {}
 	}
 }
 
@@ -212,10 +321,12 @@ export async function categorizeGamesFromJson(
 	dbName: string,
 	env: string,
 	jsonPath: string,
+	options: { remote?: boolean } = {},
 ): Promise<void> {
 	console.log(`Loading categories from ${jsonPath}...`);
 	const data = loadCasinoJson(jsonPath);
 	const timestamp = Date.now();
+	const remote = options.remote !== false;
 
 	const { categoryInserts, allCategoryEntries, categories } = buildCategoryInserts(data, timestamp);
 
@@ -234,8 +345,8 @@ export async function categorizeGamesFromJson(
 		console.log(`  popular: ${popularCount} games`);
 	}
 
-	console.log("\nFetching existing games from database...");
-	const games = await fetchExistingGames(dbName, env);
+	console.log(`\nFetching existing games from database (${remote ? "remote" : "local"})...`);
+	const games = await fetchExistingGames(dbName, env, { remote });
 	console.log(`Found ${games.length} games in database`);
 
 	if (games.length === 0) {
@@ -260,13 +371,105 @@ export async function categorizeGamesFromJson(
 		return;
 	}
 
-	const gameCategoryValues = buildDeduplicatedGameCategoryValues(matched);
-	const categorySql = `INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${categoryInserts.join(",\n")};`;
-	const gameCategorySql = `INSERT OR IGNORE INTO game_category (game_id, category_id) VALUES ${gameCategoryValues.join(",\n")};`;
+	console.log("Fetching existing game_category links...");
+	const dbCategories = await executeD1Json<{
+		id: string;
+		slug: string;
+	}>(dbName, env, "SELECT id, slug FROM category", { remote });
+	function resolveCategoryId(fromJsonSlug: string): string | null {
+		const exactId = dbCategories.find((c) => c.id === fromJsonSlug);
+		if (exactId) return exactId.id;
+		const bySlug = dbCategories.find((c) => c.slug === fromJsonSlug);
+		if (bySlug) return bySlug.id;
+		const stripped = fromJsonSlug.replace(/-/g, "");
+		const byStripped = dbCategories.find(
+			(c) => c.id === stripped || c.slug === stripped,
+		);
+		return byStripped?.id ?? null;
+	}
+
+	const existingLinks = await executeD1Json<{
+		game_id: string;
+		category_id: string;
+	}>(dbName, env, "SELECT game_id, category_id FROM game_category", {
+		remote,
+	});
+	const existingKeys = new Set(
+		existingLinks.map((r) => `${r.game_id}:${r.category_id}`),
+	);
+	console.log(`Existing category links: ${existingKeys.size}`);
+
+	const newPairs = uniqueGameCategoryPairs(matched)
+		.map((pair) => ({
+			gameId: pair.gameId,
+			categorySlug: resolveCategoryId(pair.categorySlug) ?? pair.categorySlug,
+		}))
+		.filter((pair) => {
+			if (!dbCategories.some((c) => c.id === pair.categorySlug)) {
+				console.warn(`  unresolved category: ${pair.categorySlug}`);
+				return false;
+			}
+			return !existingKeys.has(`${pair.gameId}:${pair.categorySlug}`);
+		});
+	console.log(`New pairs to insert: ${newPairs.length}`);
+	const categorySql = `INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ${categoryInserts.join(", ")};`;
 
 	const suffix = "categorize";
-	await executeSqlFile(dbName, env, categorySql, "category inserts", suffix, 0);
-	await executeSqlFile(dbName, env, gameCategorySql, "game_category inserts", suffix, 1);
+	const execOpts = { remote };
+	await executeSqlFile(dbName, env, categorySql, "category inserts", suffix, 0, {
+		...execOpts,
+		throwOnError: false,
+	});
+
+	const GC_BATCH = 50;
+	const failedBatches: number[] = [];
+	const insertOpts = { ...execOpts, preferFile: true, retries: 6 };
+	for (let i = 0; i < newPairs.length; i += GC_BATCH) {
+		const chunk = newPairs.slice(i, i + GC_BATCH);
+		const batchNo = i / GC_BATCH + 1;
+		const gameCategorySql = chunk
+			.map(
+				(p) =>
+					`INSERT INTO game_category (game_id, category_id) SELECT ${escape(p.gameId)}, ${escape(p.categorySlug)} WHERE NOT EXISTS (SELECT 1 FROM game_category WHERE game_id = ${escape(p.gameId)} AND category_id = ${escape(p.categorySlug)});`,
+			)
+			.join("\n");
+		try {
+			await executeSqlFile(
+				dbName,
+				env,
+				gameCategorySql,
+				`game_category inserts batch ${batchNo}`,
+				suffix,
+				batchNo,
+				{ ...insertOpts, throwOnError: true },
+			);
+		} catch {
+			console.warn(`  skipping batch ${batchNo} for later retry`);
+			failedBatches.push(i);
+		}
+		await sleep(3000);
+	}
+
+	for (const i of failedBatches) {
+		const chunk = newPairs.slice(i, i + GC_BATCH);
+		const batchNo = i / GC_BATCH + 1;
+		const gameCategorySql = chunk
+			.map(
+				(p) =>
+					`INSERT INTO game_category (game_id, category_id) SELECT ${escape(p.gameId)}, ${escape(p.categorySlug)} WHERE NOT EXISTS (SELECT 1 FROM game_category WHERE game_id = ${escape(p.gameId)} AND category_id = ${escape(p.categorySlug)});`,
+			)
+			.join("\n");
+		await executeSqlFile(
+			dbName,
+			env,
+			gameCategorySql,
+			`game_category retry batch ${batchNo}`,
+			suffix,
+			1000 + batchNo,
+			{ ...insertOpts, throwOnError: false, retries: 6 },
+		);
+		await sleep(5000);
+	}
 
 	console.log('\nMarking uncategorized games as "others"...');
 	await executeSqlFile(
@@ -275,14 +478,22 @@ export async function categorizeGamesFromJson(
 		`INSERT OR IGNORE INTO category (id, name, slug, created_at) VALUES ('others', 'Others', 'others', ${Date.now()});`,
 		"others category",
 		suffix,
-		2,
+		900,
+		execOpts,
 	);
 
-	const orphansSql = `INSERT OR IGNORE INTO game_category (game_id, category_id)
-SELECT g.id, 'others'
-FROM game g
-WHERE g.id NOT IN (SELECT game_id FROM game_category);`;
-	await executeSqlFile(dbName, env, orphansSql, "orphans marking", suffix, 3);
+	const orphansSql = `INSERT OR IGNORE INTO game_category (game_id, category_id) SELECT g.id, 'others' FROM game g WHERE g.id NOT IN (SELECT game_id FROM game_category)`;
+	await executeSqlFile(dbName, env, orphansSql, "orphans marking", suffix, 901, execOpts);
+
+	await executeSqlFile(
+		dbName,
+		env,
+		`DELETE FROM game_category WHERE category_id = 'others' AND game_id IN (SELECT game_id FROM (SELECT game_id FROM game_category WHERE category_id != 'others'))`,
+		"drop others from categorized games",
+		suffix,
+		902,
+		execOpts,
+	);
 
 	console.log("\nDone! Categories synced.");
 }

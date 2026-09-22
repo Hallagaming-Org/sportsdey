@@ -4,7 +4,7 @@ import Loader from "@/components/loader";
 import { useSession } from "@/lib/auth/client";
 import {
 	loginWebengageUser,
-	setWebengageUserAttributes,
+	setWebengageSdkUserProfile,
 } from "@/lib/webengage";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -28,10 +28,10 @@ function AuthCallback() {
 		loginWebengageUser(session.user.id);
 
 		const nameParts = (session.user.name || "").trim().split(/\s+/);
-		setWebengageUserAttributes({
-			we_email: session.user.email || "",
-			we_first_name: nameParts[0] || "",
-			we_last_name: nameParts.slice(1).join(" ") || "",
+		setWebengageSdkUserProfile({
+			email: session.user.email || "",
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
 		});
 
 		navigate({ to: returnTo || "/" });

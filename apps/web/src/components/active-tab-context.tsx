@@ -16,7 +16,11 @@ export type Tabs =
 	| "Play lottery"
 	| "games"
 	| "match-scores"
-	| "promotions";
+	| "promotions"
+	| "missions"
+	| "bonuses"
+	| "loyalty"
+	| "tournament";
 
 type ActiveTabContextType = {
 	tab: Tabs;
@@ -32,9 +36,8 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 
 	useEffect(() => {
 		const path = location.pathname;
-		const searchStr = location.search;
-		const params = new URLSearchParams(searchStr);
-		const tabParam = params.get("tab");
+		// const search = location.search as Record<string, unknown>;
+		// const tabParam = search.tab as string | undefined;
 
 		if (path.startsWith("/favorites") || path.startsWith("/wallet")) {
 			setTab("favourites");
@@ -48,6 +51,14 @@ export const ActiveTabProvider = ({ children }: PropsWithChildren) => {
 			setTab("games");
 		} else if (path.startsWith("/promotions")) {
 			setTab("promotions");
+		} else if (path.startsWith("/missions")) {
+			setTab("missions");
+		} else if (path.startsWith("/bonuses")) {
+			setTab("bonuses");
+		} else if (path.startsWith("/loyalty")) {
+			setTab("loyalty");
+		} else if (path.startsWith("/tournaments")) {
+			setTab("tournament");
 		} else if (path.includes("/matches")) {
 			setTab("match-scores");
 		} else {

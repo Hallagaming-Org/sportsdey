@@ -3,7 +3,7 @@ import { Apple, GooglePlay } from "iconsax-reactjs";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import DiscordFooter from "@/logos/DiscordFooter";
 import FacebookFooterIcon from "@/logos/FacebookFooterIcon";
-import FlutterwaveLogo from "@/logos/flutterwave.png";
+// import FlutterwaveLogo from "@/logos/flutterwave.png";
 import InstagramFooter from "@/logos/InstagramFooter";
 import KudaLogo from "@/logos/kuda.png";
 import MastercardLogo from "@/logos/mastercard.png";
@@ -45,18 +45,21 @@ export default function DesktopFooter() {
 			<div className="mb-12 grid grid-cols-1 gap-8 md:grid-cols-5 lg:grid-cols-6">
 				<div className="space-y-4 md:col-span-2 lg:col-span-2">
 					<div className="flex items-center gap-3">
-						<img
-							src="/sportsdey-logo.png"
-							className="hidden h-8 dark:block"
-							alt="SportsDey Logo"
-						/>
+							<img
+								src="/sportsdey-logo.png"
+								width={128}
+								height={32}
+								className="hidden h-8 w-auto dark:block"
+								alt="SportsDey"
+								decoding="async"
+							/>
 						<NewSportsdeyLogo className="h-8 w-auto text-white dark:hidden" />
 						<div className="flex h-6 items-center rounded-full bg-[#1A1A1A] px-3 font-medium text-[10px] text-gray-300">
 							EN <span className="ml-1 text-[8px]">▼</span>
 						</div>
 					</div>
 					<p className="max-w-xs text-[#A0A0A0] text-sm leading-relaxed">
-						Your #1 Sports Hub for News, Scores, Tips & More.
+						Nigeria's all-in-one gaming platform.
 					</p>
 
 					<div className="mt-6 flex items-start gap-3">
@@ -110,6 +113,16 @@ export default function DesktopFooter() {
 									FAQs
 								</Link>
 							</li>
+							<li>
+								<a
+									href="https://partners.sportsdey.com"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								>
+									Become an affiliate
+								</a>
+							</li>
 						</ul>
 					</div>
 
@@ -117,13 +130,14 @@ export default function DesktopFooter() {
 						<h3 className="mb-6 font-bold text-base text-white">Our Ecosystem</h3>
 						<ul className="space-y-4 text-sm">
 							<li>
-								<Link
-									to="/betting"
-									search={{ type: "jackpots" } as any}
-									className="cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
+								<a
+									href="https://prediction.sportsdey.com/"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="block cursor-pointer text-[#A0A0A0] transition-colors hover:text-white"
 								>
 									Prediction Market
-								</Link>
+								</a>
 							</li>
 							<li>
 								<a
@@ -136,14 +150,12 @@ export default function DesktopFooter() {
 								</a>
 							</li>
 							<li>
-								<a
-									href="https://Tournament.sportsdey.com"
-									target="_blank"
-									rel="noopener noreferrer"
-									className="text-[#A0A0A0] transition-colors hover:text-white block"
+								<Link
+									to="/tournaments"
+									className="block text-[#A0A0A0] transition-colors hover:text-white"
 								>
-									Esports Tournaments
-								</a>
+									Tournaments
+								</Link>
 							</li>
 
 						</ul>
@@ -202,6 +214,8 @@ export default function DesktopFooter() {
 
 				<div className="flex w-full flex-row items-center justify-center gap-3 md:flex-col lg:items-start">
 					<button
+						type="button"
+						aria-label="Download on the App Store"
 						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() => window.open("https://apps.apple.com", "_blank")}
 					>
@@ -216,11 +230,12 @@ export default function DesktopFooter() {
 						</div>
 					</button>
 					<button
+						type="button"
+						aria-label="Get it on Google Play"
 						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() =>
 							window.open("https://play.google.com/store/apps", "_blank")
 						}
-					// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
 					>
 						<GooglePlay size={20} color="white" variant="Bold" />
 						<div className="flex flex-col items-start">
@@ -266,7 +281,7 @@ export default function DesktopFooter() {
 						issued on 30th of November, 2025.
 					</p>
 				</div>
-				<div className="flex flex-wrap items-center justify-center gap-2">
+				<div className="flex min-h-[40px] flex-wrap items-center justify-center gap-2 md:min-h-[58px]">
 					{[
 						{ name: "OPay", logo: OPayLogo },
 						{ name: "PalmPay", logo: PalmPayLogo },
@@ -274,7 +289,7 @@ export default function DesktopFooter() {
 						{ name: "Monnify", logo: MonnifyLogo },
 						{ name: "Mastercard", logo: MastercardLogo },
 						{ name: "Kuda", logo: KudaLogo },
-						{ name: "Flutterwave", logo: FlutterwaveLogo },
+						// { name: "Flutterwave", logo: FlutterwaveLogo },
 					].map((provider) => (
 						<div
 							key={provider.name}
@@ -283,6 +298,9 @@ export default function DesktopFooter() {
 							<img
 								src={provider.logo}
 								alt={provider.name}
+								width={117}
+								height={58}
+								decoding="async"
 								className="h-full w-auto object-contain"
 							/>
 						</div>

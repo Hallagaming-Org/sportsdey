@@ -2,12 +2,32 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, asc, desc, eq, gt, gte, lte, notInArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { Context } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
-import { setWebengageUserAttributes } from "@/lib/webengage";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { parseQueryDateRange, toWAT } from "@/utils";
+import {
+	adminActivityActions,
+	recordActivityForSession,
+} from "@/utils/admin-activity-log";
+import { parseDobInput } from "@/utils/dob";
+import {
+	isDefaultPhoneUserName,
+	isPhonePlaceholderEmail,
+} from "@/utils/phone-user";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
+
+const PROFILE_CHANGE_CONTACT_EMAIL = "support@sportsdey.com";
+const PROFILE_EDIT_LOCKED_MESSAGE = `You've already updated your profile. Contact admin at ${PROFILE_CHANGE_CONTACT_EMAIL} if you need any further changes.`;
+
+function isOnboardingProfile(user: { name: string; email: string }): boolean {
+	return (
+		isPhonePlaceholderEmail(user.email) || isDefaultPhoneUserName(user.name)
+	);
+}
 
 function toIsoTimestamp(value: Date | string | number): string {
 	if (value instanceof Date) return value.toISOString();
@@ -18,12 +38,126 @@ const EXCLUDED_OVERVIEW_PAYMENT_METHODS = [
 	"sportsbook",
 	"thndr games",
 	"lagos rush",
+	"halla",
 	"lucky games",
 	"hashcodex",
 	"slotegrator games",
 ];
 
+type WalletActivityRow = {
+	type: string;
+	amount: number;
+	paymentMethod: string;
+	metadata: string | null;
+};
+
+function parseWalletActivityMetadata(
+	metadata: string | null,
+): Record<string, unknown> {
+	if (!metadata) return {};
+	try {
+		const parsed = JSON.parse(metadata);
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
+function readableWalletActivityPurpose(row: WalletActivityRow): string {
+	const metadata = parseWalletActivityMetadata(row.metadata);
+	const paymentMethod = row.paymentMethod.toLowerCase();
+	const action = typeof metadata.action === "string" ? metadata.action : "";
+	const game = typeof metadata.game === "string" ? metadata.game : "Casino";
+	const direction = row.type === "debit" ? "debit" : "credit";
+
+	if (paymentMethod === "manual") {
+		const reason =
+			typeof metadata.reason === "string" ? metadata.reason.trim() : "";
+		return reason
+			? `Manual ${direction}: ${reason}`
+			: `Manual wallet ${direction}`;
+	}
+
+	if (paymentMethod === "sportsbook") {
+		const sportsbookActions: Record<string, string> = {
+			bet_accepted: "Sportsbook bet placed",
+			bet_declined: "Sportsbook bet refunded",
+			settled:
+				metadata.settleType === "win"
+					? "Sportsbook winnings"
+					: "Sportsbook bet refunded",
+			unsettled: "Sportsbook settlement reversed",
+			cash_out_accepted: "Sportsbook cash-out",
+			cash_out_declined: "Sportsbook cash-out reversed",
+		};
+		return sportsbookActions[action] ?? `Sportsbook wallet ${direction}`;
+	}
+
+	if (paymentMethod === "wallet_transfer") {
+		if (metadata.transferType === "to_game_wallet")
+			return "Transfer to game wallet";
+		if (metadata.transferType === "incoming") return "Wallet transfer received";
+		return "Wallet transfer sent";
+	}
+
+	if (paymentMethod === "bill_payment") {
+		const biller =
+			typeof metadata.billerName === "string" ? metadata.billerName : "";
+		const product =
+			typeof metadata.productName === "string" ? metadata.productName : "";
+		return [biller, product].filter(Boolean).join(" - ") || "Bill payment";
+	}
+
+	if (
+		[
+			"lucky games",
+			"thndr games",
+			"lagos rush",
+			"halla",
+			"slotegrator games",
+			"hashcodex",
+			"scorpio",
+		].includes(paymentMethod)
+	) {
+		const actionLabel: Record<string, string> = {
+			bet: "bet placed",
+			win: "winnings",
+			refund: "refund",
+			rollback: "rollback",
+			cancel: "bet cancelled",
+			reset: "balance reset",
+			settlement: "settlement",
+		};
+		const provider = game === "Casino" ? paymentMethod : game;
+		return `${provider} ${actionLabel[action] ?? `wallet ${direction}`}`;
+	}
+
+	if (
+		["opay", "kuda", "palmpay", "paystack", "card", "bank_transfer"].includes(
+			paymentMethod,
+		)
+	) {
+		return direction === "credit"
+			? `${row.paymentMethod} wallet deposit`
+			: `${row.paymentMethod} wallet withdrawal`;
+	}
+
+	if (paymentMethod.startsWith("bonus")) return "Bonus wallet adjustment";
+	return `${row.paymentMethod || "Wallet"} ${direction}`;
+}
+
 const userRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+const emptyToUndefined = (value: unknown) => {
+	if (value === "" || value === null || value === undefined) return undefined;
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
+	if (typeof value !== "string") return undefined;
+	return value;
+};
 
 const UpdateUserSchema = z
 	.object({
@@ -31,31 +165,32 @@ const UpdateUserSchema = z
 			description: "User's full name",
 			example: "John Doe",
 		}),
-		email: z.string().email().optional().openapi({
+		email: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "User's email address",
 			example: "john@example.com",
 		}),
-		image: z.string().url().optional().openapi({
+		image: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "Profile image URL",
 			example: "https://cdn.example.com/avatar.jpg",
 		}),
-		country: z.string().optional().openapi({
+		country: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
 			description: "User's country",
 			example: "Nigeria",
 		}),
-		mobileNumber: z.preprocess(
-			(value) => (value === "" || value === null ? undefined : value),
-			z
-				.string()
-				.regex(
-					/^(0|\+?234)[789][01]\d{8}$/,
-					"Invalid Nigerian phone number format",
-				)
-				.optional(),
-		).openapi({
+		mobileNumber: z
+			.preprocess(emptyToUndefined, z.string().optional())
+			.openapi({
+				description:
+					"User's mobile number. Omit or leave empty to keep the existing number.",
+				example: "08012345678",
+			}),
+		dob: z.preprocess(emptyToUndefined, z.string().optional()).openapi({
+			description: "Date of birth (YYYY-MM-DD or DD/MM/YYYY)",
+			example: "1998-04-12",
+		}),
+		accountEdit: z.boolean().optional().openapi({
 			description:
-				"User's mobile number. Omit or leave empty to keep the existing number.",
-			example: "08012345678",
+				"True when the save comes from the player Account page. Only those saves use the one-edit limit.",
 		}),
 	})
 	.openapi("UpdateUser");
@@ -88,6 +223,11 @@ const SelfUserResponseSchema = z
 			.string()
 			.nullable()
 			.openapi({ description: "User's mobile number" }),
+		dob: z
+			.string()
+			.nullable()
+			.optional()
+			.openapi({ description: "Date of birth (YYYY-MM-DD)" }),
 		suspended: z.boolean().openapi({ description: "Suspension status" }),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
@@ -95,6 +235,10 @@ const SelfUserResponseSchema = z
 			.string()
 			.optional()
 			.openapi({ description: "Verification status" }),
+		canEditProfile: z.boolean().optional().openapi({
+			description:
+				"Whether the player may still make their one self-serve profile edit",
+		}),
 	})
 	.openapi("SelfUserResponse");
 
@@ -122,14 +266,6 @@ const AdminErrorSchema = z
 
 const GetAllUsersQuerySchema = z
 	.object({
-		page: z
-			.string()
-			.optional()
-			.openapi({ description: "Page number (default: 1)", example: "1" }),
-		limit: z.string().optional().openapi({
-			description: "Items per page (default: 10, max: 100)",
-			example: "10",
-		}),
 		sort: z
 			.enum(["asc", "desc"])
 			.optional()
@@ -152,7 +288,8 @@ const GetAllUsersQuerySchema = z
 			.optional()
 			.openapi({ description: "Filter by tab", example: "all" }),
 		search: z.string().optional().openapi({
-			description: "Search users by name, email, or ID",
+			description:
+				"Search users by name, email, user ID, IP address, or phone number",
 			example: "john",
 		}),
 		fromDate: z.string().optional().openapi({
@@ -165,6 +302,8 @@ const GetAllUsersQuerySchema = z
 				"Filter users registered on or before this date (ISO format: YYYY-MM-DD)",
 			example: "2025-01-31",
 		}),
+		page: z.string().optional(),
+		limit: z.string().optional(),
 	})
 	.openapi("GetAllUsersQuery");
 
@@ -192,7 +331,7 @@ const GetAllUsersResponseSchema = z
 				users: z.array(UserListItemSchema).openapi({ description: "Users" }),
 				total: z.number().openapi({ description: "Total number of users" }),
 				page: z.number().openapi({ description: "Current page" }),
-				limit: z.number().openapi({ description: "Items per page" }),
+				limit: z.number().openapi({ description: "Items in this response" }),
 				totalPages: z
 					.number()
 					.openapi({ description: "Total number of pages" }),
@@ -285,6 +424,14 @@ const updateUserRoute = createRoute({
 				},
 			},
 		},
+		403: {
+			description: "Profile edit already used",
+			content: {
+				"application/json": {
+					schema: UpdateUserErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -331,10 +478,12 @@ userRoute.openapi(getUserRoute, async (c) => {
 				image: existingUser.image,
 				country: existingUser.country,
 				mobileNumber: existingUser.mobileNumber,
+				dob: existingUser.dob ?? null,
 				suspended: existingUser.suspended,
 				createdAt: toIsoTimestamp(existingUser.createdAt),
 				updatedAt: toIsoTimestamp(existingUser.updatedAt),
 				verificationStatus: existingUser.verificationStatus,
+				canEditProfile: existingUser.profileSelfEditedAt == null,
 			},
 		},
 		200,
@@ -354,7 +503,19 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const { name, email, image, country, mobileNumber } = c.req.valid("json");
+	const { name, email, image, country, mobileNumber, dob, accountEdit } =
+		c.req.valid("json");
+	const parsedDob = parseDobInput(dob);
+	if (!parsedDob.ok) {
+		return c.json(
+			{
+				success: false as const,
+				error: parsedDob.error,
+				details: null,
+			},
+			400,
+		);
+	}
 	const db = drizzle(c.env.DB, { schema });
 
 	const [existingUser] = await db
@@ -374,27 +535,81 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const nextEmail = email?.trim().toLowerCase();
+	const rawEmail = email?.trim().toLowerCase();
+	const nextEmail =
+		rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+			? rawEmail
+			: undefined;
+	const nextCountry =
+		country !== undefined
+			? country.trim()
+				? country.trim()
+				: null
+			: undefined;
+	const nextMobile =
+		mobileNumber !== undefined && mobileNumber.trim() !== ""
+			? mobileNumber.trim()
+			: undefined;
+	const nextDob = parsedDob.value === undefined ? undefined : parsedDob.value;
+	const identityChanged =
+		name.trim() !== existingUser.name.trim() ||
+		Boolean(nextEmail && nextEmail !== existingUser.email.toLowerCase()) ||
+		(nextCountry !== undefined &&
+			nextCountry !== (existingUser.country ?? null)) ||
+		(nextMobile !== undefined &&
+			nextMobile !== (existingUser.mobileNumber ?? null)) ||
+		(nextDob !== undefined && nextDob !== (existingUser.dob ?? null));
+	const countsTowardOneEdit =
+		accountEdit === true && !isOnboardingProfile(existingUser);
+
+	if (
+		identityChanged &&
+		existingUser.profileSelfEditedAt &&
+		countsTowardOneEdit
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: PROFILE_EDIT_LOCKED_MESSAGE,
+				details: null,
+			},
+			403,
+		);
+	}
+
 	const updates: {
 		name: string;
 		country?: string | null;
 		mobileNumber?: string | null;
+		dob?: string | null;
 		email?: string;
 		emailVerified?: boolean;
 		image?: string | null;
+		profileSelfEditedAt?: Date;
 	} = {
 		name,
 	};
 
 	// Partial update: never wipe country/mobile when the client omits them.
-	if (country !== undefined) {
-		updates.country = country.trim() ? country.trim() : null;
+	if (nextCountry !== undefined) {
+		updates.country = nextCountry;
 	}
-	if (mobileNumber !== undefined && mobileNumber.trim() !== "") {
-		updates.mobileNumber = mobileNumber.trim();
+	if (nextMobile !== undefined) {
+		updates.mobileNumber = nextMobile;
+	}
+	if (nextDob !== undefined) {
+		updates.dob = nextDob;
 	}
 	if (image !== undefined) {
 		updates.image = image.trim() ? image.trim() : null;
+	}
+
+	if (
+		identityChanged &&
+		!existingUser.profileSelfEditedAt &&
+		countsTowardOneEdit
+	) {
+		updates.profileSelfEditedAt = new Date();
 	}
 
 	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
@@ -436,21 +651,7 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		);
 	}
 
-	const nameParts = (updatedUser.name || "").trim().split(/\s+/);
-	const firstName = nameParts[0] || "";
-	const lastName = nameParts.slice(1).join(" ") || "";
-
-	setWebengageUserAttributes(
-		c.env,
-		{
-			userId: updatedUser.id,
-			email: updatedUser.email ?? "",
-			firstName,
-			lastName,
-			phone: updatedUser.mobileNumber ?? undefined,
-		},
-		c.executionCtx,
-	);
+	await syncWebengageUserProfile(c.env, updatedUser.id, c.executionCtx);
 
 	return c.json(
 		{
@@ -463,9 +664,11 @@ userRoute.openapi(updateUserRoute, async (c) => {
 				image: updatedUser.image,
 				country: updatedUser.country,
 				mobileNumber: updatedUser.mobileNumber,
+				dob: updatedUser.dob ?? null,
 				suspended: updatedUser.suspended,
 				createdAt: toIsoTimestamp(updatedUser.createdAt),
 				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
+				canEditProfile: updatedUser.profileSelfEditedAt == null,
 			},
 		},
 		200,
@@ -478,7 +681,7 @@ const getAllUsersRoute = createRoute({
 	tags: ["User"],
 	summary: "Get all users (admin only)",
 	description:
-		"Retrieve all users with pagination, sorting, search, and filtering options (admin only)",
+		"Paginated user list for the admin back office. Use GET /user/list-all for the full unpaginated set.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: GetAllUsersQuerySchema,
@@ -517,7 +720,9 @@ const getAllUsersRoute = createRoute({
 	},
 });
 
-userRoute.openapi(getAllUsersRoute, async (c) => {
+async function requireUserListAdmin(
+	c: Parameters<Parameters<typeof userRoute.openapi>[1]>[0],
+) {
 	const token = getSessionToken(c.req.raw.headers);
 	if (!token) {
 		return c.json(
@@ -565,15 +770,15 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		);
 	}
 
+	return null;
+}
+
+async function loadFilteredAdminUsers(
+	c: Parameters<Parameters<typeof userRoute.openapi>[1]>[0],
+) {
 	const db = drizzle(c.env.DB, { schema });
 
-	const page = Math.max(1, Number.parseInt(c.req.query("page") || "1", 10));
-	const limit = Math.min(
-		100,
-		Math.max(1, Number.parseInt(c.req.query("limit") || "10", 10)),
-	);
 	const sort = c.req.query("sort") === "desc" ? "desc" : "asc";
-	const offset = (page - 1) * limit;
 	const tab = c.req.query("tab") as "all" | "recent" | "pending" | undefined;
 	const status = c.req.query("status") as
 		| "all"
@@ -593,6 +798,7 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 			id: schema.user.id,
 			name: schema.user.name,
 			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
 			wallet: schema.wallet.balance,
 			status: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
@@ -619,34 +825,32 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 	// filtering at the application layer.
 
 	const orderByClause =
-		sort === "asc" ? asc(schema.user.createdAt) : desc(schema.user.createdAt);
+		tab === "recent" || sort === "desc"
+			? desc(schema.user.createdAt)
+			: asc(schema.user.createdAt);
 
 	// fetch all matching rows (without date constraints) and apply date
-	// filtering, sorting and pagination in-memory
+	// filtering and sorting in-memory
 	const rawUsers = await baseQuery.orderBy(orderByClause);
 
-	const users = rawUsers.map((u) => ({
-		id: u.id,
-		name: u.name,
-		email: u.email,
-		wallet: (u.wallet ?? 0) / 100,
-		status: u.status,
-		suspended: u.suspended,
-		registeredDate: u.registeredDate,
-		registeredIpAddress: u.registeredIpAddress ?? null,
-	}));
+	const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
+	const searchDigits = search ? normalizePhoneDigits(search) : "";
 
 	// apply search and date filters in memory
-	const filtered = users.filter((u) => {
+	const filtered = rawUsers.filter((u) => {
 		if (search) {
 			const q = search.toLowerCase();
-			if (
-				!u.name.toLowerCase().includes(q) &&
-				!u.email.toLowerCase().includes(q) &&
-				!u.id.toLowerCase().includes(q)
-			) {
-				return false;
-			}
+			const ip = (u.registeredIpAddress ?? "").toLowerCase();
+			const phone = (u.mobileNumber ?? "").toLowerCase();
+			const phoneDigits = normalizePhoneDigits(u.mobileNumber ?? "");
+			const matches =
+				u.name.toLowerCase().includes(q) ||
+				u.email.toLowerCase().includes(q) ||
+				u.id.toLowerCase().includes(q) ||
+				ip.includes(q) ||
+				phone.includes(q) ||
+				(searchDigits.length >= 7 && phoneDigits.includes(searchDigits));
+			if (!matches) return false;
 		}
 		if (!fromDate && !toDate) return true;
 		const ts = new Date(u.registeredDate).getTime();
@@ -655,22 +859,112 @@ userRoute.openapi(getAllUsersRoute, async (c) => {
 		return true;
 	});
 
-	const total = filtered.length;
-	const totalPages = Math.ceil(total / limit);
+	return filtered.map((u) => ({
+		id: u.id,
+		name: u.name,
+		email: u.email,
+		wallet: (u.wallet ?? 0) / 100,
+		status: u.status,
+		suspended: u.suspended,
+		registeredDate: toIsoTimestamp(u.registeredDate),
+		registeredIpAddress: u.registeredIpAddress ?? null,
+	}));
+}
 
-	// paginate results in memory
-	const offsetIndex = offset;
-	const paginated = filtered.slice(offsetIndex, offsetIndex + limit);
+userRoute.openapi(getAllUsersRoute, async (c) => {
+	const denied = await requireUserListAdmin(c);
+	if (denied) return denied;
+
+	const filtered = await loadFilteredAdminUsers(c);
+	const total = filtered.length;
+	const page = Math.max(
+		1,
+		Number.parseInt(c.req.query("page") || "1", 10) || 1,
+	);
+	const parsedLimit = Number.parseInt(c.req.query("limit") || "10", 10);
+	const limit = Math.min(
+		100,
+		Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 10),
+	);
+	const totalPages = Math.max(1, Math.ceil(total / limit) || 1);
+	const paged = filtered.slice((page - 1) * limit, page * limit);
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
-				users: paginated,
+				users: paged,
 				total,
 				page,
 				limit,
 				totalPages,
+			},
+		},
+		200,
+	);
+});
+
+const getAllUsersUnpaginatedRoute = createRoute({
+	method: "get",
+	path: "/list-all",
+	tags: ["User"],
+	summary: "Get every user (admin only, unpaginated)",
+	description:
+		"New endpoint: full user list in one response. Does not change GET /user/all, which stays paginated.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		query: GetAllUsersQuerySchema,
+	},
+	responses: {
+		200: {
+			description: "Users retrieved successfully",
+			content: {
+				"application/json": {
+					schema: GetAllUsersResponseSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - admin not authenticated",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+		403: {
+			description: "Forbidden - admin only",
+			content: {
+				"application/json": {
+					schema: z.object({
+						success: z.literal(false),
+						error: z.string(),
+					}),
+				},
+			},
+		},
+	},
+});
+
+userRoute.openapi(getAllUsersUnpaginatedRoute, async (c) => {
+	const denied = await requireUserListAdmin(c);
+	if (denied) return denied;
+
+	const filtered = await loadFilteredAdminUsers(c);
+	const total = filtered.length;
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				users: filtered,
+				total,
+				page: 1,
+				limit: total,
+				totalPages: 1,
 			},
 		},
 		200,
@@ -827,6 +1121,14 @@ userRoute.openapi(
 			);
 		}
 
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.createUser,
+		);
+
+		await syncWebengageUserProfile(c.env, newUser.id, c.executionCtx);
+
 		return c.json(
 			{
 				success: true as const,
@@ -861,6 +1163,10 @@ const UserProfileResponseSchema = z
 			.nullable()
 			.openapi({ description: "User's mobile number" }),
 		country: z.string().nullable().openapi({ description: "User's country" }),
+		dob: z
+			.string()
+			.nullable()
+			.openapi({ description: "Date of birth (YYYY-MM-DD)" }),
 		verificationStatus: z
 			.string()
 			.openapi({ description: "Verification status" }),
@@ -1013,6 +1319,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 			image: schema.user.image,
 			mobileNumber: schema.user.mobileNumber,
 			country: schema.user.country,
+			dob: schema.user.dob,
 			verificationStatus: schema.user.verificationStatus,
 			suspended: schema.user.suspended,
 			createdAt: schema.user.createdAt,
@@ -1082,6 +1389,7 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 				image: existingUser.image,
 				mobileNumber: existingUser.mobileNumber,
 				country: existingUser.country,
+				dob: existingUser.dob ?? null,
 				verificationStatus: existingUser.verificationStatus,
 				suspended: existingUser.suspended,
 				createdAt: toWAT(existingUser.createdAt),
@@ -1095,6 +1403,330 @@ userRoute.openapi(getUserProfileRoute, async (c) => {
 		200,
 	);
 });
+
+/** Admin back office echoes the GET profile object (nulls + extra keys). */
+const AdminUpdateUserSchema = z
+	.object({
+		name: z.preprocess(emptyToUndefined, z.string().optional()),
+		fullName: z.preprocess(emptyToUndefined, z.string().optional()),
+		email: z.preprocess(emptyToUndefined, z.string().optional()),
+		image: z.preprocess(emptyToUndefined, z.string().optional()),
+		country: z.preprocess(emptyToUndefined, z.string().optional()),
+		mobileNumber: z.preprocess(emptyToUndefined, z.string().optional()),
+		phone: z.preprocess(emptyToUndefined, z.string().optional()),
+		mobile: z.preprocess(emptyToUndefined, z.string().optional()),
+		dob: z.preprocess(emptyToUndefined, z.string().optional()),
+		dateOfBirth: z.preprocess(emptyToUndefined, z.string().optional()),
+	})
+	.passthrough();
+
+type AdminUpdateUserBody = z.infer<typeof AdminUpdateUserSchema>;
+type AdminUpdateUserContext = Context<
+	{ Bindings: CloudflareBindings },
+	string,
+	{
+		in: { json: AdminUpdateUserBody };
+		out: { json: AdminUpdateUserBody };
+	}
+>;
+
+const adminUpdateUserResponses = {
+	200: {
+		description: "User profile updated successfully",
+		content: {
+			"application/json": {
+				schema: UpdateUserResponseSchema,
+			},
+		},
+	},
+	400: {
+		description: "Invalid request",
+		content: {
+			"application/json": {
+				schema: UpdateUserErrorSchema,
+			},
+		},
+	},
+	401: {
+		description: "Unauthorized - admin not authenticated",
+		content: {
+			"application/json": {
+				schema: AdminErrorSchema,
+			},
+		},
+	},
+	403: {
+		description: "Forbidden - admin only",
+		content: {
+			"application/json": {
+				schema: AdminErrorSchema,
+			},
+		},
+	},
+	404: {
+		description: "User not found",
+		content: {
+			"application/json": {
+				schema: AdminErrorSchema,
+			},
+		},
+	},
+} as const;
+
+const updateUserByIdRoute = createRoute({
+	method: "patch",
+	path: "/{userId}",
+	tags: ["User"],
+	summary: "Update user profile by id (admin only)",
+	description:
+		"Admin update for a player profile. Same fields as PATCH /user/{userId}/profile. This is the path the back office calls.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: AdminUpdateUserSchema,
+				},
+			},
+		},
+	},
+	responses: adminUpdateUserResponses,
+});
+
+const updateUserProfileRoute = createRoute({
+	method: "patch",
+	path: "/{userId}/profile",
+	tags: ["User"],
+	summary: "Update user profile (admin only)",
+	description:
+		"Update any player's profile fields (name, email, country, mobile number, image). Writes the same user row the player Account page reads, so existing and new accounts both reflect the change immediately.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		params: z.object({
+			userId: z.string().openapi({ description: "User ID" }),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: AdminUpdateUserSchema,
+				},
+			},
+		},
+	},
+	responses: adminUpdateUserResponses,
+});
+
+async function handleAdminUpdateUserProfile(c: AdminUpdateUserContext) {
+	const token = getSessionToken(c.req.raw.headers);
+	if (!token) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	const session = await validateAdminSession(c.env, token);
+	if (!session) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - admin only",
+				details: null,
+			},
+			403,
+		);
+	}
+
+	if (session.role !== "super_admin" && session.role !== "admin") {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - super admin or admin only",
+				details: null,
+			},
+			403,
+		);
+	}
+
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "view_player_details")
+	) {
+		return c.json(
+			{
+				success: false as const,
+				error: "Forbidden - view_player_details permission required",
+				details: null,
+			},
+			403,
+		);
+	}
+
+	const userId = c.req.param("userId");
+	if (!userId) {
+		return c.json(
+			{
+				success: false as const,
+				error: "User ID is required",
+				details: null,
+			},
+			400,
+		);
+	}
+
+	const body = c.req.valid("json");
+	const name = body.name ?? body.fullName;
+	const email = body.email;
+	const image = body.image;
+	const country = body.country;
+	const mobileNumber = body.mobileNumber ?? body.phone ?? body.mobile;
+	const parsedDob = parseDobInput(body.dob ?? body.dateOfBirth);
+	if (!parsedDob.ok) {
+		return c.json(
+			{
+				success: false as const,
+				error: parsedDob.error,
+				details: null,
+			},
+			400,
+		);
+	}
+	const db = drizzle(c.env.DB, { schema });
+
+	const [existingUser] = await db
+		.select()
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!existingUser) {
+		return c.json(
+			{
+				success: false as const,
+				error: "User not found",
+				details: null,
+			},
+			404,
+		);
+	}
+
+	const rawEmail = email?.trim().toLowerCase();
+	const nextEmail =
+		rawEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+			? rawEmail
+			: undefined;
+	const updates: {
+		name?: string;
+		country?: string | null;
+		mobileNumber?: string | null;
+		dob?: string | null;
+		email?: string;
+		emailVerified?: boolean;
+		image?: string | null;
+	} = {};
+
+	if (name !== undefined) {
+		updates.name = name;
+	}
+
+	if (country !== undefined) {
+		updates.country = country.trim() ? country.trim() : null;
+	}
+	if (mobileNumber !== undefined && mobileNumber.trim() !== "") {
+		updates.mobileNumber = mobileNumber.trim();
+	}
+	if (image !== undefined) {
+		updates.image = image.trim() ? image.trim() : null;
+	}
+	if (parsedDob.value !== undefined) {
+		updates.dob = parsedDob.value;
+	}
+
+	if (nextEmail && nextEmail !== existingUser.email.toLowerCase()) {
+		const [emailTaken] = await db
+			.select({ id: schema.user.id })
+			.from(schema.user)
+			.where(eq(schema.user.email, nextEmail))
+			.limit(1);
+
+		if (emailTaken && emailTaken.id !== existingUser.id) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Email already in use",
+					details: null,
+				},
+				400,
+			);
+		}
+
+		updates.email = nextEmail;
+		updates.emailVerified = false;
+	}
+
+	const updatedUser =
+		Object.keys(updates).length === 0
+			? existingUser
+			: (
+					await db
+						.update(schema.user)
+						.set(updates)
+						.where(eq(schema.user.id, userId))
+						.returning()
+				)[0];
+
+	if (!updatedUser) {
+		return c.json(
+			{
+				success: false as const,
+				error: "User not found",
+				details: null,
+			},
+			404,
+		);
+	}
+
+	if (Object.keys(updates).length > 0) {
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			adminActivityActions.updateUser,
+		);
+	}
+
+	await syncWebengageUserProfile(c.env, updatedUser.id, c.executionCtx);
+
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				id: updatedUser.id,
+				name: updatedUser.name,
+				email: updatedUser.email,
+				emailVerified: updatedUser.emailVerified,
+				image: updatedUser.image,
+				country: updatedUser.country,
+				mobileNumber: updatedUser.mobileNumber,
+				dob: updatedUser.dob ?? null,
+				suspended: updatedUser.suspended,
+				createdAt: toIsoTimestamp(updatedUser.createdAt),
+				updatedAt: toIsoTimestamp(updatedUser.updatedAt),
+				canEditProfile: updatedUser.profileSelfEditedAt == null,
+			},
+		},
+		200,
+	);
+}
+
+userRoute.openapi(updateUserByIdRoute, handleAdminUpdateUserProfile);
+userRoute.openapi(updateUserProfileRoute, handleAdminUpdateUserProfile);
 
 const ToggleSuspendedResponseSchema = z.object({
 	success: z.literal(true),
@@ -1240,6 +1872,14 @@ userRoute.openapi(
 		if (!updatedUser) {
 			return c.json({ success: false as const, error: "User not found" }, 404);
 		}
+
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			updatedUser.suspended
+				? adminActivityActions.suspendUser
+				: adminActivityActions.reactivateUser,
+		);
 
 		return c.json(
 			{
@@ -1408,7 +2048,12 @@ userRoute.openapi(getWalletOverviewRoute, async (c) => {
 const WalletTransactionItemSchema = z.object({
 	id: z.string(),
 	type: z.string(),
+	direction: z.enum(["credit", "debit"]),
 	amount: z.number(),
+	walletEffect: z.number(),
+	balanceAfter: z.number().nullable(),
+	purpose: z.string(),
+	paymentMethod: z.string(),
 	referenceId: z.string(),
 	dateTime: z.string(),
 	status: z.string(),
@@ -1508,13 +2153,7 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 
 	const db = drizzle(c.env.DB, { schema });
 
-	const filters = [
-		eq(schema.walletTransaction.userId, userId),
-		notInArray(
-			schema.walletTransaction.paymentMethod,
-			EXCLUDED_OVERVIEW_PAYMENT_METHODS,
-		),
-	];
+	const filters = [eq(schema.walletTransaction.userId, userId)];
 	if (fromDate) filters.push(gte(schema.walletTransaction.createdAt, fromDate));
 	if (toDate) filters.push(lte(schema.walletTransaction.createdAt, toDate));
 
@@ -1534,6 +2173,8 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 			reference: schema.walletTransaction.reference,
 			status: schema.walletTransaction.status,
 			paymentMethod: schema.walletTransaction.paymentMethod,
+			balance: schema.walletTransaction.balance,
+			metadata: schema.walletTransaction.metadata,
 			createdAt: schema.walletTransaction.createdAt,
 		})
 		.from(schema.walletTransaction)
@@ -1543,18 +2184,23 @@ userRoute.openapi(getWalletTransactionsRoute, async (c) => {
 		.offset(offset);
 
 	const transactions = rows.map((row) => {
-		let displayType: string;
-		if (row.type === "credit") {
-			displayType =
-				row.paymentMethod === "manual" ? "manual_credit" : "deposit";
-		} else {
-			displayType =
-				row.paymentMethod === "manual" ? "manual_debit" : "withdrawal";
-		}
+		const direction = row.type === "debit" ? "debit" : "credit";
+		const amount = Math.abs(row.amount) / 100;
+		const type =
+			row.paymentMethod === "manual"
+				? `manual_${direction}`
+				: direction === "credit"
+					? "deposit"
+					: "withdrawal";
 		return {
 			id: row.id,
-			type: displayType,
-			amount: row.amount / 100,
+			type,
+			direction,
+			amount,
+			walletEffect: direction === "debit" ? -amount : amount,
+			balanceAfter: row.balance === null ? null : row.balance / 100,
+			purpose: readableWalletActivityPurpose(row),
+			paymentMethod: row.paymentMethod,
 			referenceId: row.reference ?? "",
 			dateTime: toWAT(row.createdAt),
 			status: row.status,
@@ -1575,6 +2221,8 @@ const ManualTransactionSchema = z
 		type: z.enum(["credit", "debit"]),
 		amount: z.number().positive(),
 		reason: z.string().min(1),
+		/** Client-generated key; retries with the same key must not double-credit. */
+		idempotencyKey: z.string().min(8).max(128).optional(),
 	})
 	.openapi("ManualTransaction");
 
@@ -1587,6 +2235,34 @@ const ManualTransactionResponseSchema = z
 		}),
 	})
 	.openapi("ManualTransactionResponse");
+
+function isUniqueConstraintError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let i = 0; i < 5 && current; i++) {
+		const message =
+			current instanceof Error ? current.message : String(current);
+		if (
+			message.includes("UNIQUE constraint failed") ||
+			(message.includes("D1_ERROR") && message.toUpperCase().includes("UNIQUE"))
+		) {
+			return true;
+		}
+		current =
+			current instanceof Error && "cause" in current
+				? current.cause
+				: undefined;
+	}
+	return false;
+}
+
+function manualReferenceFromKey(idempotencyKey: string | undefined): string {
+	if (idempotencyKey) {
+		return idempotencyKey.startsWith("manual_")
+			? idempotencyKey
+			: `manual_${idempotencyKey}`;
+	}
+	return `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
 
 const postManualTransactionRoute = createRoute({
 	method: "post",
@@ -1623,6 +2299,10 @@ const postManualTransactionRoute = createRoute({
 		},
 		400: {
 			description: "Invalid request",
+			content: { "application/json": { schema: AdminErrorSchema } },
+		},
+		500: {
+			description: "Server error before money moved",
 			content: { "application/json": { schema: AdminErrorSchema } },
 		},
 	},
@@ -1664,9 +2344,15 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	const userId = c.req.param("userId");
 	const body = c.req.valid("json");
 	const db = drizzle(c.env.DB, { schema });
+	const reference = manualReferenceFromKey(body.idempotencyKey);
 
 	const [existingUser] = await db
-		.select({ id: schema.user.id })
+		.select({
+			id: schema.user.id,
+			name: schema.user.name,
+			email: schema.user.email,
+			mobileNumber: schema.user.mobileNumber,
+		})
 		.from(schema.user)
 		.where(eq(schema.user.id, userId))
 		.limit(1);
@@ -1686,48 +2372,179 @@ userRoute.openapi(postManualTransactionRoute, async (c) => {
 	}
 
 	const amountInKobo = Math.round(body.amount * 100);
-	const newBalance =
-		body.type === "credit"
-			? walletRow.balance + amountInKobo
-			: walletRow.balance - amountInKobo;
+	const oldBalanceKobo = walletRow.balance;
 
-	if (body.type === "debit" && newBalance < 0) {
+	const [existingByRef] = await db
+		.select({
+			id: schema.walletTransaction.id,
+			balance: schema.walletTransaction.balance,
+			status: schema.walletTransaction.status,
+		})
+		.from(schema.walletTransaction)
+		.where(eq(schema.walletTransaction.reference, reference))
+		.limit(1);
+
+	if (existingByRef?.status === "success") {
+		const [liveWallet] = await db
+			.select({ balance: schema.wallet.balance })
+			.from(schema.wallet)
+			.where(eq(schema.wallet.userId, userId))
+			.limit(1);
 		return c.json(
-			{ success: false as const, error: "Insufficient balance" },
-			400,
+			{
+				success: true as const,
+				data: {
+					transactionId: existingByRef.id,
+					newBalance:
+						(liveWallet?.balance ?? existingByRef.balance ?? oldBalanceKobo) /
+						100,
+				},
+			},
+			200,
 		);
 	}
 
 	const txnId = `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const provisionalBalance =
+		body.type === "credit"
+			? oldBalanceKobo + amountInKobo
+			: oldBalanceKobo - amountInKobo;
 
-	await db.insert(schema.walletTransaction).values({
-		id: txnId,
-		userId,
-		amount: amountInKobo,
-		type: body.type,
-		reference: `manual_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-		status: "success",
-		paymentMethod: "manual",
-		balance: newBalance,
-		metadata: JSON.stringify({
-			reason: body.reason,
-			processedBy: session.adminId,
-			description: `Manual ${body.type} - ${body.reason}`,
-		}),
-		createdAt: new Date(),
-	});
+	try {
+		await db.insert(schema.walletTransaction).values({
+			id: txnId,
+			userId,
+			amount: amountInKobo,
+			type: body.type,
+			reference,
+			status: "pending",
+			paymentMethod: "manual",
+			balance: provisionalBalance,
+			metadata: JSON.stringify({
+				reason: body.reason,
+				processedBy: session.adminId,
+				description: `Manual ${body.type} - ${body.reason}`,
+				idempotencyKey: body.idempotencyKey ?? null,
+			}),
+			createdAt: new Date(),
+		});
+	} catch (error) {
+		if (isUniqueConstraintError(error)) {
+			const [raced] = await db
+				.select({
+					id: schema.walletTransaction.id,
+					balance: schema.walletTransaction.balance,
+					status: schema.walletTransaction.status,
+				})
+				.from(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.reference, reference))
+				.limit(1);
+			if (raced?.status === "success") {
+				const [liveWallet] = await db
+					.select({ balance: schema.wallet.balance })
+					.from(schema.wallet)
+					.where(eq(schema.wallet.userId, userId))
+					.limit(1);
+				return c.json(
+					{
+						success: true as const,
+						data: {
+							transactionId: raced.id,
+							newBalance:
+								(liveWallet?.balance ?? raced.balance ?? oldBalanceKobo) / 100,
+						},
+					},
+					200,
+				);
+			}
+			// Another request holds the claim and may not have settled yet.
+			return c.json(
+				{
+					success: false as const,
+					error: "Transaction already in progress. Try again shortly.",
+				},
+				500,
+			);
+		}
+		throw error;
+	}
 
+	let updatedWallet: { balance: number } | undefined;
+	try {
+		updatedWallet =
+			body.type === "credit"
+				? await creditWallet(db, userId, amountInKobo)
+				: await debitWallet(db, userId, amountInKobo);
+		if (!updatedWallet) {
+			await db
+				.delete(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.id, txnId));
+			return c.json(
+				{
+					success: false as const,
+					error: "Insufficient balance or wallet update failed",
+				},
+				400,
+			);
+		}
+	} catch (error) {
+		try {
+			await db
+				.delete(schema.walletTransaction)
+				.where(eq(schema.walletTransaction.id, txnId));
+		} catch {
+			// Keep the wallet error; the claim must not block a later retry.
+		}
+		throw error;
+	}
+
+	const committedBalance = updatedWallet.balance;
 	await db
-		.update(schema.wallet)
-		.set({ balance: newBalance })
-		.where(eq(schema.wallet.id, walletRow.id));
+		.update(schema.walletTransaction)
+		.set({
+			status: "success",
+			balance: committedBalance,
+		})
+		.where(eq(schema.walletTransaction.id, txnId));
+
+	try {
+		await recordActivityForSession(
+			c.env,
+			session.adminId,
+			body.type === "credit"
+				? adminActivityActions.manualCredit
+				: adminActivityActions.manualDebit,
+			{
+				targetUser: {
+					id: existingUser.id,
+					name: existingUser.name,
+					email: existingUser.email,
+					username: existingUser.mobileNumber,
+				},
+				details: {
+					transactionType: body.type,
+					amount: body.amount,
+					currency: "NGN",
+					reason: body.reason,
+					transactionId: txnId,
+					balanceAfter: committedBalance / 100,
+				},
+			},
+		);
+	} catch (error) {
+		console.error("Failed to record admin activity after manual wallet txn", {
+			reference,
+			txnId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
 				transactionId: txnId,
-				newBalance: newBalance / 100,
+				newBalance: committedBalance / 100,
 			},
 		},
 		200,

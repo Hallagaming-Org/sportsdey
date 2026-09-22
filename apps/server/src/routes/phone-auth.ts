@@ -1,8 +1,13 @@
 import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { and, desc, eq, gt, gte, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { createHashCookie, createSignedSessionCookieString } from "@/auth";
+import {
+	createAuth,
+	createHashCookie,
+	createSignedSessionCookieString,
+} from "@/auth";
 import { SESSION_TTL_MS } from "@/constants/session";
 import * as schema from "@/db/schema";
 import {
@@ -10,12 +15,23 @@ import {
 	scheduleBonusEnginePlayerOnAppLogin,
 } from "@/services/bonus-engine";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
+import { isD1CapacityError } from "@/utils/d1-errors";
+import {
+	normalizeNigerianPhone,
+	phoneNumberLookupValues,
+	phonePlaceholderEmailLookupValues,
+} from "@/utils/nigerian-phone";
 import {
 	buildPhonePlaceholderEmail,
 	buildPhonePlaceholderName,
 	isDefaultPhoneUserName,
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
+import {
+	AuthLoginDataSchema,
+	buildAuthLoginResponse,
+} from "@/utils/auth-login-response";
+import { scheduleWebengageUserProfileSync } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const phoneAuthRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -26,16 +42,31 @@ const OTP_MAX_ATTEMPTS = 5;
 const OTP_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_REQUESTS_PER_WINDOW = 5;
 
-const NIGERIAN_LOCAL_REGEX = /^0[789][01]\d{8}$/;
-const NIGERIAN_INTL_REGEX = /^(?:\+?234)[789][01]\d{8}$/;
+const PhoneAuthPurposeSchema = z
+	.enum(["signup", "login", "reset"])
+	.optional()
+	.openapi({ example: "signup" });
 
 const RequestOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
+	/** When `signup`, reject numbers that already have an account. */
+	purpose: PhoneAuthPurposeSchema,
 });
 
 const VerifyOtpSchema = z.object({
 	phoneNumber: z.string().openapi({ example: "08012345678" }),
 	otp: z.string().length(6).openapi({ example: "123456" }),
+	/** When `signup`, reject numbers that already have an account. */
+	purpose: PhoneAuthPurposeSchema,
+});
+
+const PhonePasswordSchema = z.object({
+	phoneNumber: z.string().openapi({ example: "08012345678" }),
+	password: z.string().min(6).openapi({ example: "secret12" }),
+});
+
+const SetPasswordSchema = z.object({
+	password: z.string().min(6).openapi({ example: "secret12" }),
 });
 
 const SuccessMessageSchema = z.object({
@@ -47,18 +78,7 @@ const SuccessMessageSchema = z.object({
 
 const VerifySuccessSchema = z.object({
 	success: z.literal(true),
-	data: z.object({
-		message: z.string(),
-		expiresAt: z.string(),
-		user: z.object({
-			id: z.string(),
-			name: z.string(),
-			email: z.string(),
-			mobileNumber: z.string().nullable(),
-		}),
-		isFirstTimeSignIn: z.boolean().optional(),
-		needsProfileCompletion: z.boolean().optional(),
-	}),
+	data: AuthLoginDataSchema,
 });
 
 const ErrorSchema = z.object({
@@ -68,45 +88,13 @@ const ErrorSchema = z.object({
 });
 
 function normalizePhone(phone: string): string | null {
-	const cleaned = phone.replace(/\s+/g, "").replace(/-/g, "");
-	if (NIGERIAN_LOCAL_REGEX.test(cleaned)) {
-		return `+234${cleaned.slice(1)}`;
-	}
-	if (NIGERIAN_INTL_REGEX.test(cleaned)) {
-		return cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
-	}
-	return null;
+	return normalizeNigerianPhone(phone);
 }
 
-/** Formats that may already exist on a user row from older writes or account edits. */
-function phoneNumberLookupValues(e164Phone: string): string[] {
-	const digits = e164Phone.replace(/\D/g, "");
-	const local =
-		digits.startsWith("234") && digits.length === 13
-			? `0${digits.slice(3)}`
-			: null;
-	return Array.from(
-		new Set(
-			[
-				e164Phone,
-				digits,
-				local,
-				digits.startsWith("234") ? `+${digits}` : null,
-			].filter((value): value is string => Boolean(value)),
-		),
-	);
-}
+const PHONE_ALREADY_REGISTERED_ERROR =
+	"This phone number is already registered. Please log in instead.";
 
-/**
- * Complete-profile is only for users who still have the generated `User ####` name.
- * Once they set a real name, returning logins should skip onboarding even if email
- * is still the phone placeholder.
- */
-function needsProfileCompletion(user: { name: string }): boolean {
-	const name = user.name.trim();
-	return name.length <= 1 || isDefaultPhoneUserName(name);
-}
-
+/** Phone-OTP rows that still look like unresolved placeholders (name + email). */
 function isUnresolvedPhonePlaceholder(user: {
 	name: string;
 	email: string;
@@ -155,7 +143,11 @@ function generateOtp(): string {
 }
 
 function createSessionToken(): string {
-	return crypto.randomBytes(64).toString("hex");
+	const bytes = new Uint8Array(64);
+	crypto.getRandomValues(bytes);
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "hex")).join(
+		"",
+	);
 }
 
 function verificationId(): string {
@@ -164,6 +156,161 @@ function verificationId(): string {
 
 function userId(): string {
 	return `${crypto.randomUUID()}`;
+}
+
+type PhoneDb = ReturnType<typeof drizzle<typeof schema>>;
+
+async function findUserByPhone(db: PhoneDb, phoneNumber: string) {
+	const phoneLookup = phoneNumberLookupValues(phoneNumber);
+	const placeholderEmails = phonePlaceholderEmailLookupValues(phoneNumber);
+	const matches = await db
+		.select({
+			user: schema.user,
+			credentialPassword: schema.account.password,
+		})
+		.from(schema.user)
+		.leftJoin(
+			schema.account,
+			and(
+				eq(schema.account.userId, schema.user.id),
+				eq(schema.account.providerId, "credential"),
+			),
+		)
+		.where(
+			or(
+				inArray(schema.user.mobileNumber, phoneLookup),
+				inArray(schema.user.email, placeholderEmails),
+			),
+		)
+		.orderBy(desc(schema.user.updatedAt));
+
+	if (matches.length === 0) return null;
+
+	const withPassword = matches.find((row) => row.credentialPassword);
+	return (withPassword ?? matches[0])?.user ?? null;
+}
+
+async function upsertCredentialPassword(
+	db: PhoneDb,
+	user: { id: string; email: string },
+	password: string,
+) {
+	const hashed = await hashPassword(password);
+	const now = new Date();
+	const [existing] = await db
+		.select()
+		.from(schema.account)
+		.where(
+			and(
+				eq(schema.account.userId, user.id),
+				eq(schema.account.providerId, "credential"),
+			),
+		)
+		.limit(1);
+
+	if (existing) {
+		await db
+			.update(schema.account)
+			.set({
+				password: hashed,
+				updatedAt: now,
+			})
+			.where(eq(schema.account.id, existing.id));
+		return;
+	}
+
+	await db.insert(schema.account).values({
+		id: `${crypto.randomUUID()}`,
+		accountId: user.email,
+		providerId: "credential",
+		userId: user.id,
+		password: hashed,
+		createdAt: now,
+		updatedAt: now,
+	});
+}
+
+async function issuePhoneSession(
+	c: {
+		env: CloudflareBindings;
+		req: { header: (name: string) => string | undefined };
+		header: (name: string, value: string, opts?: { append: boolean }) => void;
+	},
+	db: PhoneDb,
+	signedInUser: typeof schema.user.$inferSelect,
+	isFirstTimeSignIn: boolean,
+) {
+	const token = createSessionToken();
+	const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+	const loginIp = c.req.header("cf-connecting-ip") || null;
+	const userAgent = c.req.header("user-agent") || null;
+	const now = new Date();
+	const sessionId = `${crypto.randomUUID()}`;
+
+	await db.insert(schema.session).values({
+		id: sessionId,
+		token,
+		expiresAt,
+		createdAt: now,
+		updatedAt: now,
+		userId: signedInUser.id,
+		ipAddress: loginIp,
+		userAgent,
+	});
+
+	await db
+		.update(schema.user)
+		.set({ lastLoginIp: loginIp })
+		.where(eq(schema.user.id, signedInUser.id));
+
+	scheduleBonusEnginePlayerOnAppLogin({
+		env: c.env,
+		userId: signedInUser.id,
+		username: signedInUser.name || signedInUser.email || signedInUser.id,
+		executionCtx: optionalExecutionCtx(c),
+	});
+
+	const authSecret = c.env.BETTER_AUTH_SECRET?.trim();
+	if (!authSecret) {
+		throw new Error("BETTER_AUTH_SECRET is missing or empty");
+	}
+
+	const sessionCookie = await createSignedSessionCookieString(
+		token,
+		authSecret,
+		{
+			nodeEnv: c.env.NODE_ENV,
+			authUrl: c.env.BETTER_AUTH_URL,
+		},
+	);
+	c.header("Set-Cookie", sessionCookie, { append: true });
+
+	const hashCookie = createHashCookie(
+		token,
+		c.env.NODE_ENV,
+		c.env.BETTER_AUTH_URL,
+	);
+	c.header("Set-Cookie", hashCookie, { append: true });
+
+	// Parity with Better Auth `bearer` plugin (used by mobile / cross-origin clients).
+	c.header("set-auth-token", token);
+	c.header("Access-Control-Expose-Headers", "set-auth-token");
+
+	return buildAuthLoginResponse({
+		session: {
+			id: sessionId,
+			token,
+			userId: signedInUser.id,
+			expiresAt,
+			createdAt: now,
+			updatedAt: now,
+			ipAddress: loginIp,
+			userAgent,
+		},
+		user: signedInUser,
+		message: "Sign-in successful.",
+		isFirstTimeSignIn,
+	});
 }
 
 const requestOtpRoute = createRoute({
@@ -181,6 +328,10 @@ const requestOtpRoute = createRoute({
 		},
 		400: {
 			description: "Bad request",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		409: {
+			description: "Phone already registered (signup)",
 			content: { "application/json": { schema: ErrorSchema } },
 		},
 		429: {
@@ -219,6 +370,10 @@ const verifyOtpRoute = createRoute({
 			description: "Invalid OTP",
 			content: { "application/json": { schema: ErrorSchema } },
 		},
+		409: {
+			description: "Phone already registered (signup)",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
 		429: {
 			description: "Too many attempts",
 			content: { "application/json": { schema: ErrorSchema } },
@@ -230,8 +385,56 @@ const verifyOtpRoute = createRoute({
 	},
 });
 
+const loginRoute = createRoute({
+	method: "post",
+	path: "/login",
+	tags: ["Phone Auth"],
+	summary: "Sign in with phone number and password",
+	request: {
+		body: { content: { "application/json": { schema: PhonePasswordSchema } } },
+	},
+	responses: {
+		200: {
+			description: "Signed in",
+			content: { "application/json": { schema: VerifySuccessSchema } },
+		},
+		400: {
+			description: "Bad request",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		401: {
+			description: "Invalid credentials",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
+const setPasswordRoute = createRoute({
+	method: "post",
+	path: "/set-password",
+	tags: ["Phone Auth"],
+	summary: "Set or replace password for the signed-in phone user",
+	request: {
+		body: { content: { "application/json": { schema: SetPasswordSchema } } },
+	},
+	responses: {
+		200: {
+			description: "Password saved",
+			content: { "application/json": { schema: SuccessMessageSchema } },
+		},
+		400: {
+			description: "Bad request",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+		401: {
+			description: "Unauthorized",
+			content: { "application/json": { schema: ErrorSchema } },
+		},
+	},
+});
+
 phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber } = c.req.valid("json");
+	const { phoneNumber: rawPhoneNumber, purpose } = c.req.valid("json");
 	const phoneNumber = normalizePhone(rawPhoneNumber);
 	if (!phoneNumber) {
 		return c.json(
@@ -251,6 +454,30 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+	const existing = await findUserByPhone(db, phoneNumber);
+
+	// Missing purpose is treated as signup so mobile clients that omit it
+	// cannot re-OTP registered numbers.
+	if (purpose === "login" || purpose === "reset") {
+		if (!existing) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No account found for this phone number. Please sign up.",
+				},
+				404,
+			);
+		}
+	} else if (existing) {
+		return c.json(
+			{
+				success: false as const,
+				error: PHONE_ALREADY_REGISTERED_ERROR,
+			},
+			409,
+		);
+	}
+
 	const identifier = `phone_login:${phoneNumber}`;
 	const now = new Date();
 
@@ -302,14 +529,12 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 	const otpHash = hashOtp(otp);
 	const message = `Your SportsDey verification code is ${otp}. It expires in 5 minutes.`;
 
-
 	//  To be the deleted
 	// console.log("AT env check:", {
 	// 	username: c.env.AFRICASTALKING_USERNAME,
 	// 	apiKeyLength: c.env.AFRICASTALKING_API_KEY?.length,
 	// 	apiKeyPreview: c.env.AFRICASTALKING_API_KEY?.slice(0, 10),
 	// });
-
 
 	const providerResult = await sendOtpWithAfricaTalking({
 		apiKey: c.env.AFRICASTALKING_API_KEY,
@@ -353,7 +578,7 @@ phoneAuthRoute.openapi(requestOtpRoute, async (c) => {
 });
 
 phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
-	const { phoneNumber: rawPhoneNumber, otp } = c.req.valid("json");
+	const { phoneNumber: rawPhoneNumber, otp, purpose } = c.req.valid("json");
 	const phoneNumber = normalizePhone(rawPhoneNumber);
 	if (!phoneNumber) {
 		return c.json(
@@ -366,6 +591,29 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 	}
 
 	const db = drizzle(c.env.DB, { schema });
+	const existingForPurpose = await findUserByPhone(db, phoneNumber);
+
+	if (purpose === "login" || purpose === "reset") {
+		if (!existingForPurpose) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No account found for this phone number. Please sign up.",
+				},
+				404,
+			);
+		}
+	} else if (existingForPurpose) {
+		// signup or omitted purpose — never allow another registration OTP/verify
+		return c.json(
+			{
+				success: false as const,
+				error: PHONE_ALREADY_REGISTERED_ERROR,
+			},
+			409,
+		);
+	}
+
 	const identifier = `phone_login:${phoneNumber}`;
 
 	const [otpRecord] = await db
@@ -432,7 +680,7 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 
 	const phoneDigits = phoneNumber.replace(/\D/g, "");
 	const phoneLookup = phoneNumberLookupValues(phoneNumber);
-	const placeholderEmail = buildPhonePlaceholderEmail(phoneDigits);
+	const placeholderEmails = phonePlaceholderEmailLookupValues(phoneNumber);
 
 	const [existingByPhone] = await db
 		.select()
@@ -440,49 +688,33 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		.where(
 			or(
 				inArray(schema.user.mobileNumber, phoneLookup),
-				eq(schema.user.email, placeholderEmail),
+				inArray(schema.user.email, placeholderEmails),
 			),
 		)
 		.limit(1);
 
-	const recoverableOrphan = await findRecoverablePhoneOrphan(db);
-
 	let signedInUser = existingByPhone ?? null;
 	let isFirstTimeSignIn = false;
+	const isSignupFlow = purpose !== "login" && purpose !== "reset";
 
-	// A newer incomplete phone row can shadow the real profile after mobile_number
-	// was wiped by a bad PATCH. Prefer the completed orphan and drop the duplicate.
-	if (
-		signedInUser &&
-		isUnresolvedPhonePlaceholder(signedInUser) &&
-		recoverableOrphan &&
-		recoverableOrphan.id !== signedInUser.id
-	) {
-		await db
-			.delete(schema.session)
-			.where(eq(schema.session.userId, signedInUser.id));
-		await db.delete(schema.user).where(eq(schema.user.id, signedInUser.id));
-		signedInUser = null;
-	}
+	if (isSignupFlow) {
+		if (signedInUser) {
+			return c.json(
+				{
+					success: false as const,
+					error: PHONE_ALREADY_REGISTERED_ERROR,
+				},
+				409,
+			);
+		}
 
-	if (!signedInUser && recoverableOrphan) {
-		const [reattached] = await db
-			.update(schema.user)
-			.set({ mobileNumber: phoneNumber })
-			.where(eq(schema.user.id, recoverableOrphan.id))
-			.returning();
-		signedInUser = reattached ?? recoverableOrphan;
-	}
-
-	if (!signedInUser) {
 		isFirstTimeSignIn = true;
-
 		const [newUser] = await db
 			.insert(schema.user)
 			.values({
 				id: userId(),
 				name: buildPhonePlaceholderName(phoneDigits),
-				email: placeholderEmail,
+				email: buildPhonePlaceholderEmail(phoneDigits),
 				emailVerified: false,
 				mobileNumber: phoneNumber,
 				verificationStatus: "pending_verification",
@@ -495,14 +727,52 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 			);
 		}
 		signedInUser = newUser;
-	} else if (signedInUser.mobileNumber !== phoneNumber) {
-		const [updatedUser] = await db
-			.update(schema.user)
-			.set({ mobileNumber: phoneNumber })
-			.where(eq(schema.user.id, signedInUser.id))
-			.returning();
-		if (updatedUser) {
-			signedInUser = updatedUser;
+	} else {
+		const recoverableOrphan = await findRecoverablePhoneOrphan(db);
+
+		// A newer incomplete phone row can shadow the real profile after mobile_number
+		// was wiped by a bad PATCH. Prefer the completed orphan and drop the duplicate.
+		if (
+			signedInUser &&
+			isUnresolvedPhonePlaceholder(signedInUser) &&
+			recoverableOrphan &&
+			recoverableOrphan.id !== signedInUser.id
+		) {
+			await db
+				.delete(schema.session)
+				.where(eq(schema.session.userId, signedInUser.id));
+			await db.delete(schema.user).where(eq(schema.user.id, signedInUser.id));
+			signedInUser = null;
+		}
+
+		if (!signedInUser && recoverableOrphan) {
+			const [reattached] = await db
+				.update(schema.user)
+				.set({ mobileNumber: phoneNumber })
+				.where(eq(schema.user.id, recoverableOrphan.id))
+				.returning();
+			signedInUser = reattached ?? recoverableOrphan;
+		}
+
+		if (!signedInUser) {
+			return c.json(
+				{
+					success: false as const,
+					error: "No account found for this phone number. Please sign up.",
+				},
+				404,
+			);
+		}
+
+		if (signedInUser.mobileNumber !== phoneNumber) {
+			const [updatedUser] = await db
+				.update(schema.user)
+				.set({ mobileNumber: phoneNumber })
+				.where(eq(schema.user.id, signedInUser.id))
+				.returning();
+			if (updatedUser) {
+				signedInUser = updatedUser;
+			}
 		}
 	}
 
@@ -513,68 +783,166 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		);
 	}
 
-	const profileIncomplete = needsProfileCompletion(signedInUser);
-
-	const token = createSessionToken();
-	const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-	const loginIp = c.req.header("cf-connecting-ip") || null;
-	const now = new Date();
-
-	await db.insert(schema.session).values({
-		id: `${crypto.randomUUID()}`,
-		token,
-		expiresAt,
-		createdAt: now,
-		updatedAt: now,
-		userId: signedInUser.id,
-		ipAddress: loginIp,
-		userAgent: c.req.header("user-agent") || null,
-	});
-
-	await db
-		.update(schema.user)
-		.set({ lastLoginIp: loginIp })
-		.where(eq(schema.user.id, signedInUser.id));
-
-	scheduleBonusEnginePlayerOnAppLogin({
-		env: c.env,
-		userId: signedInUser.id,
-		username: signedInUser.name || signedInUser.email || signedInUser.id,
-		executionCtx: optionalExecutionCtx(c),
-	});
-
-	const sessionCookie = await createSignedSessionCookieString(
-		token,
-		c.env.BETTER_AUTH_SECRET,
-		{
-			nodeEnv: c.env.NODE_ENV,
-			authUrl: c.env.BETTER_AUTH_URL,
-		},
+	const sessionData = await issuePhoneSession(
+		c,
+		db,
+		signedInUser,
+		isFirstTimeSignIn,
 	);
-	c.header("Set-Cookie", sessionCookie, { append: true });
 
-	const hashCookie = createHashCookie(
-		token,
-		c.env.NODE_ENV,
-		c.env.BETTER_AUTH_URL,
-	);
-	c.header("Set-Cookie", hashCookie, { append: true });
+	if (isFirstTimeSignIn) {
+		scheduleWebengageUserProfileSync(c.env, signedInUser.id, c.executionCtx);
+	}
 
 	return c.json(
 		{
 			success: true as const,
 			data: {
+				...sessionData,
 				message: "Phone number verified. Sign-in successful.",
-				expiresAt: expiresAt.toISOString(),
-				user: {
-					id: signedInUser.id,
-					name: signedInUser.name,
-					email: signedInUser.email,
-					mobileNumber: signedInUser.mobileNumber,
-				},
-				isFirstTimeSignIn,
-				needsProfileCompletion: profileIncomplete,
 			},
+		},
+		200,
+	);
+});
+
+phoneAuthRoute.openapi(loginRoute, async (c) => {
+	try {
+		const { phoneNumber: rawPhoneNumber, password } = c.req.valid("json");
+		const phoneNumber = normalizePhone(rawPhoneNumber);
+		if (!phoneNumber) {
+			return c.json(
+				{
+					success: false as const,
+					error: "Invalid Nigerian phone number",
+				},
+				400,
+			);
+		}
+
+		const db = drizzle(c.env.DB, { schema });
+		const signedInUser = await findUserByPhone(db, phoneNumber);
+		if (!signedInUser) {
+			return c.json(
+				{ success: false as const, error: "Invalid phone number or password" },
+				401,
+			);
+		}
+
+		const [credential] = await db
+			.select()
+			.from(schema.account)
+			.where(
+				and(
+					eq(schema.account.userId, signedInUser.id),
+					eq(schema.account.providerId, "credential"),
+				),
+			)
+			.limit(1);
+
+		if (!credential?.password) {
+			return c.json(
+				{
+					success: false as const,
+					error:
+						"This account has no password yet. Use Forgot password to set one.",
+				},
+				401,
+			);
+		}
+
+		let passwordOk = false;
+		try {
+			passwordOk = await verifyPassword({
+				hash: credential.password,
+				password,
+			});
+		} catch (error) {
+			console.error("phone-auth/login password verify error", {
+				userId: signedInUser.id,
+				error,
+			});
+			return c.json(
+				{ success: false as const, error: "Invalid phone number or password" },
+				401,
+			);
+		}
+
+		if (!passwordOk) {
+			return c.json(
+				{ success: false as const, error: "Invalid phone number or password" },
+				401,
+			);
+		}
+
+		const sessionData = await issuePhoneSession(c, db, signedInUser, false);
+		return c.json({ success: true as const, data: sessionData }, 200);
+	} catch (error) {
+		if (isD1CapacityError(error)) {
+			console.error("phone-auth/login D1 capacity error", error);
+			return c.json(
+				{
+					success: false as const,
+					error: "Service temporarily unavailable. Please try again shortly.",
+				},
+				503,
+			);
+		}
+		throw error;
+	}
+});
+
+phoneAuthRoute.openapi(setPasswordRoute, async (c) => {
+	const auth = createAuth(c.env);
+	const db = drizzle(c.env.DB, { schema });
+
+	let userId = (
+		await auth.api.getSession({
+			headers: c.req.raw.headers,
+		})
+	)?.user?.id;
+
+	// Phone clients may send the raw session token as Bearer when cookies do not stick.
+	if (!userId) {
+		const authHeader = c.req.header("authorization") || "";
+		if (authHeader.toLowerCase().startsWith("bearer ")) {
+			const rawToken = authHeader.slice(7).trim().split(".")[0];
+			if (rawToken) {
+				const [row] = await db
+					.select({ userId: schema.session.userId })
+					.from(schema.session)
+					.where(
+						and(
+							eq(schema.session.token, rawToken),
+							gt(schema.session.expiresAt, new Date()),
+						),
+					)
+					.limit(1);
+				userId = row?.userId;
+			}
+		}
+	}
+
+	if (!userId) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	const { password } = c.req.valid("json");
+	const [user] = await db
+		.select()
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+
+	if (!user) {
+		return c.json({ success: false as const, error: "Unauthorized" }, 401);
+	}
+
+	await upsertCredentialPassword(db, user, password);
+	return c.json(
+		{
+			success: true as const,
+			data: { message: "Password updated successfully" },
 		},
 		200,
 	);

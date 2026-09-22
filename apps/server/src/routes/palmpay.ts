@@ -1,0 +1,332 @@
+import crypto from "node:crypto";
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import * as schema from "@/db/schema";
+import { trackWebengageEvent } from "@/lib/webengage";
+import {
+	createPalmPayOrder,
+	assertPalmPaySigningKey,
+	PalmPayNetworkError,
+	PalmPayProviderError,
+	queryPalmPayOrder,
+	verifyPalmPay,
+} from "@/lib/palmpay/client";
+import type { CloudflareBindings } from "../types";
+
+const route = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+const Input = z.object({
+	amount: z.number().finite().min(100).max(9_999_999),
+});
+const ErrorSchema = z.object({
+	success: z.literal(false),
+	error: z.string(),
+});
+
+route.openapi(
+	createRoute({
+		method: "get",
+		path: "/status/{reference}",
+		tags: ["PalmPay"],
+		summary: "Check a PalmPay deposit status",
+		security: [{ BearerAuth: [] }],
+		request: { params: z.object({ reference: z.string().startsWith("palm_") }) },
+		responses: {
+			200: { description: "Status retrieved" },
+			401: { description: "Unauthorized" },
+			404: { description: "Transaction not found" },
+		},
+	}),
+	async (c) => {
+		const user = c.get("user");
+		if (!user) return c.json({ success: false as const, error: "Unauthorized" }, 401);
+		const { reference } = c.req.valid("param");
+		const db = drizzle(c.env.DB, { schema });
+		const [transaction] = await db
+			.select({ status: schema.palmpayTransaction.status })
+			.from(schema.palmpayTransaction)
+			.where(and(eq(schema.palmpayTransaction.reference, reference), eq(schema.palmpayTransaction.userId, user.id)))
+			.limit(1);
+		if (!transaction) return c.json({ success: false as const, error: "Transaction not found" }, 404);
+		return c.json({ success: true as const, data: { status: transaction.status } }, 200);
+	},
+);
+
+route.openapi(
+	createRoute({
+		method: "post",
+		path: "/initiate",
+		tags: ["PalmPay"],
+		summary: "Initiate a PalmPay bank-transfer deposit",
+		security: [{ BearerAuth: [] }],
+		request: {
+			body: { content: { "application/json": { schema: Input } } },
+		},
+		responses: {
+			200: { description: "Order created" },
+			400: { description: "Invalid request" },
+			401: { description: "Unauthorized" },
+			500: {
+				description: "Provider error",
+				content: { "application/json": { schema: ErrorSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const user = c.get("user");
+		if (!user) {
+			return c.json({ success: false as const, error: "Unauthorized" }, 401);
+		}
+		const input = Input.safeParse(await c.req.json());
+		if (!input.success) {
+			return c.json(
+				{ success: false as const, error: "Minimum PalmPay deposit is ₦100" },
+				400,
+			);
+		}
+		if (
+			!c.env.PALMPAY_APP_ID ||
+			!c.env.PALMPAY_MERCHANT_PRIVATE_KEY ||
+			!c.env.PALMPAY_PLATFORM_PUBLIC_KEY
+		) {
+			return c.json(
+				{ success: false as const, error: "PalmPay is not configured" },
+				500,
+			);
+		}
+		const isProductionWorker = c.env.NODE_ENV === "production";
+		const isProductionPalmPay = c.env.PALMPAY_ENV === "production";
+		if (isProductionWorker !== isProductionPalmPay) {
+			console.error("PalmPay environment configuration mismatch", {
+				workerEnvironment: c.env.NODE_ENV,
+				palmPayEnvironment: c.env.PALMPAY_ENV ?? "unset",
+			});
+			return c.json(
+				{ success: false as const, error: "PalmPay is unavailable on this environment." },
+				503,
+			);
+		}
+		try {
+			assertPalmPaySigningKey(c.env.PALMPAY_MERCHANT_PRIVATE_KEY);
+		} catch (error) {
+			console.error("PalmPay configuration is invalid", {
+				operation: "validate_signing_key",
+				reason: error instanceof Error ? error.name : "UnknownError",
+			});
+			return c.json(
+				{ success: false as const, error: "PalmPay signing key is invalid or missing. Contact support." },
+				503,
+			);
+		}
+		const db = drizzle(c.env.DB, { schema });
+		// PalmPay permits merchant order IDs up to 32 characters.
+		const reference = `palm_${crypto.randomUUID().replaceAll("-", "").slice(0, 27)}`;
+		const amount = Math.round(input.data.amount * 100);
+		const amountMajor = input.data.amount;
+		try {
+			await db.insert(schema.palmpayTransaction).values({
+				id: `palmtxn_${crypto.randomUUID()}`,
+				userId: user.id,
+				reference,
+				amount,
+				status: "initiated",
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+			await db.insert(schema.walletTransaction).values({
+				id: `wtxn_${crypto.randomUUID()}`,
+				userId: user.id,
+				amount,
+				type: "credit",
+				reference,
+				status: "pending",
+				paymentMethod: "palmpay",
+				createdAt: new Date(),
+			});
+			void trackWebengageEvent(
+				c.env,
+				{
+					userId: user.id,
+					eventName: "deposit_initiated",
+					eventData: {
+						amount: amountMajor,
+						currency: "NGN",
+						payment_method: "palmpay",
+						transaction_id: reference,
+					},
+				},
+				c.executionCtx,
+			);
+			const order = await createPalmPayOrder(c.env, {
+				reference,
+				amount,
+				userId: user.id,
+				mobile: user.mobileNumber ?? undefined,
+			});
+			await db
+				.update(schema.palmpayTransaction)
+				.set({
+					status: "pending",
+					orderNo: order.orderNo,
+					checkoutUrl: order.checkoutUrl,
+					updatedAt: new Date(),
+				})
+				.where(eq(schema.palmpayTransaction.reference, reference));
+			return c.json(
+				{
+					success: true as const,
+					data: { checkoutUrl: order.checkoutUrl, reference },
+				},
+				200,
+			);
+		} catch (error) {
+			console.error("PalmPay deposit initiation failed", {
+				operation: "create_order",
+				reason: error instanceof Error ? error.name : "UnknownError",
+				message: error instanceof Error ? error.message.slice(0, 160) : undefined,
+				providerStatus: error instanceof PalmPayProviderError ? error.providerStatus : undefined,
+				providerCode: error instanceof PalmPayProviderError ? error.providerCode : undefined,
+				providerMessage: error instanceof PalmPayProviderError ? error.providerMessage?.slice(0, 160) : undefined,
+				networkMessage: error instanceof PalmPayNetworkError ? error.networkMessage : undefined,
+			});
+			await db
+				.update(schema.palmpayTransaction)
+				.set({ status: "failed", updatedAt: new Date() })
+				.where(eq(schema.palmpayTransaction.reference, reference));
+			await db
+				.update(schema.walletTransaction)
+				.set({ status: "failed" })
+				.where(eq(schema.walletTransaction.reference, reference));
+			const [wallet] = await db
+				.select({ balance: schema.wallet.balance })
+				.from(schema.wallet)
+				.where(eq(schema.wallet.userId, user.id))
+				.limit(1);
+			trackWebengageEvent(
+				c.env,
+				{
+					userId: user.id,
+					eventName: "deposit_failed",
+					eventData: {
+						amount: amountMajor,
+						payment_method: "palmpay",
+					failure_reason:
+						error instanceof PalmPayProviderError
+							? `provider_${error.providerCode}`
+							: "Unable to start PalmPay deposit",
+						wallet_balance_after: (wallet?.balance ?? 0) / 100,
+					},
+				},
+				c.executionCtx,
+			);
+			if (error instanceof PalmPayProviderError || error instanceof PalmPayNetworkError) {
+				return c.json(
+					{ success: false as const, error: "PalmPay could not create this deposit. Please try again later." },
+					502,
+				);
+			}
+			return c.json({ success: false as const, error: "Unable to start PalmPay deposit" }, 500);
+		}
+	},
+);
+
+route.openapi(
+	createRoute({
+		method: "post",
+		path: "/webhook",
+		tags: ["PalmPay"],
+		summary: "PalmPay payment callback",
+		responses: {
+			200: { description: "Acknowledged" },
+			400: { description: "Invalid callback" },
+		},
+	}),
+	async (c) => {
+		const payload = (await c.req.json().catch(() => null)) as Record<
+			string,
+			unknown
+		> | null;
+		if (
+			!payload ||
+			typeof payload.sign !== "string" ||
+			!c.env.PALMPAY_PLATFORM_PUBLIC_KEY
+		) {
+			return c.text("invalid", 400);
+		}
+		const { sign, ...signedFields } = payload;
+		if (
+			!verifyPalmPay(
+				signedFields as Record<string, string | number | undefined>,
+				sign,
+				c.env.PALMPAY_PLATFORM_PUBLIC_KEY,
+			)
+		) {
+			return c.text("invalid", 400);
+		}
+		const reference =
+			typeof payload.orderId === "string" ? payload.orderId : "";
+		if (!reference) return c.text("invalid", 400);
+		const db = drizzle(c.env.DB, { schema });
+		const [txn] = await db
+			.select()
+			.from(schema.palmpayTransaction)
+			.where(eq(schema.palmpayTransaction.reference, reference))
+			.limit(1);
+		if (!txn || txn.status === "success") return c.text("success");
+		try {
+			const current = await queryPalmPayOrder(c.env, reference);
+			if (current.orderStatus !== 2 || current.amount !== txn.amount) {
+				return c.text("success");
+			}
+			await c.env.DB.batch([
+				c.env.DB.prepare(
+					"UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM palmpay_transaction WHERE id = ? AND status != 'success')",
+				).bind(txn.amount, txn.userId, txn.id),
+				c.env.DB.prepare(
+					"UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'",
+				).bind(txn.userId, reference),
+				c.env.DB.prepare(
+					"UPDATE palmpay_transaction SET status = 'success', raw_callback_payload = ?, updated_at = ? WHERE id = ? AND status != 'success'",
+				).bind(
+					JSON.stringify({
+						orderId: payload.orderId,
+						orderNo: payload.orderNo,
+						orderStatus: payload.orderStatus,
+					}),
+					Date.now(),
+					txn.id,
+				),
+			]);
+			const [wallet] = await db
+				.select({ balance: schema.wallet.balance })
+				.from(schema.wallet)
+				.where(eq(schema.wallet.userId, txn.userId))
+				.limit(1);
+			trackWebengageEvent(
+				c.env,
+				{
+					userId: txn.userId,
+					eventName: "deposit_completed",
+					eventData: {
+						amount: txn.amount / 100,
+						currency: "NGN",
+						payment_method: "palmpay",
+						transaction_id: reference,
+						type: "credit",
+						wallet_balance_after: (wallet?.balance ?? 0) / 100,
+					},
+				},
+				c.executionCtx,
+			);
+		} catch (error) {
+			console.error("PalmPay callback confirmation failed", {
+				operation: "query_order_status",
+				reason: error instanceof Error ? error.name : "UnknownError",
+			});
+			return c.text("retry", 500);
+		}
+		return c.text("success");
+	},
+);
+
+export default route;

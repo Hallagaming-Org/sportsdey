@@ -1,4 +1,8 @@
 import type { ExecutionContext } from "hono";
+import {
+	buildWebengageUserPayload,
+	compactEventData,
+} from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
 function getConfig(env: CloudflareBindings) {
@@ -7,6 +11,54 @@ function getConfig(env: CloudflareBindings) {
 		licenseCode: env.WEBENGAGE_LICENSE_CODE,
 		host: env.WEBENGAGE_HOST,
 	};
+}
+
+function hasWebengageConfig(env: CloudflareBindings) {
+	const { apiKey, licenseCode, host } = getConfig(env);
+	return Boolean(apiKey && licenseCode && host);
+}
+
+function postWebengage(
+	env: CloudflareBindings,
+	path: "events" | "users",
+	payload: Record<string, unknown>,
+	label: string,
+	executionCtx?: ExecutionContext,
+): Promise<void> {
+	const { apiKey, licenseCode, host } = getConfig(env);
+	if (!apiKey || !licenseCode || !host) {
+		console.error("WebEngage skipped: missing API config", {
+			path,
+			label,
+			hasApiKey: Boolean(apiKey),
+			hasLicenseCode: Boolean(licenseCode),
+			hasHost: Boolean(host),
+		});
+		return Promise.resolve();
+	}
+
+	const promise = fetch(`${host}/v1/accounts/${licenseCode}/${path}`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${apiKey}`,
+		},
+		body: JSON.stringify(payload),
+	})
+		.then(async (res) => {
+			const text = await res.text();
+			if (!res.ok) {
+				console.error("WebEngage error:", path, label, res.status, text);
+				return;
+			}
+			console.log("WebEngage ok:", path, label, res.status);
+		})
+		.catch((e) => console.error("WebEngage error:", path, label, e));
+
+	if (executionCtx && typeof executionCtx.waitUntil === "function") {
+		executionCtx.waitUntil(promise);
+	}
+	return promise;
 }
 
 export function trackWebengageEvent(
@@ -18,39 +70,24 @@ export function trackWebengageEvent(
 		eventData?: Record<string, unknown>;
 	},
 	executionCtx?: ExecutionContext,
-) {
-	const { apiKey, licenseCode, host } = getConfig(env);
-	if (!apiKey || !licenseCode || !host) return;
+): Promise<void> {
+	if (!hasWebengageConfig(env)) {
+		console.error("WebEngage event skipped: missing API config", {
+			eventName: params.eventName,
+			userId: params.userId,
+		});
+		return Promise.resolve();
+	}
 
 	const { userId, eventName, eventTime, eventData } = params;
 	const payload: Record<string, unknown> = { userId, eventName };
 	if (eventTime) payload.eventTime = eventTime;
-	if (eventData) payload.eventData = eventData;
-
-	const promise = fetch(
-		`${host}/v1/accounts/${licenseCode}/events`,
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${apiKey}`,
-			},
-			body: JSON.stringify(payload),
-		},
-	)
-		.then(async (res) => {
-			if (!res.ok) {
-				const text = await res.text();
-				console.error("WebEngage event error:", res.status, text);
-			}
-		})
-		.catch((e) => console.error("WebEngage event error:", e));
-
-	if (executionCtx && typeof executionCtx.waitUntil === "function") {
-		executionCtx.waitUntil(promise);
-	} else {
-		promise.catch(() => {});
+	if (eventData) {
+		const compact = compactEventData(eventData);
+		if (Object.keys(compact).length > 0) payload.eventData = compact;
 	}
+
+	return postWebengage(env, "events", payload, eventName, executionCtx);
 }
 
 export function setWebengageUserAttributes(
@@ -65,41 +102,18 @@ export function setWebengageUserAttributes(
 	},
 	executionCtx?: ExecutionContext,
 ) {
-	const { apiKey, licenseCode, host } = getConfig(env);
-	if (!apiKey || !licenseCode || !host) return;
-
-	const { userId, email, firstName, lastName, phone, ...custom } = params;
-	const payload: Record<string, unknown> = { userId };
-	if (email) payload.email = email;
-	if (firstName) payload.firstName = firstName;
-	if (lastName) payload.lastName = lastName;
-	if (phone) payload.phone = phone;
-	for (const [key, value] of Object.entries(custom)) {
-		payload[key] = value;
+	if (!hasWebengageConfig(env)) {
+		console.error("WebEngage user skipped: missing API config", {
+			userId: params.userId,
+		});
+		return;
 	}
 
-	const promise = fetch(
-		`${host}/v1/accounts/${licenseCode}/users`,
-		{
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${apiKey}`,
-			},
-			body: JSON.stringify(payload),
-		},
-	)
-		.then(async (res) => {
-			if (!res.ok) {
-				const text = await res.text();
-				console.error("WebEngage user error:", res.status, text);
-			}
-		})
-		.catch((e) => console.error("WebEngage user error:", e));
-
-	if (executionCtx && typeof executionCtx.waitUntil === "function") {
-		executionCtx.waitUntil(promise);
-	} else {
-		promise.catch(() => {});
-	}
+	postWebengage(
+		env,
+		"users",
+		buildWebengageUserPayload(params),
+		params.userId,
+		executionCtx,
+	);
 }

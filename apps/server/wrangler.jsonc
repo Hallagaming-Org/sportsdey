@@ -2,15 +2,7 @@
 	"name": "sportsdey-server",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-06-15",
-	"compatibility_flags": [
-		"nodejs_compat"
-	],
-	// "mtls_certificates": [
-	// 	{
-	// 		"binding": "DATABET_CERT",
-	// 		"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
-	// 	}
-	// ],
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"logs": {
 			"enabled": true,
@@ -19,12 +11,9 @@
 			"persist": true
 		}
 	},
-			"vars": {
-				"NODE_ENV": "development"
-				// "CORS_ORIGIN": "http://localhost:3001",:
-				// "COOKIE_DOMAIN": "sportsdey.com",
-				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
-			},
+	"vars": {
+		"NODE_ENV": "development"
+	},
 	"env": {
 		"staging": {
 			"name": "sportsdey-staging",
@@ -50,33 +39,55 @@
 					"bucket_name": "sportsdey-staging"
 				}
 			],
-			// "mtls_certificates": [
-			// 	{
-			// 		"binding": "DATABET_CERT",
-			// 		"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
-			// 	}
-			// ],
-			"routes": [
-				"staging-api.sportsdey.com"
-			],
+			"routes": ["staging-api.sportsdey.com"],
+			"queues": {
+				"producers": [
+					{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-staging-exports" }
+				],
+				"consumers": [
+					{
+						"queue": "sportsdey-staging-exports",
+						"max_batch_size": 10,
+						"max_concurrency": 8,
+						"max_retries": 3
+					}
+				]
+			},
+			"triggers": { "crons": ["0 * * * *"] },
 			"vars": {
-				"NODE_ENV": "staging"
-				// "CORS_ORIGIN": "https://staging.sportsdey.com",
-				// "COOKIE_DOMAIN": "sportsdey.com",
-				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch"
+				"NODE_ENV": "staging",
+				"PALMPAY_ENV": "sandbox",
+				"BETTER_AUTH_URL": "https://staging-api.sportsdey.com",
+				"FRONTEND_URL": "https://stagingweb.sportsdey.com",
+				"SERVER_URL": "https://staging-api.sportsdey.com",
+				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
+				"COOKIE_DOMAIN": "sportsdey.com",
+				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
+				"SWIPEGAMES_ALLOWED_IPS": "18.185.156.20"
 			}
 		},
 		"production": {
 			"name": "sportsdey-prod",
-			"routes": [
-				"api.sportsdey.com"
-			],
+			"routes": ["api.sportsdey.com"],
+			"queues": {
+				"producers": [
+					{ "binding": "EXPORT_QUEUE", "queue": "sportsdey-production-exports" }
+				],
+				"consumers": [
+					{
+						"queue": "sportsdey-production-exports",
+						"max_batch_size": 10,
+						"max_concurrency": 8,
+						"max_retries": 3
+					}
+				]
+			},
+			"triggers": { "crons": ["0 * * * *"] },
 			"d1_databases": [
 				{
 					"binding": "DB",
 					"database_name": "sportsdey_db",
 					"database_id": "d091e50e-e19f-40dc-ad77-e7050c7bbbad",
-					// "remote": false,
 					"migrations_dir": "./src/db/migrations"
 				}
 			],
@@ -84,7 +95,6 @@
 				{
 					"binding": "sportsdey_ns",
 					"id": "7720322efb504b96a392d8acfe37ad4b"
-					// "remote": false
 				}
 			],
 			"r2_buckets": [
@@ -93,19 +103,16 @@
 					"bucket_name": "sportsdey-prod"
 				}
 			],
-			// "mtls_certificates": [
-			// 	{
-			// 		"binding": "DATABET_CERT",
-			// 		"certificate_id": "f31ed126-6f8f-4f30-8722-e590b5f52b87"
-			// 	}
-			// ],
 			"vars": {
-				"NODE_ENV": "production"
-				// "CORS_ORIGIN": "https://sportsdey.com",
-				// "COOKIE_DOMAIN": "sportsdey.com",
-				// "LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
-				// Add public environment variables here
-				// Example: "CORS_ORIGIN": "https://your-domain.com"
+				"NODE_ENV": "production",
+				"PALMPAY_ENV": "production",
+				"BETTER_AUTH_URL": "https://api.sportsdey.com",
+				"FRONTEND_URL": "https://sportsdey.com",
+				"SERVER_URL": "https://api.sportsdey.com",
+				"CORS_ORIGIN": "https://sportsdey.com",
+				"COOKIE_DOMAIN": "sportsdey.com",
+				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
+				"SWIPEGAMES_ALLOWED_IPS": "3.65.138.8"
 			}
 		}
 	},
@@ -120,5 +127,5 @@
 			"binding": "PRODUCTION_BUCKET",
 			"bucket_name": "sportsdey-prod"
 		}
-]
+	]
 }

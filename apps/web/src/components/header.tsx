@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight, Undo2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { apiRequest } from "@/lib/api";
@@ -12,12 +12,12 @@ import MenuBar from "@/logos/MenuBar";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
-import AeroplaneIcon from "@/logos/aeroplane.svg?react";
 import WorldIcon from "@/logos/world.svg?react";
-import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
 import { WalletBalanceMenu } from "./wallet-balance-menu";
+
+const Sidebar = lazy(() => import("./sidebar"));
 
 // type HeaderProps = {
 // 	hideSportsNav?: boolean;
@@ -35,10 +35,13 @@ export default function Header(
 	// const { totalFavoritesCount } = useFavorites();
 
 	const [open, setOpen] = useState(false);
-	const [blockedModal, setBlockedModal] = useState<"deposit" | "withdraw" | null>(null);
 	const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 	const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 	const router = useRouter();
+
+	const goToDeposit = () => {
+		router.navigate({ to: "/wallet" });
+	};
 	const { data: walletData } = useQuery({
 		queryKey: ["wallet"],
 		queryFn: () =>
@@ -50,7 +53,7 @@ export default function Header(
 				credentials: "include",
 			}),
 		enabled: !!session?.user,
-		refetchInterval: 30 * 1000,
+		refetchInterval: 15 * 1000,
 		retry: true,
 	});
 
@@ -86,7 +89,7 @@ export default function Header(
 	};
 
 	return (
-		<div className="z-30 w-full pb-4 lg:pb-0">
+		<div className="z-30 w-full min-h-[88px] pb-4 lg:min-h-20 lg:pb-0">
 			<div className="w-full bg-white text-foreground lg:bg-black dark:bg-[#121212] dark:lg:bg-black">
 				<div className="flex h-[72px] min-w-0 items-center justify-between gap-1 px-2 py-2 sm:px-2 lg:hidden">
 					<div className="flex shrink-0 items-center gap-1.5">
@@ -111,20 +114,23 @@ export default function Header(
 						>
 							<img
 								src="/sportsdey-logo.png"
+								width={128}
+								height={32}
 								className="hidden h-7 w-auto sm:h-8 dark:block"
-								alt="sportsdey's logo"
+								alt="SportsDey"
+								decoding="async"
 							/>
 							<NewSportsdeyLogo className="block h-7 w-auto sm:h-8 dark:hidden" />
 						</Link>
 					</div>
 
-					<div className="flex shrink-0 items-center gap-1.5">
+					<div className="flex h-8 min-w-[9.5rem] shrink-0 items-center justify-end gap-1.5">
 						{!!session?.user && (
 							<WalletBalanceMenu
 								wallet={walletData}
 								compact
 								enabled={!!session?.user}
-								onDeposit={() => setBlockedModal("deposit")}
+								onDeposit={goToDeposit}
 							/>
 						)}
 
@@ -150,15 +156,15 @@ export default function Header(
 							) : (
 								<div className="flex gap-x-1.5">
 									<Link
-										to="/auth/sign-in"
-										search={{ returnTo: location.href }}
+										to="/auth/phone-sign-in"
+										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-[10px] text-black text-secondary leading-tight transition-colors"
 									>
 										Log in
 									</Link>
 									<Link
 										to="/auth/sign-up"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "signup" }}
 										className="flex cursor-pointer items-center justify-center gap-x-1 whitespace-nowrap rounded-full bg-accent px-3 py-1 text-[10px] text-white leading-tight transition-colors"
 									>
 										Join now
@@ -179,11 +185,18 @@ export default function Header(
 						>
 							<img
 								src="/sportsdey-logo.png"
-								className="h-8"
-								alt="sportsdey's logo"
+								width={128}
+								height={32}
+								className="h-8 w-auto"
+								alt="SportsDey"
+								decoding="async"
 							/>
 						</Link>
-						<div className="flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 font-extrabold text-[10px] text-secondary transition-colors hover:bg-white/20 dark:bg-white/5 dark:text-white">
+						<div
+							className="flex cursor-pointer items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 font-extrabold text-[10px] text-secondary transition-colors hover:bg-white/20 dark:bg-white/5 dark:text-white"
+							role="status"
+							aria-label="Language: English"
+						>
 							<WorldIcon className="h-3.5 w-3.5" />
 							<span>EN</span>
 							<ChevronDown className="h-2.5 w-2.5" />
@@ -247,11 +260,23 @@ export default function Header(
 					)} */}
 
 					<div className="flex items-center gap-4 xl:gap-6">
+						{/* {!isAuthRoute && (
+							<a
+								href="https://wa.link/25tnk8"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="hidden lg:flex cursor-pointer items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10 hover:text-accent"
+							>
+								<FaHandshakeAngle className="h-3.5 w-3.5 text-accent" />
+								<span>Become a Partner</span>
+							</a>
+						)} */}
+
 						{!isAuthRoute && !!session?.user && (
 							<WalletBalanceMenu
 								wallet={walletData}
 								enabled={!!session?.user}
-								onDeposit={() => setBlockedModal("deposit")}
+								onDeposit={goToDeposit}
 							/>
 						)}
 
@@ -306,15 +331,15 @@ export default function Header(
 							) : (
 								<div className="flex justify-center gap-x-2">
 									<Link
-										to="/auth/sign-in"
-										search={{ returnTo: location.href }}
+										to="/auth/phone-sign-in"
+										search={{ returnTo: location.href, mode: "login" }}
 										className="cursor-pointer rounded-full bg-white px-3 py-1.5 text-black text-secondary text-xs transition-colors"
 									>
 										Log in
 									</Link>
 									<Link
 										to="/auth/sign-up"
-										search={{ returnTo: location.href }}
+										search={{ returnTo: location.href, mode: "signup" }}
 										className="flex cursor-pointer items-center justify-center gap-x-2 rounded-full bg-accent px-4 py-1.5 text-white text-xs transition-colors"
 									>
 										Join now
@@ -363,8 +388,11 @@ export default function Header(
 						<div className="flex min-w-0 justify-between p-4">
 							<img
 								src="/sportsdey-logo.png"
-								className="hidden h-10 dark:block"
-								alt="sportsdey's logo"
+								width={160}
+								height={40}
+								className="hidden h-10 w-auto dark:block"
+								alt="SportsDey"
+								decoding="async"
 							/>
 							<NewSportsdeyLogo className="block h-10 w-auto dark:hidden" />
 							<button
@@ -383,7 +411,11 @@ export default function Header(
 						</div>
 
 						<div className="h-[calc(100vh-80px)] space-y-6 overflow-y-auto px-4 pt-4 pb-8">
-							<Sidebar onItemClick={() => setOpen(false)} isMobile />
+							{open ? (
+								<Suspense fallback={<div className="h-96" />}>
+									<Sidebar onItemClick={() => setOpen(false)} isMobile />
+								</Suspense>
+							) : null}
 
 							<div className="w-full px-2 pt-2 pb-12">
 								<h3 className="mb-3 font-semibold text-gray-900 text-sm dark:text-[#8C8F8F]">
@@ -391,12 +423,13 @@ export default function Header(
 								</h3>
 
 								<div className="flex flex-wrap items-center gap-3">
-									{socials.map(({ icon: Icon, id, link }) => (
+									{socials.map(({ icon: Icon, id, link, label }) => (
 										<a
 											key={id}
 											href={link}
 											target="_blank"
 											rel="noopener noreferrer"
+											aria-label={label}
 											className="flex size-8 items-center justify-center rounded-full border border-gray-300 bg-transparent p-1 text-gray-900 transition-colors hover:bg-gray-100 dark:border-[#2F3033] dark:text-[#8C8F8F] dark:hover:bg-[#2F3033] dark:hover:text-white"
 										>
 											<Icon />
@@ -423,39 +456,6 @@ export default function Header(
 			</div>
 
 			{/* mobile sub-navigation removed */}
-			{blockedModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-					<div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg dark:bg-[#202120]">
-						<div className="flex items-center justify-between">
-							<h2 className="font-semibold text-primary text-xl dark:text-white">
-								{blockedModal === "deposit" ? "Deposit" : "Withdraw"}
-							</h2>
-							<button
-								type="button"
-								onClick={() => setBlockedModal(null)}
-								aria-label="Close"
-								className="cursor-pointer rounded-md px-2 py-1 text-primary text-sm dark:text-white"
-							>
-								<X className="h-4 w-4" />
-							</button>
-						</div>
-						<div className="mt-6 flex justify-center">
-							<AeroplaneIcon className="animate-plane-fly-in h-20 w-20 text-white" />
-						</div>
-						<p className="mt-4 text-center font-medium text-primary text-base dark:text-white">
-							Pilot mode boss.<br />
-							Withdrawals and Deposits are currently blocked
-						</p>
-						<button
-							type="button"
-							onClick={() => setBlockedModal(null)}
-							className="mt-6 w-full cursor-pointer rounded-lg bg-primary px-4 py-2 font-medium text-sm text-white"
-						>
-							Close
-						</button>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 }

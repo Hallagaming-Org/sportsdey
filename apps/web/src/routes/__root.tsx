@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { useEffect } from "react";
 import {
 	createRootRouteWithContext,
 	HeadContent,
@@ -10,31 +9,69 @@ import {
 	useMatches,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Provider } from "react-redux";
 import z from "zod";
 import { BonusOfferHost } from "@/components/bonus-offer-host";
-import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
-import Sidebar from "@/components/sidebar";
+import { ScrollToTop } from "@/components/scroll-to-top";
 import Socials from "@/components/socials";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { useDesktopMedia } from "@/hooks/use-desktop-media";
 import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
-
+import { getSportsbookBootstrapScript } from "@/lib/sportsbook";
 import { cn } from "@/lib/utils";
+import {
+	loginWebengageUser,
+	setWebengageSdkUserProfile,
+} from "@/lib/webengage";
 import { store } from "@/store";
 import Header from "../components/header";
 import appCss from "../index.css?url";
+
+const Sidebar = lazy(() => import("@/components/sidebar"));
+const DesktopFooter = lazy(() => import("@/components/desktop-footer"));
+
+const INTER_FONT_HREF =
+	"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+const DEFERRED_FONTS_HREF =
+	"https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Quicksand:wght@400;500;600;700&display=swap";
+
+function DeferredFonts() {
+	useEffect(() => {
+		const load = () => {
+			if (document.getElementById("deferred-fonts")) return;
+			const link = document.createElement("link");
+			link.id = "deferred-fonts";
+			link.rel = "stylesheet";
+			link.href = DEFERRED_FONTS_HREF;
+			document.head.appendChild(link);
+		};
+
+		if ("requestIdleCallback" in window) {
+			const idleId = window.requestIdleCallback(load, { timeout: 4000 });
+			return () => window.cancelIdleCallback(idleId);
+		}
+
+		const timeoutId = window.setTimeout(load, 2000);
+		return () => window.clearTimeout(timeoutId);
+	}, []);
+
+	return null;
+}
 
 // import { RouterProviderComponents } from "@tanstack/react-router";
 
 export type RouterAppContext = {
 	historyState?: {
 		gameUrl?: string;
+		/** Set when launch went through Scorpio so /game can kick on exit. */
+		casinoProvider?: "scorpio" | "classic";
 	};
 };
 
@@ -60,7 +97,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				name: "description",
 				content:
-					"Get Live Football & Basketball Scores plus News, and Real-Time Results with Sportsdey! Everything Sports Dey here! Click now!",
+					"Nigeria's all-in-one gaming platform. Enjoy Sportsbetting, Casino, Prediction Markets, Binary trading, Esports, News and much more in one place",
 			},
 			{
 				title: "sportsdey",
@@ -82,22 +119,46 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	component: RootDocument,
 });
 
+function WebengageIdentity() {
+	const { data: session } = useSession();
+	const syncedUserId = useRef<string | null>(null);
+
+	useEffect(() => {
+		const user = session?.user as
+			| {
+					id?: string;
+					name?: string | null;
+					email?: string | null;
+					mobileNumber?: string | null;
+			  }
+			| undefined;
+		if (!user?.id) return;
+		if (syncedUserId.current === user.id) return;
+		syncedUserId.current = user.id;
+		loginWebengageUser(user.id);
+		const nameParts = (user.name || "").trim().split(/\s+/);
+		setWebengageSdkUserProfile({
+			email: user.email,
+			firstName: nameParts[0] || "",
+			lastName: nameParts.slice(1).join(" ") || "",
+			phone: user.mobileNumber,
+		});
+	}, [session?.user]);
+
+	return null;
+}
+
 function RootDocument() {
 	const location = useLocation();
 	const matches = useMatches();
-	const { data: session } = useSession();
-
-	useEffect(() => {
-		window.scrollTo(0, 0);
-		const mains = document.querySelectorAll("main");
-		mains.forEach((main) => {
-			main.scrollTo(0, 0);
-		});
-	}, [location.pathname]);
 
 	const activeRouteId = matches[matches.length - 1]?.routeId ?? "";
 	const isAuthRoute = location.pathname.startsWith("/auth");
-	const isGameRoute = location.pathname.startsWith("/game/") || location.pathname.startsWith("/play/");
+	const isGameExitRoute = location.pathname === "/game-exit";
+	const isGameRoute =
+		location.pathname.startsWith("/game/") ||
+		location.pathname.startsWith("/play/");
+	const isSportsbookRoute = location.pathname.startsWith("/sportsbetting");
 	const sidebarAllowedRouteIds = new Set([
 		"/",
 		"/index/$gameId",
@@ -130,6 +191,7 @@ function RootDocument() {
 		"/game/$gameId",
 		"/play/$gameName",
 		"/wallet",
+		"/wallet/transactions",
 		"/account",
 		"/favorites",
 		"/faqs",
@@ -143,7 +205,6 @@ function RootDocument() {
 		"/promotions",
 		"/promotions/",
 		"/promotions/$id",
-		"/bet-history",
 		"/missions",
 		"/missions/",
 		"/bonuses",
@@ -152,8 +213,19 @@ function RootDocument() {
 		"/loyalty/",
 		"/tournaments",
 		"/tournaments/",
+		"/bet-history",
+		"/bet-history/$ticketId",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
+	const isDesktop = useDesktopMedia();
+	const databetBootstrap = getSportsbookBootstrapScript();
+	const databetOrigin = (() => {
+		try {
+			return databetBootstrap ? new URL(databetBootstrap).origin : "";
+		} catch {
+			return "";
+		}
+	})();
 
 	return (
 		<Provider store={store}>
@@ -172,11 +244,7 @@ function RootDocument() {
 							key="gtm-script"
 							dangerouslySetInnerHTML={{
 								__html: `
-        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-  })(window,document,'script','dataLayer','GTM-5JZSLR3K');
+        (function(w,d,s,l,i){function load(){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f)}if(d.readyState==='complete'){setTimeout(load,1500)}else{w.addEventListener('load',function(){setTimeout(load,1500)},{once:true})}})(window,document,'script','dataLayer','GTM-5JZSLR3K');
       `,
 							}}
 						/>
@@ -185,15 +253,32 @@ function RootDocument() {
 							key="webengage-script"
 							dangerouslySetInnerHTML={{
 								__html: `
-var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r.__queue.push([t.join("."),
-arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z),a="webPersonalization feedback survey notification notificationInbox".split(z),c="options render clear abort".split(z),p="Prepare Render Open Close Submit Complete View Click".split(z),u="identify login logout setAttribute".split(z);if(!r||!r.__v){for(w[b]=r={__queue:[],__v:"6.0",user:{}},i=0;i < l.length;i++)o(r,[l[i]]);for(i=0;i < a.length;i++){for(r[a[i]]={},s=0;s < c.length;s++)o(r[a[i]],[a[i],c[s]]);for(s=0;s < p.length;s++)o(r[a[i]],[a[i],"on"+p[s]])}for(i=0;i < u.length;i++)o(r.user,["user",u[i]]);setTimeout(function(){var f=e.createElement("script"),d=e.getElementById("_webengage_script_tag");f.type="text/javascript",f.async=!0,f.src=("https:"==e.location.protocol?"https://widgets.ksa.webengage.com":"http://widgets.ksa.webengage.com")+"/js/webengage-min-v-6.0.js",d.parentNode.insertBefore(f,d)})}}(window,document,"webengage");webengage.init("ksa~aa13187c");
+var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r.__queue.push([t.join("."),arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z),a="webPersonalization feedback survey notification notificationInbox".split(z),c="options render clear abort".split(z),p="Prepare Render Open Close Submit Complete View Click".split(z),u="identify login logout setAttribute".split(z);if(!r||!r.__v){for(w[b]=r={__queue:[],__v:"6.0",user:{}},i=0;i < l.length;i++)o(r,[l[i]]);for(i=0;i < a.length;i++){for(r[a[i]]={},s=0;s < c.length;s++)o(r[a[i]],[a[i],c[s]]);for(s=0;s < p.length;s++)o(r[a[i]],[a[i],"on"+p[s]])}for(i=0;i < u.length;i++)o(r.user,["user",u[i]]);var load=function(){var f=e.createElement("script"),d=e.getElementById("_webengage_script_tag");f.type="text/javascript",f.async=!0,f.src=("https:"==e.location.protocol?"https://widgets.ksa.webengage.com":"http://widgets.ksa.webengage.com")+"/js/webengage-min-v-6.0.js",d.parentNode.insertBefore(f,d)};if("requestIdleCallback" in w){w.requestIdleCallback(load,{timeout:4000})}else{w.setTimeout(load,3000)}}}(window,document,"webengage");webengage.init("ksa~aa13187c");
 `,
 							}}
 						/>
 
 						<HeadContent />
 						<link rel="icon" href="/Favicon.svg" type="image/svg+xml" />
+						<link rel="preconnect" href="https://fonts.googleapis.com" />
+						<link
+							rel="preconnect"
+							href="https://fonts.gstatic.com"
+							crossOrigin="anonymous"
+						/>
+						{isSportsbookRoute && databetOrigin ? (
+							<link
+								rel="preconnect"
+								href={databetOrigin}
+								crossOrigin="anonymous"
+							/>
+						) : null}
+						<link rel="preload" as="style" href={INTER_FONT_HREF} />
+						<link rel="stylesheet" href={INTER_FONT_HREF} />
 						<link rel="stylesheet" href={appCss} />
+						{isSportsbookRoute && databetBootstrap ? (
+							<link rel="modulepreload" href={databetBootstrap} />
+						) : null}
 					</head>
 					<body suppressHydrationWarning>
 						<noscript>
@@ -209,39 +294,78 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 							<ErrorBoundary>
 								<Providers>
 									<BonusOfferHost />
+									<DeferredFonts />
+									<WebengageIdentity />
+									<ScrollToTop />
 									{isAuthRoute ? (
-										<div className="flex h-svh flex-col overflow-clip">
+										<div className="flex h-dvh flex-col overflow-hidden">
 											<header className="shrink-0">
 												<Header />
 											</header>
 
-											<main className="no-scrollbar flex-1 overflow-y-auto">
+											<main
+												id="app-main-content"
+										className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-y-contain"
+											>
 												<Outlet />
 											</main>
 										</div>
 									) : (
-										<div className="flex h-svh flex-col overflow-clip">
+										<div className="flex h-dvh flex-col overflow-hidden">
 											<header className="shrink-0">
 												<Header />
 												{!isGameRoute && <Socials />}
 											</header>
 
-											<main className={cn("no-scrollbar flex-1 overflow-y-auto", isGameRoute && "flex flex-col")}>
+											<main
+												id="app-main-content"
+												className={cn(
+													"no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain",
+													isGameRoute && "flex flex-col",
+												)}
+											>
 												<div
 													className={cn(
-														isGameRoute ? "" : "mx-4 grid py-4 md:gap-8 lg:mx-[104px]",
+														isGameRoute
+															? ""
+															: cn(
+																	"mx-4 grid py-4",
+																	isSportsbookRoute
+																		? "gap-3 lg:mx-4 xl:mx-6"
+																		: "md:gap-8 lg:mx-[104px]",
+																),
 														!isGameRoute && shouldShowSidebar
-															? "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
-															: (!isGameRoute ? "lg:grid-cols-1" : ""),
-														isGameRoute && "h-full flex-1"
+															? isSportsbookRoute
+																? "lg:grid-cols-[220px_minmax(0,1fr)]"
+																: "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[20%_80%]"
+															: !isGameRoute
+																? "lg:grid-cols-1"
+																: "",
+														isGameRoute && "h-full flex-1",
 													)}
 												>
 													{!isGameRoute && shouldShowSidebar && (
-														<aside className="no-scrollbar hidden pr-4 lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pb-6">
-															<Sidebar />
+														<aside
+															className={cn(
+																"no-scrollbar hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100vh-2rem)] lg:min-h-[32rem] lg:self-start lg:overflow-y-auto lg:pb-6",
+																isSportsbookRoute ? "pr-2" : "pr-4",
+															)}
+														>
+															{isDesktop ? (
+																<Suspense fallback={<div className="h-[32rem]" />}>
+																	<Sidebar />
+																</Suspense>
+															) : null}
 														</aside>
 													)}
-													<section className={cn("min-w-0", isGameRoute && "h-full flex-1")}>
+													<section
+														className={cn(
+															"min-w-0",
+															isSportsbookRoute &&
+																"max-w-full overflow-x-clip",
+															isGameRoute && "h-full flex-1",
+														)}
+													>
 														<Outlet />
 													</section>
 												</div>
@@ -250,7 +374,15 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 														<AppDownloadBanner />
 													</div>
 												)} */}
-												{!isGameRoute && <DesktopFooter />}
+												{!isGameRoute && (
+													<Suspense
+														fallback={
+															<div className="min-h-[28rem] border-[#1B2722] border-t bg-[#000606]" />
+														}
+													>
+														<DesktopFooter />
+													</Suspense>
+												)}
 											</main>
 
 											{!isGameRoute && (
@@ -263,8 +395,12 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 								</Providers>
 
 								<Toaster richColors position="top-right" />
-								<TanStackRouterDevtools position="bottom-right" />
-								<ReactQueryDevtools initialIsOpen={false} />
+								{import.meta.env.DEV ? (
+									<>
+										<TanStackRouterDevtools position="bottom-right" />
+										<ReactQueryDevtools initialIsOpen={false} />
+									</>
+								) : null}
 								<Scripts />
 							</ErrorBoundary>
 						</QueryClientProvider>

@@ -1,13 +1,26 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import * as schema from "@/db/schema";
 import {
 	optionalExecutionCtx,
 	reportCasinoBetInBackground,
 	reportCasinoBetResultInBackground,
 } from "@/services/bonus-engine";
+import {
+	isUniqueConstraintError,
+	logMoneyMovement,
+	settleWithClaim,
+} from "@/services/casino-settlement";
 import { verifySlotitegrationSignature } from "@/utils";
+import { toKobo } from "@/utils/casino-money";
+import {
+	initSlotegratorDemo,
+	mapSlotegratorUpstreamError,
+	resolveSlotegratorReturnUrl,
+	SlotegratorApiError,
+} from "@/utils/slotegrator";
 import type { CloudflareBindings } from "../types";
 
 type SlotitegrationContext = {
@@ -16,10 +29,117 @@ type SlotitegrationContext = {
 
 const slotegratorRoute = new OpenAPIHono<SlotitegrationContext>();
 
+type SlotDb = ReturnType<typeof drizzle<typeof schema>>;
+type SlotTxRow = typeof schema.slotitegrationTransactions.$inferSelect;
+type SlotTxInsert = typeof schema.slotitegrationTransactions.$inferInsert;
+
+/**
+ * Claim-first settlement against `slotitegration_transactions`.
+ * `claim.transactionId` (unique) is inserted BEFORE the wallet moves, so
+ * concurrent duplicates and provider retries settle exactly once. Previously
+ * this route debited/credited first and inserted the ledger row after —
+ * two concurrent identical callbacks both passed the existence check and
+ * both moved money.
+ */
+async function settleSlotTransaction(opts: {
+	db: SlotDb;
+	direction: "debit" | "credit" | "none";
+	playerId: string;
+	amountKobo: number;
+	currentBalanceKobo: number;
+	claim: SlotTxInsert;
+	walletTxnType: "debit" | "credit" | "refund";
+	walletMetadata: Record<string, unknown>;
+}): Promise<
+	| { status: "duplicate"; existing: SlotTxRow }
+	| { status: "settled"; balanceKobo: number }
+	| { status: "wallet_failed" }
+> {
+	const { db, direction, playerId, amountKobo, claim } = opts;
+	const claimTransactionId = claim.transactionId;
+	const moveMoney = direction !== "none" && amountKobo > 0;
+
+	const outcome = await settleWithClaim<SlotTxRow>({
+		context: {
+			provider: "slotegrator",
+			action: String(claim.type ?? direction),
+			userId: playerId,
+			txId: claimTransactionId,
+			roundId: claim.roundId ?? null,
+			amountKobo,
+		},
+		insertClaim: () => db.insert(schema.slotitegrationTransactions).values(claim),
+		findExisting: () =>
+			db.query.slotitegrationTransactions.findFirst({
+				where: eq(
+					schema.slotitegrationTransactions.transactionId,
+					claimTransactionId,
+				),
+			}),
+		releaseClaim: () =>
+			db
+				.delete(schema.slotitegrationTransactions)
+				.where(
+					eq(
+						schema.slotitegrationTransactions.transactionId,
+						claimTransactionId,
+					),
+				),
+		mutateWallet: () => {
+			if (!moveMoney) {
+				return Promise.resolve({ balance: opts.currentBalanceKobo });
+			}
+			return direction === "debit"
+				? debitWallet(db, playerId, amountKobo)
+				: creditWallet(db, playerId, amountKobo);
+		},
+		finalize: async (balanceAfter) => {
+			if (!moveMoney) return;
+			const balanceBefore =
+				direction === "debit"
+					? balanceAfter + amountKobo
+					: balanceAfter - amountKobo;
+			await db
+				.update(schema.slotitegrationTransactions)
+				.set({ balanceBefore, balanceAfter })
+				.where(
+					eq(
+						schema.slotitegrationTransactions.transactionId,
+						claimTransactionId,
+					),
+				);
+			await db.insert(schema.walletTransaction).values({
+				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+				userId: playerId,
+				amount: amountKobo,
+				type: opts.walletTxnType,
+				reference: `slotegrator:${claimTransactionId}`,
+				status: "success",
+				paymentMethod: "slotegrator games",
+				balance: balanceAfter,
+				metadata: JSON.stringify(opts.walletMetadata),
+			});
+		},
+	});
+
+	if (outcome.status === "duplicate") {
+		return { status: "duplicate", existing: outcome.existing };
+	}
+	if (outcome.status === "wallet_failed") {
+		return { status: "wallet_failed" };
+	}
+	return { status: "settled", balanceKobo: outcome.balance };
+}
+
 const LaunchGameSchema = z
 	.object({
 		game_uuid: z.string().openapi({ description: "Game UUID" }),
 		device: z.string().optional().openapi({ description: "Device type" }),
+		return_url: z
+			.string()
+			.url()
+			.optional()
+			.openapi({ description: "URL after the player exits the game" }),
 	})
 	.openapi("LaunchGame");
 
@@ -41,6 +161,19 @@ const LaunchGameErrorResponseSchema = z
 		details: z.any().openapi({ description: "Error details" }),
 	})
 	.openapi("LaunchGameErrorResponse");
+
+const LaunchDemoGameSchema = z
+	.object({
+		game_uuid: z.string().openapi({ description: "Game UUID" }),
+		device: z.string().optional().openapi({ description: "Device type" }),
+		language: z.string().optional().openapi({ description: "UI language" }),
+		return_url: z
+			.string()
+			.url()
+			.optional()
+			.openapi({ description: "URL after player exits the demo" }),
+	})
+	.openapi("LaunchDemoGame");
 
 const launchGameRoute = createRoute({
 	method: "post",
@@ -102,20 +235,76 @@ const launchGameRoute = createRoute({
 	},
 });
 
-slotegratorRoute.openapi(launchGameRoute, async (c) => {
-	const user = c.get("user");
-	if (!user) {
-		return c.json(
-			{
-				success: false,
-				error: "Unauthorized",
-				details: null,
+const launchDemoGameRoute = createRoute({
+	method: "post",
+	path: "/launch-demo",
+	tags: ["Slotegrator"],
+	summary: "Initialize a Slotegrator demo game (no real money)",
+	description:
+		"Calls Slotegrator POST /games/init-demo and returns a launch URL. No wallet session or user auth required.",
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: LaunchDemoGameSchema,
+				},
 			},
-			401,
-		);
-	}
+		},
+	},
+	responses: {
+		200: {
+			description: "Demo game launch URL",
+			content: {
+				"application/json": {
+					schema: LaunchGameResponseSchema,
+				},
+			},
+		},
+		404: {
+			description: "Game not found",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		422: {
+			description: "Validation error or demo unsupported",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		500: {
+			description: "Server configuration error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		502: {
+			description: "Upstream API / merchant auth error",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+		503: {
+			description: "Upstream rate limited",
+			content: {
+				"application/json": {
+					schema: LaunchGameErrorResponseSchema,
+				},
+			},
+		},
+	},
+});
 
-	const result = LaunchGameSchema.safeParse(await c.req.json());
+slotegratorRoute.openapi(launchDemoGameRoute, async (c) => {
+	const result = LaunchDemoGameSchema.safeParse(await c.req.json());
 	if (!result.success) {
 		return c.json(
 			{
@@ -127,13 +316,103 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		);
 	}
 
+	try {
+		const returnUrl = resolveSlotegratorReturnUrl(
+			c.env,
+			result.data.return_url,
+		);
+		const data = await initSlotegratorDemo(c.env, {
+			...result.data,
+			return_url: returnUrl,
+		});
+		return c.json(
+			{
+				success: true,
+				data: { url: data.url },
+			},
+			200,
+		);
+	} catch (error) {
+		if (error instanceof SlotegratorApiError) {
+			const allowed = [404, 422, 500, 502, 503] as const;
+			const status = allowed.includes(
+				error.status as (typeof allowed)[number],
+			)
+				? (error.status as (typeof allowed)[number])
+				: 502;
+			return c.json(
+				{
+					success: false,
+					error: error.message,
+					details: error.details,
+				},
+				status,
+			);
+		}
+		console.error("Slotegrator launch-demo unexpected error", error);
+		return c.json(
+			{
+				success: false,
+				error: "Failed to launch demo game",
+				details: null,
+			},
+			502,
+		);
+	}
+});
+
+slotegratorRoute.openapi(launchGameRoute, async (c) => {
+	const user = c.get("user");
+	const incomingHeaders = Object.fromEntries(c.req.raw.headers.entries());
+	const logIncomingHeaders = {
+		...incomingHeaders,
+		authorization: incomingHeaders.authorization ? "[REDACTED]" : undefined,
+		cookie: incomingHeaders.cookie ? "[REDACTED]" : undefined,
+	};
+	if (!user) {
+		console.log("Slotegrator real launch request", {
+			body: null,
+			params: { route: c.req.param(), query: c.req.query() },
+			headers: logIncomingHeaders,
+		});
+		return c.json(
+			{
+				success: false,
+				error: "Unauthorized",
+				details: null,
+			},
+			401,
+		);
+	}
+
+	const requestPayload: unknown = await c.req.json();
+	const result = LaunchGameSchema.safeParse(requestPayload);
+	if (!result.success) {
+		console.log("Slotegrator real launch request validation failed", {
+			body: requestPayload,
+			params: { route: c.req.param(), query: c.req.query() },
+			headers: logIncomingHeaders,
+			validation: result.error.flatten(),
+		});
+		return c.json(
+			{
+				success: false,
+				error: "Invalid request parameters",
+				details: null,
+			},
+			422,
+		);
+	}
+
 	const { game_uuid, device } = result.data;
+	const return_url = resolveSlotegratorReturnUrl(c.env, result.data.return_url);
 
 	const merchantKey = c.env.SLOTITEGRATION_MERCHANT_KEY;
 	const merchantId = c.env.SLOTITEGRATION_MERCHANT_ID;
-	const slotegratorApiUrl = c.env.SLOTEGRATOR_API_URL;
+	const proxyUrl = c.env.PROXY_URL;
+	const proxySecret = c.env.PROXY_SECRET;
 
-	if (!merchantKey || !merchantId || !slotegratorApiUrl) {
+	if (!merchantKey || !merchantId || !proxyUrl || !proxySecret) {
 		return c.json(
 			{
 				success: false,
@@ -175,11 +454,10 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 		session_id: sessionToken,
 	};
 	if (device) requestBody.device = device;
+	if (return_url) requestBody.return_url = return_url;
 
 	const timestamp = Math.floor(Date.now() / 1000).toString();
 	const nonce = crypto.randomUUID();
-
-	console.log("requestBody", requestBody);
 
 	const allParams: Record<string, string> = {
 		...requestBody,
@@ -195,61 +473,115 @@ slotegratorRoute.openapi(launchGameRoute, async (c) => {
 	}
 	const queryString = params.toString();
 
-	console.log("queryString", queryString);
-
 	const cryptoMod = await import("crypto");
 	const computedSign = cryptoMod
 		.createHmac("sha1", merchantKey)
 		.update(queryString)
 		.digest("hex");
-	console.log("X-Merchant-Id", merchantId);
-	console.log("X-Timestamp", timestamp);
-	console.log("X-Nonce", nonce);
-	console.log("X-Sign", computedSign);
 
-	const response = await fetch(`${slotegratorApiUrl}/games/init`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
+	const slotegratorProxyPath =
+		c.env.NODE_ENV === "staging" ? "slotegrator-staging" : "slotegrator";
+	const proxyRequestUrl = `${proxyUrl}/${slotegratorProxyPath}/games/init`;
+	const proxyRequestHeaders = {
+		"Content-Type": "application/x-www-form-urlencoded",
+		"X-Merchant-Id": merchantId,
+		"X-Timestamp": timestamp,
+		"X-Nonce": nonce,
+		"X-Sign": computedSign,
+		"X-Proxy-Auth": proxySecret,
+	};
+
+	console.log("Slotegrator real launch request", {
+		body: result.data,
+		params: {
+			route: c.req.param(),
+			query: c.req.query(),
+			requestBody,
+			allParams,
+			queryString,
 		},
+		headers: logIncomingHeaders,
+		proxy: {
+			url: proxyRequestUrl,
+			method: "POST",
+			body: requestBody,
+			headers: {
+				...proxyRequestHeaders,
+				"X-Sign": "[REDACTED]",
+				"X-Proxy-Auth": "[REDACTED]",
+			},
+		},
+	});
+
+	const response = await fetch(proxyRequestUrl, {
+		method: "POST",
+		headers: proxyRequestHeaders,
 		body: new URLSearchParams(requestBody),
 	});
-	console.log("slotegrator body", JSON.stringify(response.body));
-	console.log(
-		"slotegrator headers",
-		JSON.stringify({
-			"Content-Type": "application/x-www-form-urlencoded",
-			"X-Merchant-Id": merchantId,
-			"X-Timestamp": timestamp,
-			"X-Nonce": nonce,
-			"X-Sign": computedSign,
-		}),
-	);
 
-	const upstreamData = await response.json();
-	console.log("slotegrator response", upstreamData);
+	let upstreamData: unknown = null;
+	const upstreamText = await response.text();
+	if (upstreamText) {
+		try {
+			upstreamData = JSON.parse(upstreamText);
+		} catch {
+			upstreamData = upstreamText;
+		}
+	}
+
+	console.log("Slotegrator real launch proxy result", {
+		url: response.url,
+		upstreamUrl: response.headers.get("x-proxy-upstream-url"),
+		status: response.status,
+		statusText: response.statusText,
+		ok: response.ok,
+		headers: Object.fromEntries(response.headers.entries()),
+		body: upstreamData,
+	});
+
 	if (!response.ok) {
+		const mapped = mapSlotegratorUpstreamError(response.status, upstreamData);
+		const allowed = [404, 422, 500, 502, 503] as const;
+		const status = allowed.includes(
+			mapped.status as (typeof allowed)[number],
+		)
+			? (mapped.status as (typeof allowed)[number])
+			: 502;
 		return c.json(
 			{
 				success: false,
-				error: "Upstream API error",
-				details: null,
+				error: mapped.message,
+				details: mapped.details,
 			},
-			response.status,
+			status,
 		);
 	}
 
-	const data = upstreamData as { url: string };
+	const url =
+		upstreamData &&
+		typeof upstreamData === "object" &&
+		typeof (upstreamData as { url?: unknown }).url === "string"
+			? (upstreamData as { url: string }).url
+			: "";
+
+	if (!url) {
+		return c.json(
+			{
+				success: false,
+				error: "Upstream launch response missing URL",
+				details: upstreamData,
+			},
+			502,
+		);
+	}
+
+	// Do not prefetch `url` — GIS launch tokens are single-use.
 
 	return c.json(
 		{
 			success: true,
 			data: {
-				url: data.url,
+				url,
 			},
 		},
 		200,
@@ -276,18 +608,14 @@ slotegratorRoute.post("/", async (c) => {
 	);
 	console.log("verification valid", verification.valid);
 	if (!verification.valid) {
-		console.log("rawBody", rawBody);
-		const urlSearchParams = new URLSearchParams(rawBody);
-		const bodyParams: Record<string, string> = Object.fromEntries(
-			urlSearchParams.entries(),
-		) as Record<string, string>;
-		bodyParams.action === "rollback" && console.log("ROLLBACK");
+		// Non-200 so the provider treats this as a failed attempt (a retry),
+		// never as a processed transaction.
 		return c.json(
 			{
 				error_description: verification.error || "Invalid signature",
 				error_code: "INTERNAL_ERROR",
 			},
-			200,
+			403,
 		);
 	}
 
@@ -298,7 +626,7 @@ slotegratorRoute.post("/", async (c) => {
 				error_description: "Invalid merchant ID",
 				error_code: "INTERNAL_ERROR",
 			},
-			200,
+			403,
 		);
 	}
 
@@ -416,7 +744,15 @@ slotegratorRoute.post("/", async (c) => {
 			.where(eq(schema.wallet.userId, playerId))
 			.limit(1);
 
-		const amountInKobo = Math.round(amount * 100);
+		let amountInKobo: number;
+		try {
+			amountInKobo = toKobo(amount, "naira");
+		} catch {
+			return c.json(
+				{ error_description: "Invalid amount", error_code: "INTERNAL_ERROR" },
+				400,
+			);
+		}
 
 		if (!wallet || wallet.balance < amountInKobo) {
 			return c.json(
@@ -428,84 +764,66 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		const newBalance = wallet.balance - amountInKobo;
-
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
-
-		if (!updatedWallet?.id) {
-			return c.json(
-				{
-					error_description: "Failed to update wallet",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
-		}
-
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: playerId,
-				amount: amountInKobo,
-				type: "debit",
-				reference: null,
-				status: "success",
-				paymentMethod: "slotegrator games",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					game: "slotegrator",
-					gameId: gameUuid,
-					sessionId,
-					action: "bet",
-				}),
-			})
-			.returning();
-
-		if (!walletTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record wallet transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
-		}
-
 		const txId = crypto.randomUUID();
-
-		const [betTxn] = await db
-			.insert(schema.slotitegrationTransactions)
-			.values({
+		const settle = await settleSlotTransaction({
+			db,
+			direction: "debit",
+			playerId,
+			amountKobo: amountInKobo,
+			currentBalanceKobo: wallet.balance,
+			claim: {
 				id: txId,
 				transactionId,
 				userId: playerId,
 				type: type,
 				amount: amountInKobo,
 				balanceBefore: wallet.balance,
-				balanceAfter: newBalance,
+				balanceAfter: wallet.balance,
 				currency,
 				gameId: gameUuid,
 				sessionId,
 				roundId: round_id,
-			})
-			.returning();
+			},
+			walletTxnType: "debit",
+			walletMetadata: {
+				game: "slotegrator",
+				gameId: gameUuid,
+				sessionId,
+				action: "bet",
+			},
+		});
 
-		if (!betTxn?.id) {
+		if (settle.status === "duplicate") {
+			const [dupWallet] = await db
+				.select()
+				.from(schema.wallet)
+				.where(eq(schema.wallet.userId, playerId))
+				.limit(1);
+			const balance = (dupWallet?.balance ?? 0) / 100;
+			return c.json({ balance, transaction_id: settle.existing.id }, 200);
+		}
+
+		if (settle.status === "wallet_failed") {
 			return c.json(
 				{
-					error_description: "Failed to record bet transaction",
-					error_code: "INTERNAL_ERROR",
+					error_description: "Insufficient balance",
+					error_code: "INSUFFICIENT_FUNDS",
 				},
 				200,
 			);
 		}
 
-		const balance = newBalance / 100;
+		const balance = settle.balanceKobo / 100;
+
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			amount,
+			currency,
+			gameRef: gameUuid,
+		});
 
 		await reportCasinoBetInBackground({
 			env: c.env,
@@ -568,17 +886,84 @@ slotegratorRoute.post("/", async (c) => {
 			.where(eq(schema.wallet.userId, playerId))
 			.limit(1);
 
-		const amountInKobo = Math.round(amount * 100);
+		let amountInKobo: number;
+		try {
+			amountInKobo = toKobo(amount, "naira");
+		} catch {
+			return c.json(
+				{ error_description: "Invalid amount", error_code: "INTERNAL_ERROR" },
+				400,
+			);
+		}
 		const currentBalance = wallet?.balance ?? 0;
-		const newBalance = currentBalance + amountInKobo;
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		if (type === "win" && amountInKobo > 0) {
+			// A payout must correspond to a bet we actually debited. Free-spin /
+			// jackpot types are exempt (they legitimately have no cash bet).
+			const priorBet = await db.query.slotitegrationTransactions.findFirst({
+				where: round_id
+					? and(
+							eq(schema.slotitegrationTransactions.userId, playerId),
+							eq(schema.slotitegrationTransactions.roundId, round_id),
+							eq(schema.slotitegrationTransactions.type, "bet"),
+						)
+					: and(
+							eq(schema.slotitegrationTransactions.userId, playerId),
+							eq(schema.slotitegrationTransactions.sessionId, sessionId),
+							eq(schema.slotitegrationTransactions.type, "bet"),
+						),
+			});
+			if (!priorBet) {
+				return c.json(
+					{
+						error_description: "No bet found for this win",
+						error_code: "INTERNAL_ERROR",
+					},
+					200,
+				);
+			}
+		}
 
-		if (!updatedWallet?.id) {
+		const txId = crypto.randomUUID();
+		const settle = await settleSlotTransaction({
+			db,
+			direction: "credit",
+			playerId,
+			amountKobo: amountInKobo,
+			currentBalanceKobo: currentBalance,
+			claim: {
+				id: txId,
+				transactionId,
+				userId: playerId,
+				type: type,
+				amount: amountInKobo,
+				balanceBefore: currentBalance,
+				balanceAfter: currentBalance,
+				currency,
+				gameId: gameUuid,
+				sessionId,
+				roundId: round_id,
+			},
+			walletTxnType: "credit",
+			walletMetadata: {
+				game: "slotegrator",
+				gameId: gameUuid,
+				sessionId,
+				action: "win",
+			},
+		});
+
+		if (settle.status === "duplicate") {
+			const [dupWallet] = await db
+				.select()
+				.from(schema.wallet)
+				.where(eq(schema.wallet.userId, playerId))
+				.limit(1);
+			const balance = (dupWallet?.balance ?? 0) / 100;
+			return c.json({ balance, transaction_id: settle.existing.id }, 200);
+		}
+
+		if (settle.status === "wallet_failed") {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -588,66 +973,16 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: playerId,
-				amount: amountInKobo,
-				type: "credit",
-				reference: null,
-				status: "success",
-				paymentMethod: "slotegrator games",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					game: "slotegrator",
-					gameId: gameUuid,
-					sessionId,
-					action: "win",
-				}),
-			})
-			.returning();
+		const balance = settle.balanceKobo / 100;
 
-		if (!walletTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record wallet transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
-		}
-
-		const txId = crypto.randomUUID();
-
-		const [winTxn] = await db
-			.insert(schema.slotitegrationTransactions)
-			.values({
-				id: txId,
-				transactionId,
-				userId: playerId,
-				type: type,
-				amount: amountInKobo,
-				balanceBefore: currentBalance,
-				balanceAfter: newBalance,
-				currency,
-				gameId: gameUuid,
-				sessionId,
-				roundId: round_id,
-			})
-			.returning();
-
-		if (!winTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record win transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
-		}
-
-		const balance = newBalance / 100;
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			totalWinAmount: amount,
+			isWin: 1,
+		});
 
 		await reportCasinoBetResultInBackground({
 			env: c.env,
@@ -744,8 +1079,9 @@ slotegratorRoute.post("/", async (c) => {
 		console.log("originalBet", JSON.stringify(originalBet));
 
 		if (!originalBet || originalBet.type !== "bet") {
+			// No cash bet to reverse — record a tracking row (no wallet movement),
+			// still claimed on transactionId so retries dedupe.
 			const txId = crypto.randomUUID();
-			const amountInKobo = Math.round(amount * 100);
 			const [walletForRefund] = await db
 				.select()
 				.from(schema.wallet)
@@ -753,34 +1089,33 @@ slotegratorRoute.post("/", async (c) => {
 				.limit(1);
 			const refundWalletBalance = walletForRefund?.balance ?? 0;
 
-			const [refundTxn] = await db
-				.insert(schema.slotitegrationTransactions)
-				.values({
+			const settle = await settleSlotTransaction({
+				db,
+				direction: "none",
+				playerId,
+				amountKobo: 0,
+				currentBalanceKobo: refundWalletBalance,
+				claim: {
 					id: txId,
 					transactionId,
 					userId: playerId,
 					type: type,
-					amount: amountInKobo,
+					amount: 0,
 					balanceBefore: refundWalletBalance,
 					balanceAfter: refundWalletBalance,
 					currency,
 					gameId: gameUuid,
 					sessionId,
 					roundId: round_id,
-				})
-				.returning();
+				},
+				walletTxnType: "refund",
+				walletMetadata: {},
+			});
 
-			if (!refundTxn?.id) {
-				return c.json(
-					{
-						error_description: "Failed to record refund transaction",
-						error_code: "INTERNAL_ERROR",
-					},
-					200,
-				);
-			}
 			const balance = refundWalletBalance / 100;
-			return c.json({ balance, transaction_id: txId }, 200);
+			const txnId =
+				settle.status === "duplicate" ? settle.existing.id : txId;
+			return c.json({ balance, transaction_id: txnId }, 200);
 		}
 
 		const [wallet] = await db
@@ -789,17 +1124,59 @@ slotegratorRoute.post("/", async (c) => {
 			.where(eq(schema.wallet.userId, playerId))
 			.limit(1);
 
-		const amountInKobo = Math.round(amount * 100);
+		// SECURITY: refund exactly the stake we debited for the original bet.
+		// The request body's amount is caller-controlled and must never set
+		// the payout.
+		const amountInKobo = originalBet.amount;
 		const currentBalance = wallet?.balance ?? 0;
-		const newBalance = currentBalance + amountInKobo;
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: newBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		// Claim key is derived from the ORIGINAL bet id, so a bet can only ever
+		// be refunded once even if the provider retries with fresh
+		// transaction_ids. Exact retries are echoed by the
+		// `existingRefundForBet` lookup above.
+		const txId = crypto.randomUUID();
+		const settle = await settleSlotTransaction({
+			db,
+			direction: "credit",
+			playerId,
+			amountKobo: amountInKobo,
+			currentBalanceKobo: currentBalance,
+			claim: {
+				id: txId,
+				transactionId: `refund:${betTransactionId}`,
+				userId: playerId,
+				type: type,
+				amount: amountInKobo,
+				balanceBefore: currentBalance,
+				balanceAfter: currentBalance,
+				currency,
+				gameId: gameUuid,
+				sessionId,
+				originalTransactionId: betTransactionId,
+				roundId: round_id,
+			},
+			walletTxnType: "refund",
+			walletMetadata: {
+				game: "slotegrator",
+				gameId: gameUuid,
+				sessionId,
+				action: "settlement",
+				originalTransactionId: betTransactionId,
+				providerTransactionId: transactionId,
+			},
+		});
 
-		if (!updatedWallet?.id) {
+		if (settle.status === "duplicate") {
+			const [dupWallet] = await db
+				.select()
+				.from(schema.wallet)
+				.where(eq(schema.wallet.userId, playerId))
+				.limit(1);
+			const balance = (dupWallet?.balance ?? 0) / 100;
+			return c.json({ balance, transaction_id: settle.existing.id }, 200);
+		}
+
+		if (settle.status === "wallet_failed") {
 			return c.json(
 				{
 					error_description: "Failed to update wallet",
@@ -809,66 +1186,17 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
-				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-				userId: playerId,
-				amount: amountInKobo,
-				type: "refund",
-				reference: null,
-				status: "success",
-				paymentMethod: "slotegrator games",
-				balance: newBalance,
-				metadata: JSON.stringify({
-					game: "slotegrator",
-					gameId: gameUuid,
-					sessionId,
-					action: "settlement",
-					originalTransactionId: betTransactionId,
-				}),
-			})
-			.returning();
+		const balance = settle.balanceKobo / 100;
 
-		if (!walletTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record wallet transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
-		}
-
-		const txId = crypto.randomUUID();
-
-		const [settlementTxn] = await db
-			.insert(schema.slotitegrationTransactions)
-			.values({
-				id: txId,
-				transactionId,
-				userId: playerId,
-				type: type,
-				amount: amountInKobo,
-				balanceBefore: currentBalance,
-				balanceAfter: newBalance,
-				currency,
-				gameId: gameUuid,
-				sessionId,
-				originalTransactionId: betTransactionId,
-				roundId: round_id,
-			})
-			.returning();
-
-		if (!settlementTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record settlement transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
-		}
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: betTransactionId || transactionId,
+			totalWinAmount: amountInKobo / 100,
+			isWin: 0,
+			isRollback: 1,
+		});
 
 		const balance = newBalance / 100;
 
@@ -911,14 +1239,14 @@ slotegratorRoute.post("/", async (c) => {
 
 		txKeys.forEach(([key]) => {
 			const match = key.match(/rollback_transactions\[(\d+)\]\[(\w+)\]/);
-			if (match) {
+			if (match?.[1] !== undefined && match[2] !== undefined) {
 				const index = Number.parseInt(match[1], 10);
 				const field = match[2];
 				if (!rollbackTransactions[index]) {
 					rollbackTransactions[index] = {} as never;
 				}
 				const value = params.get(key);
-				if (value !== undefined) {
+				if (value !== null) {
 					(rollbackTransactions[index] as Record<string, string>)[field] =
 						value;
 				}
@@ -986,8 +1314,14 @@ slotegratorRoute.post("/", async (c) => {
 			);
 		}
 
-		let currentBalance = wallet.balance;
+		// Claim-first per rolled-back transaction: a unique
+		// `rollback:{originalTxId}` marker guarantees each transaction can only
+		// be reversed once, even across rollback requests with different
+		// transaction_ids. Adjustments use STORED amounts/types — the request
+		// body's amounts are caller-controlled and never move money.
 		const rolledBackTxIds: string[] = [];
+		const claimedMarkerTxIds: string[] = [];
+		let netAdjustment = 0;
 
 		for (const tx of rollbackTransactions) {
 			const txId = tx.transaction_id;
@@ -996,62 +1330,113 @@ slotegratorRoute.post("/", async (c) => {
 			});
 
 			if (!txToRollback) continue;
-
-			rolledBackTxIds.push(txId);
-
-			if (tx.type === "bet") {
-				currentBalance += Math.round(Number.parseFloat(tx.amount) * 100);
-			} else if (tx.type === "win" || tx.type === "refund") {
-				currentBalance -= Math.round(Number.parseFloat(tx.amount) * 100);
+			if (
+				txToRollback.type !== "bet" &&
+				txToRollback.type !== "win" &&
+				txToRollback.type !== "refund"
+			) {
+				continue;
 			}
+
+			const markerTransactionId = `rollback:${txId}`;
+			try {
+				await db.insert(schema.slotitegrationTransactions).values({
+					id: crypto.randomUUID(),
+					transactionId: markerTransactionId,
+					userId: playerId,
+					type: "rollback",
+					amount: txToRollback.amount,
+					balanceBefore: wallet.balance,
+					balanceAfter: wallet.balance,
+					currency,
+					gameId: gameUuid,
+					sessionId,
+					originalTransactionId: txId,
+					roundId,
+				});
+			} catch (error) {
+				if (isUniqueConstraintError(error)) {
+					// Already rolled back by an earlier request — skip.
+					continue;
+				}
+				throw error;
+			}
+
+			claimedMarkerTxIds.push(markerTransactionId);
+			rolledBackTxIds.push(txId);
+			netAdjustment +=
+				txToRollback.type === "bet"
+					? txToRollback.amount
+					: -txToRollback.amount;
 		}
 
-		const [updatedWallet] = await db
-			.update(schema.wallet)
-			.set({ balance: currentBalance })
-			.where(eq(schema.wallet.userId, playerId))
-			.returning();
+		const releaseMarkers = async () => {
+			for (const markerTransactionId of claimedMarkerTxIds) {
+				await db
+					.delete(schema.slotitegrationTransactions)
+					.where(
+						eq(
+							schema.slotitegrationTransactions.transactionId,
+							markerTransactionId,
+						),
+					);
+			}
+		};
 
-		if (!updatedWallet?.id) {
-			return c.json(
-				{
-					error_description: "Failed to update wallet",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
+		let currentBalance = wallet.balance;
+		if (netAdjustment !== 0) {
+			const updatedWallet =
+				netAdjustment > 0
+					? await creditWallet(db, playerId, netAdjustment)
+					: await debitWallet(db, playerId, -netAdjustment);
+
+			if (!updatedWallet) {
+				await releaseMarkers();
+				return c.json(
+					{
+						error_description: "Failed to update wallet",
+						error_code: "INTERNAL_ERROR",
+					},
+					200,
+				);
+			}
+			currentBalance = updatedWallet.balance;
 		}
 
-		const [walletTxn] = await db
-			.insert(schema.walletTransaction)
-			.values({
+		logMoneyMovement({
+			provider: "slotegrator",
+			action: "rollback",
+			userId: playerId,
+			txId: transactionId,
+			roundId,
+			amountKobo: netAdjustment,
+			claimStatus: "settled",
+			balanceBefore: wallet.balance,
+			balanceAfter: currentBalance,
+		});
+
+		if (netAdjustment !== 0) {
+			await db.insert(schema.walletTransaction).values({
 				id: `wt_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
 				userId: playerId,
-				amount: Math.abs(currentBalance - (wallet?.balance ?? 0)),
-				type: "refund",
-				reference: null,
+				amount: Math.abs(netAdjustment),
+				type: netAdjustment > 0 ? "refund" : "debit",
+				reference: `slotegrator:rollback:${transactionId}`,
 				status: "success",
 				paymentMethod: "slotegrator games",
 				balance: currentBalance,
-				metadata: JSON.stringify({ game: "slotegrator", action: "reset" }),
-			})
-			.returning();
-
-		if (!walletTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record wallet transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
+				metadata: JSON.stringify({
+					game: "slotegrator",
+					action: "reset",
+					rolledBackTxIds,
+				}),
+			});
 		}
 
 		const txId = crypto.randomUUID();
 
-		const [rollbackTxn] = await db
-			.insert(schema.slotitegrationTransactions)
-			.values({
+		try {
+			await db.insert(schema.slotitegrationTransactions).values({
 				id: txId,
 				transactionId,
 				userId: playerId,
@@ -1063,17 +1448,13 @@ slotegratorRoute.post("/", async (c) => {
 				gameId: gameUuid,
 				sessionId,
 				roundId,
-			})
-			.returning();
-
-		if (!rollbackTxn?.id) {
-			return c.json(
-				{
-					error_description: "Failed to record rollback transaction",
-					error_code: "INTERNAL_ERROR",
-				},
-				200,
-			);
+			});
+		} catch (error) {
+			if (!isUniqueConstraintError(error)) {
+				throw error;
+			}
+			// A concurrent identical rollback recorded the summary first; the
+			// markers above guarantee no transaction was reversed twice.
 		}
 
 		const [finalWallet] = await db
@@ -1083,6 +1464,16 @@ slotegratorRoute.post("/", async (c) => {
 			.limit(1);
 
 		const balance = (finalWallet?.balance ?? 0) / 100;
+
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			totalWinAmount: 0,
+			isWin: 0,
+			isRollback: 1,
+		});
 
 		return c.json(
 			{ balance, transaction_id: txId, rollback_transactions: rolledBackTxIds },
