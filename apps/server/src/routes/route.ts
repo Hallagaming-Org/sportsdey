@@ -32,6 +32,7 @@ import swipegamesRoute from "./swipegames";
 import sportsbookRoute from "./sportsbook";
 import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
+import tournamentRoute from "./tournament";
 import userRoute from "./user";
 import walletRoute from "./wallet";
 import webengageEventsRoute from "./webengage-events";
@@ -77,6 +78,7 @@ routes.route("/palmpay", palmpayRoute);
 routes.route("/loyalty", loyaltyRoute);
 routes.route("/mission", missionRoute);
 routes.route("/bonus", bonusRoute);
+routes.route("/tournament", tournamentRoute);
 routes.route(
 	"/bem/api/BonusEngine/bonus-engine",
 	bonusEngineReferenceDataRoute,
