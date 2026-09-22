@@ -1,6 +1,7 @@
 import { TOURNAMENT_STATUS } from "@/lib/tournaments.constant";
 import { cn } from "@/lib/utils";
 import {
+	formatTournamentPlayerCount,
 	formatTournamentPrize,
 	type Tournament,
 } from "./tournaments.constant";
@@ -9,6 +10,8 @@ type TournamentCardProps = {
 	tournament: Tournament;
 	joined: boolean;
 	joining?: boolean;
+	/** Leaderboard row count; omit until that query returns. */
+	playerCount?: number;
 	onJoin: (tournament: Tournament) => void;
 };
 
@@ -16,6 +19,7 @@ export function TournamentCard({
 	tournament,
 	joined,
 	joining = false,
+	playerCount,
 	onJoin,
 }: TournamentCardProps) {
 	const isResults = tournament.status === TOURNAMENT_STATUS.RESULTS;
@@ -48,9 +52,7 @@ export function TournamentCard({
 				<hr className="mt-2 border-[#595D5D]" />
 				<div className="mt-3 mb-4 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-[#8C8F8F]">
 					<span className="shrink-0">
-						{tournament.players > 0
-							? `${tournament.players.toLocaleString("en-NG")} Players`
-							: "No players yet"}
+						{formatTournamentPlayerCount(playerCount)}
 					</span>
 					<span className="shrink-0 tabular-nums">{tournament.remaining}</span>
 				</div>

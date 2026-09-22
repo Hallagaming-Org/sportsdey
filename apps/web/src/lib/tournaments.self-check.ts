@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
+	formatTournamentPlayerCount,
 	TOURNAMENT_API_ROUTE,
 	TOURNAMENT_ID_FIELD,
+	TOURNAMENT_NO_PLAYERS_YET,
 	TOURNAMENT_QUERY_KEY,
 } from "./tournaments.constant.ts";
 import {
@@ -147,5 +149,8 @@ assert.equal(
 	false,
 );
 assert.equal(unwrapLeaderboardRows({ players: [{ rank: 1 }] }).length, 1);
+assert.equal(formatTournamentPlayerCount(undefined), "");
+assert.equal(formatTournamentPlayerCount(0), TOURNAMENT_NO_PLAYERS_YET);
+assert.equal(formatTournamentPlayerCount(12), "12 Players");
 
 console.log("tournaments.self-check: ok");
