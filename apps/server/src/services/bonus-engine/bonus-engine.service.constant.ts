@@ -13,6 +13,9 @@ export const BONUS_ENGINE_PATH = {
 	LOYALTY_LISTS: "/loyalty/lists",
 	MISSION_LIST: "/mission/list",
 	MISSION_PROGRESS: "/mission/progress",
+	TOURNAMENT_LIST: "/tournament/list",
+	TOURNAMENT_JOIN: "/tournament/join",
+	TOURNAMENT_LEADERBOARD: "/tournament/leaderboard",
 	LIST_ACTIVE_CAMPAIGN: "/list_active_campaign",
 	GETALL_USER_BONUS: "/getall_User_bonus",
 	ACTIVATE_BONUS: "/activate_bonus",
@@ -198,6 +201,8 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	IS_ROLLBACK: "isRollback",
 	RESULT_TIME: "result_time",
 	MISSION_ID: "mission_id",
+	TOURNAMENT_ID: "tournament_id",
+	TOURNAMENT_ID_JOIN: "tournamentId",
 } as const;
 
 export const BONUS_ENGINE_REPORT_RETRY_ATTEMPTS = 3;
