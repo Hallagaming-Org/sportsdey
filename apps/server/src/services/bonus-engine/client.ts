@@ -32,6 +32,33 @@ export function extractBonusEngineMessage(
 }
 
 /**
+ * Reads the vendor JSON `status` field. Bonus Engine often returns HTTP 200
+ * with `{ status: 411, message: "PLAYER_NOT_FOUND" }` (and similar 4xx codes).
+ */
+export function readBonusEngineEnvelopeStatus(parsed: unknown): number | null {
+	if (typeof parsed !== "object" || parsed === null) return null;
+	if (!("status" in parsed)) return null;
+	const status = (parsed as { status?: unknown }).status;
+	return typeof status === "number" && Number.isFinite(status) ? status : null;
+}
+
+/**
+ * True when the JSON envelope is a vendor-level failure even if HTTP was 200.
+ * `success: false` or a numeric `status` of 400+ both count.
+ */
+export function isBonusEngineEnvelopeFailure(parsed: unknown): boolean {
+	if (typeof parsed !== "object" || parsed === null) return false;
+	if (
+		"success" in parsed &&
+		(parsed as { success?: boolean }).success === false
+	) {
+		return true;
+	}
+	const envelopeStatus = readBonusEngineEnvelopeStatus(parsed);
+	return envelopeStatus !== null && envelopeStatus >= 400;
+}
+
+/**
  * True when Bonus Engine JSON 404 means "no rows". HTML/Express 404s are
  * misconfigured hosts, not empty collections.
  */
@@ -109,15 +136,11 @@ export async function bonusEngineRequest<T = unknown>(payload: {
 			}
 		}
 
-		const successFlag =
-			typeof parsed === "object" && parsed !== null && "success" in parsed
-				? Boolean((parsed as { success?: boolean }).success)
-				: undefined;
-
-		if (!response.ok || successFlag === false) {
+		if (!response.ok || isBonusEngineEnvelopeFailure(parsed)) {
 			return {
 				ok: false,
-				status: response.status || 400,
+				status:
+					(readBonusEngineEnvelopeStatus(parsed) ?? response.status) || 400,
 				error: extractBonusEngineMessage(
 					parsed,
 					text || `Bonus Engine request failed (${response.status})`,
