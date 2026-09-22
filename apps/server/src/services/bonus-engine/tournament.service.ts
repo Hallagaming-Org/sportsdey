@@ -2,6 +2,7 @@ import type { CloudflareBindings } from "../../types";
 import {
 	BONUS_ENGINE_BODY_FIELD,
 	BONUS_ENGINE_PATH,
+	BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE,
 } from "./bonus-engine.service.constant";
 import type {
 	BonusEngineApiResult,
@@ -59,14 +60,14 @@ export function buildBonusEngineTournamentJoinBody(payload: {
 	return {
 		[BONUS_ENGINE_BODY_FIELD.PROJECT_ID]: payload.projectId,
 		[BONUS_ENGINE_BODY_FIELD.CLIENT_ID]: payload.clientId,
-		[BONUS_ENGINE_BODY_FIELD.TOURNAMENT_ID_JOIN]: payload.tournamentId,
+		[BONUS_ENGINE_BODY_FIELD.TOURNAMENT_ID]: payload.tournamentId,
 		[BONUS_ENGINE_BODY_FIELD.USER_ID]: payload.userId,
 	};
 }
 
 /**
- * Builds `POST /tournament/leaderboard`. Vendor body uses snake_case
- * `tournament_id` (unlike join).
+ * Builds Bonus Engine `POST /tournament/leaderboard`.
+ * Same camelCase `tournamentId` as join.
  */
 export function buildBonusEngineTournamentLeaderboardBody(payload: {
 	clientId: string;
@@ -130,7 +131,9 @@ export async function joinBonusEngineTournament(payload: {
 	tournamentId: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<Record<string, unknown>>>> {
 	const config = getBonusEngineConfig(payload.env);
-	return signedTournamentRequest({
+	const result = await signedTournamentRequest<
+		BonusEngineEnvelope<Record<string, unknown>>
+	>({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.TOURNAMENT_JOIN,
 		body: buildBonusEngineTournamentJoinBody({
@@ -140,6 +143,37 @@ export async function joinBonusEngineTournament(payload: {
 			userId: payload.userId,
 		}),
 	});
+	if (!result.ok) {
+		const error = mapBonusEngineTournamentJoinError(result.error);
+		if (error !== result.error) {
+			console.warn("Bonus Engine tournament join rejected", {
+				userId: payload.userId,
+				tournamentId: payload.tournamentId,
+				error: result.error,
+			});
+		}
+		return { ...result, error };
+	}
+	return result;
+}
+
+/**
+ * Maps vendor Mongo unique-index failures on `player_tournaments.tournament_id`
+ * to a client-safe message. That index is tournament-scoped, not player-scoped,
+ * so a second account cannot join after the first.
+ */
+export function mapBonusEngineTournamentJoinError(
+	error: string | undefined,
+): string {
+	const message = error?.trim() ?? "";
+	if (
+		/E11000 duplicate key/i.test(message) &&
+		/player_tournaments/i.test(message) &&
+		/tournament_id/i.test(message)
+	) {
+		return BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE.DUPLICATE_TOURNAMENT_SLOT;
+	}
+	return message || "Failed to join tournament";
 }
 
 /**
