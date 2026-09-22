@@ -2,6 +2,11 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
+import {
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
+} from "@/services/bonus-engine";
 import { verifySlotitegrationSignature } from "@/utils";
 import type { CloudflareBindings } from "../types";
 
@@ -502,6 +507,16 @@ slotegratorRoute.post("/", async (c) => {
 
 		const balance = newBalance / 100;
 
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			amount,
+			currency,
+			gameRef: gameUuid,
+		});
+
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 
@@ -633,6 +648,15 @@ slotegratorRoute.post("/", async (c) => {
 		}
 
 		const balance = newBalance / 100;
+
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: transactionId,
+			totalWinAmount: amount,
+			isWin: 1,
+		});
 
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
@@ -845,6 +869,18 @@ slotegratorRoute.post("/", async (c) => {
 				200,
 			);
 		}
+
+		const balance = newBalance / 100;
+
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: playerId,
+			betId: betTransactionId || transactionId,
+			totalWinAmount: amount,
+			isWin: 0,
+			isRollback: 1,
+		});
 
 		return c.json({ balance, transaction_id: txId }, 200);
 	}

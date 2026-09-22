@@ -1,0 +1,279 @@
+
+import assert from "node:assert/strict";
+import {
+	isActiveEngineMission,
+	normalizeMissionRecord,
+	resolveMissionAction,
+} from "./missions-normalize.ts";
+import { MISSION_API_ROUTE, MISSION_STATUS } from "./missions.constant.ts";
+
+const wagerMission = normalizeMissionRecord({
+	_id: "6a759deaae8a0edf2509e7e9",
+	mission_name: "August Missions",
+	mission_triggers: [
+		{
+			type: "Wager X and Get X",
+			parameters: {
+				amount: "1000",
+				rewards: [{ type: "Points", amount: 50 }],
+			},
+		},
+	],
+	provider_games: [
+		{
+			provider: { unique_id: "provider_id", name: "provider_name" },
+			game: [
+				{
+					unique_id: "9a3ca32d53754e149fd5962f0685e88b",
+					name: "Football Golden Cup",
+				},
+			],
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+
+assert.equal(wagerMission.actionKind, "casino");
+assert.equal(wagerMission.missionStatus, MISSION_STATUS.ACTIVE);
+assert.equal(isActiveEngineMission(wagerMission), true);
+assert.equal(wagerMission.actionHref, "/games");
+assert.equal(
+	wagerMission.actionSearch?.play,
+	"9a3ca32d53754e149fd5962f0685e88b",
+);
+assert.equal(wagerMission.actionLabel, "Play Football Golden Cup");
+assert.equal(wagerMission.rewardPoints, 50);
+assert.equal(wagerMission.rewardLabel, "50 Points");
+assert.equal(wagerMission.progressTarget, 1000);
+assert.equal(wagerMission.description, "Wager 1000 and Get 50 Points");
+
+const loginBetMission = normalizeMissionRecord({
+	_id: "6a759ee7ae8a0edf2509e9af",
+	mission_name: "August Mission",
+	mission_triggers: [
+		{
+			type: "Login > 5 consecutive days and bet > X on specific condition",
+			parameters: {
+				days: "7",
+				min_bet: "100",
+				rewards: [{ type: "Real Cash", amount: 200 }],
+			},
+		},
+	],
+	provider_games: [
+		{
+			provider: { unique_id: "provider_id", name: "provider_name" },
+			game: [
+				{
+					unique_id: "5abf4e6f5e6d47199da5a68f18b92cd8",
+					name: "Basketball",
+				},
+			],
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+
+assert.equal(loginBetMission.actionKind, "casino");
+assert.notEqual(loginBetMission.actionHref, "/sportsbetting");
+assert.equal(
+	loginBetMission.actionSearch?.play,
+	"5abf4e6f5e6d47199da5a68f18b92cd8",
+);
+assert.equal(loginBetMission.actionLabel, "Play Basketball");
+assert.equal(loginBetMission.rewardLabel, "₦200");
+assert.equal(
+	loginBetMission.description,
+	"Login > 7 consecutive days and bet > 100 on specific condition",
+);
+
+const loginMinBetZero = normalizeMissionRecord({
+	_id: "login-min-bet-zero",
+	mission_name: "Login streak",
+	mission_triggers: [
+		{
+			type: "Login > 5 consecutive days and bet > X on specific condition",
+			parameters: {
+				days: "1",
+				min_bet: "0",
+				rewards: [{ type: "Points", amount: 50 }],
+			},
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(
+	loginMinBetZero.description,
+	"Login > 1 consecutive days and bet > 0 on specific condition",
+);
+assert.equal(loginMinBetZero.rewardLabel, "50 Points");
+assert.notEqual(
+	loginMinBetZero.description,
+	"Complete the required play to earn rewards.",
+);
+
+const depositOnly = resolveMissionAction({
+	triggerTypes: ["Deposit X and Get X"],
+	providers: [],
+	games: [],
+});
+assert.equal(depositOnly.kind, "deposit");
+assert.equal(depositOnly.href, "/wallet");
+
+const sportsWager = resolveMissionAction({
+	triggerTypes: ["Wager X and Get X"],
+	providers: [],
+	games: [],
+});
+assert.equal(sportsWager.kind, "sports");
+assert.equal(
+	sportsWager.href,
+	"/sportsbetting/sports/prematch/football",
+);
+
+const placeholderWager = resolveMissionAction({
+	triggerTypes: ["Bet X and Get X"],
+	providers: [{ uniqueId: "provider_id", name: "provider_name" }],
+	games: [{ uniqueId: "game_id", name: "Game", providerName: "provider_name" }],
+});
+assert.equal(placeholderWager.kind, "sports");
+assert.equal(
+	placeholderWager.href,
+	"/sportsbetting/sports/prematch/football",
+);
+
+const leagueMission = normalizeMissionRecord({
+	_id: "6a97384b90c3b87c2011ced9",
+	mission_name: "TestySports",
+	mission_triggers: [
+		{
+			type: "Bet X and Get X",
+			parameters: {
+				amount: "1000",
+				rewards: [{ type: "Points", amount: 5000 }],
+			},
+		},
+	],
+	provider_games: [{ game: [] }],
+	product: "sport",
+	sports_league_events: [
+		{
+			sports: { unique_id: 1, name: "Soccer" },
+			category: { unique_id: 10, name: "England" },
+			leagues: [
+				{ league: { unique_id: 100, name: "Premier League" } },
+			],
+		},
+	],
+	sportsbook_path:
+		"sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(leagueMission.actionKind, "sports");
+assert.equal(leagueMission.actionLabel, "Play Premier League");
+assert.equal(
+	leagueMission.actionHref,
+	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+);
+assert.equal(leagueMission.leagues[0]?.name, "Premier League");
+assert.equal(leagueMission.description, "Bet 1000 and Get 5000 Points");
+
+const betAndGetCard = normalizeMissionRecord({
+	_id: "bet-x-get-x",
+	mission_name: "Bet mission",
+	mission_triggers: [
+		{
+			type: "Bet X and Get X",
+			parameters: {
+				amount: "25",
+				rewards: [{ type: "Points", amount: 20 }],
+			},
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(betAndGetCard.description, "Bet 25 and Get 20 Points");
+
+const realCashCard = normalizeMissionRecord({
+	_id: "bet-real-cash",
+	mission_name: "Cash mission",
+	mission_triggers: [
+		{
+			type: "Bet X and Get X",
+			parameters: {
+				amount: "25",
+				rewards: [{ type: "Real Cash", amount: 20 }],
+			},
+		},
+	],
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(realCashCard.description, "Bet 25 and Get ₦20");
+assert.equal(realCashCard.rewardLabel, "₦20");
+
+const germanyCategory = normalizeMissionRecord({
+	_id: "6a9698b190c3b87c20108712",
+	mission_name: "newSept",
+	mission_triggers: [
+		{
+			type: "Wager X and Get X",
+			parameters: { amount: "100" },
+		},
+	],
+	provider_games: [{ game: [] }],
+	product: "sport",
+	sports_league_events: [
+		{
+			sports: { unique_id: 1, name: "Soccer" },
+			category: { unique_id: 13, name: "Germany" },
+			leagues: [{}],
+		},
+	],
+	sportsbook_path:
+		"sports/prematch/football/tournament/betting:24:gin:bef631c0-4f2c-4baa-879e-fa15c90fb911",
+	mission_status: "ACTIVE",
+	status: 1,
+});
+assert.equal(germanyCategory.actionLabel, "Play Germany");
+assert.equal(
+	germanyCategory.actionHref,
+	"/sportsbetting/sports/prematch/football/tournament/betting:24:gin:bef631c0-4f2c-4baa-879e-fa15c90fb911",
+);
+assert.equal(germanyCategory.categories[0]?.name, "Germany");
+
+const completedMission = normalizeMissionRecord({
+	_id: "completed-mission",
+	mission_name: "Done",
+	mission_status: "COMPLETED",
+	status: 1,
+});
+assert.equal(completedMission.missionStatus, MISSION_STATUS.COMPLETED);
+assert.equal(isActiveEngineMission(completedMission), false);
+
+const emptyLeagueSport = resolveMissionAction({
+	triggerTypes: ["Wager X and Get X"],
+	providers: [],
+	games: [],
+	leagues: [],
+});
+assert.equal(
+	emptyLeagueSport.href,
+	"/sportsbetting/sports/prematch/football",
+);
+
+const invite = resolveMissionAction({
+	triggerTypes: ["Refer a friend"],
+	providers: [],
+	games: [],
+});
+assert.equal(invite.kind, "invite");
+assert.equal(invite.href, "/account#account-referral-id");
+assert.equal(MISSION_API_ROUTE.LIST, "mission/list");
+
+console.log("missions.self-check: ok");

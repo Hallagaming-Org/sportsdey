@@ -1,0 +1,338 @@
+import { and, eq } from "drizzle-orm";
+import { createDb } from "../../db";
+import * as schema from "../../db/schema";
+import type { CloudflareBindings } from "../../types";
+import { databetFetch } from "../../utils/databet-fetch";
+import {
+	nativeCasinoProviderByGameCode,
+	nativeCasinoProviderById,
+} from "./casino-catalog.constant";
+import {
+	BONUS_ENGINE_DATABET_FOOTBALL_SPORT,
+	BONUS_ENGINE_DATABET_TOURNAMENTS_PATH,
+	BONUS_ENGINE_SPORTSBOOK_CATALOG,
+	BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS,
+	pickCanonicalSportsbookTournament,
+} from "./reference-data.service.constant";
+import type {
+	BonusEngineChampionshipItem,
+	BonusEngineChampionshipRow,
+	BonusEngineEventMarketItem,
+	BonusEngineGameItem,
+	BonusEngineGameProviderItem,
+	BonusEngineSportCategoryItem,
+	BonusEngineSportEventItem,
+	BonusEngineSportItem,
+} from "./reference-data.service.type";
+
+/**
+ * Lists distinct casino providers for Bonus Engine Admin dropdowns.
+ *
+ * Slotegrator rows bring their own `provider_id` + `provider_name`. Rows we
+ * seed ourselves (Lagos Rush, Halla, LuckyWorld, Thndr, Sportsdey Originals)
+ * have neither, so they resolve through the native catalog — otherwise Admin
+ * could not build a mission rule those games are able to satisfy.
+ * Returns [] when the catalog has not been synced yet (never invents placeholders).
+ */
+export async function listBonusEngineGameProviders(
+	env: CloudflareBindings,
+): Promise<BonusEngineGameProviderItem[]> {
+	const db = createDb(env.DB);
+	const rows = await db
+		.select({
+			code: schema.game.code,
+			providerId: schema.game.providerId,
+			providerName: schema.game.providerName,
+			isLiveGame: schema.game.isLiveGame,
+		})
+		.from(schema.game)
+		.where(eq(schema.game.enabled, true));
+
+	const providers = new Map<string, BonusEngineGameProviderItem>();
+	for (const row of rows) {
+		const uniqueId = row.providerId?.trim();
+		const name = row.providerName?.trim();
+		if (uniqueId && name) {
+			const existing = providers.get(uniqueId);
+			providers.set(uniqueId, {
+				name,
+				unique_id: uniqueId,
+				is_live_game:
+					row.isLiveGame || existing?.is_live_game === 1
+						? 1
+						: (existing?.is_live_game ?? 0),
+			});
+			continue;
+		}
+
+		const native = nativeCasinoProviderByGameCode(row.code);
+		if (!native || providers.has(native.uniqueId)) continue;
+		providers.set(native.uniqueId, {
+			name: native.name,
+			unique_id: native.uniqueId,
+			is_live_game: native.isLiveGame,
+		});
+	}
+
+	return [...providers.values()].sort((left, right) =>
+		left.name.localeCompare(right.name),
+	);
+}
+
+/**
+ * Lists every enabled casino game with a resolvable provider, optionally
+ * filtered by provider (`gameProvider` query = provider `unique_id`).
+ *
+ * `unique_id` is always `game.code` — the same value the provider callback
+ * routes report as `game_id`. For Slotegrator rows the code *is* the uuid
+ * (`catalog-sync.service.ts` writes `code: uuid`), so this is unchanged for
+ * them and readable (`LAGOSRUSH`) for games we seed.
+ *
+ * Adding a game needs no code change here: seed it with provider metadata and
+ * it shows up. The native catalog is only a fallback for rows seeded before
+ * that metadata existed.
+ */
+export async function listBonusEngineGames(payload: {
+	env: CloudflareBindings;
+	gameProvider?: string;
+}): Promise<BonusEngineGameItem[]> {
+	const db = createDb(payload.env.DB);
+	const providerFilter = payload.gameProvider?.trim();
+	const enabled = eq(schema.game.enabled, true);
+	// Only narrow in SQL when the filter cannot also match a native fallback,
+	// so the big Slotegrator catalog is never scanned in full for no reason.
+	const canFilterInSql =
+		Boolean(providerFilter) && !nativeCasinoProviderById(providerFilter);
+	const rows = await db
+		.select({
+			name: schema.game.name,
+			code: schema.game.code,
+			providerId: schema.game.providerId,
+			freeSpin: schema.game.freeSpin,
+		})
+		.from(schema.game)
+		.where(
+			canFilterInSql && providerFilter
+				? and(enabled, eq(schema.game.providerId, providerFilter))
+				: enabled,
+		);
+
+	return rows.flatMap((row) => {
+		const providerId =
+			row.providerId?.trim() ||
+			nativeCasinoProviderByGameCode(row.code)?.uniqueId;
+		if (!providerId) return [];
+		if (providerFilter && providerId !== providerFilter) return [];
+		return [
+			{
+				provider_unique_id: providerId,
+				name: row.name,
+				unique_id: row.code,
+				free_spin: row.freeSpin ? 1 : 0,
+			},
+		];
+	});
+}
+
+/** Returns sportsbook sports for Admin dropdowns. */
+export function listBonusEngineSports(): BonusEngineSportItem[] {
+	return BONUS_ENGINE_SPORTSBOOK_CATALOG.sports.map((sport) => ({
+		SportId: sport.SportId,
+		Name: sport.Name,
+	}));
+}
+
+/** Returns sport categories, optionally filtered by sport/category id. */
+export function listBonusEngineSportCategories(payload: {
+	sportId?: string;
+	categoryId?: string;
+}): BonusEngineSportCategoryItem[] {
+	const sportId = parseOptionalInt(payload.sportId);
+	const categoryId = parseOptionalInt(payload.categoryId);
+
+	return BONUS_ENGINE_SPORTSBOOK_CATALOG.categories
+		.filter((category) => {
+			if (sportId !== null && category.sportId !== sportId) return false;
+			if (categoryId !== null && category.categoryId !== categoryId) {
+				return false;
+			}
+			return true;
+		})
+		.map((category) => ({
+			categoryId: category.categoryId,
+			name: category.name,
+		}));
+}
+
+/**
+ * Returns catalogued European championships for Admin dropdowns.
+ * Uses Data.Bet tournament ids when the sportsbook proxy is configured so
+ * Championship ID equals `POST /bet` `league_id`.
+ */
+export async function listBonusEngineChampionshipRows(
+	env?: CloudflareBindings,
+): Promise<BonusEngineChampionshipRow[]> {
+	const live = env ? await loadLiveTopEuropeanChampionships(env) : null;
+	return live ?? fallbackChampionships();
+}
+
+export async function listBonusEngineChampionships(payload: {
+	env?: CloudflareBindings;
+	sportId?: string;
+	categoryId?: string;
+	championshipId?: string;
+}): Promise<BonusEngineChampionshipItem[]> {
+	const rows = await listBonusEngineChampionshipRows(payload.env);
+	return filterChampionships(rows, payload);
+}
+
+/** Events are not catalogued — league-level missions do not pin fixtures. */
+export function listBonusEngineSportEvents(_payload: {
+	sportId?: string;
+	categoryId?: string;
+	championshipId?: string;
+}): BonusEngineSportEventItem[] {
+	return [];
+}
+
+/** Markets require a live event; Admin catalog does not list fixtures. */
+export function listBonusEngineEventMarkets(_payload: {
+	eventId?: string;
+}): BonusEngineEventMarketItem[] {
+	return [];
+}
+
+function fallbackChampionships(): BonusEngineChampionshipRow[] {
+	return BONUS_ENGINE_SPORTSBOOK_CATALOG.championships.map((championship) => ({
+		sportId: championship.sportId,
+		categoryId: championship.categoryId,
+		championshipId: championship.championshipId,
+		name: championship.name,
+	}));
+}
+
+function filterChampionships(
+	rows: BonusEngineChampionshipRow[],
+	payload: {
+		sportId?: string;
+		categoryId?: string;
+		championshipId?: string;
+	},
+): BonusEngineChampionshipItem[] {
+	const sportId = parseOptionalInt(payload.sportId);
+	const categoryId = parseOptionalInt(payload.categoryId);
+	const championshipId = payload.championshipId?.trim() || "";
+
+	return rows
+		.filter((championship) => {
+			if (sportId !== null && championship.sportId !== sportId) return false;
+			if (categoryId !== null && championship.categoryId !== categoryId) {
+				return false;
+			}
+			if (
+				championshipId &&
+				String(championship.championshipId) !== championshipId
+			) {
+				return false;
+			}
+			return true;
+		})
+		.map((championship) => ({
+			championshipId: championship.championshipId,
+			name: championship.name,
+		}));
+}
+
+/**
+ * Load Data.Bet tournament ids for catalogued European championships.
+ * Returns null when the proxy is missing or every lookup fails.
+ */
+async function loadLiveTopEuropeanChampionships(
+	env: CloudflareBindings,
+): Promise<BonusEngineChampionshipRow[] | null> {
+	if (!env.PROXY_URL?.trim() || !env.PROXY_SECRET?.trim()) return null;
+
+	try {
+		const pages = await Promise.all(
+			BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS.map((championship) =>
+				fetchDatabetTournamentsByName(env, championship.searchName),
+			),
+		);
+
+		const rows: BonusEngineChampionshipRow[] = [];
+		for (const [index, championship] of BONUS_ENGINE_TOP_EUROPEAN_CHAMPIONSHIPS.entries()) {
+			const picked = pickCanonicalSportsbookTournament(
+				pages[index] ?? [],
+				championship,
+			);
+			rows.push({
+				sportId: championship.sportId,
+				categoryId: championship.categoryId,
+				championshipId: picked
+					? toChampionshipId(picked.id)
+					: championship.fallbackChampionshipId,
+				name: championship.name,
+			});
+		}
+
+		if (!rows.some((row) => isLiveSportsbookTournamentId(row.championshipId))) {
+			return null;
+		}
+
+		return rows;
+	} catch (error) {
+		console.warn("Bonus Engine championship catalog fell back to stubs", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return null;
+	}
+}
+
+async function fetchDatabetTournamentsByName(
+	env: CloudflareBindings,
+	name: string,
+): Promise<Array<{ id: string; name: string }>> {
+	const response = await databetFetch(env, BONUS_ENGINE_DATABET_TOURNAMENTS_PATH, {
+		method: "POST",
+		headers: { "Api-Locale": "en" },
+		body: {
+			sport: BONUS_ENGINE_DATABET_FOOTBALL_SPORT,
+			name,
+			limit: 20,
+			offset: 0,
+		},
+	});
+	if (!response.ok) return [];
+
+	const data = (await response.json()) as {
+		data?: {
+			tournaments_by_filters?: Array<{ id?: string; name?: string }>;
+		};
+	};
+	const rawPage = data.data?.tournaments_by_filters ?? [];
+	return rawPage.flatMap((tournament) => {
+		const id = tournament.id?.trim();
+		const tournamentName = tournament.name?.trim();
+		if (!id || !tournamentName) return [];
+		return [{ id, name: tournamentName }];
+	});
+}
+
+function toChampionshipId(rawId: string): number | string {
+	const trimmed = rawId.trim();
+	const numeric = Number(trimmed);
+	if (Number.isInteger(numeric) && String(numeric) === trimmed) {
+		return numeric;
+	}
+	return trimmed;
+}
+
+function isLiveSportsbookTournamentId(id: number | string): boolean {
+	return /:gin:/i.test(String(id)) || /^betting:\d+:/i.test(String(id));
+}
+
+function parseOptionalInt(value: string | undefined): number | null {
+	if (!value?.trim()) return null;
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}

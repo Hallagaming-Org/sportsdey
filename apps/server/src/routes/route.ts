@@ -1,6 +1,9 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import affnookRoute from "./affnook";
 import basketballRoute from "./basketball";
+import bonusRoute from "./bonus";
+import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
+import bonusEngineReferenceDataRoute from "./bonus-engine-reference-data";
 import casinoRoute from "./casino";
 import hashcodexRoute from "./hashcodex";
 import casinoProviderRoute from "./casino-provider";
@@ -10,6 +13,8 @@ import footballRoute from "./football";
 import gamesRoute from "./games";
 import kycRoute from "./kyc";
 import lagosRushRoute from "./lagos-rush";
+import loyaltyRoute from "./loyalty";
+import missionRoute from "./mission";
 import monnifyRoute from "./monnify";
 import newsRoute from "./news";
 import notificationsRoute from "./notifications";
@@ -19,6 +24,7 @@ import slotegratorRoute from "./slotegrator";
 import sportsbookRoute from "./sportsbook";
 import tennisRoute from "./tennis";
 import thundrRoute from "./thundr";
+import tournamentRoute from "./tournament";
 import userRoute from "./user";
 import walletRoute from "./wallet";
 const routes = new OpenAPIHono();
@@ -45,5 +51,14 @@ routes.route("/games", gamesRoute);
 routes.route("/hashcodex", hashcodexRoute);
 routes.route("/cms", cmsRoute);
 routes.route("/kyc", kycRoute);
+routes.route("/loyalty", loyaltyRoute);
+routes.route("/mission", missionRoute);
+routes.route("/bonus", bonusRoute);
+routes.route("/tournament", tournamentRoute);
+routes.route(
+	"/bem/api/BonusEngine/bonus-engine",
+	bonusEngineReferenceDataRoute,
+);
+routes.route("/", bonusEngineCallbackRoute);
 
 export default routes;

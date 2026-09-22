@@ -1,9 +1,19 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useCallback } from "react";
-import { cn } from "@/lib/utils";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { AssignedBonusPromoCard } from "@/components/assigned-bonus-promo-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ApiError, apiRequest } from "@/lib/api";
+import { useSession } from "@/lib/auth/client";
+import {
+	activatePlayerBonus,
+	fetchPlayerBonuses,
+	invalidateBonusAndWallet,
+	promotionsAssignedBonuses,
+} from "@/lib/bonuses";
+import { BONUS_QUERY_KEY } from "@/lib/bonuses.constant";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/promotions/")({
 	component: PromotionsPage,
@@ -26,6 +36,45 @@ const FILTERS = [
 
 function PromotionsPage() {
 	const [activeFilter, setActiveFilter] = useState("All");
+	const queryClient = useQueryClient();
+	const { data: session } = useSession();
+
+	const assignedQuery = useQuery({
+		queryKey: BONUS_QUERY_KEY.LIST,
+		queryFn: async () => {
+			try {
+				return await fetchPlayerBonuses();
+			} catch (error) {
+				if (
+					error instanceof ApiError &&
+					(error.status === 502 || error.status === 503)
+				) {
+					return [];
+				}
+				throw error;
+			}
+		},
+		enabled: Boolean(session?.user),
+		retry: false,
+		refetchInterval: 15_000,
+	});
+
+	const activateMutation = useMutation({
+		mutationFn: activatePlayerBonus,
+		onSuccess: async () => {
+			toast.success("Bonus activated");
+			await invalidateBonusAndWallet(queryClient);
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof ApiError
+					? error.message
+					: "Could not activate this bonus. Try again.",
+			);
+		},
+	});
+
+	const assignedBonuses = promotionsAssignedBonuses(assignedQuery.data ?? []);
 
 	const fetchPromos = async ({ pageParam = 0 }) => {
 		const data = await apiRequest<PromoResponse[]>(
@@ -99,6 +148,32 @@ function PromotionsPage() {
 						)
 					})}
 				</div>
+
+				{session?.user && assignedQuery.isError ? (
+					<p className="mb-4 text-sm text-red-400">
+						{assignedQuery.error instanceof ApiError
+							? assignedQuery.error.message
+							: "Could not load your assigned bonuses."}
+					</p>
+				) : null}
+
+				{session?.user && assignedBonuses.length > 0 ? (
+					<div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+						{assignedBonuses.map((bonus) => (
+							<AssignedBonusPromoCard
+								key={bonus.id}
+								bonus={bonus}
+								isMutating={
+									activateMutation.isPending &&
+									activateMutation.variables?.userbonusId === bonus.id
+								}
+								onActivate={(userbonusId) =>
+									activateMutation.mutate({ userbonusId })
+								}
+							/>
+						))}
+					</div>
+				) : null}
 
 				{status === "pending" ? (
 					<div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">

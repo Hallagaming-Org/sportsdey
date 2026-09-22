@@ -5,6 +5,10 @@ import { drizzle } from "drizzle-orm/d1";
 import { createHashCookie, createSignedSessionCookieString } from "@/auth";
 import { SESSION_TTL_MS } from "@/constants/session";
 import * as schema from "@/db/schema";
+import {
+	optionalExecutionCtx,
+	scheduleBonusEnginePlayerOnAppLogin,
+} from "@/services/bonus-engine";
 import { sendOtpWithAfricaTalking } from "@/utils/africastalking";
 import {
 	buildPhonePlaceholderEmail,
@@ -531,6 +535,13 @@ phoneAuthRoute.openapi(verifyOtpRoute, async (c) => {
 		.update(schema.user)
 		.set({ lastLoginIp: loginIp })
 		.where(eq(schema.user.id, signedInUser.id));
+
+	scheduleBonusEnginePlayerOnAppLogin({
+		env: c.env,
+		userId: signedInUser.id,
+		username: signedInUser.name || signedInUser.email || signedInUser.id,
+		executionCtx: optionalExecutionCtx(c),
+	});
 
 	const sessionCookie = await createSignedSessionCookieString(
 		token,

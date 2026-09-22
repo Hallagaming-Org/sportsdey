@@ -1,5 +1,12 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	primaryKey,
+	real,
+	sqliteTable,
+	text,
+} from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
 	id: text("id").primaryKey(),
@@ -677,6 +684,12 @@ export const game = sqliteTable("game", {
 	name: text("name").notNull(),
 	code: text("code").notNull(),
 	imageUrl: text("image_url"),
+	providerId: text("provider_id"),
+	providerName: text("provider_name"),
+	isLiveGame: integer("is_live_game", { mode: "boolean" })
+		.default(false)
+		.notNull(),
+	freeSpin: integer("free_spin", { mode: "boolean" }).default(false).notNull(),
 	enabled: integer("enabled", { mode: "boolean" }).default(true).notNull(),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -732,5 +745,80 @@ export const gameCategoryRelations = relations(gameCategory, ({ one }) => ({
 		references: [category.id],
 	}),
 }));
+
+/** Idempotent log of Bonus Engine inbound callbacks. */
+export const bonusEngineCallbackEvent = sqliteTable(
+	"bonus_engine_callback_event",
+	{
+		id: text("id").primaryKey(),
+		idempotencyKey: text("idempotency_key").notNull().unique(),
+		eventType: text("event_type").notNull(),
+		payloadJson: text("payload_json").notNull(),
+		processedAt: integer("processed_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("bonus_engine_callback_event_type_idx").on(table.eventType),
+	],
+);
+
+/** Local cache of loyalty points/level from Bonus Engine callbacks or fetches. */
+export const bonusEngineLoyaltySnapshot = sqliteTable(
+	"bonus_engine_loyalty_snapshot",
+	{
+		userId: text("user_id").primaryKey(),
+		totalPoints: integer("total_points").notNull().default(0),
+		loyaltyLevel: text("loyalty_level").notNull().default(""),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+);
+
+/** Local cache of mission progress/completion from Bonus Engine callbacks. */
+export const bonusEngineMissionProgress = sqliteTable(
+	"bonus_engine_mission_progress",
+	{
+		userId: text("user_id").notNull(),
+		missionId: text("mission_id").notNull(),
+		progressPercentage: real("progress_percentage").notNull().default(0),
+		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		rewardJson: text("reward_json"),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			name: "bonus_engine_mission_progress_pk",
+			columns: [table.userId, table.missionId],
+		}),
+	],
+);
+
+/** Local cache of player bonus assignments from allocation / status callbacks. */
+export const bonusEngineUserBonus = sqliteTable(
+	"bonus_engine_user_bonus",
+	{
+		userId: text("user_id").notNull(),
+		bonusId: text("bonus_id").notNull(),
+		status: text("status").notNull().default(""),
+		payloadJson: text("payload_json").notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			name: "bonus_engine_user_bonus_pk",
+			columns: [table.userId, table.bonusId],
+		}),
+		index("bonus_engine_user_bonus_user_idx").on(table.userId),
+	],
+);
 
 export * from "./schema/admin";

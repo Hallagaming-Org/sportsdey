@@ -12,6 +12,7 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { Provider } from "react-redux";
 import z from "zod";
+import { BonusOfferHost } from "@/components/bonus-offer-host";
 import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
@@ -143,6 +144,14 @@ function RootDocument() {
 		"/promotions/",
 		"/promotions/$id",
 		"/bet-history",
+		"/missions",
+		"/missions/",
+		"/bonuses",
+		"/bonuses/",
+		"/loyalty",
+		"/loyalty/",
+		"/tournaments",
+		"/tournaments/",
 	]);
 	const shouldShowSidebar = sidebarAllowedRouteIds.has(activeRouteId);
 
@@ -199,6 +208,7 @@ arguments])}}var i,s,r=w[b],z=" ",l="init options track screen onReady".split(z)
 						<QueryClientProvider client={queryClient}>
 							<ErrorBoundary>
 								<Providers>
+									<BonusOfferHost />
 									{isAuthRoute ? (
 										<div className="flex h-svh flex-col overflow-clip">
 											<header className="shrink-0">

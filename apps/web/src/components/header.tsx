@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, Plus, Undo2, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Undo2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentSport } from "@/hooks/use-current-sport";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
 import { SPORTS } from "@/lib/constants";
-import { cn, formatAmount } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import MenuBar from "@/logos/MenuBar";
 import NewSportsdeyLogo from "@/logos/NewSportsdeyLogo.svg?react";
-import NigerianFlag from "@/logos/NigerianFlag";
 import NotificationIcon from "@/logos/NotificationIcon";
 import Whatsapp from "@/logos/Whatsapp";
 import AeroplaneIcon from "@/logos/aeroplane.svg?react";
@@ -18,6 +17,7 @@ import WorldIcon from "@/logos/world.svg?react";
 import Sidebar from "./sidebar";
 import { socials } from "./socials";
 import { UserMenu } from "./user-menu";
+import { WalletBalanceMenu } from "./wallet-balance-menu";
 
 // type HeaderProps = {
 // 	hideSportsNav?: boolean;
@@ -42,16 +42,17 @@ export default function Header(
 	const { data: walletData } = useQuery({
 		queryKey: ["wallet"],
 		queryFn: () =>
-			apiRequest<{ id: string; balance?: number | null }>("wallet", {
+			apiRequest<{
+				id: string;
+				balance?: number | null;
+				bonusBalance?: number | null;
+			}>("wallet", {
 				credentials: "include",
 			}),
 		enabled: !!session?.user,
 		refetchInterval: 30 * 1000,
 		retry: true,
 	});
-	const mobileBalance = walletData?.balance
-		? `₦ ${formatAmount(walletData.balance)}`
-		: "₦ 0.00";
 
 	const { data: unreadData } = useUnreadNotifications();
 	const unreadCount = unreadData?.count ?? 0;
@@ -119,36 +120,12 @@ export default function Header(
 
 					<div className="flex shrink-0 items-center gap-1.5">
 						{!!session?.user && (
-							<div className="flex h-8 w-[150px] shrink items-center justify-between rounded-md border border-gray-300 bg-[#F8F8F8] p-0.5 dark:border-gray-700 dark:bg-[#202120]">
-								<div
-									className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden px-1.5"
-									aria-label="Wallet balance"
-								>
-									<NigerianFlag />
-									<span
-										className="truncate font-semibold text-[#4b5563] tracking-tight transition-all dark:text-gray-300"
-										style={{
-											fontSize:
-												mobileBalance.length > 15
-													? "9px"
-													: mobileBalance.length > 12
-														? "10px"
-														: "11px",
-										}}
-									>
-										{mobileBalance}
-									</span>
-								</div>
-
-								<button
-									type="button"
-									onClick={() => setBlockedModal("deposit")}
-									aria-label="Add funds"
-									className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-[4px] bg-accent text-white transition-colors hover:bg-blue-600"
-								>
-									<Plus className="h-4 w-4" />
-								</button>
-							</div>
+							<WalletBalanceMenu
+								wallet={walletData}
+								compact
+								enabled={!!session?.user}
+								onDeposit={() => setBlockedModal("deposit")}
+							/>
 						)}
 
 						<button
@@ -271,26 +248,11 @@ export default function Header(
 
 					<div className="flex items-center gap-4 xl:gap-6">
 						{!isAuthRoute && !!session?.user && (
-							<div className="flex h-[40px] w-[229px] shrink-0 items-center justify-between rounded-[6.88px] border border-[#F2EEFB] bg-[#04100B] px-[6px] py-[7px] dark:border-[#F2EEFB] dark:bg-[#04100B]">
-								<div
-									className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2.5"
-									aria-label="Wallet balance"
-								>
-									<NigerianFlag />
-									<span className="truncate font-semibold text-white text-xs tracking-tight transition-all xl:text-sm">
-										{mobileBalance}
-									</span>
-								</div>
-
-								<button
-									type="button"
-									onClick={() => setBlockedModal("deposit")}
-									aria-label="Add funds"
-									className="flex h-6 shrink-0 cursor-pointer items-center justify-center rounded-[6px] bg-accent px-2 font-semibold text-[11px] text-white transition-colors hover:bg-[#00d600]"
-								>
-									Deposit
-								</button>
-							</div>
+							<WalletBalanceMenu
+								wallet={walletData}
+								enabled={!!session?.user}
+								onDeposit={() => setBlockedModal("deposit")}
+							/>
 						)}
 
 						{/* Search Magnifying Glass */}

@@ -5,12 +5,14 @@ import { createAuthMiddleware } from "better-auth/api";
 import { bearer, openAPI } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import type { ExecutionContext } from "hono";
 import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 	SESSION_MAX_AGE_SECONDS,
 } from "@/constants/session";
 import * as schema from "@/db/schema";
+import { scheduleBonusEnginePlayerOnAppLogin } from "@/services/bonus-engine";
 import type { CloudflareBindings } from "../../worker-configuration";
 
 const HMAC_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
@@ -92,7 +94,10 @@ export async function signSessionToken(
 	return `${token}.${signatureB64}`;
 }
 
-export const createAuth = (env: CloudflareBindings) => {
+export const createAuth = (
+	env: CloudflareBindings,
+	executionCtx?: ExecutionContext,
+) => {
 	const db = drizzle(env.DB, { schema });
 	const toOrigin = (value?: string) => {
 		if (!value) return "";
@@ -188,13 +193,24 @@ export const createAuth = (env: CloudflareBindings) => {
 		},
 		hooks: {
 			after: createAuthMiddleware(async (ctx) => {
-				const userId = ctx.context.newSession?.user?.id;
-				const ipAddress = ctx.context.newSession?.session?.ipAddress;
+				const newSession = ctx.context.newSession;
+				const userId = newSession?.user?.id;
+				const ipAddress = newSession?.session?.ipAddress;
 				if (userId && ipAddress) {
 					await db
 						.update(schema.user)
 						.set({ lastLoginIp: ipAddress })
 						.where(eq(schema.user.id, userId));
+				}
+				if (userId) {
+					const username =
+						newSession?.user?.name || newSession?.user?.email || userId;
+					scheduleBonusEnginePlayerOnAppLogin({
+						env,
+						userId,
+						username,
+						executionCtx,
+					});
 				}
 			}),
 		},

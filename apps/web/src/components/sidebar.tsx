@@ -1,9 +1,11 @@
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
 	ChevronDown,
+	Crown,
 	Gamepad2,
 	Gift,
 	Home,
+	ListChecks,
 	Newspaper,
 	Trophy,
 } from "lucide-react";
@@ -247,9 +249,12 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				{
 					id: "pvp-esports",
 					label: "Esports Tournaments",
-					isActive: false,
-					onClick: () =>
-						window.open("https://tournaments.sportsdey.com/", "_blank"),
+					isActive: location.pathname.startsWith("/tournaments"),
+					onClick: () => {
+						setTab("tournament");
+						trackWebengageEvent("Category", { Name: "Tournament" });
+						navigate({ to: "/tournaments" as any });
+					},
 				},
 			],
 		},
@@ -277,6 +282,34 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			icon: Video,
 			isActive: isItemActive("videos", location.pathname.startsWith("/videos")),
 			onClick: goToVideos,
+		},
+		{
+			id: "tournament",
+			label: "Tournament",
+			icon: Trophy,
+			isActive: isItemActive(
+				"tournament",
+				location.pathname.startsWith("/tournaments"),
+			),
+			onClick: () => {
+				setTab("tournament");
+				trackWebengageEvent("Category", { Name: "Tournament" });
+				navigate({ to: "/tournaments" as any });
+			},
+		},
+		{
+			id: "missions",
+			label: "Missions",
+			icon: ListChecks,
+			isActive: isItemActive(
+				"missions",
+				location.pathname.startsWith("/missions"),
+			),
+			onClick: () => {
+				setTab("missions");
+				trackWebengageEvent("Category", { Name: "Missions" });
+				navigate({ to: "/missions" as any });
+			},
 		},
 		{
 			id: "trading",
@@ -330,6 +363,20 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 				setTab("promotions");
 				trackWebengageEvent("Category", { Name: "Promotions" });
 				navigate({ to: "/promotions" as any });
+			},
+		},
+		{
+			id: "vip",
+			label: "VIP Program",
+			icon: Crown,
+			isActive: isItemActive(
+				"vip",
+				location.pathname.startsWith("/loyalty"),
+			),
+			onClick: () => {
+				setTab("loyalty");
+				trackWebengageEvent("Category", { Name: "VIP Program" });
+				navigate({ to: "/loyalty" as any });
 			},
 		},
 		// {

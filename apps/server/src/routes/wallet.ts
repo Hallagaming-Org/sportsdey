@@ -36,6 +36,11 @@ import {
 	WithdrawErrorSchema,
 	WithdrawSchema,
 } from "@/schemas/wallet";
+import {
+	BONUS_ENGINE_DEFAULT_CURRENCY,
+	reportBonusEngineDeposit,
+	runBonusEngineBackground,
+} from "@/services/bonus-engine";
 import { toWAT } from "@/utils";
 import {
 	getNigerianBanks,
@@ -51,6 +56,22 @@ import {
 } from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
 import type { CloudflareBindings } from "../types";
+
+/**
+ * Reads the SportsDey game-wallet (bonus ₦) for GET /wallet.
+ * Header uses this, not Engine `/bonus-engine/callback/balance`.
+ */
+async function bonusBalanceNaira(
+	db: ReturnType<typeof drizzle<typeof schema>>,
+	userId: string,
+): Promise<number> {
+	const [row] = await db
+		.select({ balance: schema.gameWallet.balance })
+		.from(schema.gameWallet)
+		.where(eq(schema.gameWallet.userId, userId))
+		.limit(1);
+	return (row?.balance ?? 0) / 100;
+}
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -724,6 +745,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 		const walletResponse = {
 			id: newWallet.id,
 			balance: newWallet.balance / 100,
+			bonusBalance: await bonusBalanceNaira(db, user.id),
 			createdAt: toWAT(newWallet.createdAt),
 			updatedAt: toWAT(newWallet.updatedAt),
 		};
@@ -740,6 +762,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 	const walletResponse = {
 		id: wallet.id,
 		balance: wallet.balance / 100,
+		bonusBalance: await bonusBalanceNaira(db, user.id),
 		createdAt: toWAT(wallet.createdAt),
 		updatedAt: toWAT(wallet.updatedAt),
 	};
@@ -994,6 +1017,38 @@ walletRoute.openapi(callbackRoute, async (c) => {
 						c.executionCtx,
 					);
 				}
+			}
+
+			if (status === "success" && transaction?.type === "credit") {
+				const depositAmountMajor = (tx.amount ?? transaction.amount) / 100;
+				const depositReport = reportBonusEngineDeposit({
+					env: c.env,
+					deposit: {
+						userId: transaction.userId,
+						amount: depositAmountMajor,
+						transactionId: reference,
+						currency: BONUS_ENGINE_DEFAULT_CURRENCY,
+					},
+				})
+					.then((result) => {
+						if (!result.ok) {
+							console.error("Bonus Engine deposit report failed", {
+								transactionId: reference,
+								userId: transaction.userId,
+								status: result.status,
+								error: result.error,
+							});
+						}
+					})
+					.catch((error: unknown) => {
+						console.error("Bonus Engine deposit report error", {
+							transactionId: reference,
+							userId: transaction.userId,
+							error,
+						});
+					});
+
+				await runBonusEngineBackground(c.executionCtx, depositReport);
 			}
 		}
 	}

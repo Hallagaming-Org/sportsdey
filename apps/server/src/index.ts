@@ -24,12 +24,14 @@ import adminTransactionsRoute from "./routes/admin-transactions";
 import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
+import { optionalExecutionCtx } from "./services/bonus-engine";
 import type { CloudflareBindings } from "./types";
+import type { ExecutionContext } from "hono";
 
 const app = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
-function getAuth(env: CloudflareBindings) {
-	return createAuth(env);
+function getAuth(env: CloudflareBindings, executionCtx?: ExecutionContext) {
+	return createAuth(env, executionCtx);
 }
 
 app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
@@ -73,7 +75,7 @@ app.use(
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
-	const auth = getAuth(c.env);
+	const auth = getAuth(c.env, optionalExecutionCtx(c));
 	const response = await auth.handler(c.req.raw);
 
 	const setCookies: string[] = [];
@@ -124,11 +126,13 @@ app.use("*", async (c, next) => {
 		path.startsWith("/docs") ||
 		path.startsWith("/openapi") ||
 		path.startsWith("/api/account/") ||
-		path.startsWith("/admin")
+		path.startsWith("/admin") ||
+		path.startsWith("/bonus-engine/callback/") ||
+		path.startsWith("/gamification/callback/")
 	) {
 		return next();
 	}
-	const auth = getAuth(c.env);
+	const auth = getAuth(c.env, optionalExecutionCtx(c));
 	const sessionResult = await auth.api.getSession({
 		headers: c.req.raw.headers,
 	});

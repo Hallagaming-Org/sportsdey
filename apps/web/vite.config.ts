@@ -43,6 +43,67 @@ function proxyAuthToLocalApi() {
 	};
 }
 
+/**
+ * Proxies Bonus Engine mission API (`/mission/*`) without swallowing the
+ * TanStack `/missions` page — Vite prefix matching treats `/missions` as
+ * under `/mission`.
+ */
+function proxyMissionApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/missions" || path.startsWith("/missions/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
+function proxyBonusApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/bonuses" || path.startsWith("/bonuses/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
+/**
+ * Proxies Bonus Engine tournament API (`/tournament/*`) without swallowing the
+ * TanStack `/tournaments` page — Vite prefix matching treats `/tournaments` as
+ * under `/tournament`.
+ */
+function proxyTournamentApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/tournaments" || path.startsWith("/tournaments/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
+function proxyLoyaltyApiToLocalApi() {
+	return {
+		...proxyToLocalApi(),
+		bypass(req: IncomingMessage) {
+			const path = (req.url ?? "").split("?")[0] ?? "";
+			if (path === "/loyalty" || path === "/loyalty/") {
+				return req.url;
+			}
+			if (!path.startsWith("/loyalty/")) {
+				return req.url;
+			}
+		},
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		cloudflare({ viteEnvironment: { name: "ssr" } }),
@@ -71,6 +132,12 @@ export default defineConfig({
 			"/casino": proxyToLocalApi(),
 			"/kyc": proxyToLocalApi(),
 			"/bills": proxyToLocalApi(),
+			"/loyalty": proxyLoyaltyApiToLocalApi(),
+			"/mission": proxyMissionApiToLocalApi(),
+			"/bonus": proxyBonusApiToLocalApi(),
+			"/tournament": proxyTournamentApiToLocalApi(),
+			"/bonus-engine": proxyToLocalApi(),
+			"/gamification": proxyToLocalApi(),
 		},
 	},
 });

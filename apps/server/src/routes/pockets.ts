@@ -3,6 +3,13 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	casinoBetAmountFromKobo,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
+} from "@/services/bonus-engine";
+import {
 	LagosRushBalanceRequestSchema,
 	LagosRushBalanceResponseSchema,
 	LagosRushCreditRequestSchema,
@@ -259,6 +266,17 @@ pocketsRoute.openapi(debitRoute, async (c) => {
 		);
 	}
 
+	await reportCasinoBetInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		amount: casinoBetAmountFromKobo(amount),
+		currency,
+		gameRef: "LAGOSRUSH",
+		fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.LAGOS_RUSH,
+	});
+
 	return c.json(
 		{
 			success: true,
@@ -407,6 +425,15 @@ pocketsRoute.openapi(creditRoute, async (c) => {
 			500,
 		);
 	}
+
+	await reportCasinoBetResultInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: playerId,
+		betId: transactionId,
+		totalWinAmount: casinoBetAmountFromKobo(amount),
+		isWin: 1,
+	});
 
 	return c.json(
 		{

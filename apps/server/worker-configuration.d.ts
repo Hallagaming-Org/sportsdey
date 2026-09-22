@@ -62,6 +62,13 @@ declare namespace Cloudflare {
 		AFFNOOK_CURRENCY: string;
 		AFFNOOK_DEFAULT_COUNTRY: string;
 		AFFNOOK_DEFAULT_PROMOCODE: string;
+		BONUS_ENGINE_BASE_URL: string;
+		BONUS_ENGINE_CLIENT_ID: string;
+		BONUS_ENGINE_PROJECT_ID: string;
+		BONUS_ENGINE_CLIENT_SECRET: string;
+		BONUS_ENGINE_PRIVATE_KEY: string;
+		BONUS_ENGINE_CALLBACK_PUBLIC_KEY: string;
+		BONUS_ENGINE_CURRENCY: string;
 		staging_kv?: KVNamespace;
 	}
 }

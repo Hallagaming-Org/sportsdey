@@ -4,6 +4,13 @@ import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
 import * as schema from "@/db/schema";
 import {
+	BONUS_ENGINE_NATIVE_PROVIDER_ID,
+	casinoBetAmountFromKobo,
+	optionalExecutionCtx,
+	reportCasinoBetInBackground,
+	reportCasinoBetResultInBackground,
+} from "@/services/bonus-engine";
+import {
 	ThundrBalanceQuerySchema,
 	ThundrBalanceRequestSchema,
 	ThundrBalanceResponseSchema,
@@ -482,6 +489,38 @@ thundrRoute.post("/transactions", async (c) => {
 			{ success: false, error: "Failed to record transaction" },
 			500,
 		);
+	}
+
+	if (tx.type === "BET") {
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.transactionId,
+			amount: casinoBetAmountFromKobo(txAmountKobo),
+			currency: "NGN",
+			gameRef: tx.gameId,
+			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.THNDR,
+		});
+	} else if (tx.type === "WIN" || tx.type === "DRAW") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.transactionId,
+			totalWinAmount: casinoBetAmountFromKobo(txAmountKobo),
+			isWin: 1,
+		});
+	} else if (tx.type === "ROLLBACK") {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: session.userId,
+			betId: tx.originalTransactionId || tx.transactionId,
+			totalWinAmount: casinoBetAmountFromKobo(txAmountKobo),
+			isWin: 0,
+			isRollback: 1,
+		});
 	}
 
 	return c.json(

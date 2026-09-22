@@ -5,6 +5,14 @@ import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
+	BONUS_ENGINE_DEFAULT_CURRENCY,
+	BONUS_ENGINE_PRODUCT_TYPE,
+	extractSportsbookBetReportIds,
+	reportBonusEngineBet,
+	reportBonusEngineBetResult,
+	runBonusEngineBackground,
+} from "@/services/bonus-engine";
+import {
 	BetBoostCreateResponseSchema,
 	BetBoostCreateSchema,
 	BetBoostGetResponseSchema,
@@ -844,6 +852,49 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		c.executionCtx,
 	);
 
+	const stakeMajor =
+		typeof bet.stake === "number" && Number.isFinite(bet.stake)
+			? bet.stake / 100
+			: Number.parseFloat(result.data.bet_stake);
+	if (Number.isFinite(stakeMajor) && stakeMajor > 0) {
+		const reportIds = extractSportsbookBetReportIds(selections);
+		const reportPromise = reportBonusEngineBet({
+			env: c.env,
+			bet: {
+				userId: bet.userId,
+				betId: result.data.bet_id,
+				internalBetId: result.data.bet_id,
+				amount: stakeMajor,
+				realBetAmount: stakeMajor,
+				bonusBetAmount: 0,
+				productType: BONUS_ENGINE_PRODUCT_TYPE.SPORTSBOOK,
+				currency: BONUS_ENGINE_DEFAULT_CURRENCY,
+				...(reportIds.sportId ? { sportId: reportIds.sportId } : {}),
+				...(reportIds.eventId ? { eventId: reportIds.eventId } : {}),
+				...(reportIds.leagueId ? { leagueId: reportIds.leagueId } : {}),
+			},
+		})
+			.then((reportResult) => {
+				if (!reportResult.ok) {
+					console.error("Bonus Engine sportsbook bet report failed", {
+						betId: result.data.bet_id,
+						userId: bet.userId,
+						status: reportResult.status,
+						error: reportResult.error,
+					});
+				}
+			})
+			.catch((error: unknown) => {
+				console.error("Bonus Engine sportsbook bet report error", {
+					betId: result.data.bet_id,
+					userId: bet.userId,
+					error,
+				});
+			});
+
+		await runBonusEngineBackground(c.executionCtx, reportPromise);
+	}
+
 	return c.body(null, 204);
 });
 
@@ -1443,6 +1494,36 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 		},
 		c.executionCtx,
 	);
+
+	const settleReport = reportBonusEngineBetResult({
+		env: c.env,
+		result: {
+			userId: bet.userId,
+			betId: result.data.bet_id,
+			internalBetId: result.data.bet_id,
+			totalWinAmount: settleAmount / 100,
+			isWin: settleType === 1 ? 1 : 0,
+			isRollback: settleType === 2 ? 1 : 0,
+		},
+	})
+		.then((reportResult) => {
+			if (!reportResult.ok) {
+				console.error("Bonus Engine sportsbook betResult report failed", {
+					betId: result.data.bet_id,
+					userId: bet.userId,
+					status: reportResult.status,
+					error: reportResult.error,
+				});
+			}
+		})
+		.catch((error: unknown) => {
+			console.error("Bonus Engine sportsbook betResult report error", {
+				betId: result.data.bet_id,
+				userId: bet.userId,
+				error,
+			});
+		});
+	await runBonusEngineBackground(c.executionCtx, settleReport);
 
 	return c.body(null, 204);
 });
