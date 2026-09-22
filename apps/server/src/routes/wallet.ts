@@ -1177,7 +1177,9 @@ walletRoute.openapi(callbackRoute, async (c) => {
 	const bgPing = isSuccess ? "#CCF3DD" : isFailed ? "#FADBD8" : "#F2CF93";
 	const borderColor = isSuccess ? "#F2CF93" : isFailed ? "#FADBD8" : "#F2CF93";
 
-	const redirectUrl = `${c.env.CORS_ORIGIN}/wallet`;
+	const redirectUrl = isSuccess
+		? `${c.env.CORS_ORIGIN}/wallet?deposit=success`
+		: `${c.env.CORS_ORIGIN}/wallet`;
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
