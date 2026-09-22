@@ -161,6 +161,11 @@ export const BONUS_ENGINE_LOYALTY_MESSAGE = {
 	HISTORY_ENGINE_FETCH_FAILED: "Server error while fetching loyalty history.",
 } as const;
 
+export const BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE = {
+	DUPLICATE_TOURNAMENT_SLOT:
+		"This tournament already has a joined player.",
+} as const;
+
 export const BONUS_ENGINE_BODY_FIELD = {
 	CLIENT_ID: "client_id",
 	PROJECT_ID: "project_id",
@@ -201,8 +206,7 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	IS_ROLLBACK: "isRollback",
 	RESULT_TIME: "result_time",
 	MISSION_ID: "mission_id",
-	TOURNAMENT_ID: "tournament_id",
-	TOURNAMENT_ID_JOIN: "tournamentId",
+	TOURNAMENT_ID: "tournamentId",
 } as const;
 
 export const BONUS_ENGINE_REPORT_RETRY_ATTEMPTS = 3;
