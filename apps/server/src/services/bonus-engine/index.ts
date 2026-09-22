@@ -55,8 +55,10 @@ export {
 } from "./config";
 export {
 	extractBonusEngineMessage,
+	isBonusEngineEnvelopeFailure,
 	isBonusEngineJsonNotFound,
 	isBonusEngineUnhandledException,
+	readBonusEngineEnvelopeStatus,
 } from "./client";
 export {
 	hashBonusEngineIdempotencyKey,
