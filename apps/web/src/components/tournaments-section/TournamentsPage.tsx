@@ -1,67 +1,178 @@
+import { Navigate } from "@tanstack/react-router";
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/EmptyState";
+import { ApiError } from "@/lib/api";
+import { useSession } from "@/lib/auth/client";
+import {
+	fetchTournamentLeaderboard,
+	fetchTournamentList,
+	isLeaderboardOptedIn,
+	isTournamentAlreadyOptedInError,
+	joinTournament,
+	pickFeaturedTournament,
+	type TournamentCard as Tournament,
+	type TournamentStatus,
+} from "@/lib/tournaments";
+import { TOURNAMENT_QUERY_KEY, TOURNAMENT_STATUS } from "@/lib/tournaments.constant";
 import { TournamentCard } from "./TournamentCard";
+import { TournamentGridSkeleton } from "./TournamentGridSkeleton";
 import { TournamentHero } from "./TournamentHero";
 import { TournamentLeaderboard } from "./TournamentLeaderboard";
 import { TournamentToolbar } from "./TournamentToolbar";
-import {
-	DUMMY_TOURNAMENTS,
-	FEATURED_TOURNAMENT_ID,
-	type Tournament,
-	type TournamentStatus,
-} from "./tournaments.constant";
+import { TOURNAMENT_SPORT_FILTER_ALL } from "./tournaments.constant";
 
 export function TournamentsPage() {
-	const [activeStatus, setActiveStatus] = useState<TournamentStatus>("active");
+	const queryClient = useQueryClient();
+	const { data: session, isPending: isSessionLoading } = useSession();
+	const [activeStatus, setActiveStatus] = useState<TournamentStatus>(
+		TOURNAMENT_STATUS.ACTIVE,
+	);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [sportFilter, setSportFilter] = useState("all");
+	const [sportFilter, setSportFilter] = useState<string>(
+		TOURNAMENT_SPORT_FILTER_ALL,
+	);
 	const [joinedIds, setJoinedIds] = useState<ReadonlySet<string>>(
 		() => new Set(),
 	);
 
+	const listQuery = useQuery({
+		queryKey: TOURNAMENT_QUERY_KEY.LIST,
+		queryFn: fetchTournamentList,
+		enabled: Boolean(session?.user),
+		retry: false,
+	});
+
+	const tournaments = listQuery.data ?? [];
+	const featuredTournament = useMemo(
+		() => pickFeaturedTournament(tournaments),
+		[tournaments],
+	);
+	const sessionUserId = session?.user?.id ?? "";
+	const joinableTournaments = useMemo(
+		() =>
+			tournaments.filter(
+				(tournament) => tournament.status !== TOURNAMENT_STATUS.RESULTS,
+			),
+		[tournaments],
+	);
+
+	const leaderboardQueries = useQueries({
+		queries: joinableTournaments.map((tournament) => ({
+			queryKey: TOURNAMENT_QUERY_KEY.leaderboard(tournament.id),
+			queryFn: () =>
+				fetchTournamentLeaderboard({
+					tournamentId: tournament.id,
+					tournamentTitle: tournament.title,
+				}),
+			enabled: Boolean(session?.user && tournament.id),
+			retry: false,
+		})),
+	});
+
+	const optedInIds = useMemo(() => {
+		const ids = new Set(joinedIds);
+		if (!sessionUserId) return ids;
+		for (const [index, tournament] of joinableTournaments.entries()) {
+			const entries = leaderboardQueries[index]?.data;
+			if (!entries) continue;
+			if (isLeaderboardOptedIn({ entries, userId: sessionUserId })) {
+				ids.add(tournament.id);
+			}
+		}
+		return ids;
+	}, [joinableTournaments, joinedIds, leaderboardQueries, sessionUserId]);
+
+	const featuredLeaderboardIndex = featuredTournament
+		? joinableTournaments.findIndex(
+				(tournament) => tournament.id === featuredTournament.id,
+			)
+		: -1;
+	const featuredLeaderboardQuery =
+		featuredLeaderboardIndex >= 0
+			? leaderboardQueries[featuredLeaderboardIndex]
+			: undefined;
+	const featuredLeaderboard = featuredLeaderboardQuery?.data ?? [];
+	const featuredLeaderboardLoading = Boolean(
+		featuredLeaderboardQuery?.isLoading,
+	);
+
+	const joinMutation = useMutation({
+		mutationFn: joinTournament,
+		onSuccess: async (_data, variables) => {
+			setJoinedIds((current) => new Set(current).add(variables.tournamentId));
+			toast.success("Joined tournament");
+			await queryClient.invalidateQueries({
+				queryKey: TOURNAMENT_QUERY_KEY.leaderboard(variables.tournamentId),
+			});
+		},
+		onError: (error, variables) => {
+			if (isTournamentAlreadyOptedInError(error)) {
+				setJoinedIds((current) => new Set(current).add(variables.tournamentId));
+				return;
+			}
+			toast.error(
+				error instanceof ApiError
+					? error.message
+					: "Could not join this tournament. Try again.",
+			);
+		},
+	});
+
 	const statusCounts = useMemo(() => {
 		const counts: Record<TournamentStatus, number> = {
-			active: 0,
-			upcoming: 0,
-			results: 0,
+			[TOURNAMENT_STATUS.ACTIVE]: 0,
+			[TOURNAMENT_STATUS.UPCOMING]: 0,
+			[TOURNAMENT_STATUS.RESULTS]: 0,
 		};
-		for (const tournament of DUMMY_TOURNAMENTS) {
+		for (const tournament of tournaments) {
 			counts[tournament.status] += 1;
 		}
 		return counts;
-	}, []);
+	}, [tournaments]);
 
 	const visibleTournaments = useMemo(() => {
 		const query = searchQuery.trim().toLowerCase();
-		return DUMMY_TOURNAMENTS.filter((tournament) => {
+		return tournaments.filter((tournament) => {
 			if (tournament.status !== activeStatus) return false;
-			if (sportFilter !== "all" && tournament.sport !== sportFilter) {
+			if (
+				sportFilter !== TOURNAMENT_SPORT_FILTER_ALL &&
+				tournament.sport !== sportFilter
+			) {
 				return false;
 			}
 			if (!query) return true;
 			return tournament.title.toLowerCase().includes(query);
 		});
-	}, [activeStatus, searchQuery, sportFilter]);
+	}, [activeStatus, searchQuery, sportFilter, tournaments]);
 
-	const joinTournament = (tournament: Tournament) => {
-		if (joinedIds.has(tournament.id)) {
+	const handleJoin = (tournament: Tournament) => {
+		if (tournament.status === TOURNAMENT_STATUS.RESULTS) return;
+		if (optedInIds.has(tournament.id)) {
 			toast.message(`You're already in ${tournament.title}`);
 			return;
 		}
-
-		setJoinedIds((current) => new Set(current).add(tournament.id));
-		toast.success(
-			tournament.status === "upcoming"
-				? `We'll remind you about ${tournament.title}`
-				: `Joined ${tournament.title}`,
-		);
+		joinMutation.mutate({ tournamentId: tournament.id });
 	};
 
-	const featuredTournament =
-		DUMMY_TOURNAMENTS.find(
-			(tournament) => tournament.id === FEATURED_TOURNAMENT_ID,
-		) ?? DUMMY_TOURNAMENTS[0];
+	if (!isSessionLoading && !session?.user) {
+		return <Navigate to="/auth/sign-in" />;
+	}
+
+	if (listQuery.error instanceof ApiError && listQuery.error.status === 401) {
+		return <Navigate to="/auth/sign-in" />;
+	}
+
+	const isListLoading = isSessionLoading || listQuery.isLoading;
+	const joiningId = joinMutation.isPending
+		? joinMutation.variables?.tournamentId
+		: undefined;
 
 	return (
 		<div className="w-full space-y-8 pb-8">
@@ -74,7 +185,17 @@ export function TournamentsPage() {
 				</p>
 			</header>
 
-			<TournamentHero onJoin={() => joinTournament(featuredTournament)} />
+			<TournamentHero
+				title={featuredTournament?.title ?? "Tournaments"}
+				disabled={
+					!featuredTournament ||
+					featuredTournament.status === TOURNAMENT_STATUS.RESULTS ||
+					optedInIds.has(featuredTournament.id)
+				}
+				onJoin={() => {
+					if (featuredTournament) handleJoin(featuredTournament);
+				}}
+			/>
 
 			<TournamentToolbar
 				activeStatus={activeStatus}
@@ -86,16 +207,28 @@ export function TournamentsPage() {
 				onSportFilterChange={setSportFilter}
 			/>
 
-			{visibleTournaments.length === 0 ? (
+			{isListLoading ? (
+				<TournamentGridSkeleton />
+			) : listQuery.isError ? (
+				<EmptyState
+					title="Could not load tournaments"
+					titleClassName="text-white"
+					description={
+						listQuery.error instanceof ApiError
+							? listQuery.error.message
+							: "Try again in a moment."
+					}
+				/>
+			) : visibleTournaments.length === 0 ? (
 				<EmptyState
 					title={
-						activeStatus === "results"
+						activeStatus === TOURNAMENT_STATUS.RESULTS
 							? "No tournament results yet"
 							: "No tournaments found"
 					}
 					titleClassName="text-white"
 					description={
-						activeStatus === "results"
+						activeStatus === TOURNAMENT_STATUS.RESULTS
 							? "Finished tournaments will show up here once a winner is declared."
 							: "Try another tab, sport filter, or search term."
 					}
@@ -106,14 +239,23 @@ export function TournamentsPage() {
 						<TournamentCard
 							key={tournament.id}
 							tournament={tournament}
-							joined={joinedIds.has(tournament.id)}
-							onJoin={joinTournament}
+							joined={optedInIds.has(tournament.id)}
+							joining={joiningId === tournament.id}
+							onJoin={handleJoin}
 						/>
 					))}
 				</div>
 			)}
 
-			<TournamentLeaderboard />
+			<TournamentLeaderboard
+				entries={featuredLeaderboard}
+				isLoading={featuredLeaderboardLoading}
+				title={
+					featuredTournament
+						? `${featuredTournament.title} leaderboard`
+						: "Leaderboard Preview"
+				}
+			/>
 		</div>
 	);
 }
