@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
-import { BONUS_ENGINE_PATH } from "./bonus-engine.service.constant";
+import {
+	BONUS_ENGINE_PATH,
+	BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE,
+} from "./bonus-engine.service.constant";
 import {
 	buildBonusEngineTournamentJoinBody,
 	buildBonusEngineTournamentLeaderboardBody,
 	buildBonusEngineTournamentListBody,
+	mapBonusEngineTournamentJoinError,
 	unwrapTournamentLeaderboardRows,
 } from "./tournament.service";
 
@@ -50,7 +54,7 @@ assert.deepEqual(
 	{
 		client_id: "shiv",
 		project_id: "main",
-		tournament_id: "6a6b4dfbb1acec12b58ecaf4",
+		tournamentId: "6a6b4dfbb1acec12b58ecaf4",
 	},
 );
 
@@ -71,5 +75,16 @@ assert.equal(
 	1,
 );
 assert.deepEqual(unwrapTournamentLeaderboardRows(null), []);
+
+assert.equal(
+	mapBonusEngineTournamentJoinError(
+		"E11000 duplicate key error collection: Bonus_Engine_db.player_tournaments index: tournament_id_1 dup key: { tournament_id: ObjectId('6a6b4dfbb1acec12b58ecaf4') }",
+	),
+	BONUS_ENGINE_TOURNAMENT_JOIN_MESSAGE.DUPLICATE_TOURNAMENT_SLOT,
+);
+assert.equal(
+	mapBonusEngineTournamentJoinError("User already Opted In"),
+	"User already Opted In",
+);
 
 console.log("bonus-engine tournament.self-check: ok");
