@@ -470,3 +470,27 @@ export function activeAssignedBonuses(bonuses: BonusCard[]): BonusCard[] {
 			bonus.status === BONUS_STATUS.ACTIVE,
 	);
 }
+
+/**
+ * First ready assignment matching `types` in that order, skipping dismissed ids.
+ * Campaigns have no `userbonus_id`, so they cannot be activated from this modal.
+ */
+export function pickReadyBonusOffer(payload: {
+	bonuses: BonusCard[];
+	types: readonly string[];
+	dismissedIds: ReadonlySet<string>;
+}): BonusCard | null {
+	for (const type of payload.types) {
+		const wanted = type.toLowerCase();
+		const match = payload.bonuses.find(
+			(bonus) =>
+				bonus.kind === BONUS_KIND.ASSIGNMENT &&
+				bonus.canActivate &&
+				bonus.status === BONUS_STATUS.READY &&
+				bonus.bonusType.toLowerCase() === wanted &&
+				!payload.dismissedIds.has(bonus.id),
+		);
+		if (match) return match;
+	}
+	return null;
+}
