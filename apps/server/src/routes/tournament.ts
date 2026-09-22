@@ -164,7 +164,7 @@ tournamentRoute.openapi(joinRoute, async (c) => {
 	const body = c.req.valid("json");
 	const result = await joinBonusEngineTournament({
 		env: c.env,
-		tournamentId: body.tournament_id,
+		tournamentId: body.tournamentId,
 		userId: user.id,
 	});
 	if (!result.ok) {
@@ -250,7 +250,7 @@ tournamentRoute.openapi(leaderboardRoute, async (c) => {
 	const query = c.req.valid("query");
 	const result = await getBonusEngineTournamentLeaderboard({
 		env: c.env,
-		tournamentId: query.tournament_id,
+		tournamentId: query.tournamentId,
 	});
 	if (!result.ok && result.status === 404) {
 		return c.json(
