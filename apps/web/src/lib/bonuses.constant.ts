@@ -49,6 +49,7 @@ export const BONUS_STATUS_LABEL = {
 export const BONUS_ACTION_LABEL = {
 	ACTIVATE: "Activate",
 	CANCEL: "Cancel bonus",
+	LATER: "Maybe later",
 	SPORTS: "Go to Sports",
 	CASINO: "Go to Casino",
 	DEPOSIT: "Deposit Now",
@@ -140,3 +141,29 @@ export const BONUS_QUERY_KEY = {
 	campaigns: (bonusType: string) =>
 		["bonuses", "campaigns", bonusType] as const,
 };
+
+/** Welcome then login — shown once per sign-in in this tab. */
+export const BONUS_OFFER_SESSION_TYPES = [
+	BONUS_TYPE.WELCOME,
+	BONUS_TYPE.LOGIN,
+] as const;
+
+export const BONUS_OFFER_DEPOSIT_TYPES = [BONUS_TYPE.DEPOSIT] as const;
+
+export const BONUS_OFFER_TRIGGER = {
+	SESSION: "session",
+	DEPOSIT: "deposit",
+} as const;
+
+export type BonusOfferTrigger =
+	(typeof BONUS_OFFER_TRIGGER)[keyof typeof BONUS_OFFER_TRIGGER];
+
+export const BONUS_OFFER_TRIGGER_EVENT = "sportsdey:bonus-offer-trigger";
+
+export const BONUS_OFFER_DISMISSED_STORAGE_PREFIX =
+	"sportsdey.bonusOffer.dismissed";
+export const BONUS_OFFER_SESSION_CHECKED_PREFIX =
+	"sportsdey.bonusOffer.sessionChecked";
+
+/** Wallet return search value after a completed deposit (Paystack redirect). */
+export const BONUS_DEPOSIT_SEARCH_SUCCESS = "success";
