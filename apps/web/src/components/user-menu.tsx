@@ -12,8 +12,6 @@ import {
 	User,
 	UserRound,
 	Wallet,
-	Medal,
-	TicketPercent,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";

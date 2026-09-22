@@ -1198,18 +1198,6 @@ slotegratorRoute.post("/", async (c) => {
 			isRollback: 1,
 		});
 
-		const balance = newBalance / 100;
-
-		await reportCasinoBetResultInBackground({
-			env: c.env,
-			executionCtx: optionalExecutionCtx(c),
-			userId: playerId,
-			betId: betTransactionId || transactionId,
-			totalWinAmount: amount,
-			isWin: 0,
-			isRollback: 1,
-		});
-
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 

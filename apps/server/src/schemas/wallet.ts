@@ -20,10 +20,6 @@ export const WalletResponseSchema = z
 			description:
 				"Bonus / game-wallet balance in Naira (not withdrawable until wagering is complete)",
 		}),
-		bonusBalance: z.number().openapi({
-			description:
-				"Bonus / game-wallet balance in Naira (not withdrawable until wagering is complete)",
-		}),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
 	})
