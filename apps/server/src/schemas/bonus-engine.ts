@@ -92,6 +92,50 @@ export const MissionListSuccessSchema = z
 	})
 	.openapi("MissionListSuccess");
 
+export const TournamentListSuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.array(z.record(z.string(), z.unknown())),
+		message: z.string().optional(),
+	})
+	.openapi("TournamentListSuccess");
+
+export const TournamentJoinRequestSchema = z
+	.object({
+		tournament_id: z.string().min(1).openapi({
+			description:
+				"Bonus Engine tournament `_id` (forwarded as vendor `tournamentId`)",
+			example: "6a6b4dfbb1acec12b58ecaf4",
+		}),
+	})
+	.openapi("TournamentJoinRequest");
+
+export const TournamentJoinSuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.record(z.string(), z.unknown()),
+		message: z.string().optional(),
+	})
+	.openapi("TournamentJoinSuccess");
+
+export const TournamentLeaderboardRequestSchema = z
+	.object({
+		tournament_id: z.string().min(1).openapi({
+			param: { name: BONUS_ENGINE_BODY_FIELD.TOURNAMENT_ID, in: "query" },
+			description: "Bonus Engine tournament `_id`",
+			example: "6a6b4dfbb1acec12b58ecaf4",
+		}),
+	})
+	.openapi("TournamentLeaderboardRequest");
+
+export const TournamentLeaderboardSuccessSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.array(z.record(z.string(), z.unknown())),
+		message: z.string().optional(),
+	})
+	.openapi("TournamentLeaderboardSuccess");
+
 export const BonusCampaignsRequestSchema = z
 	.object({
 		bonus_type: z.enum(BONUS_ENGINE_CAMPAIGN_TYPE_VALUES).default(
