@@ -13,6 +13,16 @@ function collectErrorText(error: unknown): string {
 	return parts.join(" ").toLowerCase();
 }
 
+/** True when D1 rejected SQL because a selected/filtered column is not in the live table. */
+export function isD1MissingColumnError(error: unknown): boolean {
+	return collectErrorText(error).includes("no such column");
+}
+
+/** True when D1 rejected SQL because a table has not been migrated yet. */
+export function isD1MissingTableError(error: unknown): boolean {
+	return collectErrorText(error).includes("no such table");
+}
+
 /** Detect Cloudflare D1 quota / capacity failures (not schema drift or SQL bugs). */
 export function isD1CapacityError(error: unknown): boolean {
 	const combined = collectErrorText(error);

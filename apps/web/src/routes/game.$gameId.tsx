@@ -1,6 +1,7 @@
 import { createFileRoute, useLocation, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { mustOpenCasinoGameTopLevel } from "@/lib/classic-lobby-codes";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/game/$gameId")({
@@ -15,20 +16,26 @@ function GamePage() {
 	const { category } = Route.useSearch();
 	const location = useLocation();
 	const gameUrl = (location.state as { gameUrl?: string })?.gameUrl;
+	const openTopLevel = mustOpenCasinoGameTopLevel(gameId, gameUrl);
 	const [isIframeLoading, setIsIframeLoading] = useState(true);
 	const [bouncedHome, setBouncedHome] = useState(false);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const router = useRouter();
 
 	useEffect(() => {
-		if (!gameUrl) return;
+		if (!gameUrl || !openTopLevel) return;
+		window.location.replace(gameUrl);
+	}, [gameUrl, openTopLevel]);
+
+	useEffect(() => {
+		if (!gameUrl || openTopLevel) return;
 
 		setIsIframeLoading(true);
 		setBouncedHome(false);
 		const timer = setTimeout(() => setIsIframeLoading(false), 5000);
 
 		return () => clearTimeout(timer);
-	}, [gameUrl]);
+	}, [gameUrl, openTopLevel]);
 
 	useEffect(() => {
 		if (gameUrl) return;
@@ -59,6 +66,18 @@ function GamePage() {
 			// Cross-origin game host — expected while the real game is running.
 		}
 	};
+
+	if (openTopLevel && gameUrl) {
+		return (
+			<div className="flex h-screen flex-col items-center justify-center gap-2 px-4 text-center">
+				<Loader2 className="mb-2 h-10 w-10 animate-spin text-[#1BAA04]" />
+				<p className="text-primary text-xl">Opening game...</p>
+				<p className="text-sm text-white/60">
+					This title cannot run inside the lobby. Continuing to the game.
+				</p>
+			</div>
+		);
+	}
 
 	if (!gameUrl) {
 		return (

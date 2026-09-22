@@ -6,7 +6,7 @@ import {
 import { getDefaultConfig, OpenfortWagmiBridge } from "@openfort/react/wagmi";
 import type { PropsWithChildren } from "react";
 import { createConfig, WagmiProvider } from "wagmi";
-import { authClient } from "@/lib/auth/client";
+import { getBetterAuthSessionToken } from "@/lib/auth/client";
 import {
 	isOpenfortEnabled,
 	OPENFORT_EVM_CHAIN_ID,
@@ -28,8 +28,7 @@ const wagmiConfig = createConfig(
 );
 
 async function getBetterAuthAccessToken(): Promise<string | null> {
-	const session = await authClient.getSession();
-	return session?.data?.session?.token ?? null;
+	return getBetterAuthSessionToken();
 }
 
 export function OpenfortProviders({ children }: PropsWithChildren) {

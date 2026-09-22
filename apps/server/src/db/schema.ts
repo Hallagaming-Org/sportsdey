@@ -38,6 +38,25 @@ export const user = sqliteTable("user", {
 	dob: text("dob"),
 });
 
+/** Extra MSISDNs for a user (HelloDuty / call-center). Primary stays on user.mobile_number. */
+export const userPhoneNumber = sqliteTable(
+	"user_phone_number",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		phoneE164: text("phone_e164").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("user_phone_number_phone_e164_uidx").on(table.phoneE164),
+		index("user_phone_number_userId_idx").on(table.userId),
+	],
+);
+
 export const session = sqliteTable(
 	"session",
 	{
@@ -128,6 +147,14 @@ export const userRelations = relations(user, ({ many }) => ({
 	swipegamesTransactions: many(swipegamesTransactions),
 	kycRecords: many(kyc),
 	notifications: many(userNotification),
+	phoneNumbers: many(userPhoneNumber),
+}));
+
+export const userPhoneNumberRelations = relations(userPhoneNumber, ({ one }) => ({
+	user: one(user, {
+		fields: [userPhoneNumber.userId],
+		references: [user.id],
+	}),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({

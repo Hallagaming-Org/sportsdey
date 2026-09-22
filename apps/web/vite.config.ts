@@ -166,6 +166,19 @@ export default defineConfig(({ command, mode }) => {
 				"Production web build must set VITE_SERVER_URL=https://api.sportsdey.com in .env.production (run pnpm run build:production, not build:staging).",
 			);
 		}
+		const openfortKey = env.VITE_OPENFORT_PUBLISHABLE_KEY ?? "";
+		const shieldKey = env.VITE_SHIELD_PUBLISHABLE_KEY ?? "";
+		const testShieldKey = "63bf703d-6b07-4924-9a9f-cfee82972b10";
+		if (!openfortKey.startsWith("pk_live_") || !shieldKey) {
+			throw new Error(
+				"Production web build needs VITE_OPENFORT_PUBLISHABLE_KEY=pk_live_… and VITE_SHIELD_PUBLISHABLE_KEY from the same live Openfort project in .env.production. Vite also loads .env.local, so a missing production Shield key will silently bake the test key.",
+			);
+		}
+		if (openfortKey.startsWith("pk_test_") || shieldKey === testShieldKey) {
+			throw new Error(
+				"Production web build cannot use the test Openfort or Shield keys. Copy the live Shield publishable key from the pk_live project dashboard into .env.production.",
+			);
+		}
 	}
 
 	return {

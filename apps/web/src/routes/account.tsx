@@ -364,11 +364,11 @@ function AccountPage() {
 		.slice(0, 2);
 
 	return (
-		<div className="px-4 py-2 lg:container lg:mx-auto">
+		<div className="px-2 py-2 sm:px-4 lg:container lg:mx-auto">
 			<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
 				<div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-[#2F3033] dark:bg-[#0D0D0D]">
 					<div
-						className="flex w-full border-gray-100 border-b dark:border-[#2F3033]"
+						className="flex w-full gap-1 border-gray-100 border-b px-3 sm:gap-2 sm:px-4 dark:border-[#2F3033]"
 						role="tablist"
 						aria-label="Account sections"
 					>
@@ -378,7 +378,7 @@ function AccountPage() {
 							aria-selected={activeTab === "information"}
 							onClick={() => setActiveTab("information")}
 							className={cn(
-								"-mb-px flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-2 py-4 font-medium text-sm transition-colors",
+								"-mb-px flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3.5 font-medium text-sm transition-colors sm:gap-2 sm:px-3 sm:py-4",
 								activeTab === "information"
 									? "border-accent text-accent"
 									: "border-transparent text-gray-500 hover:text-gray-900 dark:text-[#8C8F8F] dark:hover:text-white",
@@ -393,7 +393,7 @@ function AccountPage() {
 							aria-selected={activeTab === "security"}
 							onClick={() => setActiveTab("security")}
 							className={cn(
-								"-mb-px flex min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-2 py-4 font-medium text-sm transition-colors",
+								"-mb-px flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-2 py-3.5 font-medium text-sm transition-colors sm:gap-2 sm:px-3 sm:py-4",
 								activeTab === "security"
 									? "border-accent text-accent"
 									: "border-transparent text-gray-500 hover:text-gray-900 dark:text-[#8C8F8F] dark:hover:text-white",

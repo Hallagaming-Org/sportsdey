@@ -519,11 +519,12 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 			label: "Live support",
 			icon: LiveSupport,
 			isActive: false,
-			onClick: () =>
+			onClick: () => {
 				window.open(
 					"https://tawk.to/chat/69a13f9e865cc31c343af2ac/1jieu113b",
 					"_blank",
-				),
+				);
+			},
 		},
 	];
 

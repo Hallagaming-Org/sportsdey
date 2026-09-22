@@ -674,4 +674,48 @@ describe("admin paginated lists smoke (in-memory, real handlers)", () => {
 		assert.equal(body.data.tickets.length, 10);
 		assert.equal(body.data.pagination.total, 15);
 	});
+
+	it("accepts prediction_market without a 400", async () => {
+		const { env } = createListEnv();
+		const res = await adminGet(
+			adminTicketsRoute,
+			"/tickets?page=1&limit=10&type=prediction_market",
+			env,
+		);
+		const body = (await res.json()) as {
+			success: boolean;
+			data: { tickets: unknown[]; pagination: { total: number } };
+		};
+		assert.equal(res.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data.tickets.length, 0);
+		assert.equal(body.data.pagination.total, 0);
+	});
+
+	it("still lists tickets when D1 is missing newer casino columns", async () => {
+		const { env, sqlite } = createListEnv();
+		sqlite.exec("ALTER TABLE game_transactions DROP COLUMN round_id");
+		sqlite.exec("ALTER TABLE pockets_transactions DROP COLUMN game_code");
+		sqlite.exec("ALTER TABLE pockets_transactions DROP COLUMN round_id");
+		sqlite
+			.prepare(
+				`INSERT INTO game_transactions
+				 (id, user_id, provider_tx_id, type, amount, session_token, game, created_at)
+				 VALUES (?, ?, ?, 'BET', 500, 'sess', 'sportsdey-crash', ?)`,
+			)
+			.run("gt-1", USER_ID, "ptx-1", NOW);
+
+		const res = await adminGet(
+			adminTicketsRoute,
+			"/tickets?page=1&limit=10&type=casino",
+			env,
+		);
+		const body = (await res.json()) as {
+			success: boolean;
+			data: { tickets: Array<{ id: string }>; pagination: { total: number } };
+		};
+		assert.equal(res.status, 200, JSON.stringify(body));
+		assert.equal(body.success, true);
+		assert.equal(body.data.tickets.some((ticket) => ticket.id === "gt-1"), true);
+	});
 });

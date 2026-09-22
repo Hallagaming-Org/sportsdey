@@ -94,6 +94,25 @@ export async function signSessionToken(
 	return `${token}.${signatureB64}`;
 }
 
+/** First segment of a Better Auth cookie/bearer value (unsigned session id). */
+export function rawSessionTokenFromBearer(token: string): string {
+	return token.trim().split(".")[0] ?? "";
+}
+
+/**
+ * Openfort (and phone clients) send the unsigned `session.token` as Bearer.
+ * Better Auth's bearer plugin expects `token.signature`. Re-sign the raw
+ * segment so `/auth/get-session` succeeds for both forms.
+ */
+export async function signedBearerSessionToken(
+	token: string,
+	secret: string,
+): Promise<string> {
+	const raw = rawSessionTokenFromBearer(token);
+	if (!raw) return token.trim();
+	return signSessionToken(raw, secret);
+}
+
 function oauthCredentials(clientId?: string, clientSecret?: string) {
 	const id = clientId?.trim() ?? "";
 	const secret = clientSecret?.trim() ?? "";
