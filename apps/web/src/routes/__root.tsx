@@ -12,6 +12,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useEffect, useRef } from "react";
 import { Provider } from "react-redux";
 import z from "zod";
+import { BonusOfferHost } from "@/components/bonus-offer-host";
 import DesktopFooter from "@/components/desktop-footer";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Footer from "@/components/footer";
@@ -273,6 +274,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 									<DeferredFonts />
 									<WebengageIdentity />
 									<ScrollToTop />
+									<BonusOfferHost />
 									{isAuthRoute ? (
 										<div className="flex h-dvh flex-col overflow-hidden">
 											<header className="shrink-0">
