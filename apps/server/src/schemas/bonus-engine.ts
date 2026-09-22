@@ -102,9 +102,8 @@ export const TournamentListSuccessSchema = z
 
 export const TournamentJoinRequestSchema = z
 	.object({
-		tournament_id: z.string().min(1).openapi({
-			description:
-				"Bonus Engine tournament `_id` (forwarded as vendor `tournamentId`)",
+		[BONUS_ENGINE_BODY_FIELD.TOURNAMENT_ID]: z.string().min(1).openapi({
+			description: "Bonus Engine tournament `_id`",
 			example: "6a6b4dfbb1acec12b58ecaf4",
 		}),
 	})
@@ -120,8 +119,8 @@ export const TournamentJoinSuccessSchema = z
 
 export const TournamentLeaderboardRequestSchema = z
 	.object({
-		tournament_id: z.string().min(1).openapi({
-			param: { name: BONUS_ENGINE_BODY_FIELD.TOURNAMENT_ID, in: "query" },
+		[BONUS_ENGINE_BODY_FIELD.TOURNAMENT_ID]: z.string().min(1).openapi({
+			param: { in: "query" },
 			description: "Bonus Engine tournament `_id`",
 			example: "6a6b4dfbb1acec12b58ecaf4",
 		}),
