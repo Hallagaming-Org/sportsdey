@@ -45,11 +45,14 @@ export default function DesktopFooter() {
 			<div className="mb-12 grid grid-cols-1 gap-8 md:grid-cols-5 lg:grid-cols-6">
 				<div className="space-y-4 md:col-span-2 lg:col-span-2">
 					<div className="flex items-center gap-3">
-						<img
-							src="/sportsdey-logo.png"
-							className="hidden h-8 dark:block"
-							alt="SportsDey Logo"
-						/>
+							<img
+								src="/sportsdey-logo.png"
+								width={128}
+								height={32}
+								className="hidden h-8 w-auto dark:block"
+								alt="SportsDey"
+								decoding="async"
+							/>
 						<NewSportsdeyLogo className="h-8 w-auto text-white dark:hidden" />
 						<div className="flex h-6 items-center rounded-full bg-[#1A1A1A] px-3 font-medium text-[10px] text-gray-300">
 							EN <span className="ml-1 text-[8px]">▼</span>
@@ -211,6 +214,8 @@ export default function DesktopFooter() {
 
 				<div className="flex w-full flex-row items-center justify-center gap-3 md:flex-col lg:items-start">
 					<button
+						type="button"
+						aria-label="Download on the App Store"
 						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() => window.open("https://apps.apple.com", "_blank")}
 					>
@@ -225,11 +230,12 @@ export default function DesktopFooter() {
 						</div>
 					</button>
 					<button
+						type="button"
+						aria-label="Get it on Google Play"
 						className="flex w-[150px] cursor-pointer items-center gap-3 rounded-xl border border-[#F8F8F8] bg-[#041107] px-3 py-2 transition-colors hover:bg-white/5"
 						onClick={() =>
 							window.open("https://play.google.com/store/apps", "_blank")
 						}
-					// onClick={() => window.open('https://play.google.com/store/apps/details?id=com.sportsdey', '_blank')}
 					>
 						<GooglePlay size={20} color="white" variant="Bold" />
 						<div className="flex flex-col items-start">
@@ -294,6 +300,7 @@ export default function DesktopFooter() {
 								alt={provider.name}
 								width={117}
 								height={58}
+								decoding="async"
 								className="h-full w-auto object-contain"
 							/>
 						</div>

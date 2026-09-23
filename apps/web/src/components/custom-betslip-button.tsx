@@ -15,17 +15,17 @@ export function CustomBetslipFloatingButton({ isOpen }: { isOpen: boolean }) {
 					setItemCount(selections.length);
 					setTotalOdds(parsed.state?.totalOdds || 0);
 				}
-			} catch (e) {
-				console.error("Failed to parse Betslip from localStorage", e);
+			} catch {
+				// Ignore malformed localStorage; keep last known count.
 			}
 		};
 
 		// Initial check
 		updateState();
 
-		// Check every 500ms for changes
-		const interval = setInterval(updateState, 500);
-		return () => clearInterval(interval);
+		// Check periodically, but not on the critical path
+		const interval = window.setInterval(updateState, 2500);
+		return () => window.clearInterval(interval);
 	}, []);
 
 	if (isOpen) return null;

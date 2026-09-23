@@ -167,3 +167,11 @@ export const BONUS_OFFER_SESSION_CHECKED_PREFIX =
 
 /** Wallet return search value after a completed deposit (Paystack redirect). */
 export const BONUS_DEPOSIT_SEARCH_SUCCESS = "success";
+
+/** Player-facing How Bonuses Work steps. No Admin or vendor language. */
+export const BONUS_HOW_IT_WORKS_STEPS = [
+	"Offers you qualify for show under Your bonuses.",
+	"Tap Activate to add the bonus to your bonus wallet.",
+	"Play the sports or games on the offer to finish the playthrough.",
+	"When the playthrough is done, you can withdraw the winnings.",
+] as const;

@@ -17,6 +17,7 @@ import {
 	isTournamentAlreadyOptedInError,
 	joinTournament,
 	pickFeaturedTournament,
+	type LeaderboardEntry,
 	type TournamentCard as Tournament,
 	type TournamentStatus,
 } from "@/lib/tournaments";
@@ -64,7 +65,7 @@ export function TournamentsPage() {
 	);
 
 	const leaderboardQueries = useQueries({
-		queries: joinableTournaments.map((tournament) => ({
+		queries: tournaments.map((tournament) => ({
 			queryKey: TOURNAMENT_QUERY_KEY.leaderboard(tournament.id),
 			queryFn: () =>
 				fetchTournamentLeaderboard({
@@ -76,29 +77,39 @@ export function TournamentsPage() {
 		})),
 	});
 
+	const leaderboardByTournamentId = useMemo(() => {
+		const byId = new Map<string, LeaderboardEntry[]>();
+		for (const [index, tournament] of tournaments.entries()) {
+			const entries = leaderboardQueries[index]?.data;
+			if (!entries) continue;
+			byId.set(tournament.id, entries);
+		}
+		return byId;
+	}, [leaderboardQueries, tournaments]);
+
 	const optedInIds = useMemo(() => {
 		const ids = new Set(joinedIds);
 		if (!sessionUserId) return ids;
-		for (const [index, tournament] of joinableTournaments.entries()) {
-			const entries = leaderboardQueries[index]?.data;
+		for (const tournament of joinableTournaments) {
+			const entries = leaderboardByTournamentId.get(tournament.id);
 			if (!entries) continue;
 			if (isLeaderboardOptedIn({ entries, userId: sessionUserId })) {
 				ids.add(tournament.id);
 			}
 		}
 		return ids;
-	}, [joinableTournaments, joinedIds, leaderboardQueries, sessionUserId]);
+	}, [joinableTournaments, joinedIds, leaderboardByTournamentId, sessionUserId]);
 
-	const featuredLeaderboardIndex = featuredTournament
-		? joinableTournaments.findIndex(
-				(tournament) => tournament.id === featuredTournament.id,
-			)
-		: -1;
-	const featuredLeaderboardQuery =
-		featuredLeaderboardIndex >= 0
-			? leaderboardQueries[featuredLeaderboardIndex]
-			: undefined;
-	const featuredLeaderboard = featuredLeaderboardQuery?.data ?? [];
+	const featuredLeaderboard = featuredTournament
+		? (leaderboardByTournamentId.get(featuredTournament.id) ?? [])
+		: [];
+	const featuredLeaderboardQuery = featuredTournament
+		? leaderboardQueries[
+				tournaments.findIndex(
+					(tournament) => tournament.id === featuredTournament.id,
+				)
+			]
+		: undefined;
 	const featuredLeaderboardLoading = Boolean(
 		featuredLeaderboardQuery?.isLoading,
 	);
@@ -241,6 +252,9 @@ export function TournamentsPage() {
 							tournament={tournament}
 							joined={optedInIds.has(tournament.id)}
 							joining={joiningId === tournament.id}
+							playerCount={
+								leaderboardByTournamentId.get(tournament.id)?.length
+							}
 							onJoin={handleJoin}
 						/>
 					))}

@@ -78,13 +78,17 @@ export function installSportsbookHostChromeFix(host: HTMLElement): () => void {
 			style.textContent = SPORTSBOOK_HOST_CHROME_CSS;
 			root.appendChild(style);
 		}
-		constrainSportsbookThreeColumnRows(root);
+		// Three-column flex patches only apply on desktop. Running them on
+		// mobile after first paint is a layout-shift source.
+		if (window.matchMedia("(min-width: 1024px)").matches) {
+			constrainSportsbookThreeColumnRows(root);
+		}
 		if (observingRoot !== root) {
 			shadowObserver?.disconnect();
 			shadowObserver = new MutationObserver(() => {
 				if (!root.getElementById(SPORTSBOOK_HOST_CHROME_STYLE_ID)) {
 					apply();
-				} else {
+				} else if (window.matchMedia("(min-width: 1024px)").matches) {
 					constrainSportsbookThreeColumnRows(root);
 				}
 			});
@@ -414,7 +418,7 @@ export function loadSportsbookBootstrapScript(
 		script.onload = () => resolve();
 		script.onerror = () =>
 			reject(new Error("Failed to load sportsbook bootstrap script."));
-		document.body.appendChild(script);
+		document.head.appendChild(script);
 	});
 }
 

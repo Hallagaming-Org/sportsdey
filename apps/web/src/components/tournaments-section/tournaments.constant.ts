@@ -6,6 +6,11 @@ import type {
 } from "@/lib/tournaments";
 import { TOURNAMENT_SPORT, TOURNAMENT_STATUS } from "@/lib/tournaments.constant";
 
+export {
+	formatTournamentPlayerCount,
+	TOURNAMENT_NO_PLAYERS_YET,
+} from "@/lib/tournaments.constant";
+
 export type { LeaderboardEntry, Tournament, TournamentSport, TournamentStatus };
 
 export const TOURNAMENT_STATUS_TABS = [

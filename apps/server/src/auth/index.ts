@@ -120,6 +120,7 @@ function oauthCredentials(clientId?: string, clientSecret?: string) {
 	return { clientId: id, clientSecret: secret };
 }
 
+
 export const createAuth = (
 	env: CloudflareBindings,
 	executionCtx?: ExecutionContext,

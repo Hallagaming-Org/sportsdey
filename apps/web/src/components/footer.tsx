@@ -31,13 +31,17 @@ const Footer = () => {
 	const trackCategory = (name: string) =>
 		trackWebengageEvent("Category", { Name: name });
 	return (
-		<div className="px-0 pt-3 lg:hidden">
+		<div className="min-h-[4.75rem] px-0 pt-3 lg:hidden">
 			<div className="w-full">
 				<div className="rounded-t-lg border-[#F1F2F4] border-t bg-white p-2 shadow-lg dark:border-[#2F3033] dark:bg-[#1C1D1F]">
 					<div className="flex items-center justify-between">
 						{bottomBarItems.map(({ id, icon: Icon, item, label }) => (
 							<button
 								key={id}
+								type="button"
+								aria-label={label}
+								aria-current={tab === item ? "page" : undefined}
+								className="flex flex-1 flex-col items-center space-y-1"
 								onClick={() => {
 									setTab(item);
 									if (item === "scores") {
@@ -80,12 +84,11 @@ const Footer = () => {
 										});
 									}
 								}}
-								className="flex flex-1 flex-col items-center space-y-1"
 							>
 								<div
 									className={cn(
 										"flex h-10 w-10 items-center justify-center rounded-full transition-all",
-										tab === item ? "text-accent" : "text-[#8C8F8F]",
+										tab === item ? "text-accent" : "text-[#C2C2C2]",
 									)}
 								>
 									<Icon className={cn("h-5 w-5")} />
@@ -93,7 +96,7 @@ const Footer = () => {
 								<span
 									className={cn(
 										"mt-1 text-[11px]",
-										tab === item ? "text-accent" : "text-gray-400",
+										tab === item ? "text-accent" : "text-[#C2C2C2]",
 									)}
 								>
 									{label}
