@@ -33,6 +33,20 @@ function bearerHeaders(token?: string | null): HeadersInit | undefined {
 	return { Authorization: `Bearer ${token}` };
 }
 
+/**
+ * Token Openfort third-party Better Auth verification should send.
+ * Phone login stores the raw session token; cookie get-session also returns it.
+ */
+export async function getBetterAuthSessionToken(): Promise<string | null> {
+	const phoneToken = readPhoneSessionToken();
+	const session = await authClient.getSession({
+		fetchOptions: {
+			headers: bearerHeaders(phoneToken),
+		},
+	});
+	return session?.data?.session?.token ?? phoneToken ?? null;
+}
+
 /** Start Google OAuth — explicit redirect (Better Auth fetch plugin can miss in some browsers). */
 export async function signInWithGoogle(callbackURL: string): Promise<void> {
 	const response = await fetch(`${resolveServerUrl()}/auth/sign-in/social`, {

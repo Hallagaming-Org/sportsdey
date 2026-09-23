@@ -1,7 +1,10 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
 import { canonicalLobbySlug } from "@/lib/lobby-categories";
-import { CLASSIC_THUNDR_CODES } from "@/lib/classic-lobby-codes";
+import {
+	CLASSIC_THUNDR_CODES,
+	isHashcodexLobbyCode,
+} from "@/lib/classic-lobby-codes";
 import {
 	dedupeLobbyGamesByName,
 	isScorpioStoredCode,
@@ -510,7 +513,7 @@ export async function launchClassicGame(
 	let path: string;
 	let body: Record<string, unknown>;
 
-	if (game.code === "sportsdey-crash" || game.code === "spin_and_win") {
+	if (isHashcodexLobbyCode(game.code)) {
 		path = "/hashcodex/launch";
 		body = { gameCode: game.code };
 	} else if (isKnownGame) {

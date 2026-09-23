@@ -19,6 +19,11 @@ import { WalletRecentTransactions } from "@/components/wallet-recent-transaction
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import { dispatchBonusOfferTrigger } from "@/lib/bonuses";
+import {
+	BONUS_DEPOSIT_SEARCH_SUCCESS,
+	BONUS_OFFER_TRIGGER,
+} from "@/lib/bonuses.constant";
 import { OpenfortWalletScope } from "@/lib/openfort/scope";
 import { formatAmount } from "@/lib/utils";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
@@ -163,7 +168,15 @@ function WalletPage() {
 			void queryClient.invalidateQueries({ queryKey: ["wallet"] });
 			void queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
 		}
+		if (status === "success") {
+			dispatchBonusOfferTrigger(BONUS_OFFER_TRIGGER.DEPOSIT);
+		}
 	}, [opayStatus?.status, palmPayStatus?.status, queryClient]);
+	useEffect(() => {
+		if (search.deposit === BONUS_DEPOSIT_SEARCH_SUCCESS) {
+			dispatchBonusOfferTrigger(BONUS_OFFER_TRIGGER.DEPOSIT);
+		}
+	}, [search.deposit]);
 	const depositMutation = useMutation({
 		mutationFn: async ({ amount, provider }: { amount: number; provider: DepositProvider }): Promise<DepositResult> => {
 			const data = await apiRequest<FundWalletResponse | OpayDepositResponse | KudaDepositResponse | PalmPayDepositResponse>(

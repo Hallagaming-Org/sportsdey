@@ -1181,7 +1181,9 @@ walletRoute.openapi(callbackRoute, async (c) => {
 	const bgPing = isSuccess ? "#CCF3DD" : isFailed ? "#FADBD8" : "#F2CF93";
 	const borderColor = isSuccess ? "#F2CF93" : isFailed ? "#FADBD8" : "#F2CF93";
 
-	const redirectUrl = `${c.env.CORS_ORIGIN}/wallet`;
+	const redirectUrl = isSuccess
+		? `${c.env.CORS_ORIGIN}/wallet?deposit=success`
+		: `${c.env.CORS_ORIGIN}/wallet`;
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1336,10 +1338,10 @@ walletRoute.openapi(callbackRoute, async (c) => {
 		<h1>${title}</h1>
 		<p>${description}</p>
 		${reference ? `<p class="reference">Reference: ${reference}</p>` : ""}
-		<p class="close-msg">Redirecting to wallet in <span id="countdown">20</span>s...</p>
+		<p class="close-msg">Redirecting to wallet in <span id="countdown">10</span>s...</p>
 	</div>
 	<script>
-		let seconds = 20;
+		let seconds = 10;
 		const countdownEl = document.getElementById("countdown");
 		const interval = setInterval(() => {
 			seconds--;

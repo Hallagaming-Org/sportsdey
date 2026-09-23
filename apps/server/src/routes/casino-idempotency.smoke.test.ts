@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import { createMemoryD1 } from "../test-support/memory-d1";
 import {
 	computeHashcodexSignature,
@@ -97,6 +98,9 @@ function createSchema(db: DatabaseSync) {
 			balance_before integer,
 			balance_after integer,
 			currency text NOT NULL,
+			provider text,
+			game_code text,
+			round_id text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 		CREATE TABLE thundr_sessions (
@@ -605,8 +609,18 @@ describe("Slotegrator callback idempotency", () => {
 // Hashcodex (Sportsdey Crash) — signed wallet + disabled self-credit
 // ---------------------------------------------------------------------------
 
-describe("Hashcodex self-credit route", () => {
-	it("is disabled and cannot credit a wallet", async () => {
+function hashcodexWithUser(userId: string | null) {
+	const app = new OpenAPIHono();
+	app.use("*", async (c, next) => {
+		c.set("user", userId ? { id: userId } : null);
+		await next();
+	});
+	app.route("/", hashcodexRoute);
+	return app;
+}
+
+describe("Hashcodex player-session deposit", () => {
+	it("rejects an unauthenticated credit", async () => {
 		const res = await hashcodexRoute.request(
 			"/deposit",
 			{
@@ -616,8 +630,35 @@ describe("Hashcodex self-credit route", () => {
 			},
 			env,
 		);
-		assert.equal(res.status, 503);
+		assert.equal(res.status, 401);
 		assert.equal(walletBalance(), START_KOBO);
+	});
+
+	it("debits and credits the logged-in user's wallet", async () => {
+		const app = hashcodexWithUser(USER_ID);
+		const debit = await app.request(
+			"/deposit",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "debit", amount: 10 }),
+			},
+			env,
+		);
+		assert.equal(debit.status, 200, await debit.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000);
+
+		const credit = await app.request(
+			"/deposit",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "credit", amount: 25 }),
+			},
+			env,
+		);
+		assert.equal(credit.status, 200, await credit.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000 + 2_500);
 	});
 
 	it("requires a logged-in user to launch", async () => {
@@ -688,9 +729,22 @@ describe("Hashcodex signed wallet callback", () => {
 			amount: 10,
 			transactionId: "bet-1",
 			roundId: "round-a",
+			gameCode: "sportsdey-crash",
 		});
 		assert.equal(bet.status, 200, await bet.text());
 		assert.equal(walletBalance(), START_KOBO - 1_000);
+		const context = sqlite
+			.prepare(
+				"SELECT provider, game_code, round_id FROM pockets_transactions WHERE id = ?",
+			)
+			.get("hashcodex:debit:bet-1") as {
+			provider: string;
+			game_code: string;
+			round_id: string;
+		};
+		assert.equal(context.provider, "hashcodex");
+		assert.equal(context.game_code, "sportsdey-crash");
+		assert.equal(context.round_id, "round-a");
 
 		const winBody = {
 			playerId: USER_ID,
@@ -699,6 +753,7 @@ describe("Hashcodex signed wallet callback", () => {
 			transactionId: "win-1",
 			originalTransactionId: "bet-1",
 			roundId: "round-a",
+			gameCode: "sportsdey-crash",
 		};
 		const win = await postWallet(winBody);
 		assert.equal(win.status, 200, await win.text());

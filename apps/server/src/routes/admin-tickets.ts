@@ -17,6 +17,7 @@ import * as schema from "@/db/schema";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
 import { parseQueryDateRange } from "@/utils";
+import { isD1MissingColumnError } from "@/utils/d1-errors";
 import { fetchWithTimeout } from "@/utils/fetch-with-timeout";
 import { getFixtureTitlesByIds, matchDisplayName } from "@/utils/fixtures";
 import {
@@ -147,6 +148,60 @@ function mapCasinoOutcome(
 	}
 }
 
+type TicketListType = "all" | "casino" | "sportsbook" | "prediction_market";
+
+function normalizeTicketType(rawType: string): TicketListType {
+	if (rawType === "casino" || rawType === "casino_packet") return "casino";
+	if (rawType === "sportsbook") return "sportsbook";
+	if (rawType === "prediction_market" || rawType === "prediction_packet") {
+		return "prediction_market";
+	}
+	return "all";
+}
+
+/** Drop columns added in 0035/0036 so a live D1 without those migrations still lists tickets. */
+function withoutOptionalCasinoColumns(selectCols: Record<string, unknown>) {
+	const fallback = { ...selectCols };
+	delete fallback.roundId;
+	delete fallback.gameCode;
+	delete fallback.providerId;
+	return fallback;
+}
+
+async function queryJoinedCasinoRows(
+	db: ReturnType<typeof drizzle>,
+	source: {
+		table: any;
+		userIdCol: any;
+		createdAtCol: any;
+		provider: string;
+	},
+	selectCols: Record<string, any>,
+	where: any,
+	limit?: number,
+) {
+	const run = (cols: Record<string, any>) => {
+		const query = db
+			.select(cols)
+			.from(source.table)
+			.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
+			.where(where)
+			.orderBy(desc(source.createdAtCol));
+		return typeof limit === "number" ? query.limit(limit) : query;
+	};
+
+	try {
+		return await run(selectCols);
+	} catch (error) {
+		if (!isD1MissingColumnError(error)) throw error;
+		console.error(
+			`[admin-tickets] ${source.provider} query failed on a missing column; retrying without optional fields`,
+			error,
+		);
+		return await run(withoutOptionalCasinoColumns(selectCols));
+	}
+}
+
 const TicketSchema = z
 	.object({
 		id: z.string().openapi({ example: "bet_abc123" }),
@@ -183,9 +238,13 @@ const TicketsDataSchema = z
 
 const TicketsQuerySchema = z.object({
 	type: z
-		.enum(["all", "casino", "sportsbook"])
+		.string()
 		.optional()
-		.openapi({ description: "Filter by game type", example: "all" }),
+		.openapi({
+			description:
+				"Filter by game type (all, casino, sportsbook, prediction_market)",
+			example: "all",
+		}),
 	fromDate: z
 		.string()
 		.optional()
@@ -214,9 +273,13 @@ const GetUserTicketsParamsSchema = z.object({
 
 const GetUserTicketsQuerySchema = z.object({
 	type: z
-		.enum(["all", "casino", "sportsbook"])
+		.string()
 		.optional()
-		.openapi({ description: "Filter by game type", example: "all" }),
+		.openapi({
+			description:
+				"Filter by game type (all, casino, sportsbook, prediction_market)",
+			example: "all",
+		}),
 	fromDate: z
 		.string()
 		.optional()
@@ -463,9 +526,7 @@ const handleGetTicketsList = async (
 	const perSourceLimit = unpaginated
 		? MAX_UNPAGINATED_ROWS
 		: Math.min(MAX_UNPAGINATED_ROWS, page * limit);
-	const type = ["all", "casino", "sportsbook"].includes(rawType)
-		? (rawType as "all" | "casino" | "sportsbook")
-		: "all";
+	const type = normalizeTicketType(rawType);
 
 	const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
 		fromDate,
@@ -749,8 +810,8 @@ const handleGetTicketsList = async (
 				createdAtCol: schema.pocketsTransactions.createdAt,
 				balanceBeforeCol: schema.pocketsTransactions.balanceBefore,
 				balanceAfterCol: schema.pocketsTransactions.balanceAfter,
-				roundIdCol: null,
-				gameIdCol: null,
+				roundIdCol: schema.pocketsTransactions.roundId,
+				gameIdCol: schema.pocketsTransactions.gameCode,
 				winTypes: ["CREDIT"],
 				provider: "Lagos Rush",
 			},
@@ -815,13 +876,13 @@ const handleGetTicketsList = async (
 				selectCols.providerId = source.providerIdCol;
 			}
 
-			const results = await db
-				.select(selectCols)
-				.from(source.table)
-				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
-				.where(casWhere)
-				.orderBy(desc(source.createdAtCol))
-				.limit(perSourceLimit);
+			const results = await queryJoinedCasinoRows(
+				db,
+				source,
+				selectCols,
+				casWhere,
+				perSourceLimit,
+			);
 
 			if (!unpaginated) {
 				const [casCountRow] = await db
@@ -852,7 +913,8 @@ const handleGetTicketsList = async (
 					balanceBefore: r.balanceBefore,
 					balanceAfter: r.balanceAfter,
 					roundId: r.roundId ?? null,
-					provider: source.provider,
+					provider:
+						nativeCasinoProvider(r.gameCode) ?? source.provider,
 					gameCode: r.gameCode ?? null,
 					providerId: r.providerId ?? null,
 				});
@@ -1040,9 +1102,7 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 	const fromDate = url.searchParams.get("fromDate") || undefined;
 	const toDate = url.searchParams.get("toDate") || undefined;
 
-	const type = ["all", "casino", "sportsbook"].includes(rawType)
-		? (rawType as "all" | "casino" | "sportsbook")
-		: "all";
+	const type = normalizeTicketType(rawType);
 
 	const { fromDate: fromBoundary, toDate: toBoundary } = parseQueryDateRange({
 		fromDate,
@@ -1215,8 +1275,8 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				createdAtCol: schema.pocketsTransactions.createdAt,
 				balanceBeforeCol: schema.pocketsTransactions.balanceBefore,
 				balanceAfterCol: schema.pocketsTransactions.balanceAfter,
-				roundIdCol: null,
-				gameIdCol: null,
+				roundIdCol: schema.pocketsTransactions.roundId,
+				gameIdCol: schema.pocketsTransactions.gameCode,
 				winTypes: ["CREDIT"],
 				provider: "Lagos Rush",
 			},
@@ -1258,13 +1318,13 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 				selectCols.providerId = source.providerIdCol;
 			}
 
-			const results = await db
-				.select(selectCols)
-				.from(source.table)
-				.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
-				.where(eq(source.userIdCol, userId))
-				.orderBy(desc(source.createdAtCol))
-				.limit(MAX_UNPAGINATED_ROWS);
+			const results = await queryJoinedCasinoRows(
+				db,
+				source,
+				selectCols,
+				eq(source.userIdCol, userId),
+				MAX_UNPAGINATED_ROWS,
+			);
 
 			for (const r of results) {
 				const ts = r.createdAt.getTime();
@@ -1284,7 +1344,8 @@ adminTicketsRoute.openapi(getUserTicketsRoute, async (c) => {
 					balanceBefore: r.balanceBefore,
 					balanceAfter: r.balanceAfter,
 					roundId: r.roundId ?? null,
-					provider: source.provider,
+					provider:
+						nativeCasinoProvider(r.gameCode) ?? source.provider,
 					gameCode: r.gameCode ?? null,
 					providerId: r.providerId ?? null,
 				});
@@ -1656,8 +1717,8 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 			createdAtCol: schema.pocketsTransactions.createdAt,
 			balanceBeforeCol: schema.pocketsTransactions.balanceBefore,
 			balanceAfterCol: schema.pocketsTransactions.balanceAfter,
-			roundIdCol: null,
-			gameIdCol: null,
+			roundIdCol: schema.pocketsTransactions.roundId,
+			gameIdCol: schema.pocketsTransactions.gameCode,
 			sessionTokenCol: null,
 			winTypes: ["CREDIT"],
 			provider: "Lagos Rush",
@@ -1699,12 +1760,13 @@ adminTicketsRoute.openapi(getTicketByIdRoute, async (c) => {
 		if (source.gameIdCol) selectCols.gameCode = source.gameIdCol;
 		if (source.providerIdCol) selectCols.providerId = source.providerIdCol;
 
-		const row = await db
-			.select(selectCols)
-			.from(source.table)
-			.innerJoin(schema.user, eq(source.userIdCol, schema.user.id))
-			.where(eq(source.idCol, id))
-			.get();
+		const [row] = await queryJoinedCasinoRows(
+			db,
+			source,
+			selectCols,
+			eq(source.idCol, id),
+			1,
+		);
 
 		if (row) {
 			let gameName: string | null = nativeCasinoGameName(row.gameCode);

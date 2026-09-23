@@ -37,6 +37,7 @@ import userRoute from "./user";
 import walletRoute from "./wallet";
 import webengageEventsRoute from "./webengage-events";
 import palmpayRoute from "./palmpay";
+import hellodutyRoute from "./helloduty";
 import webengageSmsRoute from "./webengage-sms";
 
 const routes = new OpenAPIHono();
@@ -48,6 +49,7 @@ routes.route("/tennis", tennisRoute);
 routes.route("/news", newsRoute);
 routes.route("/notifications", notificationsRoute);
 routes.route("/webhooks/webengage", webengageSmsRoute);
+routes.route("/webhooks/helloduty", hellodutyRoute);
 routes.route("/webengage", webengageEventsRoute);
 routes.route("/webhooks/africastalking", africastalkingDlrRoute);
 routes.route("/phone-auth", phoneAuthRoute);

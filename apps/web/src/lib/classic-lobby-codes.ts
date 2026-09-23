@@ -30,6 +30,39 @@ export const CLASSIC_KNOWN_GAME_CODES = [
 	"spin_and_win",
 ] as const;
 
+export const HASHCODEX_LOBBY_CODES = [
+	"sportsdey-crash",
+	"spin_and_win",
+] as const;
+
+export const HASHCODEX_GAME_HOST = "binary.sportsdey.com";
+
 export function isClassicKnownGameCode(code: string): boolean {
 	return (CLASSIC_KNOWN_GAME_CODES as readonly string[]).includes(code);
+}
+
+export function isHashcodexLobbyCode(code: string): boolean {
+	return (HASHCODEX_LOBBY_CODES as readonly string[]).includes(code);
+}
+
+export function isHashcodexGameUrl(url: string): boolean {
+	try {
+		return new URL(url).hostname === HASHCODEX_GAME_HOST;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Hashcodex sends X-Frame-Options: SAMEORIGIN / CSP frame-ancestors 'self',
+ * so Crash and Spin and Win cannot run inside the /game iframe.
+ */
+export function mustOpenCasinoGameTopLevel(
+	gameCode: string,
+	gameUrl?: string | null,
+): boolean {
+	return (
+		isHashcodexLobbyCode(gameCode) ||
+		(typeof gameUrl === "string" && isHashcodexGameUrl(gameUrl))
+	);
 }

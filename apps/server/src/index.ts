@@ -2,7 +2,12 @@ import { swaggerUI } from "@hono/swagger-ui";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { createAuth, createHashCookie, getAuthCookiePolicy } from "./auth";
+import {
+	createAuth,
+	createHashCookie,
+	getAuthCookiePolicy,
+	signedBearerSessionToken,
+} from "./auth";
 import {
 	CORS_ALLOW_HEADERS,
 	CORS_ALLOW_METHODS,
@@ -112,7 +117,22 @@ app.use(
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
 	const auth = getAuth(c.env, optionalExecutionCtx(c));
-	const response = await auth.handler(c.req.raw);
+	let authRequest = c.req.raw;
+	const authorization = c.req.header("authorization");
+	const secret = c.env.BETTER_AUTH_SECRET?.trim();
+	if (authorization && secret) {
+		const match = authorization.match(/^Bearer\s+(.+)$/i);
+		const provided = match?.[1]?.trim();
+		if (provided) {
+			const signed = await signedBearerSessionToken(provided, secret);
+			if (signed !== provided) {
+				const headers = new Headers(c.req.raw.headers);
+				headers.set("Authorization", `Bearer ${signed}`);
+				authRequest = new Request(c.req.raw, { headers });
+			}
+		}
+	}
+	const response = await auth.handler(authRequest);
 
 	const setCookies: string[] = [];
 	response.headers.forEach((value, key) => {

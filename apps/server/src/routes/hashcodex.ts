@@ -13,6 +13,7 @@ import {
 	type PocketsSettleResult,
 	settlePocketsTransaction,
 } from "@/services/pockets-settlement";
+import { creditWallet, debitWallet } from "@/db/atomic-wallet";
 import { CasinoMoneyError, toKobo } from "@/utils/casino-money";
 import {
 	buildHashcodexLaunchUrl,
@@ -31,10 +32,9 @@ const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 const SPORTSDEY_CRASH_GAME_CODE = "sportsdey-crash";
 
 /**
- * SECURITY: POST /deposit stays disabled. It was a user-session self-credit.
- *
- * Real-money Crash / Spin and Win must use POST /wallet — HMAC from the
- * Hashcodex backend, unique transactionId, claim-first settlement.
+ * Hashcodex Crash / Spin and Win uses the player's SportsDey session:
+ * POST /hashcodex/deposit `{ action, amount }` (amount in Naira).
+ * POST /wallet and /balance stay available as an optional HMAC server path.
  */
 
 const DepositSchema = z
@@ -42,9 +42,23 @@ const DepositSchema = z
 		action: z
 			.enum(["credit", "debit"])
 			.openapi({ description: "credit to add funds, debit to remove funds" }),
-		amount: z.number().positive().openapi({ description: "Amount in kobo" }),
+		amount: z
+			.number()
+			.positive()
+			.openapi({ description: "Amount in Naira (converted to kobo once)" }),
 	})
 	.openapi("HashcodexDepositSchema");
+
+const DepositResponseSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.object({
+			balance: z.number().openapi({ description: "New wallet balance in Naira" }),
+			amount: z.number().openapi({ description: "Transaction amount in Naira" }),
+			action: z.string(),
+		}),
+	})
+	.openapi("HashcodexDepositResponseSchema");
 
 const DepositErrorSchema = z
 	.object({
@@ -134,9 +148,9 @@ const depositRoute = createRoute({
 	method: "post",
 	path: "/deposit",
 	tags: ["Hashcodex"],
-	summary: "Disabled — user-session Crash wallet mutate",
+	summary: "Deposit or withdraw from wallet via Hashcodex",
 	description:
-		"Disabled. Use POST /hashcodex/wallet with HMAC from the Hashcodex server.",
+		"Player-session path Hashcodex Crash / Spin and Win already call. Add (credit) or remove (debit) funds from the logged-in user's main wallet.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -148,8 +162,32 @@ const depositRoute = createRoute({
 		},
 	},
 	responses: {
-		503: {
-			description: "Route disabled for security rework",
+		200: {
+			description: "Transaction successful",
+			content: {
+				"application/json": {
+					schema: DepositResponseSchema,
+				},
+			},
+		},
+		400: {
+			description: "Invalid request or insufficient balance",
+			content: {
+				"application/json": {
+					schema: DepositErrorSchema,
+				},
+			},
+		},
+		401: {
+			description: "Unauthorized - user not authenticated",
+			content: {
+				"application/json": {
+					schema: DepositErrorSchema,
+				},
+			},
+		},
+		500: {
+			description: "Wallet update failed",
 			content: {
 				"application/json": {
 					schema: DepositErrorSchema,
@@ -165,7 +203,7 @@ const launchRoute = createRoute({
 	tags: ["Hashcodex"],
 	summary: "Launch Sportsdey Crash or Spin and Win",
 	description:
-		"Authenticated player launch. Returns a Hashcodex URL with playerId, gameCode, and wallet/balance callback URLs for their server to POST /hashcodex/wallet.",
+		"Authenticated player launch. Returns a Hashcodex URL with playerId, gameCode, and deposit/wallet/balance callback URLs.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -367,19 +405,107 @@ function settleHttp(result: PocketsSettleResult): {
 }
 
 hashcodexRoute.openapi(depositRoute, async (c) => {
-	console.warn(
-		JSON.stringify({
-			tag: "money_movement",
-			provider: "hashcodex",
-			action: "rejected_disabled_route",
-			userId: c.get("user")?.id ?? null,
-		}),
-	);
+	const user = c.get("user");
+	if (!user) {
+		return c.json(errorBody("Unauthorized"), 401);
+	}
+
+	const { action, amount } = c.req.valid("json");
+	let amountKobo: number;
+	try {
+		amountKobo = toKobo(amount, "naira");
+	} catch (error) {
+		return c.json(
+			errorBody(
+				error instanceof CasinoMoneyError ? error.message : "Invalid amount",
+			),
+			400,
+		);
+	}
+
+	const db = drizzle(c.env.DB, { schema });
+	const [wallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.userId, user.id))
+		.limit(1);
+
+	if (!wallet) {
+		return c.json(
+			errorBody("Wallet not found. Please fund your wallet first."),
+			400,
+		);
+	}
+
+	if (action === "debit" && wallet.balance < amountKobo) {
+		return c.json(errorBody("Insufficient balance"), 400);
+	}
+
+	const reference = `hcx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+	const updatedWallet =
+		action === "credit"
+			? await creditWallet(db, user.id, amountKobo)
+			: await debitWallet(db, user.id, amountKobo);
+	if (!updatedWallet) {
+		return c.json(
+			errorBody("Insufficient balance or failed to update user balance"),
+			500,
+		);
+	}
+
+	const [txn] = await db
+		.insert(schema.walletTransaction)
+		.values({
+			id: `txn_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+			userId: user.id,
+			amount: amountKobo,
+			type: action,
+			reference,
+			status: "completed",
+			paymentMethod: "hashcodex",
+			balance: updatedWallet.balance,
+			metadata: JSON.stringify({
+				source: "hashcodex",
+				gameCode: SPORTSDEY_CRASH_GAME_CODE,
+			}),
+		})
+		.returning();
+
+	if (!txn?.id) {
+		return c.json(errorBody("Failed to record transaction"), 500);
+	}
+
+	if (action === "debit") {
+		await reportCasinoBetInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: user.id,
+			betId: reference,
+			amount: casinoBetAmountFromKobo(amountKobo),
+			gameRef: SPORTSDEY_CRASH_GAME_CODE,
+			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SPORTSDEY_ORIGINALS,
+		});
+	} else {
+		await reportCasinoBetResultInBackground({
+			env: c.env,
+			executionCtx: optionalExecutionCtx(c),
+			userId: user.id,
+			betId: reference,
+			totalWinAmount: casinoBetAmountFromKobo(amountKobo),
+			isWin: 1,
+		});
+	}
+
 	return c.json(
-		errorBody(
-			"Sportsdey Crash wallet transactions are temporarily disabled for maintenance.",
-		),
-		503,
+		{
+			success: true as const,
+			data: {
+				balance: koboToNaira(updatedWallet.balance),
+				amount,
+				action,
+			},
+		},
+		200,
 	);
 });
 
@@ -502,6 +628,8 @@ hashcodexRoute.openapi(walletRoute, async (c) => {
 		providerTxId: claimTxId,
 		amountKobo,
 		currency: "NGN",
+		gameCode,
+		roundId: body.roundId,
 		metadata: {
 			source: "hashcodex",
 			gameCode,
