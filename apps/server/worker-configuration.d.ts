@@ -77,7 +77,7 @@ declare namespace Cloudflare {
 		AFRICASTALKING_SENDER_ID: string;
 		WEBENGAGE_API_KEY: string;
 		WEBENGAGE_API_SECRET: string;
-		HELLODUTY_API_SECRET?: string;
+		HELLODUTY_ALLOWED_IPS?: string;
 		WEBENGAGE_LICENSE_CODE: string;
 		WEBENGAGE_HOST: string;
 		WEBENGAGE_DSN_URL: string;

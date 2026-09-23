@@ -1,49 +1,44 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { verifyHellodutySecret } from "./helloduty-auth";
+import {
+	authorizeHellodutyRequest,
+	parseHellodutyAllowedIps,
+} from "./helloduty-auth";
 
-const SECRET = "test-helloduty-secret";
-
-describe("verifyHellodutySecret", () => {
-	it("accepts Bearer and X-HelloDuty-Secret", () => {
+describe("authorizeHellodutyRequest", () => {
+	it("allows an allowlisted IP", () => {
 		assert.equal(
-			verifyHellodutySecret({
-				expectedSecret: SECRET,
-				authorizationHeader: `Bearer ${SECRET}`,
+			authorizeHellodutyRequest({
+				clientIp: "203.0.113.10",
+				allowedIpsRaw: "203.0.113.10, 203.0.113.11",
 			}),
-			true,
+			"ok",
 		);
+		assert.deepEqual(parseHellodutyAllowedIps("203.0.113.10, 203.0.113.11"), [
+			"203.0.113.10",
+			"203.0.113.11",
+		]);
+	});
+
+	it("rejects a non-allowlisted IP", () => {
 		assert.equal(
-			verifyHellodutySecret({
-				expectedSecret: SECRET,
-				xHellodutySecretHeader: SECRET,
+			authorizeHellodutyRequest({
+				clientIp: "1.2.3.4",
+				allowedIpsRaw: "203.0.113.10",
 			}),
-			true,
+			"forbidden",
 		);
 	});
 
-	it("rejects missing, wrong, or unbound secrets", () => {
-		assert.equal(verifyHellodutySecret({ expectedSecret: SECRET }), false);
-		assert.equal(
-			verifyHellodutySecret({
-				expectedSecret: SECRET,
-				authorizationHeader: "Bearer wrong",
-			}),
-			false,
-		);
-		assert.equal(
-			verifyHellodutySecret({
-				expectedSecret: undefined,
-				authorizationHeader: `Bearer ${SECRET}`,
-			}),
-			false,
-		);
-		assert.equal(
-			verifyHellodutySecret({
-				expectedSecret: "   ",
-				authorizationHeader: "Bearer    ",
-			}),
-			false,
-		);
+	it("is unconfigured when the allowlist is empty, off, or wildcard", () => {
+		for (const allowedIpsRaw of [undefined, "", "   ", "off", "*"]) {
+			assert.equal(
+				authorizeHellodutyRequest({
+					clientIp: "203.0.113.10",
+					allowedIpsRaw,
+				}),
+				"unconfigured",
+			);
+		}
 	});
 });

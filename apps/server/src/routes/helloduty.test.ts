@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import hellodutyRoute from "./helloduty";
 
-const SECRET = "test-helloduty-secret";
+const ALLOWED_IP = "203.0.113.10";
 const USER_ID = "usr_helloduty_1";
 const OTHER_ID = "usr_helloduty_2";
 const NOW = Date.now();
@@ -122,7 +122,7 @@ function createEnv(options?: { dropAltTable?: boolean }) {
 		sqlite,
 		env: {
 			DB: new MemoryD1(sqlite),
-			HELLODUTY_API_SECRET: SECRET,
+			HELLODUTY_ALLOWED_IPS: ALLOWED_IP,
 		},
 	};
 }
@@ -135,9 +135,12 @@ function mountApp() {
 
 async function post(
 	path: string,
-	env: { DB: MemoryD1; HELLODUTY_API_SECRET?: string },
+	env: {
+		DB: MemoryD1;
+		HELLODUTY_ALLOWED_IPS?: string;
+	},
 	body: unknown,
-	headers: Record<string, string> = {},
+	headers: Record<string, string> = { "cf-connecting-ip": ALLOWED_IP },
 ) {
 	const app = mountApp();
 	return app.request(
@@ -155,24 +158,39 @@ async function post(
 }
 
 describe("POST /webhooks/helloduty/contacts/lookup", () => {
-	it("returns 401 when the Worker secret is unbound", async () => {
+	it("returns 401 when the allowlist is not configured", async () => {
 		const { env } = createEnv();
 		const res = await post(
 			"/webhooks/helloduty/contacts/lookup",
-			{ ...env, HELLODUTY_API_SECRET: "" },
+			{ ...env, HELLODUTY_ALLOWED_IPS: "" },
 			{ phone: "08012345678" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		assert.equal(res.status, 401);
 	});
 
-	it("returns 403 when the bearer does not match", async () => {
+	it("looks up a contact from an allowlisted IP", async () => {
 		const { env } = createEnv();
 		const res = await post(
 			"/webhooks/helloduty/contacts/lookup",
 			env,
 			{ phone: "08012345678" },
-			{ Authorization: "Bearer wrong" },
+		);
+		assert.equal(res.status, 200);
+		const json = (await res.json()) as {
+			success: boolean;
+			data: { contact: { id: string } };
+		};
+		assert.equal(json.success, true);
+		assert.equal(json.data.contact.id, USER_ID);
+	});
+
+	it("returns 403 from an IP that is not allowlisted", async () => {
+		const { env } = createEnv();
+		const res = await post(
+			"/webhooks/helloduty/contacts/lookup",
+			env,
+			{ phone: "08012345678" },
+			{ "cf-connecting-ip": "1.2.3.4" },
 		);
 		assert.equal(res.status, 403);
 	});
@@ -183,7 +201,6 @@ describe("POST /webhooks/helloduty/contacts/lookup", () => {
 			"/webhooks/helloduty/contacts/lookup",
 			env,
 			{ phone: "abc" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		assert.equal(res.status, 400);
 	});
@@ -194,7 +211,6 @@ describe("POST /webhooks/helloduty/contacts/lookup", () => {
 			"/webhooks/helloduty/contacts/lookup",
 			env,
 			{ phone: "08011112222" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		const json = (await res.json()) as { success: boolean; error: string };
 		assert.equal(res.status, 404);
@@ -208,7 +224,6 @@ describe("POST /webhooks/helloduty/contacts/lookup", () => {
 			"/webhooks/helloduty/contacts/lookup",
 			env,
 			{ phoneNumber: "08012345678" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		const json = (await res.json()) as {
 			success: boolean;
@@ -234,7 +249,6 @@ describe("POST /webhooks/helloduty/contacts/lookup", () => {
 			"/webhooks/helloduty/contacts/lookup",
 			env,
 			{ msisdn: "08077777777" },
-			{ "X-HelloDuty-Secret": SECRET },
 		);
 		const json = (await res.json()) as {
 			data: { contact: { id: string; alternativePhones: string[] } };
@@ -250,7 +264,6 @@ describe("POST /webhooks/helloduty/contacts/lookup", () => {
 			"/webhooks/helloduty/contacts/lookup",
 			env,
 			{ phone: "+2348012345678" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		assert.equal(res.status, 200);
 	});
@@ -266,7 +279,6 @@ describe("POST /webhooks/helloduty/contacts/alternative-number", () => {
 			"/webhooks/helloduty/contacts/alternative-number",
 			env,
 			{ phone: "08011112222", alternativePhone: "08033334444" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		const after = sqlite.prepare("SELECT COUNT(*) AS n FROM user").get() as {
 			n: number;
@@ -281,7 +293,6 @@ describe("POST /webhooks/helloduty/contacts/alternative-number", () => {
 			"/webhooks/helloduty/contacts/alternative-number",
 			env,
 			{ contactId: USER_ID, alternativeNumber: "08033334444" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		const json = (await res.json()) as {
 			data: { contact: { alternativePhones: string[] } };
@@ -296,7 +307,6 @@ describe("POST /webhooks/helloduty/contacts/alternative-number", () => {
 			"/webhooks/helloduty/contacts/alternative-number",
 			env,
 			{ contactId: USER_ID, alternativePhone: "08099999999" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		assert.equal(res.status, 409);
 	});
@@ -307,7 +317,6 @@ describe("POST /webhooks/helloduty/contacts/alternative-number", () => {
 			"/webhooks/helloduty/contacts/alternative-number",
 			env,
 			{ contactId: USER_ID, alternativePhone: "+2348012345678" },
-			{ Authorization: `Bearer ${SECRET}` },
 		);
 		const count = sqlite
 			.prepare("SELECT COUNT(*) AS n FROM user_phone_number")

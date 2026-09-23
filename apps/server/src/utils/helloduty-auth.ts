@@ -1,23 +1,30 @@
-import {
-	extractBearerToken,
-	timingSafeEqualString,
-} from "./webengage-sms-auth";
+export function parseHellodutyAllowedIps(raw?: string): string[] {
+	if (!raw?.trim() || raw.trim() === "off" || raw.trim() === "*") return [];
+	return raw
+		.split(",")
+		.map((ip) => ip.trim())
+		.filter(Boolean);
+}
 
-export function verifyHellodutySecret(opts: {
-	expectedSecret: string | undefined;
-	authorizationHeader?: string;
-	xHellodutySecretHeader?: string;
-}): boolean {
-	const expected = opts.expectedSecret?.trim();
-	if (!expected) return false;
+export function isHellodutyCallbackIpAllowed(
+	clientIp: string,
+	allowedIps: string[],
+): boolean {
+	if (allowedIps.length === 0) return false;
+	if (!clientIp) return false;
+	return allowedIps.includes(clientIp);
+}
 
-	const bearer = extractBearerToken(opts.authorizationHeader);
-	if (bearer && timingSafeEqualString(bearer, expected)) return true;
-
-	const headerSecret = opts.xHellodutySecretHeader?.trim();
-	if (headerSecret && timingSafeEqualString(headerSecret, expected)) {
-		return true;
-	}
-
-	return false;
+/**
+ * HelloDuty authenticates by source IP. Requests must come from
+ * HELLODUTY_ALLOWED_IPS (cf-connecting-ip).
+ */
+export function authorizeHellodutyRequest(opts: {
+	clientIp: string;
+	allowedIpsRaw?: string;
+}): "ok" | "unconfigured" | "forbidden" {
+	const allowedIps = parseHellodutyAllowedIps(opts.allowedIpsRaw);
+	if (allowedIps.length === 0) return "unconfigured";
+	if (isHellodutyCallbackIpAllowed(opts.clientIp, allowedIps)) return "ok";
+	return "forbidden";
 }

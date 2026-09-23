@@ -11,6 +11,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import { createMemoryD1 } from "../test-support/memory-d1";
 import {
 	computeHashcodexSignature,
@@ -608,8 +609,18 @@ describe("Slotegrator callback idempotency", () => {
 // Hashcodex (Sportsdey Crash) — signed wallet + disabled self-credit
 // ---------------------------------------------------------------------------
 
-describe("Hashcodex self-credit route", () => {
-	it("is disabled and cannot credit a wallet", async () => {
+function hashcodexWithUser(userId: string | null) {
+	const app = new OpenAPIHono();
+	app.use("*", async (c, next) => {
+		c.set("user", userId ? { id: userId } : null);
+		await next();
+	});
+	app.route("/", hashcodexRoute);
+	return app;
+}
+
+describe("Hashcodex player-session deposit", () => {
+	it("rejects an unauthenticated credit", async () => {
 		const res = await hashcodexRoute.request(
 			"/deposit",
 			{
@@ -619,8 +630,35 @@ describe("Hashcodex self-credit route", () => {
 			},
 			env,
 		);
-		assert.equal(res.status, 503);
+		assert.equal(res.status, 401);
 		assert.equal(walletBalance(), START_KOBO);
+	});
+
+	it("debits and credits the logged-in user's wallet", async () => {
+		const app = hashcodexWithUser(USER_ID);
+		const debit = await app.request(
+			"/deposit",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "debit", amount: 10 }),
+			},
+			env,
+		);
+		assert.equal(debit.status, 200, await debit.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000);
+
+		const credit = await app.request(
+			"/deposit",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "credit", amount: 25 }),
+			},
+			env,
+		);
+		assert.equal(credit.status, 200, await credit.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000 + 2_500);
 	});
 
 	it("requires a logged-in user to launch", async () => {

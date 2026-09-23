@@ -2,13 +2,14 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { ErrorResponseSchema } from "@/schemas";
-import { verifyHellodutySecret } from "@/utils/helloduty-auth";
+import { authorizeHellodutyRequest } from "@/utils/helloduty-auth";
 import {
 	findContactByPhone,
 	saveAlternativePhone,
 	type HellodutyContact,
 } from "@/utils/helloduty-contacts";
 import { normalizeNigerianPhone } from "@/utils/nigerian-phone";
+import { getClientIp } from "@/utils/request";
 import type { CloudflareBindings } from "../types";
 
 const hellodutyRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -19,29 +20,26 @@ hellodutyRoute.use("*", async (c, next) => {
 		return;
 	}
 
-	const envSecret = c.env.HELLODUTY_API_SECRET;
-	if (!envSecret?.trim()) {
+	const auth = authorizeHellodutyRequest({
+		clientIp: getClientIp(c),
+		allowedIpsRaw: c.env.HELLODUTY_ALLOWED_IPS,
+	});
+	if (auth === "unconfigured") {
 		return c.json(
 			{
 				success: false as const,
-				error: "Authentication failure: HELLODUTY_API_SECRET is not set on this Worker",
+				error:
+					"Authentication failure: set HELLODUTY_ALLOWED_IPS",
 				details: null,
 			},
 			401,
 		);
 	}
-
-	const ok = verifyHellodutySecret({
-		expectedSecret: envSecret,
-		authorizationHeader: c.req.header("Authorization"),
-		xHellodutySecretHeader: c.req.header("X-HelloDuty-Secret"),
-	});
-	if (!ok) {
+	if (auth === "forbidden") {
 		return c.json(
 			{
 				success: false as const,
-				error:
-					"Authorization failure: X-HelloDuty-Secret / Authorization Bearer did not match HELLODUTY_API_SECRET",
+				error: "Authorization failure: callback IP is not allowlisted",
 				details: null,
 			},
 			403,
@@ -111,7 +109,7 @@ const lookupRoute = createRoute({
 	tags: ["HelloDuty"],
 	summary: "Look up a SportsDey contact by phone",
 	description:
-		"HelloDuty CRM lookup. Returns a contact only if the phone is already on a SportsDey user (primary or alternative). Never creates users. Auth: Authorization Bearer HELLODUTY_API_SECRET (or X-HelloDuty-Secret).",
+		"HelloDuty CRM lookup. Returns a contact only if the phone is already on a SportsDey user (primary or alternative). Never creates users. Auth: allowlisted source IP (HELLODUTY_ALLOWED_IPS).",
 	request: {
 		body: {
 			required: true,
@@ -138,11 +136,11 @@ const lookupRoute = createRoute({
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		401: {
-			description: "Secret not bound",
+			description: "IP allowlist not configured",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		403: {
-			description: "Secret mismatch",
+			description: "Source IP is not allowlisted",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		404: {
@@ -158,7 +156,7 @@ const alternativeRoute = createRoute({
 	tags: ["HelloDuty"],
 	summary: "Save an alternative phone on an existing contact",
 	description:
-		"HelloDuty writes a second number onto a contact that already exists in SportsDey. Does not create users. Auth: Authorization Bearer HELLODUTY_API_SECRET (or X-HelloDuty-Secret).",
+		"HelloDuty writes a second number onto a contact that already exists in SportsDey. Does not create users. Auth: allowlisted source IP (HELLODUTY_ALLOWED_IPS).",
 	request: {
 		body: {
 			required: true,
@@ -185,11 +183,11 @@ const alternativeRoute = createRoute({
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		401: {
-			description: "Secret not bound",
+			description: "IP allowlist not configured",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		403: {
-			description: "Secret mismatch",
+			description: "Source IP is not allowlisted",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
 		404: {

@@ -22,6 +22,10 @@ describe("buildHashcodexLaunchUrl", () => {
 			"https://staging-api.sportsdey.com",
 		);
 		assert.equal(
+			url.searchParams.get("depositUrl"),
+			"https://staging-api.sportsdey.com/hashcodex/deposit",
+		);
+		assert.equal(
 			url.searchParams.get("walletUrl"),
 			"https://staging-api.sportsdey.com/hashcodex/wallet",
 		);
