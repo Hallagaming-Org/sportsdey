@@ -1,4 +1,4 @@
-import { bsc, type Chain, mainnet, polygonAmoy } from "viem/chains";
+import { type Chain, polygon, polygonAmoy } from "viem/chains";
 
 /** Openfort is enabled only when both publishable keys are present. */
 export function isOpenfortEnabled(): boolean {
@@ -18,32 +18,27 @@ export const OPENFORT_FEE_SPONSORSHIP_ID = import.meta.env
 	.VITE_OPENFORT_FEE_SPONSORSHIP_ID as string | undefined;
 
 /**
- * Production chain + asset decision (EVM only — current Openfort wallet type).
+ * Openfort is Polygon-only. Production is Polygon PoS + native USDC.
+ * Amoy stays for test keys. BSC / Ethereum are not offered.
  *
- * Quidax Ramp pays USDC/USDT on BEP20, ERC20, Solana, and TRC20. This app's
- * Openfort integration is Ethereum-embedded only, so Solana/TRC20 need a new
- * wallet type and are not used.
- *
- * Chosen production network: BNB Smart Chain (BEP20) + USDC.
- * ERC20 is the other compatible option; BEP20 is preferred for NGN on-ramp gas.
- * Set `VITE_OPENFORT_CHAIN=bsc` after the Openfort dashboard (Shield + fee
- * sponsorship) is on that chain. Default remains Amoy so existing test keys
- * keep working until that dashboard switch.
+ * Set `VITE_OPENFORT_CHAIN=polygon` after the Openfort dashboard (Shield +
+ * fee sponsorship) is on chain 137. Default remains Amoy so existing test
+ * keys keep working until that dashboard switch.
  */
-export type OpenfortChainKey = "amoy" | "bsc" | "ethereum";
+export type OpenfortChainKey = "amoy" | "polygon";
 
-export const OPENFORT_PRODUCTION_CHAIN_KEY: OpenfortChainKey = "bsc";
+export const OPENFORT_PRODUCTION_CHAIN_KEY: OpenfortChainKey = "polygon";
 export const OPENFORT_PRODUCTION_STABLECOIN = "USDC";
-export const OPENFORT_PRODUCTION_QUIDAX_NETWORK = "BEP20";
+export const OPENFORT_PRODUCTION_QUIDAX_NETWORK = "POLYGON";
 
 const AMOY_USDC = "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582" as const;
-/** Binance-Peg USDC on BNB Smart Chain (18 decimals). Override via env if Quidax pays a different contract. */
-const BSC_USDC = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d" as const;
-const ETH_USDC = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as const;
+/** Circle native USDC on Polygon PoS (6 decimals). Override via env if Quidax pays USDC.e. */
+const POLYGON_USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as const;
 
 const AMOY_RPC = "https://polygon-amoy.gateway.tenderly.co";
-const BSC_RPC = "https://bsc-dataseed.binance.org";
-const ETH_RPC = "https://eth.llamarpc.com";
+const POLYGON_RPC = "https://polygon-rpc.com";
+
+export type OpenfortQuidaxNetwork = "POLYGON";
 
 export type OpenfortChainConfig = {
 	key: OpenfortChainKey;
@@ -58,14 +53,20 @@ export type OpenfortChainConfig = {
 	explorerTxBaseUrl: string;
 	viemChain: Chain;
 	/** Quidax widget `network` value. Null means this chain must never be passed to Ramp. */
-	quidaxNetwork: "BEP20" | "ERC20" | null;
+	quidaxNetwork: OpenfortQuidaxNetwork | null;
 };
 
 function parseChainKey(raw: string | undefined): OpenfortChainKey {
 	const v = (raw ?? "amoy").trim().toLowerCase();
-	if (v === "bsc" || v === "bep20" || v === "56") return "bsc";
-	if (v === "ethereum" || v === "eth" || v === "erc20" || v === "1") {
-		return "ethereum";
+	if (v === "amoy" || v === "80002" || v === "testnet") return "amoy";
+	if (
+		v === "polygon" ||
+		v === "matic" ||
+		v === "pol" ||
+		v === "137" ||
+		v === "polygon-mainnet"
+	) {
+		return "polygon";
 	}
 	return "amoy";
 }
@@ -80,36 +81,20 @@ function parseStablecoinSymbol(
 }
 
 function chainPreset(key: OpenfortChainKey): OpenfortChainConfig {
-	if (key === "bsc") {
+	if (key === "polygon") {
 		return {
 			key,
-			chainId: 56,
-			label: "BNB Smart Chain",
+			chainId: 137,
+			label: "Polygon",
 			isTestnet: false,
-			nativeSymbol: "BNB",
+			nativeSymbol: "POL",
 			stablecoinSymbol: "USDC",
-			stablecoinAddress: BSC_USDC,
-			stablecoinDecimals: 18,
-			rpcUrl: BSC_RPC,
-			explorerTxBaseUrl: "https://bscscan.com/tx",
-			viemChain: bsc,
-			quidaxNetwork: "BEP20",
-		};
-	}
-	if (key === "ethereum") {
-		return {
-			key,
-			chainId: 1,
-			label: "Ethereum",
-			isTestnet: false,
-			nativeSymbol: "ETH",
-			stablecoinSymbol: "USDC",
-			stablecoinAddress: ETH_USDC,
+			stablecoinAddress: POLYGON_USDC,
 			stablecoinDecimals: 6,
-			rpcUrl: ETH_RPC,
-			explorerTxBaseUrl: "https://etherscan.io/tx",
-			viemChain: mainnet,
-			quidaxNetwork: "ERC20",
+			rpcUrl: POLYGON_RPC,
+			explorerTxBaseUrl: "https://polygonscan.com/tx",
+			viemChain: polygon,
+			quidaxNetwork: "POLYGON",
 		};
 	}
 	return {

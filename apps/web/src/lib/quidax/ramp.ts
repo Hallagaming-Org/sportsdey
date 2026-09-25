@@ -18,12 +18,12 @@ export const QUIDAX_RAMP_PUBLIC_KEY = import.meta.env
 	.VITE_QUIDAX_RAMP_PUBLIC_KEY as string | undefined;
 
 export type QuidaxRampAddressCheck =
-	| { ok: true; network: "BEP20" | "ERC20"; toCurrency: string }
+	| { ok: true; network: "POLYGON"; toCurrency: string }
 	| { ok: false; reason: string };
 
 /**
  * Hard rule: never pass a testnet (Amoy) Openfort address to Quidax.
- * Production payouts are BEP20/ERC20 only with the current EVM wallet.
+ * Production payouts are Polygon + USDC only.
  */
 export function canPassOpenfortAddressToQuidax(
 	chain = OPENFORT_CHAIN,
@@ -36,10 +36,10 @@ export function canPassOpenfortAddressToQuidax(
 				"Naira buy is unavailable on testnet. The Crypto address is not on a Quidax production network.",
 		};
 	}
-	if (chain.quidaxNetwork !== "BEP20" && chain.quidaxNetwork !== "ERC20") {
+	if (chain.quidaxNetwork !== "POLYGON") {
 		return {
 			ok: false,
-			reason: `This Openfort chain (${chain.label}) is not a Quidax payout network. Use BEP20 or ERC20.`,
+			reason: `This Openfort chain (${chain.label}) is not a Quidax payout network. Use Polygon.`,
 		};
 	}
 	if (!publicKey?.trim()) {

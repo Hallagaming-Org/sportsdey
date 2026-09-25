@@ -6,7 +6,7 @@ import {
 } from "./hashcodex-launch";
 
 describe("buildHashcodexLaunchUrl", () => {
-	it("passes playerId, gameCode, and wallet callback URLs", () => {
+	it("passes playerId, gameCode, apiUrl, and depositUrl only", () => {
 		const url = new URL(
 			buildHashcodexLaunchUrl({
 				playerId: "user-1",
@@ -25,14 +25,8 @@ describe("buildHashcodexLaunchUrl", () => {
 			url.searchParams.get("depositUrl"),
 			"https://staging-api.sportsdey.com/hashcodex/deposit",
 		);
-		assert.equal(
-			url.searchParams.get("walletUrl"),
-			"https://staging-api.sportsdey.com/hashcodex/wallet",
-		);
-		assert.equal(
-			url.searchParams.get("balanceUrl"),
-			"https://staging-api.sportsdey.com/hashcodex/balance",
-		);
+		assert.equal(url.searchParams.get("walletUrl"), null);
+		assert.equal(url.searchParams.get("balanceUrl"), null);
 	});
 
 	it("recognizes Hashcodex lobby codes", () => {
