@@ -20,7 +20,8 @@
 				"VITE_PUBLIC_URL": "https://stagingweb.sportsdey.com",
 				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.int.databet.cloud/v2/f7078267/bootstrap.js",
 				"VITE_DATABET_SPA_BASENAME": "/",
-				"VITE_DATABET_DEFAULT_LOCALE": "en"
+				"VITE_DATABET_DEFAULT_LOCALE": "en",
+				"VITE_WEBENGAGE_LICENSE_CODE": "ksa~aa13187c"
 			},
 			"routes": [
 				{
@@ -38,7 +39,8 @@
 				"VITE_PUBLIC_URL": "https://sportsdey.com",
 				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.databet.cloud/v2/f7078267/bootstrap.js",
 				"VITE_DATABET_SPA_BASENAME": "/",
-				"VITE_DATABET_DEFAULT_LOCALE": "en"
+				"VITE_DATABET_DEFAULT_LOCALE": "en",
+				"VITE_WEBENGAGE_LICENSE_CODE": "ksa~~71680a0c"
 			},
 			"routes": [
 				{

@@ -2,6 +2,7 @@ declare global {
 	interface Window {
 		webengage?: {
 			init: (licenseKey: string) => void;
+			onReady?: (cb: () => void) => void;
 			track: (name: string, attributes?: Record<string, unknown>) => void;
 			user: {
 				login: (userId: string) => void;
@@ -12,13 +13,53 @@ declare global {
 	}
 }
 
+/** Staging / older KSA project. */
+export const WEBENGAGE_STAGING_LICENSE_CODE = "ksa~aa13187c";
+/** Production KSA project from the WebEngage dashboard snippet. */
+export const WEBENGAGE_PRODUCTION_LICENSE_CODE = "ksa~~71680a0c";
+
+export function webengageLicenseCode(): string {
+	const fromEnv = import.meta.env.VITE_WEBENGAGE_LICENSE_CODE?.trim();
+	if (fromEnv) return fromEnv;
+	return import.meta.env.MODE === "production"
+		? WEBENGAGE_PRODUCTION_LICENSE_CODE
+		: WEBENGAGE_STAGING_LICENSE_CODE;
+}
+
 const Webengage = () => {
 	if (typeof window === "undefined" || !window.webengage) return null;
 	return window.webengage;
 };
 
+function whenWebengageReady(cb: (we: NonNullable<ReturnType<typeof Webengage>>) => void) {
+	if (typeof window === "undefined") return;
+
+	const run = () => {
+		const we = Webengage();
+		if (!we?.user?.login) return false;
+		if (typeof we.onReady === "function") {
+			we.onReady(() => cb(we));
+		} else {
+			cb(we);
+		}
+		return true;
+	};
+
+	if (run()) return;
+
+	let tries = 0;
+	const id = window.setInterval(() => {
+		tries += 1;
+		if (run() || tries >= 40) window.clearInterval(id);
+	}, 250);
+}
+
 export function loginWebengageUser(userId: string) {
-	Webengage()?.user.login(userId);
+	const id = userId.trim();
+	if (!id) return;
+	whenWebengageReady((we) => {
+		we.user.login(id);
+	});
 }
 
 export function logoutWebengageUser() {
@@ -152,14 +193,16 @@ export function setWebengageSdkUserProfile(input: {
 		input.preferredLanguage?.trim() ||
 		(typeof navigator !== "undefined" ? navigator.language : "") ||
 		"en";
-	setWebengageUserAttributes({
-		we_email: input.email,
-		we_first_name: input.firstName,
-		we_last_name: input.lastName,
-		we_phone: input.phone,
-		we_birth_date: dateOfBirth,
-		date_of_birth: dateOfBirth,
-		preferred_language: language,
+	whenWebengageReady(() => {
+		setWebengageUserAttributes({
+			we_email: input.email,
+			we_first_name: input.firstName,
+			we_last_name: input.lastName,
+			we_phone: input.phone,
+			we_birth_date: dateOfBirth,
+			date_of_birth: dateOfBirth,
+			preferred_language: language,
+		});
 	});
 }
 

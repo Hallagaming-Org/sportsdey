@@ -34,7 +34,8 @@ const SPORTSDEY_CRASH_GAME_CODE = "sportsdey-crash";
 /**
  * Hashcodex Crash / Spin and Win uses the player's SportsDey session:
  * POST /hashcodex/deposit `{ action, amount }` (amount in Naira).
- * POST /wallet and /balance stay available as an optional HMAC server path.
+ * POST /hashcodex/balance `{ playerId }` — no HMAC (connectSportsDay lookup).
+ * POST /wallet stays available as an optional HMAC server path.
  */
 
 const DepositSchema = z
@@ -119,6 +120,7 @@ const BalanceRequestSchema = z
 const BalanceSuccessSchema = z
 	.object({
 		success: z.literal(true),
+		balance: z.number().openapi({ description: "Wallet balance in Naira" }),
 		data: z.object({
 			balance: z.number().openapi({ description: "Wallet balance in Naira" }),
 			playerId: z.string(),
@@ -287,9 +289,9 @@ const balanceRoute = createRoute({
 	method: "post",
 	path: "/balance",
 	tags: ["Hashcodex"],
-	summary: "Signed player balance lookup",
+	summary: "Player balance lookup",
 	description:
-		"Server-to-server only. Same HMAC as /wallet. Returns main wallet in Naira. Body is not OpenAPI-parsed so the HMAC can use the raw bytes.",
+		"Hashcodex connectSportsDay calls this with { playerId } and no HMAC. Returns main wallet in Naira.",
 	responses: {
 		200: {
 			description: "Balance",
@@ -303,20 +305,8 @@ const balanceRoute = createRoute({
 				"application/json": { schema: DepositErrorSchema },
 			},
 		},
-		401: {
-			description: "Invalid or missing signature",
-			content: {
-				"application/json": { schema: DepositErrorSchema },
-			},
-		},
 		404: {
 			description: "Wallet not found",
-			content: {
-				"application/json": { schema: DepositErrorSchema },
-			},
-		},
-		503: {
-			description: "Secret not configured",
 			content: {
 				"application/json": { schema: DepositErrorSchema },
 			},
@@ -527,7 +517,6 @@ hashcodexRoute.openapi(launchRoute, async (c) => {
 	}
 
 	const url = buildHashcodexLaunchUrl({
-		launchBase: c.env.HASHCODEX_LAUNCH_URL,
 		playerId: user.id,
 		gameCode,
 		apiUrl,
@@ -536,33 +525,53 @@ hashcodexRoute.openapi(launchRoute, async (c) => {
 	return c.json({ success: true as const, data: { url } }, 200);
 });
 
-hashcodexRoute.openapi(balanceRoute, async (c) => {
-	const signed = await readSignedJson(c, BalanceRequestSchema);
-	if (!signed.ok) {
-		return c.json(errorBody(signed.error), signed.status);
-	}
-
-	const db = drizzle(c.env.DB, { schema });
+async function lookupBalance(env: CloudflareBindings, playerId: string) {
+	const db = drizzle(env.DB, { schema });
 	const [wallet] = await db
 		.select({ balance: schema.wallet.balance })
 		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, signed.data.playerId))
+		.where(eq(schema.wallet.userId, playerId))
 		.limit(1);
+	if (!wallet) return null;
+	const balance = koboToNaira(wallet.balance);
+	return {
+		success: true as const,
+		balance,
+		data: { playerId, balance },
+	};
+}
 
-	if (!wallet) {
-		return c.json(errorBody("Wallet not found"), 404);
+hashcodexRoute.openapi(balanceRoute, async (c) => {
+	let parsed: unknown;
+	try {
+		parsed = await c.req.json();
+	} catch {
+		return c.json(errorBody("Invalid JSON body"), 400);
 	}
 
-	return c.json(
-		{
-			success: true as const,
-			data: {
-				playerId: signed.data.playerId,
-				balance: koboToNaira(wallet.balance),
-			},
-		},
-		200,
-	);
+	const result = BalanceRequestSchema.safeParse(parsed);
+	if (!result.success) {
+		return c.json(errorBody("Invalid request"), 400);
+	}
+
+	const body = await lookupBalance(c.env, result.data.playerId);
+	if (!body) {
+		return c.json(errorBody("Wallet not found"), 404);
+	}
+	return c.json(body, 200);
+});
+
+hashcodexRoute.get("/balance", async (c) => {
+	const playerId = c.req.query("playerId");
+	if (!playerId?.trim()) {
+		return c.json(errorBody("Invalid request"), 400);
+	}
+
+	const body = await lookupBalance(c.env, playerId.trim());
+	if (!body) {
+		return c.json(errorBody("Wallet not found"), 404);
+	}
+	return c.json(body, 200);
 });
 
 hashcodexRoute.openapi(walletRoute, async (c) => {

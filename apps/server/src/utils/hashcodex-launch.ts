@@ -15,9 +15,8 @@ export function isHashcodexGameCode(
 }
 
 /**
- * Build the Hashcodex game URL with the player id and SportsDey wallet
- * callback so their client can POST /hashcodex/deposit (session) and optionally
- * /hashcodex/wallet and /hashcodex/balance.
+ * Build the Hashcodex game URL.
+ * Hashcodex connect uses playerId + depositUrl (session deposit). No HMAC env.
  */
 export function buildHashcodexLaunchUrl(opts: {
 	launchBase?: string;
@@ -33,7 +32,5 @@ export function buildHashcodexLaunchUrl(opts: {
 	url.searchParams.set("gameCode", opts.gameCode);
 	url.searchParams.set("apiUrl", apiUrl);
 	url.searchParams.set("depositUrl", `${apiUrl}/hashcodex/deposit`);
-	url.searchParams.set("walletUrl", `${apiUrl}/hashcodex/wallet`);
-	url.searchParams.set("balanceUrl", `${apiUrl}/hashcodex/balance`);
 	return url.toString();
 }

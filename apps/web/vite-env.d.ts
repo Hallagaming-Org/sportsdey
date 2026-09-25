@@ -14,6 +14,7 @@ interface ImportMetaEnv {
 	readonly VITE_QUIDAX_RAMP_PUBLIC_KEY?: string;
 	readonly VITE_QUIDAX_RAMP_TO_CURRENCY?: string;
 	readonly VITE_WALLET_CONNECT_PROJECT_ID?: string;
+	readonly VITE_WEBENGAGE_LICENSE_CODE?: string;
 }
 
 interface ImportMeta {
