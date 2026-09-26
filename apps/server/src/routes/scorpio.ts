@@ -1,7 +1,7 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { Context } from "hono";
+import type { Context, ExecutionContext } from "hono";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import * as schema from "@/db/schema";
 import {
@@ -59,6 +59,13 @@ import {
 	ScorpioConfigError,
 } from "@/utils/scorpio-config";
 import {
+	mapInBatches,
+	mapScorpioCatalogGames,
+	type ScorpioCatalogGame,
+	type ScorpioCatalogProvider,
+	type ScorpioCatalogRemoteGame,
+} from "@/utils/scorpio-catalog";
+import {
 	isScorpioGameDisabled,
 	loadDisabledScorpioCodes,
 	overlayScorpioEnabled,
@@ -73,6 +80,90 @@ import { generateUUIDv7 } from "@/utils/uuid";
 import type { CloudflareBindings } from "../types";
 
 const scorpioRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+
+/** Fresh catalog window. Stale copies are served while a refresh runs. */
+const SCORPIO_CATALOG_TTL_MS = 10 * 60 * 1000;
+const SCORPIO_CATALOG_STALE_MS = 60 * 60 * 1000;
+
+function scorpioCatalogKv(env: CloudflareBindings) {
+	return env.sportsdey_ns || env.staging_kv || null;
+}
+
+async function readScorpioCatalogCache<T>(
+	env: CloudflareBindings,
+	key: string,
+): Promise<{ data: T; fresh: boolean } | null> {
+	const kv = scorpioCatalogKv(env);
+	if (!kv) return null;
+	const cached = (await kv.get(key, "json")) as {
+		data?: T;
+		expiresAt?: number;
+	} | null;
+	if (!cached || cached.data == null || typeof cached.expiresAt !== "number") {
+		return null;
+	}
+	const now = Date.now();
+	if (now <= cached.expiresAt) return { data: cached.data, fresh: true };
+	if (now <= cached.expiresAt + SCORPIO_CATALOG_STALE_MS) {
+		return { data: cached.data, fresh: false };
+	}
+	return null;
+}
+
+async function writeScorpioCatalogCache(
+	env: CloudflareBindings,
+	key: string,
+	data: unknown,
+): Promise<void> {
+	const kv = scorpioCatalogKv(env);
+	if (!kv) return;
+	await kv.put(
+		key,
+		JSON.stringify({
+			data,
+			expiresAt: Date.now() + SCORPIO_CATALOG_TTL_MS,
+		}),
+		{
+			expirationTtl: Math.ceil(
+				(SCORPIO_CATALOG_TTL_MS + SCORPIO_CATALOG_STALE_MS) / 1000,
+			),
+		},
+	);
+}
+
+/**
+ * Serves a cached Scorpio catalog payload. A fresh hit skips the provider.
+ * A stale hit returns immediately and refreshes in the background.
+ */
+async function loadScorpioCatalog<T>(
+	env: CloudflareBindings,
+	executionCtx: ExecutionContext | undefined,
+	key: string,
+	loader: () => Promise<T>,
+): Promise<T> {
+	const cached = await readScorpioCatalogCache<T>(env, key);
+	if (cached?.fresh) return cached.data;
+
+	const refresh = () =>
+		loader()
+			.then((data) => writeScorpioCatalogCache(env, key, data))
+			.catch((error) => {
+				console.error("scorpio catalog refresh failed", { key, error });
+			});
+
+	if (cached) {
+		executionCtx?.waitUntil(refresh());
+		return cached.data;
+	}
+
+	const data = await loader();
+	try {
+		await writeScorpioCatalogCache(env, key, data);
+	} catch (error) {
+		console.error("scorpio catalog cache write failed", { key, error });
+	}
+	return data;
+}
 
 type ScorpioContext = Context<{ Bindings: CloudflareBindings }>;
 
@@ -438,7 +529,12 @@ const providersRoute = createRoute({
 
 mountScorpioRoute(providersRoute, async (c: ScorpioContext) => {
 	try {
-		const data = await listProviders(getScorpioConfig(c.env));
+		const data = await loadScorpioCatalog(
+			c.env,
+			optionalExecutionCtx(c),
+			"scorpio:providers:v1",
+			() => listProviders(getScorpioConfig(c.env)),
+		);
 		return c.json({ success: true as const, data }, 200);
 	} catch (error) {
 		return respondScorpioError(c, error);
@@ -510,6 +606,93 @@ mountScorpioRoute(providerSettingsByIdRoute, async (c: ScorpioContext) => {
 	}
 });
 
+const CATALOG_PROVIDER_BATCH = 6;
+
+function asCatalogProviders(data: unknown): ScorpioCatalogProvider[] {
+	if (!Array.isArray(data)) return [];
+	const out: ScorpioCatalogProvider[] = [];
+	for (const row of data) {
+		if (!row || typeof row !== "object") continue;
+		const provider = row as {
+			providerId?: unknown;
+			providerName?: unknown;
+			status?: unknown;
+		};
+		const providerId = Number(provider.providerId);
+		const providerName =
+			typeof provider.providerName === "string"
+				? provider.providerName.trim()
+				: "";
+		if (!Number.isFinite(providerId) || providerId <= 0 || !providerName) {
+			continue;
+		}
+		out.push({
+			providerId,
+			providerName,
+			status: typeof provider.status === "number" ? provider.status : undefined,
+		});
+	}
+	return out;
+}
+
+async function loadCombinedScorpioCatalog(
+	env: CloudflareBindings,
+	executionCtx: ExecutionContext | undefined,
+): Promise<ScorpioCatalogGame[]> {
+	const providers = asCatalogProviders(
+		await loadScorpioCatalog(
+			env,
+			executionCtx,
+			"scorpio:providers:v1",
+			() => listProviders(getScorpioConfig(env)),
+		),
+	);
+	const active = providers.filter((provider) => provider.status !== 0);
+	const lists = await mapInBatches(active, CATALOG_PROVIDER_BATCH, async (provider) => {
+		const games = await loadScorpioCatalog(
+			env,
+			executionCtx,
+			`scorpio:games:v1:${provider.providerId}`,
+			() => listGames(getScorpioConfig(env), provider.providerId),
+		);
+		return mapScorpioCatalogGames(
+			provider,
+			Array.isArray(games) ? (games as ScorpioCatalogRemoteGame[]) : [],
+		);
+	});
+	return lists.flat();
+}
+
+const catalogRoute = createRoute({
+	method: "get",
+	path: "/catalog",
+	tags: ["Scorpio Play"],
+	summary: "List the full Scorpio game catalog",
+	description:
+		"One cached payload of every active provider's games. Used by admin game management so the browser does not fan out one request per provider.",
+	responses: {
+		200: {
+			description: "Catalog",
+			content: { "application/json": { schema: ScorpioSuccessDataSchema } },
+		},
+		...scorpioErrorHttpResponses,
+	},
+});
+
+mountScorpioRoute(catalogRoute, async (c: ScorpioContext) => {
+	try {
+		const data = await loadScorpioCatalog(
+			c.env,
+			optionalExecutionCtx(c),
+			"scorpio:catalog:v1",
+			() => loadCombinedScorpioCatalog(c.env, optionalExecutionCtx(c)),
+		);
+		return c.json({ success: true as const, data }, 200);
+	} catch (error) {
+		return respondScorpioError(c, error);
+	}
+});
+
 const gamesRoute = createRoute({
 	method: "get",
 	path: "/games/{providerId}",
@@ -529,7 +712,12 @@ const gamesRoute = createRoute({
 mountScorpioRoute(gamesRoute, async (c: ScorpioContext) => {
 	const { providerId } = validRequest<{ providerId: number }>(c, "param");
 	try {
-		const data = await listGames(getScorpioConfig(c.env), providerId);
+		const data = await loadScorpioCatalog(
+			c.env,
+			optionalExecutionCtx(c),
+			`scorpio:games:v1:${providerId}`,
+			() => listGames(getScorpioConfig(c.env), providerId),
+		);
 		if (!Array.isArray(data)) {
 			return c.json({ success: true as const, data }, 200);
 		}

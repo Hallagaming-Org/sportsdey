@@ -63,7 +63,9 @@
 				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
 				"COOKIE_DOMAIN": "sportsdey.com",
 				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
-				"SWIPEGAMES_ALLOWED_IPS": "18.185.156.20"
+				"SWIPEGAMES_ENV": "staging",
+				"SWIPEGAMES_ALLOWED_IPS": "18.185.156.20",
+				"HELLODUTY_ALLOWED_IPS": "134.199.188.102"
 			}
 		},
 		"production": {
@@ -112,7 +114,9 @@
 				"CORS_ORIGIN": "https://sportsdey.com",
 				"COOKIE_DOMAIN": "sportsdey.com",
 				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
-				"SWIPEGAMES_ALLOWED_IPS": "3.65.138.8"
+				"SWIPEGAMES_ENV": "production",
+				"SWIPEGAMES_ALLOWED_IPS": "3.65.138.8",
+				"HELLODUTY_ALLOWED_IPS": "134.199.188.102"
 			}
 		}
 	},

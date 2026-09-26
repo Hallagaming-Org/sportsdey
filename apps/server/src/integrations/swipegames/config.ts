@@ -19,6 +19,8 @@ export type SwipeGamesConfig = {
 	allowedIps: string[];
 	/** When non-empty, reverse-call IPs must match. */
 	ipRestrictionEnabled: boolean;
+	proxyUrl?: string;
+	proxySecret?: string;
 };
 
 export class SwipeGamesIpForbiddenError extends Error {
@@ -42,6 +44,8 @@ type SwipeGamesEnvSource = {
 	SWIPEGAMES_INTEGRATION_API_KEY?: string;
 	SWIPEGAMES_ENV?: string;
 	SWIPEGAMES_ALLOWED_IPS?: string;
+	PROXY_URL?: string;
+	PROXY_SECRET?: string;
 };
 
 function parseAllowedIps(raw?: string): string[] {
@@ -108,6 +112,8 @@ export function getSwipeGamesConfig(
 		name,
 		env.SWIPEGAMES_ALLOWED_IPS,
 	);
+	const proxyUrl = env.PROXY_URL?.trim().replace(/\/$/, "") ?? "";
+	const proxySecret = env.PROXY_SECRET?.trim() ?? "";
 	return {
 		cid,
 		extCid,
@@ -120,6 +126,8 @@ export function getSwipeGamesConfig(
 				: SWIPEGAMES_STAGING_BASE_URL,
 		allowedIps,
 		ipRestrictionEnabled: allowedIps.length > 0,
+		proxyUrl: proxyUrl || undefined,
+		proxySecret: proxySecret || undefined,
 	};
 }
 

@@ -288,7 +288,7 @@ async function main() {
 		const statements = batch.map((game) => {
 			const isLiveGame =
 				/\blive\b/i.test(game.type) || /\blive\b/i.test(game.label) ? 1 : 0;
-			return `INSERT INTO game (id, name, code, image_url, provider_id, provider_name, is_live_game, free_spin, enabled, created_at, updated_at) VALUES (${sqlEscape(game.uuid)}, ${sqlEscape(game.name)}, ${sqlEscape(game.uuid)}, ${sqlEscape(game.image)}, ${sqlEscape(String(game.provider_id))}, ${sqlEscape(game.provider)}, ${isLiveGame}, ${game.has_freespins ? 1 : 0}, 1, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, code = excluded.code, image_url = COALESCE(excluded.image_url, game.image_url), provider_id = excluded.provider_id, provider_name = excluded.provider_name, is_live_game = excluded.is_live_game, free_spin = excluded.free_spin, enabled = 1, updated_at = excluded.updated_at;`;
+			return `INSERT INTO game (id, name, code, image_url, provider_id, provider_name, is_live_game, free_spin, enabled, created_at, updated_at) VALUES (${sqlEscape(game.uuid)}, ${sqlEscape(game.name)}, ${sqlEscape(game.uuid)}, ${sqlEscape(game.image)}, ${sqlEscape(String(game.provider_id))}, ${sqlEscape(game.provider)}, ${isLiveGame}, ${game.has_freespins ? 1 : 0}, 1, ${now}, ${now}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, code = excluded.code, image_url = COALESCE(excluded.image_url, game.image_url), provider_id = excluded.provider_id, provider_name = excluded.provider_name, is_live_game = excluded.is_live_game, free_spin = excluded.free_spin, updated_at = excluded.updated_at;`;
 		});
 		const tempFile = path.join(os.tmpdir(), `sync-games-${now}-${batchNum}.sql`);
 		fs.writeFileSync(tempFile, `${statements.join("\n")}\n`);
