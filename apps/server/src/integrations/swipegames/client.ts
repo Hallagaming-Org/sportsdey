@@ -98,7 +98,7 @@ export class SwipeGamesClient {
 		if (options?.additionalCurrencies) {
 			query.additionalCurrencies = options.additionalCurrencies;
 		}
-		return this.get("/games", query, { acceptGzip: true, timeoutMs: 30_000 });
+		return this.get("/games", query, { timeoutMs: 30_000 });
 	}
 
 	async createFreeRounds(
@@ -162,6 +162,30 @@ export class SwipeGamesClient {
 		return this.request<T>("POST", path, { body });
 	}
 
+	private fetchSigned(
+		url: URL,
+		method: "GET" | "POST" | "DELETE",
+		headers: Record<string, string>,
+		body: string | undefined,
+		signal: AbortSignal,
+	): Promise<Response> {
+		return fetch(url, { method, headers, body, signal });
+	}
+
+	private async readResponse<T>(
+		response: Response,
+		method: "GET" | "POST" | "DELETE",
+	): Promise<T> {
+		if (!response.ok) {
+			throw await parseError(response);
+		}
+		if (response.status === 204 || method === "DELETE") {
+			const text = await response.text();
+			return (text ? JSON.parse(text) : undefined) as T;
+		}
+		return (await response.json()) as T;
+	}
+
 	private async request<T>(
 		method: "GET" | "POST" | "DELETE",
 		path: string,
@@ -178,10 +202,19 @@ export class SwipeGamesClient {
 			this.config.apiKey,
 			signPayload,
 		);
-		const url = joinUrl(this.config.baseUrl, path, options.query);
+		const viaProxy = Boolean(this.config.proxyUrl && this.config.proxySecret);
+		const requestBase = viaProxy
+			? `${this.config.proxyUrl}/${this.config.env === "production" ? "swipegames" : "swipegames-staging"}`
+			: this.config.baseUrl;
+		const url = joinUrl(requestBase, path, options.query);
 		const headers: Record<string, string> = {
 			"X-REQUEST-SIGN": signature,
+			Accept: "application/json",
+			"User-Agent": "SportsDey-SwipeGames/1.0",
 		};
+		if (viaProxy && this.config.proxySecret) {
+			headers["X-Proxy-Auth"] = this.config.proxySecret;
+		}
 		if (options.body !== undefined) {
 			headers["Content-Type"] = "application/json";
 		}
@@ -195,20 +228,37 @@ export class SwipeGamesClient {
 			options.timeoutMs ?? 15_000,
 		);
 		try {
-			const response = await fetch(url, {
+			const response = await this.fetchSigned(
+				url,
 				method,
 				headers,
-				body: options.body !== undefined ? canonicalJSON : undefined,
-				signal: controller.signal,
-			});
-			if (!response.ok) {
-				throw await parseError(response);
+				options.body !== undefined ? canonicalJSON : undefined,
+				controller.signal,
+			);
+			if (
+				!response.ok &&
+				viaProxy &&
+				(response.status === 404 ||
+					response.status === 502 ||
+					response.status === 503)
+			) {
+				console.error("Swipe Games proxy miss, retrying Swipe host", {
+					status: response.status,
+					path,
+					env: this.config.env,
+				});
+				const directHeaders = { ...headers };
+				delete directHeaders["X-Proxy-Auth"];
+				const direct = await this.fetchSigned(
+					joinUrl(this.config.baseUrl, path, options.query),
+					method,
+					directHeaders,
+					options.body !== undefined ? canonicalJSON : undefined,
+					controller.signal,
+				);
+				return this.readResponse<T>(direct, method);
 			}
-			if (response.status === 204 || method === "DELETE") {
-				const text = await response.text();
-				return (text ? JSON.parse(text) : undefined) as T;
-			}
-			return (await response.json()) as T;
+			return this.readResponse<T>(response, method);
 		} finally {
 			clearTimeout(timeout);
 		}

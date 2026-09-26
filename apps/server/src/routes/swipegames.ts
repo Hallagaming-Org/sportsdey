@@ -568,15 +568,29 @@ swipegamesRoute.openapi(refundRoute, async (c) => {
 	return c.json(result.body, result.status);
 });
 
+function asGameList(value: unknown): unknown[] {
+	if (Array.isArray(value)) return value;
+	if (value && typeof value === "object") {
+		const record = value as { games?: unknown; data?: unknown };
+		if (Array.isArray(record.games)) return record.games;
+		if (Array.isArray(record.data)) return record.data;
+	}
+	return [];
+}
+
 swipegamesRoute.openapi(gamesRoute, async (c) => {
 	const config = getSwipeGamesConfig(c.env);
 	if (!config) {
+		console.error("Swipe Games list skipped: missing CID/extCID/API keys");
 		return c.json([], 200);
 	}
 	try {
 		const cached = await c.env.sportsdey_ns.get(GAMES_CACHE_KEY);
 		if (cached) {
-			return c.json(JSON.parse(cached), 200);
+			const parsed = JSON.parse(cached) as unknown;
+			if (Array.isArray(parsed) && parsed.length > 0) {
+				return c.json(parsed, 200);
+			}
 		}
 	} catch {
 		// continue without cache
@@ -584,29 +598,43 @@ swipegamesRoute.openapi(gamesRoute, async (c) => {
 
 	try {
 		const client = new SwipeGamesClient(config);
-		let games;
-		try {
-			games = await client.listGames({
+		let games = asGameList(
+			await client.listGames({
 				excludeBetLines: true,
 				currencyFilters: "main_fiat",
 				additionalCurrencies: "NGN",
-			});
-		} catch {
-			games = await client.listGames({ excludeBetLines: true });
+			}),
+		);
+		if (games.length === 0) {
+			games = asGameList(await client.listGames({ excludeBetLines: true }));
 		}
 		const lobby = games
-			.map(mapSwipeGamesLobbyGame)
+			.map((game) => mapSwipeGamesLobbyGame(game as Parameters<typeof mapSwipeGamesLobbyGame>[0]))
 			.filter((game): game is NonNullable<typeof game> => game !== null);
-		try {
-			await c.env.sportsdey_ns.put(GAMES_CACHE_KEY, JSON.stringify(lobby), {
-				expirationTtl: GAMES_CACHE_TTL_SECONDS,
+		if (lobby.length > 0) {
+			try {
+				await c.env.sportsdey_ns.put(GAMES_CACHE_KEY, JSON.stringify(lobby), {
+					expirationTtl: GAMES_CACHE_TTL_SECONDS,
+				});
+			} catch {
+				// ignore cache write failures
+			}
+		}
+		if (lobby.length === 0) {
+			console.error("Swipe Games list returned no mappable games", {
+				env: config.env,
+				extCid: config.extCid,
 			});
-		} catch {
-			// ignore cache write failures
 		}
 		return c.json(lobby, 200);
 	} catch (error) {
-		console.error("Swipe Games list failed", error);
+		console.error("Swipe Games list failed", {
+			message: error instanceof Error ? error.message : String(error),
+			status: error instanceof SwipeGamesApiError ? error.status : undefined,
+			details: error instanceof SwipeGamesApiError ? error.details : undefined,
+			viaProxy: Boolean(config.proxyUrl && config.proxySecret),
+			env: config.env,
+		});
 		return c.json([], 200);
 	}
 });

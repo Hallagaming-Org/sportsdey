@@ -42,10 +42,11 @@ export function mapSwipeGamesLobbyGame(
 	const title = game.title?.trim();
 	if (!id || !title) return null;
 	const images = game.images;
-	const imageUrl =
-		joinImageUrl(images.baseURL, images.square) ??
-		joinImageUrl(images.baseURL, images.widescreen) ??
-		joinImageUrl(images.baseURL, images.horizontal);
+	const imageUrl = images
+		? (joinImageUrl(images.baseURL, images.square) ??
+			joinImageUrl(images.baseURL, images.widescreen) ??
+			joinImageUrl(images.baseURL, images.horizontal))
+		: null;
 	return {
 		id: `swipegames:${id}`,
 		name: title,

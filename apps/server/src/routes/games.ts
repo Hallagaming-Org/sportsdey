@@ -120,7 +120,7 @@ const GameListQuerySchema = z
 	})
 	.openapi("GameListQuery");
 
-const GAMES_CATALOG_CACHE_KEY = "games:catalog:v1";
+const GAMES_CATALOG_CACHE_KEY = "games:catalog:v2";
 const GAMES_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 
 type GameListItem = {
@@ -138,6 +138,27 @@ type GameListQuery = z.infer<typeof GameListQuerySchema>;
 
 function getKvNamespace(env: CloudflareBindings) {
 	return env.sportsdey_ns || env.staging_kv || null;
+}
+
+async function invalidateGamesCatalogCache(
+	env: CloudflareBindings,
+): Promise<void> {
+	const kv = getKvNamespace(env);
+	if (!kv) return;
+	try {
+		await kv.delete(GAMES_CATALOG_CACHE_KEY);
+	} catch (error) {
+		console.error("Failed to invalidate games catalog cache", error);
+	}
+}
+
+async function isAdminCatalogRequest(
+	env: CloudflareBindings,
+	headers: Headers,
+): Promise<boolean> {
+	const token = getSessionToken(headers);
+	if (!token) return false;
+	return Boolean(await validateAdminSession(env, token));
 }
 
 function applyGameListQuery(
@@ -241,10 +262,11 @@ gamesRoute.openapi(
 	async (c) => {
 		const query = c.req.valid("query");
 		const kv = getKvNamespace(c.env);
+		const skipCache = await isAdminCatalogRequest(c.env, c.req.raw.headers);
 		let cachedCatalog: { data: GameListItem[]; expiresAt: number } | null =
 			null;
 
-		if (kv) {
+		if (kv && !skipCache) {
 			cachedCatalog = (await kv.get(GAMES_CATALOG_CACHE_KEY, "json")) as {
 				data: GameListItem[];
 				expiresAt: number;
@@ -262,7 +284,7 @@ gamesRoute.openapi(
 
 		try {
 			const catalog = await loadGamesCatalogFromDb(c.env);
-			if (kv) {
+			if (kv && !skipCache) {
 				await kv.put(
 					GAMES_CATALOG_CACHE_KEY,
 					JSON.stringify({
@@ -543,6 +565,8 @@ gamesRoute.openapi(
 				.onConflictDoNothing();
 		}
 
+		await invalidateGamesCatalogCache(c.env);
+
 		const ids = inserted.map((g) => g.id);
 		const categoryMap: Record<
 			string,
@@ -710,6 +734,8 @@ gamesRoute.openapi(
 				);
 		}
 
+		await invalidateGamesCatalogCache(c.env);
+
 		const categories = await db
 			.select({
 				id: schema.category.id,
@@ -824,6 +850,8 @@ gamesRoute.openapi(
 			);
 		}
 
+		await invalidateGamesCatalogCache(c.env);
+
 		return c.json(
 			{
 				success: true as const,
@@ -919,6 +947,8 @@ gamesRoute.openapi(
 				404,
 			);
 		}
+
+		await invalidateGamesCatalogCache(c.env);
 
 		return c.json(
 			{
