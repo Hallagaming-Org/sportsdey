@@ -22,9 +22,37 @@ type WalletRecentTransactionsProps = {
 
 const statusBadgeStyles = {
 	success: "bg-[#D1FAE5] text-[#065F46]",
-	pending: "bg-[#FEF3C7] text-[#92400E]",
+	pending: "bg-[#FFF4CC] text-[#A66A00]",
 	failed: "bg-[#FEE2E2] text-[#991B1B]",
 };
+
+const transactionVisualStyles = {
+	credit: {
+		iconBackground: "bg-[#D7F2D3]",
+		iconColor: "text-[#157305]",
+		amountColor: "text-[#157305]",
+	},
+	debit: {
+		iconBackground: "bg-[#FFDCDC]",
+		iconColor: "text-[#BD221C]",
+		amountColor: "text-[#BD221C]",
+	},
+	pending: {
+		iconBackground: "bg-[#FFF4CC]",
+		iconColor: "text-[#A66A00]",
+		amountColor: "text-[#A66A00]",
+	},
+};
+
+function getTransactionVisualStyle(
+	isCredit: boolean,
+	statusColor: keyof typeof statusBadgeStyles,
+) {
+	if (statusColor === "pending") return transactionVisualStyles.pending;
+	return isCredit
+		? transactionVisualStyles.credit
+		: transactionVisualStyles.debit;
+}
 
 function parseDateTime(createdAt: string | null | undefined) {
 	if (!createdAt) {
@@ -106,6 +134,7 @@ function WalletRecentTransactionsView({
 				const typeLabel = getTransactionTypeLabel(tx);
 				const amountLabel = getTransactionAmountLabel(tx);
 				const isCredit = (tx.amount ?? 0) > 0;
+				const visualStyle = getTransactionVisualStyle(isCredit, statusColor);
 				return {
 					id: tx.id,
 					date,
@@ -115,6 +144,7 @@ function WalletRecentTransactionsView({
 					isCredit,
 					statusText: statusText === "Successful" ? "Success" : statusText,
 					statusColor,
+					visualStyle,
 					original: tx,
 				};
 			},
@@ -220,14 +250,12 @@ function WalletRecentTransactionsView({
 									>
 										{/* Icon Circle */}
 										<div
-											className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-												tx.isCredit ? "bg-[#D7F2D3]" : "bg-[#FFDCDC]"
-											}`}
+											className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${tx.visualStyle.iconBackground}`}
 										>
 											<WalletIcon
 												width={20}
 												height={20}
-												className={tx.isCredit ? "text-[#157305]" : "text-[#BD221C]"}
+												className={tx.visualStyle.iconColor}
 											/>
 										</div>
 
@@ -239,14 +267,17 @@ function WalletRecentTransactionsView({
 											<p className="mt-0.5 text-[#6C7073] text-[13px]">
 												{tx.date} <span className="mx-1">·</span> {tx.time}
 											</p>
+											{tx.statusColor === "pending" && (
+												<span className={`mt-1 inline-block rounded-full px-2 py-0.5 font-semibold text-[10px] ${statusBadgeStyles.pending}`}>
+													Pending
+												</span>
+											)}
 										</div>
 
 										{/* Amount + kebab */}
 										<div className="flex items-center gap-2">
 											<span
-												className={`font-semibold text-[15px] ${
-													tx.isCredit ? "text-[#23BF09]" : "text-[#EE201C]"
-												}`}
+												className={`font-semibold text-[15px] ${tx.visualStyle.amountColor}`}
 											>
 												{tx.isCredit ? "+" : "-"}
 												{tx.amountLabel.replace("-", "")}
