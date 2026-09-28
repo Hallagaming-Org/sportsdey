@@ -52,8 +52,6 @@ const launcherRoute = createRoute({
 
 lagosRushRoute.openapi(launcherRoute, async (c) => {
 	const user = c.get("user");
-	console.log("launcher endpoint - user from c.get:", user);
-	console.log("launcher endpoint - session from c.get:", c.get("session"));
 	if (!user) {
 		return c.json(
 			{

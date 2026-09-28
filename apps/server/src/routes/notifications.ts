@@ -658,6 +658,7 @@ notificationsRoute.openapi(
 			recipients,
 			telco: "GLO",
 			message,
+			token: c.env.EUDOR_SMS_TOKEN,
 		});
 
 		if (!sms.ok) {

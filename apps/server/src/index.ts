@@ -17,6 +17,7 @@ import {
 	SECURE_SESSION_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 } from "./constants/session";
+import { blockSuspendedUsers } from "./middleware/suspended-user";
 import adminRoute from "./routes/admin";
 import adminActivityRoute from "./routes/admin-activity";
 import adminCmsRoute from "./routes/admin-cms";
@@ -215,6 +216,8 @@ app.use("*", async (c, next) => {
 	c.set("user", sessionResult?.user ?? null);
 	await next();
 });
+
+app.use("*", blockSuspendedUsers());
 
 app.route("/", routes);
 app.route("/admin", adminRoute);

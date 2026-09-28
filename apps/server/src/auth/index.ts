@@ -169,10 +169,10 @@ export const createAuth = (
 		database: drizzleAdapter(db, { provider: "sqlite" }),
 		emailAndPassword: {
 			enabled: true,
-			sendResetPassword: async ({ user, url }) => {
-				console.info(
-					`[auth] Password reset requested for ${user.email}: ${url}`,
-				);
+			sendResetPassword: async ({ user }) => {
+				// No mail provider is wired up yet; the reset link must never be
+				// logged because it carries a single-use token.
+				console.info("[auth] Password reset requested", { userId: user.id });
 			},
 		},
 		socialProviders: {

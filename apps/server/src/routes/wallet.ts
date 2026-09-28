@@ -970,6 +970,17 @@ walletRoute.openapi(getBanksRoute, async (c) => {
 	);
 });
 
+const SAFE_REFERENCE = /^[A-Za-z0-9._-]{1,64}$/;
+
+function escapeHtml(value: string) {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
 walletRoute.openapi(callbackRoute, async (c) => {
 	const query = c.req.valid("query");
 	const reference = query.reference || query.trxref || "";
@@ -1030,10 +1041,16 @@ walletRoute.openapi(callbackRoute, async (c) => {
 			}
 
 			if (status === "success") {
-				if (transaction && transaction.status !== "success") {
+				if (
+					transaction &&
+					transaction.status !== "success" &&
+					transaction.status !== "processing"
+				) {
+					// Move the row out of its current status so a concurrent callback
+					// and webhook for the same reference cannot both credit the wallet.
 					const [claimed] = await db
 						.update(schema.walletTransaction)
-						.set({ status: "pending" })
+						.set({ status: "processing" })
 						.where(
 							and(
 								eq(schema.walletTransaction.reference, reference),
@@ -1184,6 +1201,12 @@ walletRoute.openapi(callbackRoute, async (c) => {
 	const redirectUrl = isSuccess
 		? `${c.env.CORS_ORIGIN}/wallet?deposit=success`
 		: `${c.env.CORS_ORIGIN}/wallet`;
+
+	// The reference comes straight off the query string, so it is only shown when
+	// it looks like one of our references, and it is escaped even then.
+	const displayReference = SAFE_REFERENCE.test(reference)
+		? escapeHtml(reference)
+		: "";
 
 	const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1337,7 +1360,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 		</div>
 		<h1>${title}</h1>
 		<p>${description}</p>
-		${reference ? `<p class="reference">Reference: ${reference}</p>` : ""}
+		${displayReference ? `<p class="reference">Reference: ${displayReference}</p>` : ""}
 		<p class="close-msg">Redirecting to wallet in <span id="countdown">10</span>s...</p>
 	</div>
 	<script>
@@ -1388,8 +1411,11 @@ walletRoute.openapi(paystackWebhookRoute, async (c) => {
 		return c.json({ received: false }, 400);
 	}
 
+	const transferFailed =
+		payload.event === "transfer.failed" ||
+		payload.event === "transfer.reversed";
 	if (
-		payload.event !== "transfer.success" ||
+		(payload.event !== "transfer.success" && !transferFailed) ||
 		typeof payload.data?.reference !== "string"
 	) {
 		return c.json({ received: true }, 200);
@@ -1402,6 +1428,57 @@ walletRoute.openapi(paystackWebhookRoute, async (c) => {
 		.where(eq(schema.walletTransaction.reference, payload.data.reference))
 		.limit(1);
 	if (!transaction || transaction.status !== "processing") {
+		return c.json({ received: true }, 200);
+	}
+
+	if (transferFailed) {
+		// Claim the row first: the refund must happen exactly once even if
+		// Paystack retries the webhook.
+		const [reversed] = await db
+			.update(schema.walletTransaction)
+			.set({ status: "failed" })
+			.where(
+				and(
+					eq(schema.walletTransaction.id, transaction.id),
+					eq(schema.walletTransaction.status, "processing"),
+				),
+			)
+			.returning({ id: schema.walletTransaction.id });
+		if (!reversed) {
+			return c.json({ received: true }, 200);
+		}
+
+		const refunded = await creditWallet(
+			db,
+			transaction.userId,
+			transaction.amount,
+		);
+		if (!refunded) {
+			console.error("Withdrawal reversal could not refund the wallet", {
+				transactionId: transaction.id,
+			});
+			return c.json({ received: true }, 200);
+		}
+
+		void trackWebengageEvent(
+			c.env,
+			{
+				userId: transaction.userId,
+				eventName: "withdrawal_failed",
+				eventData: {
+					amount: transaction.amount / 100,
+					transaction_id: payload.data.reference,
+					failure_reason:
+						payload.event === "transfer.reversed"
+							? "Transfer reversed"
+							: "Transfer failed",
+					wallet_balance_after: refunded.balance / 100,
+				},
+			},
+			c.executionCtx,
+		);
+		void syncWebengageUserProfile(c.env, transaction.userId, c.executionCtx);
+
 		return c.json({ received: true }, 200);
 	}
 

@@ -806,20 +806,49 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		);
 	}
 
-	// if (bet.status !== "created") {
-	// 	return c.json(
-	// 		{
-	// 			error: {
-	// 				code: "custom_error",
-	// 				data: {
-	// 					code: "bet_not_in_created_status",
-	// 					current_status: bet.status,
-	// 				},
-	// 			},
-	// 		},
-	// 		400,
-	// 	);
-	// }
+	// Claim the bet before touching the wallet so a replayed accept (a fresh
+	// request_id for a bet that is already accepted) cannot debit the stake twice.
+	const claimedBet = await db
+		.update(schema.sportsbookBet)
+		.set({
+			status: "accepted",
+			betData: JSON.stringify(result.data),
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(schema.sportsbookBet.id, result.data.bet_id),
+				eq(schema.sportsbookBet.status, "created"),
+			),
+		)
+		.returning({ id: schema.sportsbookBet.id });
+
+	if (claimedBet.length === 0) {
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: "bet_not_in_created_status",
+						current_status: bet.status,
+					},
+				},
+			},
+			400,
+		);
+	}
+
+	const releaseBetClaim = async () => {
+		await db
+			.update(schema.sportsbookBet)
+			.set({ status: "created", updatedAt: new Date() })
+			.where(
+				and(
+					eq(schema.sportsbookBet.id, result.data.bet_id),
+					eq(schema.sportsbookBet.status, "accepted"),
+				),
+			);
+	};
 
 	let balAfter: number;
 
@@ -828,6 +857,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	});
 
 	if (!wallet) {
+		await releaseBetClaim();
 		return c.json(
 			{
 				error: {
@@ -862,6 +892,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				balance: schema.wallet.balance,
 			});
 		if (walletUpdate.length === 0) {
+			await releaseBetClaim();
 			return c.json(
 				{
 					error: {
@@ -899,31 +930,6 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		if (!walletTxn?.id) {
 			console.error("Failed to record wallet transaction for bet accept");
 		}
-	}
-
-	const betUpdate = await db
-		.update(schema.sportsbookBet)
-		.set({
-			status: "accepted",
-			betData: JSON.stringify(result.data),
-			updatedAt: new Date(),
-		})
-		.where(eq(schema.sportsbookBet.id, result.data.bet_id))
-		.returning({ id: schema.sportsbookBet.id });
-	console.log("bet update", betUpdate);
-	if (betUpdate.length === 0) {
-		return c.json(
-			{
-				error: {
-					code: "custom_error",
-					data: {
-						code: "transaction_failed",
-						message: "Failed to update bet status to accept",
-					},
-				},
-			},
-			400,
-		);
 	}
 
 	const now = new Date();

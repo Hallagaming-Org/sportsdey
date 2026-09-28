@@ -620,13 +620,13 @@ function hashcodexWithUser(userId: string | null) {
 }
 
 describe("Hashcodex player-session deposit", () => {
-	it("rejects an unauthenticated credit", async () => {
+	it("rejects an unauthenticated bet", async () => {
 		const res = await hashcodexRoute.request(
 			"/deposit",
 			{
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ action: "credit", amount: 1_000_000 }),
+				body: JSON.stringify({ action: "debit", amount: 1_000_000 }),
 			},
 			env,
 		);
@@ -634,7 +634,7 @@ describe("Hashcodex player-session deposit", () => {
 		assert.equal(walletBalance(), START_KOBO);
 	});
 
-	it("debits and credits the logged-in user's wallet", async () => {
+	it("debits the logged-in user's wallet but refuses a self-credit", async () => {
 		const app = hashcodexWithUser(USER_ID);
 		const debit = await app.request(
 			"/deposit",
@@ -657,8 +657,8 @@ describe("Hashcodex player-session deposit", () => {
 			},
 			env,
 		);
-		assert.equal(credit.status, 200, await credit.text());
-		assert.equal(walletBalance(), START_KOBO - 1_000 + 2_500);
+		assert.equal(credit.status, 400, await credit.text());
+		assert.equal(walletBalance(), START_KOBO - 1_000);
 	});
 
 	it("requires a logged-in user to launch", async () => {

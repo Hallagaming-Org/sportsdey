@@ -124,6 +124,14 @@ const approveRoute = createRoute({
 			description: "Transaction not found",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
+		409: {
+			description: "Transaction is already being processed",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
+		502: {
+			description: "Payout provider could not be reached",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
 	},
 });
 
@@ -310,30 +318,68 @@ adminWithdrawalsRoute.openapi(approveRoute, async (c) => {
 		);
 	}
 
+	// Nothing has left Paystack yet, so any failure up to the transfer call must
+	// hand the row back to the queue instead of stranding it in "processing".
+	const releaseApprovalClaim = async () => {
+		await db
+			.update(schema.walletTransaction)
+			.set({ status: "pending_approval" })
+			.where(
+				and(
+					eq(schema.walletTransaction.id, id),
+					eq(schema.walletTransaction.status, "processing"),
+				),
+			);
+	};
+
 	let meta: Record<string, unknown> = {};
-	meta = JSON.parse(txn.metadata || "{}");
+	try {
+		meta = JSON.parse(txn.metadata || "{}");
+	} catch {
+		await releaseApprovalClaim();
+		return c.json(
+			{ success: false, error: "Transaction metadata is unreadable" },
+			400,
+		);
+	}
 
 	const bankCode = meta.bankCode as string | undefined;
 	const accountNumber = meta.accountNumber as string | undefined;
 	const accountName = meta.accountName as string | undefined;
 
 	if (!bankCode || !accountNumber || !accountName) {
+		await releaseApprovalClaim();
 		return c.json(
 			{ success: false, error: "Missing bank details in transaction" },
 			400,
 		);
 	}
 
-	const recipient = await createTransferRecipient(
-		c.env.PAYSTACK_SECRET_KEY,
-		bankCode,
-		accountNumber,
-		accountName,
-		"NGN",
-		c.env.PROXY_URL,
-		c.env.PROXY_SECRET,
-	);
+	let recipient: Awaited<ReturnType<typeof createTransferRecipient>>;
+	try {
+		recipient = await createTransferRecipient(
+			c.env.PAYSTACK_SECRET_KEY,
+			bankCode,
+			accountNumber,
+			accountName,
+			"NGN",
+			c.env.PROXY_URL,
+			c.env.PROXY_SECRET,
+		);
+	} catch (error) {
+		await releaseApprovalClaim();
+		console.error("Withdrawal approval could not create a transfer recipient", {
+			transactionId: id,
+			reason: error instanceof Error ? error.name : "UnknownError",
+		});
+		return c.json(
+			{ success: false, error: "Could not reach the payout provider" },
+			502,
+		);
+	}
 
+	// Past this point the transfer may have reached Paystack, so the row stays in
+	// "processing" for the webhook or reconciliation to settle — never re-queued.
 	const transfer = await initiateTransfer(
 		c.env.PAYSTACK_SECRET_KEY,
 		txn.amount / 100,

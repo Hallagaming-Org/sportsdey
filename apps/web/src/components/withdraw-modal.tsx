@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { SuccessModal } from "@/components/success-modal";
 import { ApiError, apiRequest } from "@/lib/api";
 import { formatAmount } from "@/lib/utils";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 type BankOption = {
 	name: string;
@@ -61,7 +62,13 @@ export function WithdrawModal({
 				credentials: "include",
 				body: JSON.stringify(payload),
 			}),
-		onSuccess: () => {
+		onSuccess: (_data, variables) => {
+			trackWebengageEvent("withdrawal_requested", {
+				amount: variables.amount,
+				bank: selectedBankName || variables.bankCode,
+				wallet_balance_before: walletBalance,
+				account_name: variables.accountName,
+			});
 			setIsSuccess(true);
 		},
 		onError: (error) => {
@@ -123,7 +130,6 @@ export function WithdrawModal({
 			accountNumber: withdrawAccountNumber.trim(),
 			accountName: withdrawAccountName.trim(),
 		});
-		setIsSuccess(true);
 	};
 
 	if (isSuccess) {
