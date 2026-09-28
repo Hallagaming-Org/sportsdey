@@ -13,7 +13,7 @@ import {
 	type PocketsSettleResult,
 	settlePocketsTransaction,
 } from "@/services/pockets-settlement";
-import { creditWallet, debitWallet } from "@/db/atomic-wallet";
+import { debitWallet } from "@/db/atomic-wallet";
 import { CasinoMoneyError, toKobo } from "@/utils/casino-money";
 import {
 	buildHashcodexLaunchUrl,
@@ -31,11 +31,19 @@ const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 const SPORTSDEY_CRASH_GAME_CODE = "sportsdey-crash";
 
+/**
+ * Hashcodex Crash / Spin and Win uses the player's SportsDey session:
+ * POST /hashcodex/deposit `{ action: "debit", amount }` (amount in Naira) stakes a bet.
+ * POST /hashcodex/balance `{ playerId }` — no HMAC (connectSportsDay lookup).
+ * POST /wallet is the HMAC-signed server path and the only way a win is credited.
+ */
+
 const DepositSchema = z
 	.object({
-		action: z
-			.enum(["credit", "debit"])
-			.openapi({ description: "credit to add funds, debit to remove funds" }),
+		action: z.enum(["debit"]).openapi({
+			description:
+				"debit to remove funds. Credits are not accepted here — a win must come through the signed /hashcodex/wallet callback.",
+		}),
 		amount: z
 			.number()
 			.positive()
@@ -143,9 +151,9 @@ const depositRoute = createRoute({
 	method: "post",
 	path: "/deposit",
 	tags: ["Hashcodex"],
-	summary: "Deposit or withdraw from wallet via Hashcodex",
+	summary: "Place a Hashcodex bet from the wallet",
 	description:
-		"Player-session path Hashcodex Crash / Spin and Win already call. Add (credit) or remove (debit) funds from the logged-in user's main wallet.",
+		"Player-session path Hashcodex Crash / Spin and Win already call. Debits the stake from the logged-in user's main wallet. Winnings are credited only through the HMAC-signed POST /hashcodex/wallet callback.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -420,15 +428,12 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 		);
 	}
 
-	if (action === "debit" && wallet.balance < amountKobo) {
+	if (wallet.balance < amountKobo) {
 		return c.json(errorBody("Insufficient balance"), 400);
 	}
 
 	const reference = `hcx_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-	const updatedWallet =
-		action === "credit"
-			? await creditWallet(db, user.id, amountKobo)
-			: await debitWallet(db, user.id, amountKobo);
+	const updatedWallet = await debitWallet(db, user.id, amountKobo);
 	if (!updatedWallet) {
 		return c.json(
 			errorBody("Insufficient balance or failed to update user balance"),
@@ -458,26 +463,15 @@ hashcodexRoute.openapi(depositRoute, async (c) => {
 		return c.json(errorBody("Failed to record transaction"), 500);
 	}
 
-	if (action === "debit") {
-		await reportCasinoBetInBackground({
-			env: c.env,
-			executionCtx: optionalExecutionCtx(c),
-			userId: user.id,
-			betId: reference,
-			amount: casinoBetAmountFromKobo(amountKobo),
-			gameRef: SPORTSDEY_CRASH_GAME_CODE,
-			fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SPORTSDEY_ORIGINALS,
-		});
-	} else {
-		await reportCasinoBetResultInBackground({
-			env: c.env,
-			executionCtx: optionalExecutionCtx(c),
-			userId: user.id,
-			betId: reference,
-			totalWinAmount: casinoBetAmountFromKobo(amountKobo),
-			isWin: 1,
-		});
-	}
+	await reportCasinoBetInBackground({
+		env: c.env,
+		executionCtx: optionalExecutionCtx(c),
+		userId: user.id,
+		betId: reference,
+		amount: casinoBetAmountFromKobo(amountKobo),
+		gameRef: SPORTSDEY_CRASH_GAME_CODE,
+		fallbackProviderId: BONUS_ENGINE_NATIVE_PROVIDER_ID.SPORTSDEY_ORIGINALS,
+	});
 
 	return c.json(
 		{

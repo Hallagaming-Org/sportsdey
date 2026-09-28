@@ -4,9 +4,14 @@ export async function sendSms(opts: {
 	recipients: string;
 	telco?: string;
 	message: string;
+	token: string | undefined;
 }) {
 	const url = "https://bulkapi.eudormsg.com/v1/sms/send";
-	const token = "eudor_MWw5O61Af43-iwnmDkGWbGuQ0jmfbussuE0BCr3uTyc=";
+	const token = opts.token?.trim();
+	if (!token) {
+		console.error("Bulk SMS skipped: EUDOR_SMS_TOKEN is not configured");
+		return { ok: false, status: 503, body: null };
+	}
 
 	const payload = {
 		ref_id: opts.ref_id,

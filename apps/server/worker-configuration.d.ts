@@ -75,6 +75,7 @@ declare namespace Cloudflare {
 		AFRICASTALKING_API_KEY: string;
 		AFRICASTALKING_USERNAME: string;
 		AFRICASTALKING_SENDER_ID: string;
+		EUDOR_SMS_TOKEN: string;
 		WEBENGAGE_API_KEY: string;
 		WEBENGAGE_API_SECRET: string;
 		HELLODUTY_ALLOWED_IPS?: string;

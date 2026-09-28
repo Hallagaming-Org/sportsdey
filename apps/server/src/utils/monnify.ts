@@ -203,10 +203,6 @@ export async function getAccessToken(env: {
 		Authorization: `Basic ${credentials}`,
 		"Content-Type": "application/json",
 	};
-	const body = JSON.stringify({});
-
-	console.log({ url, method, headers, body });
-
 	const res = await fetch(url, { method, headers });
 
 	const data = (await res.json()) as {
@@ -215,8 +211,6 @@ export async function getAccessToken(env: {
 		responseMessage: string;
 		responseBody?: { accessToken: string; expiresIn: number };
 	};
-
-	console.log("access_token_result", data);
 
 	if (
 		data.requestSuccessful === true &&

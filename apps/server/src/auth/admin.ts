@@ -492,10 +492,8 @@ export const getSessionToken = (headers: Headers): string | undefined => {
 		return authHeader.slice(7);
 	}
 	const cookie = headers.get("cookie");
-	console.log("Cookie string:", cookie);
 	if (cookie) {
 		const match = cookie.match(/admin_session=([^;]+)/);
-		console.log("Match:", match?.[1]);
 		return match?.[1];
 	}
 	return undefined;
