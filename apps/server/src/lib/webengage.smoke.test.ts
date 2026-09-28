@@ -324,7 +324,7 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(withdrawals.includes("account_number_last4"));
 		assert.ok(wallet.includes("maskBankAccountNumber(accountNumber)"));
 		assert.ok(withdrawals.includes("maskBankAccountNumber(accountNumber)"));
-		assert.equal(withdrawModal.includes("withdrawal_requested"), false);
+		assert.ok(withdrawModal.includes("withdrawal_requested"));
 		assert.ok(wallet.includes('eventName: "deposit_completed"'));
 		assert.ok(wallet.includes('eventName: "deposit_failed"'));
 		assert.ok(wallet.includes('eventName: "withdrawal_requested"'));
@@ -406,6 +406,7 @@ describe("WebEngage audit smoke", () => {
 		assert.ok(webengageWeb.includes("setWebengageSdkUserProfile"));
 		assert.ok(completeProfile.includes("dateOfBirth: dob.trim()"));
 		assert.ok(account.includes("dateOfBirth: user.dob"));
+		assert.ok(root.includes("dateOfBirth: user.dob"));
 		assert.ok(root.includes("setWebengageSdkUserProfile"));
 		assert.ok(profileUtil.includes("toWebengageBirthDate"));
 		assert.ok(profileUtil.includes("date_of_birth: birthDate"));

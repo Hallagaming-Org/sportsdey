@@ -131,6 +131,7 @@ function WebengageIdentity() {
 					name?: string | null;
 					email?: string | null;
 					mobileNumber?: string | null;
+					dob?: string | null;
 			  }
 			| undefined;
 		if (!user?.id) {
@@ -145,6 +146,7 @@ function WebengageIdentity() {
 			firstName: nameParts[0] || "",
 			lastName: nameParts.slice(1).join(" ") || "",
 			phone: user.mobileNumber,
+			dateOfBirth: user.dob,
 		});
 		syncedUserId.current = user.id;
 	}, [session?.user]);

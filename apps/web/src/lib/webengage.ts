@@ -1,3 +1,5 @@
+import { apiRequest } from "@/lib/api";
+
 declare global {
 	interface Window {
 		webengage?: {
@@ -233,7 +235,6 @@ async function postWebengageApiEvent(
 ) {
 	if (!WEBENGAGE_API_EVENTS.has(eventName)) return;
 	try {
-		const { apiRequest } = await import("@/lib/api");
 		await apiRequest("webengage/events", {
 			method: "POST",
 			credentials: "include",

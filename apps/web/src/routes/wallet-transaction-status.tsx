@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import z from "zod";
+import { trackWebengageEvent } from "@/lib/webengage";
 
 const searchSchema = z.object({
 	status: z.string().optional(),
@@ -22,6 +24,28 @@ function WalletTransactionStatusPage() {
 				? "failed"
 				: "pending";
 	const txType = search.type || "deposit";
+
+	const hasTrackedStatus = useRef(false);
+	useEffect(() => {
+		if (hasTrackedStatus.current) {
+			return;
+		}
+		if (normalizedStatus === "failed" && txType === "deposit") {
+			hasTrackedStatus.current = true;
+			trackWebengageEvent("deposit_failed", {
+				payment_method: "card",
+				failure_reason: "Payment failed",
+				transaction_id: search.reference,
+			});
+			return;
+		}
+		if (normalizedStatus === "success" && txType === "withdraw") {
+			hasTrackedStatus.current = true;
+			trackWebengageEvent("withdrawal_completed", {
+				transaction_id: search.reference,
+			});
+		}
+	}, [normalizedStatus, txType, search.reference]);
 
 	const statusConfig =
 		normalizedStatus === "success"
