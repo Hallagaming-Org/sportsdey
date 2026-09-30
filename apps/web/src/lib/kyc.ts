@@ -4,6 +4,48 @@ function apiBaseUrl(): string {
 	return `${resolveServerUrl()}/`;
 }
 
+function readKycErrorMessage(data: unknown, fallback: string): string {
+	if (!data || typeof data !== "object") {
+		return fallback;
+	}
+
+	const record = data as Record<string, unknown>;
+	if (typeof record.error === "string" && record.error.trim()) {
+		return record.error === "Internal server error" ? fallback : record.error;
+	}
+
+	const nested = record.error;
+	if (nested && typeof nested === "object") {
+		const errorObject = nested as Record<string, unknown>;
+		if (typeof errorObject.message === "string" && errorObject.message.trim()) {
+			return errorObject.message === "Internal server error"
+				? fallback
+				: errorObject.message;
+		}
+		const inner = errorObject.data;
+		if (inner && typeof inner === "object") {
+			const message = (inner as Record<string, unknown>).message;
+			if (typeof message === "string" && message.trim()) {
+				return message === "Internal server error" ? fallback : message;
+			}
+		}
+	}
+
+	return fallback;
+}
+
+async function readKycErrorResponse(
+	response: Response,
+	fallback: string,
+): Promise<string> {
+	try {
+		const data: unknown = await response.json();
+		return readKycErrorMessage(data, fallback);
+	} catch {
+		return fallback;
+	}
+}
+
 export type KycStatus =
 	| "not_verified"
 	| "pending_review"
@@ -61,9 +103,8 @@ export async function getKycStatus(): Promise<KycInfo | null> {
 	});
 
 	if (!response.ok) {
-		const data = (await response.json()) as { error?: string };
 		throw new KycError(
-			data.error || "Failed to get KYC status",
+			await readKycErrorResponse(response, "Failed to get KYC status"),
 			response.status,
 		);
 	}
@@ -86,8 +127,13 @@ export async function submitKyc(params: KycSubmitParams): Promise<KycInfo> {
 	});
 
 	if (!response.ok) {
-		const data = (await response.json()) as { error?: string };
-		throw new KycError(data.error || "Failed to submit KYC", response.status);
+		throw new KycError(
+			await readKycErrorResponse(
+				response,
+				"We could not submit your KYC right now. Please try again.",
+			),
+			response.status,
+		);
 	}
 
 	const json = (await response.json()) as { data: KycInfo };
