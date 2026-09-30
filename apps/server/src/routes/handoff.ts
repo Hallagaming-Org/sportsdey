@@ -96,7 +96,8 @@ handoffRoute.openapi(createHandoffCodeRoute, async (c) => {
 		);
 	}
 
-	const clientId = c.env.PREDICTION_SPORTSDEY_CLIENT_ID;
+	// Trimmed so a stray newline in the stored secret cannot change the hash.
+	const clientId = c.env.PREDICTION_SPORTSDEY_CLIENT_ID?.trim();
 	if (!clientId) {
 		console.error("[handoff] PREDICTION_SPORTSDEY_CLIENT_ID is not set");
 		return c.json(
@@ -206,8 +207,9 @@ handoffPublicRoute.openapi(
 		// No session is read here by design — this endpoint is called machine-to-machine.
 		const { code, sso_exchange_token: presentedToken } = c.req.valid("json");
 
-		const clientId = c.env.PREDICTION_SPORTSDEY_CLIENT_ID;
-		const clientSecret = c.env.PREDICTION_SPORTSDEY_CLIENT_SECRET;
+		// Must match the trim in /handoff/code, or the two hashes disagree.
+		const clientId = c.env.PREDICTION_SPORTSDEY_CLIENT_ID?.trim();
+		const clientSecret = c.env.PREDICTION_SPORTSDEY_CLIENT_SECRET?.trim();
 		if (!clientId || !clientSecret) {
 			// Misconfiguration, not a caller error — do not hint at credentials.
 			console.error("[handoff] Prediction SSO client credentials are not set");
@@ -223,6 +225,8 @@ handoffPublicRoute.openapi(
 
 		// Shape check before touching KV, so junk never becomes a lookup.
 		if (!isValidHandoffCodeFormat(code)) {
+			// Reason is logged, never returned — see EXCHANGE_REJECTED.
+			console.warn("[handoff] Exchange rejected: malformed code");
 			return c.json(
 				{ success: false as const, error: EXCHANGE_REJECTED, details: null },
 				401,
@@ -247,6 +251,8 @@ handoffPublicRoute.openapi(
 			const payload = parseHandoffPayload(await kv.get(handoffKey(code)));
 	
 			if (!payload) {
+				// Expired, already consumed, or written to a different KV namespace.
+				console.warn("[handoff] Exchange rejected: code not found in KV");
 				return c.json(
 					{ success: false as const, error: EXCHANGE_REJECTED, details: null },
 					401,
@@ -257,6 +263,8 @@ handoffPublicRoute.openapi(
 			const expectedToken = computeSsoExchangeToken(clientId, clientSecret);
 
 			if (!safeCompare(expectedToken, presentedToken)) {
+				// Caller's client id/secret pair does not match ours.
+				console.warn("[handoff] Exchange rejected: sso_exchange_token mismatch");
 				// Code is deliberately left in KV — a wrong token must not burn it.
 				return c.json(
 					{ success: false as const, error: EXCHANGE_REJECTED, details: null },
@@ -273,6 +281,9 @@ handoffPublicRoute.openapi(
 				.limit(1);
 
 			if (!existingUser) {
+				console.warn("[handoff] Exchange rejected: user not found", {
+					userId: payload.userId,
+				});
 				return c.json(
 					{ success: false as const, error: EXCHANGE_REJECTED, details: null },
 					401,
@@ -286,19 +297,21 @@ handoffPublicRoute.openapi(
 				{
 					success: true as const,
 					data: {
-						id: existingUser.id,
-						name: existingUser.name,
-						email: existingUser.email,
-						emailVerified: existingUser.emailVerified,
-						image: existingUser.image,
-						country: existingUser.country,
-						mobileNumber: existingUser.mobileNumber,
-						dob: existingUser.dob ?? null,
-						suspended: existingUser.suspended,
-						createdAt: toIsoTimestamp(existingUser.createdAt),
-						updatedAt: toIsoTimestamp(existingUser.updatedAt),
-						verificationStatus: existingUser.verificationStatus,
-						canEditProfile: existingUser.profileSelfEditedAt == null,
+						user: {
+							id: existingUser.id,
+							name: existingUser.name,
+							email: existingUser.email,
+							emailVerified: existingUser.emailVerified,
+							image: existingUser.image,
+							country: existingUser.country,
+							mobileNumber: existingUser.mobileNumber,
+							dob: existingUser.dob ?? null,
+							suspended: existingUser.suspended,
+							createdAt: toIsoTimestamp(existingUser.createdAt),
+							updatedAt: toIsoTimestamp(existingUser.updatedAt),
+							verificationStatus: existingUser.verificationStatus,
+							canEditProfile: existingUser.profileSelfEditedAt == null,
+						},
 					},
 				},
 				200,
