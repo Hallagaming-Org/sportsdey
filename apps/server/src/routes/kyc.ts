@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
@@ -11,12 +11,89 @@ import {
 	adminActivityActions,
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
+import { isD1CapacityError } from "@/utils/d1-errors";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 type R2Bucket = CloudflareBindings["PRODUCTION_BUCKET"];
 
-const kycRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
+function validationErrorMessage(error: unknown): string {
+	if (!error || typeof error !== "object" || !("issues" in error)) {
+		return "Invalid request";
+	}
+	const issues = (error as z.ZodError).issues ?? [];
+	const first = issues[0];
+	if (!first) {
+		return "Invalid request";
+	}
+	const path = first.path.map(String).join(".");
+	if (path.includes("frontDocument")) {
+		return "Front of ID is required";
+	}
+	if (path.includes("backDocument")) {
+		return "Back of ID is required";
+	}
+	if (path.includes("fullName")) {
+		return "Full name must be between 2 and 100 characters";
+	}
+	if (path.includes("identificationType")) {
+		return "Please select a valid form of identification";
+	}
+	if (first.message.toLowerCase().includes("instance of file")) {
+		return "Please upload a valid ID document (JPG, PNG, or PDF)";
+	}
+	return first.message || "Invalid request";
+}
+
+function isUploadedFile(value: unknown): value is File {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		typeof (value as File).arrayBuffer === "function" &&
+		typeof (value as File).size === "number" &&
+		typeof (value as File).name === "string"
+	);
+}
+
+function clientKycFailure(error: unknown): {
+	status: 400 | 409 | 500 | 503;
+	error: string;
+} {
+	if (isD1CapacityError(error)) {
+		return {
+			status: 503,
+			error: "Service temporarily unavailable. Please try again shortly.",
+		};
+	}
+	const text = (
+		error instanceof Error
+			? `${error.message} ${error.cause ?? ""}`
+			: String(error)
+	).toLowerCase();
+	if (text.includes("unique constraint")) {
+		return { status: 409, error: "KYC already submitted" };
+	}
+	if (text.includes("foreign key")) {
+		return {
+			status: 400,
+			error: "Could not save your documents. Please sign in again and retry.",
+		};
+	}
+	return {
+		status: 500,
+		error: "We could not submit your KYC right now. Please try again.",
+	};
+}
+
+const kycRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>({
+	defaultHook: (result, c) => {
+		if (result.success) return;
+		return c.json(
+			{ success: false, error: validationErrorMessage(result.error) },
+			400,
+		);
+	},
+});
 
 const IDENTIFICATION_TYPES = [
 	"nin",
@@ -42,7 +119,7 @@ const KycResponseSchema = z
 			.openapi({ description: "KYC status" }),
 		fullName: z.string().openapi({ description: "Full name" }),
 		identificationType: z
-			.enum(IDENTIFICATION_TYPES)
+			.string()
 			.openapi({ description: "Identification type" }),
 		submittedAt: z.string().openapi({ description: "Submitted at" }),
 		rejectionReason: z
@@ -175,36 +252,43 @@ async function uploadFileToR2(
 	purpose: string,
 	baseUrl: string,
 ): Promise<{ id: string; url: string; r2Key: string } | null> {
-	const ext = file.name.split(".").pop() || "";
-	const id = `file_${crypto.randomUUID()}`;
-	const r2Key = `${userId}/${id}.${ext}`;
+	try {
+		const ext = file.name.split(".").pop() || "";
+		const id = `file_${crypto.randomUUID()}`;
+		const r2Key = `${userId}/${id}.${ext}`;
 
-	const arrayBuffer = await file.arrayBuffer();
-	const r2Object = await bucket.put(r2Key, arrayBuffer, {
-		httpMetadata: {
-			contentType: file.type || "application/octet-stream",
-		},
-		customMetadata: {
-			originalName: file.name,
-			userId,
-			purpose,
-		},
-	});
+		const arrayBuffer = await file.arrayBuffer();
+		const r2Object = await bucket.put(r2Key, arrayBuffer, {
+			httpMetadata: {
+				contentType: file.type || "application/octet-stream",
+			},
+			customMetadata: {
+				originalName: file.name,
+				userId,
+				purpose,
+			},
+		});
 
-	if (!r2Object) {
+		if (!r2Object) {
+			return null;
+		}
+
+		return { id, url: `${baseUrl}/${r2Key}`, r2Key };
+	} catch (error) {
+		console.error("KYC R2 upload failed", error);
 		return null;
 	}
-
-	const url = `${baseUrl}/${r2Key}`;
-
-	return { id, url, r2Key };
 }
 
 async function deleteFileFromR2(
 	bucket: R2Bucket,
 	r2Key: string,
 ): Promise<void> {
-	await bucket.delete(r2Key);
+	try {
+		await bucket.delete(r2Key);
+	} catch (error) {
+		console.error("KYC R2 delete failed", error);
+	}
 }
 
 const submitKycRoute = createRoute({
@@ -221,16 +305,24 @@ const submitKycRoute = createRoute({
 					schema: z.object({
 						fullName: z.string().min(2).max(100),
 						identificationType: IdentificationTypeEnum,
-						frontDocument: z.instanceof(File).openapi({
-							type: "string",
-							format: "binary",
-							description: "Front document file",
-						}),
-						backDocument: z.instanceof(File).openapi({
-							type: "string",
-							format: "binary",
-							description: "Back document file",
-						}),
+						frontDocument: z
+							.custom<File>(isUploadedFile, {
+								message: "Front of ID is required",
+							})
+							.openapi({
+								type: "string",
+								format: "binary",
+								description: "Front document file",
+							}),
+						backDocument: z
+							.custom<File>(isUploadedFile, {
+								message: "Back of ID is required",
+							})
+							.openapi({
+								type: "string",
+								format: "binary",
+								description: "Back document file",
+							}),
 					}),
 				},
 			},
@@ -277,6 +369,14 @@ const submitKycRoute = createRoute({
 				},
 			},
 		},
+		503: {
+			description: "Storage or database temporarily unavailable",
+			content: {
+				"application/json": {
+					schema: KycErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -286,217 +386,303 @@ kycRoute.openapi(submitKycRoute, async (c) => {
 		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
 
-	const formData = await c.req.parseBody();
-	const fullName = formData.fullName as string;
-	const identificationType = formData.identificationType as string;
-	const frontDocument = formData.frontDocument as File | undefined;
-	const backDocument = formData.backDocument as File | undefined;
-
-	if (!fullName || fullName.length < 2 || fullName.length > 100) {
-		return c.json(
-			{
-				success: false,
-				error: "Full name must be between 2 and 100 characters",
-			},
-			400,
-		);
-	}
-
-	if (
-		!IDENTIFICATION_TYPES.includes(
-			identificationType as (typeof IDENTIFICATION_TYPES)[number],
-		)
-	) {
-		return c.json(
-			{ success: false, error: "Invalid identification type" },
-			400,
-		);
-	}
-
-	if (!frontDocument || !(frontDocument instanceof File)) {
-		return c.json({ success: false, error: "Front document is required" }, 400);
-	}
-
-	if (!backDocument || !(backDocument instanceof File)) {
-		return c.json({ success: false, error: "Back document is required" }, 400);
-	}
-
-	if (frontDocument.size > MAX_FILE_SIZE || backDocument.size > MAX_FILE_SIZE) {
-		return c.json(
-			{ success: false, error: "File size must be less than 5MB" },
-			400,
-		);
-	}
-
-	if (
-		!ALLOWED_MIME_TYPES.includes(frontDocument.type) ||
-		!ALLOWED_MIME_TYPES.includes(backDocument.type)
-	) {
-		return c.json(
-			{ success: false, error: "File must be JPG, PNG, or PDF" },
-			400,
-		);
-	}
-
+	let frontUpload: { id: string; url: string; r2Key: string } | null = null;
+	let backUpload: { id: string; url: string; r2Key: string } | null = null;
+	let frontFileId: string | null = null;
+	let backFileId: string | null = null;
 	const bucket =
 		c.env.NODE_ENV === "production"
 			? c.env.PRODUCTION_BUCKET
 			: c.env.STAGING_BUCKET;
 
-	const baseUrl =
-		c.env.NODE_ENV === "production"
-			? "https://bucket.sportsdey.com"
-			: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
+	try {
+		let formData: Record<string, string | File>;
+		try {
+			formData = await c.req.parseBody();
+		} catch (error) {
+			console.error("KYC form parse failed", error);
+			return c.json(
+				{
+					success: false,
+					error: "Could not read your documents. Please try uploading again.",
+				},
+				400,
+			);
+		}
 
-	if (!bucket) {
-		return c.json({ success: false, error: "Storage not configured" }, 500);
-	}
+		const fullName = formData.fullName as string;
+		const identificationType = formData.identificationType as string;
+		const frontDocument = formData.frontDocument;
+		const backDocument = formData.backDocument;
 
-	const db = drizzle(c.env.DB, { schema });
+		if (!fullName || fullName.length < 2 || fullName.length > 100) {
+			return c.json(
+				{
+					success: false,
+					error: "Full name must be between 2 and 100 characters",
+				},
+				400,
+			);
+		}
 
-	const existingKyc = await db
-		.select()
-		.from(schema.kyc)
-		.where(eq(schema.kyc.userId, user.id))
-		.limit(1);
+		if (
+			!IDENTIFICATION_TYPES.includes(
+				identificationType as (typeof IDENTIFICATION_TYPES)[number],
+			)
+		) {
+			return c.json(
+				{ success: false, error: "Invalid identification type" },
+				400,
+			);
+		}
 
-	if (existingKyc.length > 0) {
-		const kycRecord = existingKyc[0]!;
-		const status = kycRecord.status;
-		if (status === "pending_review" || status === "approved") {
+		if (!isUploadedFile(frontDocument)) {
+			return c.json(
+				{ success: false, error: "Front of ID is required" },
+				400,
+			);
+		}
+
+		if (!isUploadedFile(backDocument)) {
+			return c.json({ success: false, error: "Back of ID is required" }, 400);
+		}
+
+		if (
+			frontDocument.size > MAX_FILE_SIZE ||
+			backDocument.size > MAX_FILE_SIZE
+		) {
+			return c.json(
+				{ success: false, error: "File size must be less than 5MB" },
+				400,
+			);
+		}
+
+		if (
+			!ALLOWED_MIME_TYPES.includes(frontDocument.type) ||
+			!ALLOWED_MIME_TYPES.includes(backDocument.type)
+		) {
+			return c.json(
+				{ success: false, error: "File must be JPG, PNG, or PDF" },
+				400,
+			);
+		}
+
+		const baseUrl =
+			c.env.NODE_ENV === "production"
+				? "https://bucket.sportsdey.com"
+				: "https://pub-2ef563970bc84434915fff03aa5f0dbf.r2.dev";
+
+		if (!bucket) {
+			return c.json(
+				{
+					success: false,
+					error: "Document storage is not available. Please try again later.",
+				},
+				503,
+			);
+		}
+
+		const db = drizzle(c.env.DB, { schema });
+
+		const existingKyc = await db
+			.select()
+			.from(schema.kyc)
+			.where(eq(schema.kyc.userId, user.id))
+			.orderBy(desc(schema.kyc.updatedAt), desc(schema.kyc.submittedAt))
+			.limit(1);
+
+		const existingRecord = existingKyc[0];
+		if (
+			existingRecord &&
+			(existingRecord.status === "pending_review" ||
+				existingRecord.status === "approved")
+		) {
 			return c.json({ success: false, error: "KYC already submitted" }, 409);
 		}
-	}
 
-	const submittedAt = new Date();
-	const kycId = `kyc_${crypto.randomUUID()}`;
+		const submittedAt = new Date();
+		const kycId = existingRecord?.id ?? `kyc_${crypto.randomUUID()}`;
 
-	const frontUpload = await uploadFileToR2(
-		bucket,
-		user.id,
-		frontDocument,
-		filePurpose.ID_CARD_FRONT,
-		baseUrl,
-	);
-
-	if (!frontUpload) {
-		return c.json(
-			{ success: false, error: "Failed to upload front document" },
-			500,
+		frontUpload = await uploadFileToR2(
+			bucket,
+			user.id,
+			frontDocument,
+			filePurpose.ID_CARD_FRONT,
+			baseUrl,
 		);
-	}
 
-	let frontFileId: string | null = null;
-	let frontR2Key: string | null = null;
+		if (!frontUpload) {
+			return c.json(
+				{
+					success: false,
+					error: "Could not upload the front of your ID. Please try again.",
+				},
+				503,
+			);
+		}
 
-	const frontFiles = await db
-		.insert(schema.userFile)
-		.values({
-			id: frontUpload.id,
-			userId: user.id,
-			fileName: `front_document_${kycId}`,
-			originalName: frontDocument.name,
-			purpose: filePurpose.ID_CARD_FRONT,
-			r2Key: frontUpload.r2Key,
-			url: frontUpload.url,
-			mimeType: frontDocument.type,
-			size: frontDocument.size,
-		})
-		.returning();
+		const [frontFile] = await db
+			.insert(schema.userFile)
+			.values({
+				id: frontUpload.id,
+				userId: user.id,
+				fileName: `front_document_${kycId}`,
+				originalName: frontDocument.name,
+				purpose: filePurpose.ID_CARD_FRONT,
+				r2Key: frontUpload.r2Key,
+				url: frontUpload.url,
+				mimeType: frontDocument.type,
+				size: frontDocument.size,
+			})
+			.returning();
 
-	if (!frontFiles[0]) {
-		throw new Error("Failed to save front document");
-	}
+		if (!frontFile) {
+			await deleteFileFromR2(bucket, frontUpload.r2Key);
+			return c.json(
+				{
+					success: false,
+					error: "Could not save the front of your ID. Please try again.",
+				},
+				500,
+			);
+		}
 
-	frontFileId = frontFiles[0].id;
-	frontR2Key = frontFiles[0].r2Key;
+		frontFileId = frontFile.id;
 
-	const backUpload = await uploadFileToR2(
-		bucket,
-		user.id,
-		backDocument,
-		filePurpose.ID_CARD_BACK,
-		baseUrl,
-	);
-
-	if (!backUpload) {
-		await deleteFileFromR2(bucket, frontR2Key!);
-		await db
-			.delete(schema.userFile)
-			.where(eq(schema.userFile.id, frontFileId!));
-		return c.json(
-			{ success: false, error: "Failed to upload back document" },
-			500,
+		backUpload = await uploadFileToR2(
+			bucket,
+			user.id,
+			backDocument,
+			filePurpose.ID_CARD_BACK,
+			baseUrl,
 		);
-	}
 
-	let backFileId: string | null = null;
-	let backR2Key: string | null = null;
+		if (!backUpload) {
+			await deleteFileFromR2(bucket, frontUpload.r2Key);
+			await db
+				.delete(schema.userFile)
+				.where(eq(schema.userFile.id, frontFileId));
+			return c.json(
+				{
+					success: false,
+					error: "Could not upload the back of your ID. Please try again.",
+				},
+				503,
+			);
+		}
 
-	const backFiles = await db
-		.insert(schema.userFile)
-		.values({
-			id: backUpload.id,
-			userId: user.id,
-			fileName: `back_document_${kycId}`,
-			originalName: backDocument.name,
-			purpose: filePurpose.ID_CARD_BACK,
-			r2Key: backUpload.r2Key,
-			url: backUpload.url,
-			mimeType: backDocument.type,
-			size: backDocument.size,
-		})
-		.returning();
+		const [backFile] = await db
+			.insert(schema.userFile)
+			.values({
+				id: backUpload.id,
+				userId: user.id,
+				fileName: `back_document_${kycId}`,
+				originalName: backDocument.name,
+				purpose: filePurpose.ID_CARD_BACK,
+				r2Key: backUpload.r2Key,
+				url: backUpload.url,
+				mimeType: backDocument.type,
+				size: backDocument.size,
+			})
+			.returning();
 
-	if (!backFiles[0]) {
-		throw new Error("Failed to save back document");
-	}
+		if (!backFile) {
+			await deleteFileFromR2(bucket, frontUpload.r2Key);
+			await deleteFileFromR2(bucket, backUpload.r2Key);
+			await db
+				.delete(schema.userFile)
+				.where(eq(schema.userFile.id, frontFileId));
+			return c.json(
+				{
+					success: false,
+					error: "Could not save the back of your ID. Please try again.",
+				},
+				500,
+			);
+		}
 
-	backFileId = backFiles[0].id;
-	backR2Key = backFiles[0].r2Key;
+		backFileId = backFile.id;
 
-	const [kycRecord] = await db
-		.insert(schema.kyc)
-		.values({
-			id: kycId,
-			userId: user.id,
+		const kycValues = {
 			fullName,
 			identificationType,
 			frontDocumentId: frontFileId,
 			backDocumentId: backFileId,
-			status: "pending_review",
+			status: "pending_review" as const,
+			rejectionReason: null,
+			reviewedByAdminId: null,
+			reviewedAt: null,
 			submittedAt,
-		})
-		.returning();
+			updatedAt: submittedAt,
+		};
 
-	if (!kycRecord?.id) {
-		throw new Error("Failed to create KYC record");
-	}
+		const [kycRecord] = existingRecord
+			? await db
+					.update(schema.kyc)
+					.set(kycValues)
+					.where(eq(schema.kyc.id, existingRecord.id))
+					.returning()
+			: await db
+					.insert(schema.kyc)
+					.values({
+						id: kycId,
+						userId: user.id,
+						...kycValues,
+					})
+					.returning();
 
-	await db
-		.update(schema.user)
-		.set({ verificationStatus: "pending_review" })
-		.where(eq(schema.user.id, user.id));
+		if (!kycRecord?.id) {
+			await deleteFileFromR2(bucket, frontUpload.r2Key);
+			await deleteFileFromR2(bucket, backUpload.r2Key);
+			await db
+				.delete(schema.userFile)
+				.where(eq(schema.userFile.id, frontFileId));
+			await db
+				.delete(schema.userFile)
+				.where(eq(schema.userFile.id, backFileId));
+			return c.json(
+				{
+					success: false,
+					error: "Could not create your KYC application. Please try again.",
+				},
+				500,
+			);
+		}
 
-	return c.json(
-		{
-			success: true,
-			data: {
-				id: kycId,
-				status: "pending_review" as const,
-				fullName,
-				identificationType:
-					identificationType as (typeof IDENTIFICATION_TYPES)[number],
-				submittedAt: toWAT(submittedAt),
-				rejectionReason: null,
-				documents: {
-					front: { id: frontFileId!, url: frontUpload.url },
-					back: { id: backFileId!, url: backUpload.url },
+		await db
+			.update(schema.user)
+			.set({ verificationStatus: "pending_review" })
+			.where(eq(schema.user.id, user.id));
+
+		return c.json(
+			{
+				success: true,
+				data: {
+					id: kycRecord.id,
+					status: "pending_review" as const,
+					fullName,
+					identificationType,
+					submittedAt: toWAT(submittedAt),
+					rejectionReason: null,
+					documents: {
+						front: { id: frontFileId, url: frontUpload.url },
+						back: { id: backFileId, url: backUpload.url },
+					},
 				},
 			},
-		},
-		201,
-	);
+			201,
+		);
+	} catch (error) {
+		console.error("KYC submit failed", error);
+		if (bucket && frontUpload?.r2Key) {
+			await deleteFileFromR2(bucket, frontUpload.r2Key);
+		}
+		if (bucket && backUpload?.r2Key) {
+			await deleteFileFromR2(bucket, backUpload.r2Key);
+		}
+		const mapped = clientKycFailure(error);
+		return c.json({ success: false, error: mapped.error }, mapped.status);
+	}
 });
 
 const getKycRoute = createRoute({
@@ -523,6 +709,22 @@ const getKycRoute = createRoute({
 				},
 			},
 		},
+		500: {
+			description: "Server error",
+			content: {
+				"application/json": {
+					schema: KycErrorSchema,
+				},
+			},
+		},
+		503: {
+			description: "Database temporarily unavailable",
+			content: {
+				"application/json": {
+					schema: KycErrorSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -532,68 +734,88 @@ kycRoute.openapi(getKycRoute, async (c) => {
 		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
 
-	const db = drizzle(c.env.DB, { schema });
+	try {
+		const db = drizzle(c.env.DB, { schema });
 
-	const [kycRecord] = await db
-		.select()
-		.from(schema.kyc)
-		.where(eq(schema.kyc.userId, user.id))
-		.limit(1);
-
-	if (!kycRecord) {
-		return c.json({ success: true, data: null }, 200);
-	}
-
-	let frontDocument: { id: string; url: string } | null = null;
-	let backDocument: { id: string; url: string } | null = null;
-
-	if (kycRecord.frontDocumentId) {
-		const [front] = await db
-			.select({ id: schema.userFile.id, url: schema.userFile.url })
-			.from(schema.userFile)
-			.where(eq(schema.userFile.id, kycRecord.frontDocumentId))
+		const [kycRecord] = await db
+			.select()
+			.from(schema.kyc)
+			.where(eq(schema.kyc.userId, user.id))
+			.orderBy(desc(schema.kyc.updatedAt), desc(schema.kyc.submittedAt))
 			.limit(1);
 
-		if (front) {
-			frontDocument = { id: front.id, url: front.url };
+		if (!kycRecord) {
+			return c.json({ success: true, data: null }, 200);
 		}
-	}
 
-	if (kycRecord.backDocumentId) {
-		const [back] = await db
-			.select({ id: schema.userFile.id, url: schema.userFile.url })
-			.from(schema.userFile)
-			.where(eq(schema.userFile.id, kycRecord.backDocumentId))
-			.limit(1);
+		let frontDocument: { id: string; url: string } | null = null;
+		let backDocument: { id: string; url: string } | null = null;
 
-		if (back) {
-			backDocument = { id: back.id, url: back.url };
+		if (kycRecord.frontDocumentId) {
+			const [front] = await db
+				.select({ id: schema.userFile.id, url: schema.userFile.url })
+				.from(schema.userFile)
+				.where(eq(schema.userFile.id, kycRecord.frontDocumentId))
+				.limit(1);
+
+			if (front) {
+				frontDocument = { id: front.id, url: front.url };
+			}
 		}
-	}
 
-	return c.json(
-		{
-			success: true,
-			data: {
-				id: kycRecord.id,
-				status: kycRecord.status as
-					| "not_verified"
-					| "pending_review"
-					| "approved"
-					| "rejected",
-				fullName: kycRecord.fullName,
-				identificationType:
-					kycRecord.identificationType as (typeof IDENTIFICATION_TYPES)[number],
-				submittedAt: toWAT(kycRecord.submittedAt),
-				rejectionReason: kycRecord.rejectionReason,
-				documents: {
-					front: frontDocument,
-					back: backDocument,
+		if (kycRecord.backDocumentId) {
+			const [back] = await db
+				.select({ id: schema.userFile.id, url: schema.userFile.url })
+				.from(schema.userFile)
+				.where(eq(schema.userFile.id, kycRecord.backDocumentId))
+				.limit(1);
+
+			if (back) {
+				backDocument = { id: back.id, url: back.url };
+			}
+		}
+
+		return c.json(
+			{
+				success: true,
+				data: {
+					id: kycRecord.id,
+					status: kycRecord.status as
+						| "not_verified"
+						| "pending_review"
+						| "approved"
+						| "rejected",
+					fullName: kycRecord.fullName,
+					identificationType: kycRecord.identificationType,
+					submittedAt: toWAT(kycRecord.submittedAt),
+					rejectionReason: kycRecord.rejectionReason,
+					documents: {
+						front: frontDocument,
+						back: backDocument,
+					},
 				},
 			},
-		},
-		200,
-	);
+			200,
+		);
+	} catch (error) {
+		console.error("KYC status lookup failed", error);
+		if (isD1CapacityError(error)) {
+			return c.json(
+				{
+					success: false,
+					error: "Service temporarily unavailable. Please try again shortly.",
+				},
+				503,
+			);
+		}
+		return c.json(
+			{
+				success: false,
+				error: "We could not load your KYC status. Please try again.",
+			},
+			500,
+		);
+	}
 });
 
 const getAllKycRoute = createRoute({
