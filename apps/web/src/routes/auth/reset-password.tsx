@@ -3,13 +3,11 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
-import { authClient, setPhonePassword } from "@/lib/auth/client";
+import { setPhonePassword } from "@/lib/auth/client";
 import { getPasswordStrength, validateNewPassword } from "@/lib/auth/password";
 
 const resetPasswordSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
-	token: z.string().optional().catch(""),
-	error: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/auth/reset-password")({
@@ -18,7 +16,6 @@ export const Route = createFileRoute("/auth/reset-password")({
 });
 
 function ResetPasswordPage() {
-	const { token, error: searchError } = Route.useSearch();
 	const navigate = useNavigate();
 
 	const [newPassword, setNewPassword] = useState("");
@@ -26,7 +23,7 @@ function ResetPasswordPage() {
 	const [showNewPassword, setShowNewPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState(searchError || "");
+	const [error, setError] = useState("");
 
 	const strength = useMemo(
 		() => getPasswordStrength(newPassword),
@@ -48,21 +45,7 @@ function ResetPasswordPage() {
 		setIsLoading(true);
 
 		try {
-			if (token) {
-				const result = await authClient.resetPassword({
-					newPassword,
-					token,
-				});
-				if (result?.error) {
-					setError(
-						result.error.message ||
-							"Failed to reset password. Please try again.",
-					);
-					return;
-				}
-			} else {
-				await setPhonePassword(newPassword);
-			}
+			await setPhonePassword(newPassword);
 			toast.success("Password updated successfully! Please log in.");
 			navigate({
 				to: "/auth/phone-sign-in",

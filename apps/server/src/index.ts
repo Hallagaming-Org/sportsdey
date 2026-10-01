@@ -6,6 +6,7 @@ import {
 	createAuth,
 	createHashCookie,
 	getAuthCookiePolicy,
+	isEmailPasswordResetRequest,
 	signedBearerSessionToken,
 } from "./auth";
 import {
@@ -116,6 +117,15 @@ app.use(
 );
 
 app.on(["GET", "POST"], "/auth/*", async (c) => {
+	if (isEmailPasswordResetRequest(c.req.method, c.req.path)) {
+		return c.json(
+			{
+				error: "Email password reset is not supported. Use phone OTP recovery.",
+			},
+			404,
+		);
+	}
+
 	const auth = getAuth(c.env, optionalExecutionCtx(c));
 	let authRequest = c.req.raw;
 	const authorization = c.req.header("authorization");

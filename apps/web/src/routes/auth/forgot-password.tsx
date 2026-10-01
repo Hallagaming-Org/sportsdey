@@ -7,8 +7,6 @@ import { normalizeNigerianPhone } from "@/lib/auth/nigerian-phone";
 
 const forgotPasswordSearchSchema = z.object({
 	phone: z.string().optional().catch(""),
-	email: z.string().optional().catch(""),
-	returnTo: z.string().optional().catch(""),
 });
 
 export const Route = createFileRoute("/auth/forgot-password")({
@@ -17,12 +15,10 @@ export const Route = createFileRoute("/auth/forgot-password")({
 });
 
 function ForgotPasswordPage() {
-	const { phone: initialPhone, email: initialEmail } = Route.useSearch();
+	const { phone: initialPhone } = Route.useSearch();
 	const navigate = useNavigate();
 
-	const [phoneNumber, setPhoneNumber] = useState(
-		initialPhone || initialEmail || "",
-	);
+	const [phoneNumber, setPhoneNumber] = useState(initialPhone || "");
 	const [error, setError] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 

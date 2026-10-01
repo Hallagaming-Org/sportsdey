@@ -30,6 +30,16 @@ type AuthCookiePolicy = {
 	sameSite: "lax" | "none";
 };
 
+/** Better Auth email-reset endpoints; phone reset uses /phone-auth/* instead. */
+export function isEmailPasswordResetRequest(method: string, path: string) {
+	return (
+		(method === "POST" &&
+			(path === "/auth/request-password-reset" ||
+				path === "/auth/reset-password")) ||
+		(method === "GET" && path.startsWith("/auth/reset-password/"))
+	);
+}
+
 /** localhost / 127.0.0.1 over http — Secure cookies will not stick. */
 export function isLocalHttpAuthUrl(authUrl?: string): boolean {
 	if (!authUrl) return false;
@@ -169,11 +179,6 @@ export const createAuth = (
 		database: drizzleAdapter(db, { provider: "sqlite" }),
 		emailAndPassword: {
 			enabled: true,
-			sendResetPassword: async ({ user, url }) => {
-				console.info(
-					`[auth] Password reset requested for ${user.email}: ${url}`,
-				);
-			},
 		},
 		socialProviders: {
 			...(google ? { google } : {}),
