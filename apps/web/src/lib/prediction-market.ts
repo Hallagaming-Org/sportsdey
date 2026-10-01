@@ -1,6 +1,19 @@
 import { apiRequest } from "@/lib/api";
 
 const DEFAULT_PREDICTION_MARKET_HOME = "https://prediction.sportsdey.com";
+/**
+ * Falls back to the production API when no build-time override is supplied.
+ *
+ * Vite inlines `import.meta.env.VITE_*` at build time, so a deployment whose
+ * build environment is missing the variable bakes in an empty string and the
+ * SSO launch fails before it can issue a request. A default keeps the feature
+ * working on any build, with the env var still winning when it is set.
+ *
+ * Note this means a staging build with no override talks to the production
+ * Prediction Market — real accounts and balances. Point
+ * VITE_PREDICTION_MARKET_BACKEND_URL at a staging API once one exists.
+ */
+const DEFAULT_PREDICTION_BACKEND_URL = "https://prod-api.sportsdey.com/api/v1";
 const HANDOFF_ROUTE = "handoff/code";
 const SSO_PATH = "/users/auth/sso";
 const SSO_REQUEST_TIMEOUT_MS = 15_000;
@@ -19,10 +32,10 @@ export function resolvePredictionMarketHome(): string {
  * client, so the configured name is VITE_PREDICTION_MARKET_BACKEND_URL.
  */
 export function resolvePredictionBackendUrl(): string {
-	const configured = (
-		import.meta.env.VITE_PREDICTION_MARKET_BACKEND_URL || ""
-	).trim();
-	return configured.replace(/\/+$/, "");
+	const configured = (import.meta.env.VITE_PREDICTION_MARKET_BACKEND_URL || "")
+		.trim()
+		.replace(/\/+$/, "");
+	return configured || DEFAULT_PREDICTION_BACKEND_URL;
 }
 
 /** Surfaced to the UI; never carries the code, clientId or token. */
