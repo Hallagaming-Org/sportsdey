@@ -18,6 +18,7 @@ import {
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
+import { createAuth } from "../auth";
 import type { CloudflareBindings } from "../types";
 
 const PROFILE_CHANGE_CONTACT_EMAIL = "support@sportsdey.com";
@@ -784,6 +785,15 @@ userRoute.openapi(deleteAccountRoute, async (c) => {
 			c.env.NODE_ENV === "production"
 				? c.env.PRODUCTION_BUCKET
 				: c.env.STAGING_BUCKET;
+		operation = "delete_better_auth_user";
+		const authDeletion = await createAuth(c.env, c.executionCtx).api.deleteUser({
+			headers: c.req.raw.headers,
+			body: {},
+		});
+		if (!authDeletion?.success) {
+			throw new Error("Better Auth did not confirm account deletion");
+		}
+
 		operation = "delete_uploaded_files";
 		await Promise.all(
 			(fileRows.results ?? [])
@@ -806,8 +816,6 @@ userRoute.openapi(deleteAccountRoute, async (c) => {
 			deletion("bonus_engine_mission_progress", "DELETE FROM bonus_engine_mission_progress WHERE user_id = ?"),
 			deletion("bonus_engine_loyalty_snapshot", "DELETE FROM bonus_engine_loyalty_snapshot WHERE user_id = ?"),
 			deletion("user_phone_number", "DELETE FROM user_phone_number WHERE user_id = ?"),
-			deletion("session", "DELETE FROM session WHERE user_id = ?"),
-			deletion("account", "DELETE FROM account WHERE user_id = ?"),
 			deletion("wallet", "DELETE FROM wallet WHERE user_id = ?"),
 			deletion("sportsbook_session", "DELETE FROM sportsbook_session WHERE user_id = ?"),
 			deletion("opay_transaction", "DELETE FROM opay_transaction WHERE user_id = ?"),
@@ -831,7 +839,6 @@ userRoute.openapi(deleteAccountRoute, async (c) => {
 			deletion("swipegames_transactions", "DELETE FROM swipegames_transactions WHERE user_id = ?"),
 			deletion("swipegames_sessions", "DELETE FROM swipegames_sessions WHERE user_id = ?"),
 			deletion("user_notification", "DELETE FROM user_notification WHERE user_id = ?"),
-			deletion("user", "DELETE FROM user WHERE id = ?"),
 		].filter((statement): statement is NonNullable<typeof statement> => statement !== null);
 
 		operation = "delete_database_records";
