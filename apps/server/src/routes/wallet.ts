@@ -54,8 +54,8 @@ import {
 	getTransactionChannel,
 } from "@/utils/request";
 import { generateUUIDv7 } from "@/utils/uuid";
-import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import { maskBankAccountNumber } from "@/utils/webengage-event";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 /**
@@ -2181,7 +2181,7 @@ walletRoute.openapi(transferRoute, async (c) => {
 	]);
 
 	const debitResult = batchResults[0];
-	if (!debitResult || (debitResult as any).changes === 0) {
+	if (!debitResult || debitResult.meta.changes === 0) {
 		return c.json({ success: false, error: "Insufficient balance" }, 400);
 	}
 
@@ -2413,7 +2413,7 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 	]);
 
 	const debitResult = batchResults[0];
-	if (!debitResult || (debitResult as any).changes === 0) {
+	if (!debitResult || debitResult.meta.changes === 0) {
 		return c.json({ success: false, error: "Insufficient balance" }, 400);
 	}
 

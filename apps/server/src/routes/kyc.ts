@@ -942,12 +942,8 @@ kycRoute.openapi(getAllKycRoute, async (c) => {
 		.leftJoin(frontFile, eq(schema.kyc.frontDocumentId, frontFile.id))
 		.leftJoin(backFile, eq(schema.kyc.backDocumentId, backFile.id));
 
-	let query;
-	if (conditions.length > 0) {
-		query = baseQuery.where(and(...conditions));
-	} else {
-		query = baseQuery;
-	}
+	const query =
+		conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery;
 
 	const offset = (page - 1) * limit;
 

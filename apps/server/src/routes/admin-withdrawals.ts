@@ -14,8 +14,8 @@ import {
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
 import { createTransferRecipient, initiateTransfer } from "@/utils/paystack";
-import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import { maskBankAccountNumber } from "@/utils/webengage-event";
+import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
 const adminWithdrawalsRoute = new OpenAPIHono<{
