@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Camera, Edit, Loader2, Lock, User } from "lucide-react";
+import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { Camera, Edit, Loader2, Lock, Trash2, User, X } from "lucide-react";
 import {
 	type ChangeEvent,
 	type FormEvent,
@@ -14,7 +14,7 @@ import { DobPicker } from "@/components/dob-picker";
 import { Input } from "@/components/ui/input";
 import { syncAffnookRegistrationReferral } from "@/lib/affnook";
 import { apiRequest, apiUploadFile } from "@/lib/api";
-import { useSession } from "@/lib/auth/client";
+import { signOut, useSession } from "@/lib/auth/client";
 import { isPhonePlaceholderEmail } from "@/lib/auth/phone-user";
 import { cn } from "@/lib/utils";
 import {
@@ -54,6 +54,7 @@ type UserProfile = {
 };
 
 function AccountPage() {
+	const navigate = useNavigate();
 	const {
 		data: session,
 		isPending: isSessionLoading,
@@ -75,6 +76,8 @@ function AccountPage() {
 	const [activeTab, setActiveTab] = useState<"information" | "security">(
 		"information",
 	);
+	const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+	const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
 	const {
 		data: profile,
@@ -216,6 +219,31 @@ function AccountPage() {
 				setShowEditLocked(true);
 			}
 			toast.error(message);
+		},
+	});
+
+	const deleteAccountMutation = useMutation({
+		mutationFn: (confirmation: string) =>
+			apiRequest<{ deleted: true }>("user", {
+				method: "DELETE",
+				credentials: "include",
+				body: JSON.stringify({ confirmation }),
+			}),
+		onSuccess: async () => {
+			toast.success("Your account has been permanently deleted.");
+			setShowDeleteAccount(false);
+			try {
+				await signOut();
+			} finally {
+				navigate({ to: "/auth/sign-in", replace: true });
+			}
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "We could not delete your account. Please try again.",
+			);
 		},
 	});
 
@@ -364,7 +392,8 @@ function AccountPage() {
 		.slice(0, 2);
 
 	return (
-		<div className="px-2 py-2 sm:px-4 lg:container lg:mx-auto">
+		<>
+		<div className="px-2 py-2 lg:container sm:px-4 lg:mx-auto">
 			<div className="no-scrollbar h-full space-y-6 overflow-y-auto pb-20">
 				<div className="relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-[#2F3033] dark:bg-[#0D0D0D]">
 					<div
@@ -638,10 +667,113 @@ function AccountPage() {
 									</button>
 								</div>
 							</form>
+
+							<section className="mt-10 rounded-xl border border-red-200 bg-red-50/70 p-5 dark:border-red-900/60 dark:bg-red-950/20">
+								<div className="flex items-start gap-3">
+									<div className="rounded-full bg-red-100 p-2 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+										<Trash2 className="h-5 w-5" />
+									</div>
+									<div className="min-w-0 flex-1">
+										<h2 className="font-semibold text-gray-900 text-lg dark:text-white">
+											Delete account
+										</h2>
+										<p className="mt-1 text-gray-600 text-sm leading-6 dark:text-gray-300">
+											Deleting your account will permanently delete all data stored in
+											 your profile, wallet history, bets, uploaded files, and account
+											 credentials. This can&apos;t be undone.
+										</p>
+									</div>
+								</div>
+								<button
+									type="button"
+									onClick={() => {
+										setDeleteConfirmation("");
+										setShowDeleteAccount(true);
+									}}
+									className="mt-4 w-full rounded-lg border border-red-300 bg-white px-4 py-3 font-medium text-red-700 text-sm transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-transparent dark:text-red-300 dark:hover:bg-red-950/40"
+								>
+									Delete account
+								</button>
+							</section>
 						</div>
 					)}
 				</div>
 			</div>
 		</div>
+
+		{showDeleteAccount && (
+			<div
+				className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+				role="presentation"
+			>
+				<div
+					className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-[#171819]"
+					role="dialog"
+					aria-modal="true"
+					aria-labelledby="delete-account-title"
+				>
+					<div className="flex items-start justify-between gap-4">
+						<div>
+							<h2 id="delete-account-title" className="font-semibold text-gray-900 text-xl dark:text-white">
+								Delete account
+							</h2>
+							<p className="mt-2 text-gray-600 text-sm leading-6 dark:text-gray-300">
+								This permanently deletes your account and cannot be undone.
+							</p>
+						</div>
+						<button
+							type="button"
+							onClick={() => setShowDeleteAccount(false)}
+							disabled={deleteAccountMutation.isPending}
+							aria-label="Close delete account dialog"
+							className="rounded-full p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-800"
+						>
+							<X className="h-5 w-5" />
+						</button>
+					</div>
+
+					<form
+						className="mt-6 space-y-4"
+						onSubmit={(event) => {
+							event.preventDefault();
+							if (deleteConfirmation === "Delete my account") {
+								deleteAccountMutation.mutate(deleteConfirmation);
+							}
+						}}
+					>
+						<label htmlFor="delete-account-confirmation" className="font-medium text-gray-900 text-sm dark:text-white">
+							Type <span className="font-semibold">Delete my account</span> to confirm
+						</label>
+						<Input
+							id="delete-account-confirmation"
+							value={deleteConfirmation}
+							onChange={(event) => setDeleteConfirmation(event.target.value)}
+							placeholder="Delete my account"
+							autoComplete="off"
+							autoFocus
+							className="h-12 rounded-lg border-gray-300 dark:border-gray-700 dark:bg-[#0D0D0D]"
+						/>
+						<div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+							<button
+								type="button"
+								onClick={() => setShowDeleteAccount(false)}
+								disabled={deleteAccountMutation.isPending}
+								className="rounded-lg border border-gray-300 px-4 py-3 font-medium text-gray-700 text-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+							>
+								Cancel
+							</button>
+							<button
+								type="submit"
+								disabled={deleteConfirmation !== "Delete my account" || deleteAccountMutation.isPending}
+								className="rounded-lg bg-red-600 px-4 py-3 font-medium text-sm text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{deleteAccountMutation.isPending ? "Deleting..." : "Delete account"}
+							</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		)}
+		</>
 	);
 }

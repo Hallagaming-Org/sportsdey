@@ -31,13 +31,6 @@ const hashcodexRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
 const SPORTSDEY_CRASH_GAME_CODE = "sportsdey-crash";
 
-/**
- * Hashcodex Crash / Spin and Win uses the player's SportsDey session:
- * POST /hashcodex/deposit `{ action, amount }` (amount in Naira).
- * POST /hashcodex/balance `{ playerId }` — no HMAC (connectSportsDay lookup).
- * POST /wallet stays available as an optional HMAC server path.
- */
-
 const DepositSchema = z
 	.object({
 		action: z
