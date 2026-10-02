@@ -752,6 +752,7 @@ userRoute.openapi(deleteAccountRoute, async (c) => {
 		);
 	}
 
+	let operation = "inspect_schema";
 	try {
 		const existingUser = await c.env.DB.prepare(
 			"SELECT id FROM user WHERE id = ? LIMIT 1",
@@ -765,66 +766,82 @@ userRoute.openapi(deleteAccountRoute, async (c) => {
 			);
 		}
 
-		const fileRows = await c.env.DB.prepare(
-			"SELECT r2_key FROM user_file WHERE user_id = ?",
-		)
-			.bind(user.id)
-			.all<{ r2_key: string }>();
+		const tableRows = await c.env.DB.prepare(
+			"SELECT name FROM sqlite_master WHERE type = 'table'",
+		).all<{ name: string }>();
+		const tableNames = new Set((tableRows.results ?? []).map((row) => row.name));
+		const userId = user.id;
+
+		const fileRows = tableNames.has("user_file")
+			? await c.env.DB.prepare(
+					"SELECT r2_key FROM user_file WHERE user_id = ?",
+				)
+					.bind(userId)
+					.all<{ r2_key: string }>()
+			: { results: [] as Array<{ r2_key: string }> };
 
 		const bucket =
 			c.env.NODE_ENV === "production"
 				? c.env.PRODUCTION_BUCKET
 				: c.env.STAGING_BUCKET;
+		operation = "delete_uploaded_files";
 		await Promise.all(
 			(fileRows.results ?? [])
 				.filter((file) => Boolean(file.r2_key))
 				.map((file) => bucket.delete(file.r2_key)),
 		);
 
-		const userId = user.id;
-		await c.env.DB.batch([
-			c.env.DB.prepare(
-				"DELETE FROM sportsbook_bet_event WHERE bet_id IN (SELECT id FROM sportsbook_bet WHERE user_id = ?)",
-			).bind(userId),
-			c.env.DB.prepare("DELETE FROM kyc WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM user_file WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM sportsbook_bet WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM bonus_engine_user_bonus WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM bonus_engine_mission_progress WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM bonus_engine_loyalty_snapshot WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM user_phone_number WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM session WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM account WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM wallet WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM sportsbook_session WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM opay_transaction WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM palmpay_transaction WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM kuda_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM wallet_transaction WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM game_wallet_transaction WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM game_wallet WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM utility_transaction WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM withdrawal_account WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM game_launch_tokens WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM game_sessions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM game_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM thundr_sessions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM thundr_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM pockets_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM scorpio_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM scorpio_players WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM slotitegration_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM slotitegration_sessions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM swipegames_transactions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM swipegames_sessions WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM user_notification WHERE user_id = ?").bind(userId),
-			c.env.DB.prepare("DELETE FROM user WHERE id = ?").bind(userId),
-		]);
+		const deletion = (table: string, statement: string) =>
+			tableNames.has(table) ? c.env.DB.prepare(statement).bind(userId) : null;
+		const deletions = [
+			tableNames.has("sportsbook_bet_event") && tableNames.has("sportsbook_bet")
+				? c.env.DB.prepare(
+						"DELETE FROM sportsbook_bet_event WHERE bet_id IN (SELECT id FROM sportsbook_bet WHERE user_id = ?)",
+					).bind(userId)
+				: null,
+			deletion("kyc", "DELETE FROM kyc WHERE user_id = ?"),
+			deletion("user_file", "DELETE FROM user_file WHERE user_id = ?"),
+			deletion("sportsbook_bet", "DELETE FROM sportsbook_bet WHERE user_id = ?"),
+			deletion("bonus_engine_user_bonus", "DELETE FROM bonus_engine_user_bonus WHERE user_id = ?"),
+			deletion("bonus_engine_mission_progress", "DELETE FROM bonus_engine_mission_progress WHERE user_id = ?"),
+			deletion("bonus_engine_loyalty_snapshot", "DELETE FROM bonus_engine_loyalty_snapshot WHERE user_id = ?"),
+			deletion("user_phone_number", "DELETE FROM user_phone_number WHERE user_id = ?"),
+			deletion("session", "DELETE FROM session WHERE user_id = ?"),
+			deletion("account", "DELETE FROM account WHERE user_id = ?"),
+			deletion("wallet", "DELETE FROM wallet WHERE user_id = ?"),
+			deletion("sportsbook_session", "DELETE FROM sportsbook_session WHERE user_id = ?"),
+			deletion("opay_transaction", "DELETE FROM opay_transaction WHERE user_id = ?"),
+			deletion("palmpay_transaction", "DELETE FROM palmpay_transaction WHERE user_id = ?"),
+			deletion("kuda_transactions", "DELETE FROM kuda_transactions WHERE user_id = ?"),
+			deletion("wallet_transaction", "DELETE FROM wallet_transaction WHERE user_id = ?"),
+			deletion("game_wallet_transaction", "DELETE FROM game_wallet_transaction WHERE user_id = ?"),
+			deletion("game_wallet", "DELETE FROM game_wallet WHERE user_id = ?"),
+			deletion("utility_transaction", "DELETE FROM utility_transaction WHERE user_id = ?"),
+			deletion("withdrawal_account", "DELETE FROM withdrawal_account WHERE user_id = ?"),
+			deletion("game_launch_tokens", "DELETE FROM game_launch_tokens WHERE user_id = ?"),
+			deletion("game_sessions", "DELETE FROM game_sessions WHERE user_id = ?"),
+			deletion("game_transactions", "DELETE FROM game_transactions WHERE user_id = ?"),
+			deletion("thundr_sessions", "DELETE FROM thundr_sessions WHERE user_id = ?"),
+			deletion("thundr_transactions", "DELETE FROM thundr_transactions WHERE user_id = ?"),
+			deletion("pockets_transactions", "DELETE FROM pockets_transactions WHERE user_id = ?"),
+			deletion("scorpio_transactions", "DELETE FROM scorpio_transactions WHERE user_id = ?"),
+			deletion("scorpio_players", "DELETE FROM scorpio_players WHERE user_id = ?"),
+			deletion("slotitegration_transactions", "DELETE FROM slotitegration_transactions WHERE user_id = ?"),
+			deletion("slotitegration_sessions", "DELETE FROM slotitegration_sessions WHERE user_id = ?"),
+			deletion("swipegames_transactions", "DELETE FROM swipegames_transactions WHERE user_id = ?"),
+			deletion("swipegames_sessions", "DELETE FROM swipegames_sessions WHERE user_id = ?"),
+			deletion("user_notification", "DELETE FROM user_notification WHERE user_id = ?"),
+			deletion("user", "DELETE FROM user WHERE id = ?"),
+		].filter((statement): statement is NonNullable<typeof statement> => statement !== null);
+
+		operation = "delete_database_records";
+		await c.env.DB.batch(deletions);
 
 		return c.json({ success: true as const, data: { deleted: true as const } }, 200);
 	} catch (error) {
 		console.error("Account deletion failed", {
 			userId: user.id,
+			operation,
 			error: error instanceof Error ? error.message : String(error),
 		});
 		return c.json(
