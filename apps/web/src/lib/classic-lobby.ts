@@ -1,10 +1,10 @@
 import type { ComponentType } from "react";
 import { apiRequest } from "@/lib/api";
-import { canonicalLobbySlug } from "@/lib/lobby-categories";
 import {
 	CLASSIC_THUNDR_CODES,
 	isHashcodexLobbyCode,
 } from "@/lib/classic-lobby-codes";
+import { canonicalLobbySlug } from "@/lib/lobby-categories";
 import {
 	dedupeLobbyGamesByName,
 	isScorpioStoredCode,
@@ -42,6 +42,7 @@ export const CLASSIC_CATEGORIES = [
 	"crash",
 	"original",
 	"pvp",
+	"swipegames",
 	"arcade",
 	"slots",
 	"tablecardgames",
@@ -61,6 +62,7 @@ export const CLASSIC_CATEGORY_LABELS: Record<string, string> = {
 	crash: "Crash",
 	original: "Original",
 	pvp: "PvP",
+	swipegames: "Swipe Games",
 	arcade: "Arcade",
 	slots: "Slots",
 	tablecardgames: "Table/Card Games",
@@ -80,6 +82,7 @@ export const CLASSIC_CATEGORY_EMOJIS: Record<string, string> = {
 	crash: "🚀",
 	original: "🎯",
 	pvp: "⚔️",
+	swipegames: "👆",
 	arcade: "🕹️",
 	slots: "🎰",
 	tablecardgames: "🃏",
@@ -173,6 +176,7 @@ export const VIRTUALS_GAME_NAMES = [
 export const CLASSIC_SPECIAL_CATEGORIES = [
 	"popular",
 	"pvp",
+	"swipegames",
 	"original",
 	"virtuals",
 ];
@@ -408,10 +412,10 @@ export function filterClassicGames(
 					);
 					break;
 				case "virtuals":
-					filtered = pickGamesByOrderedNames(
-						allGames,
-						VIRTUALS_GAME_NAMES,
-					);
+					filtered = pickGamesByOrderedNames(allGames, VIRTUALS_GAME_NAMES);
+					break;
+				case "swipegames":
+					filtered = [];
 					break;
 				default:
 					break;
@@ -463,6 +467,9 @@ export function classicCategoryCounts(
 						allGames,
 						VIRTUALS_GAME_NAMES,
 					).length;
+					break;
+				case "swipegames":
+					acc[cat] = 0;
 					break;
 				default:
 					acc[cat] = 0;

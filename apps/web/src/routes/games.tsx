@@ -26,9 +26,9 @@ import {
 	CLASSIC_CATEGORIES,
 	CLASSIC_CATEGORY_EMOJIS,
 	CLASSIC_CATEGORY_LABELS,
+	CLASSIC_HIDDEN_FROM_ALL_CODES,
 	CLASSIC_KNOWN_GAMES,
 	CLASSIC_PRIORITY_GAMES,
-	CLASSIC_HIDDEN_FROM_ALL_CODES,
 	type ClassicLaunchMode,
 	type ClassicLobbyGame,
 	classicCategoryCounts,
@@ -99,6 +99,7 @@ function scorpioMatchesCategory(
 	if (
 		category === "popular" ||
 		category === "pvp" ||
+		category === "swipegames" ||
 		category === "original" ||
 		category === "virtuals"
 	) {
@@ -249,6 +250,7 @@ function GamesPage() {
 			if (
 				slug === "popular" ||
 				slug === "pvp" ||
+				slug === "swipegames" ||
 				slug === "original" ||
 				slug === "virtuals"
 			) {
@@ -257,16 +259,13 @@ function GamesPage() {
 			const scorpioCount = scorpioGames.filter((g) =>
 				scorpioMatchesCategory(g, slug),
 			).length;
-			const swipeCount =
-				slug === "slots"
-					? swipegamesGames.filter((g) => g.enabled).length
-					: 0;
-			counts[slug] = (counts[slug] ?? 0) + scorpioCount + swipeCount;
+			counts[slug] = (counts[slug] ?? 0) + scorpioCount;
 		}
 		counts.popular = popularLobbyGames(
 			excludeScorpioStoredGames(classicGames),
 			scorpioGames,
 		).length;
+		counts.swipegames = swipegamesGames.filter((g) => g.enabled).length;
 		return counts;
 	}, [classicGames, scorpioGames, swipegamesGames]);
 
@@ -281,6 +280,19 @@ function GamesPage() {
 				popular = popular.filter((g) => g.name.toLowerCase().includes(q));
 			}
 			return popular;
+		}
+
+		if (selectedCategory === "swipegames") {
+			let swipeOnly = swipegamesGames.filter((g) => g.enabled);
+			if (search) {
+				const q = search.toLowerCase();
+				swipeOnly = swipeOnly.filter(
+					(g) =>
+						g.name.toLowerCase().includes(q) ||
+						g.code.toLowerCase().includes(q),
+				);
+			}
+			return swipeOnly;
 		}
 
 		const classicFiltered = filterClassicGames(
@@ -316,22 +328,14 @@ function GamesPage() {
 			? scorpioFiltered.filter((g) => !GAMES_HIDDEN_FROM_ALL.has(g.code))
 			: scorpioFiltered;
 
-		let swipeFiltered = swipegamesGames.filter((g) => g.enabled);
-		if (
-			selectedCategory &&
-			selectedCategory !== "slots" &&
-			selectedCategory !== "popular"
-		) {
-			swipeFiltered = [];
-		} else if (selectedCategory === "popular") {
-			swipeFiltered = [];
-		}
+		let swipeFiltered = selectedCategory
+			? []
+			: swipegamesGames.filter((g) => g.enabled);
 		if (search) {
 			const q = search.toLowerCase();
 			swipeFiltered = swipeFiltered.filter(
 				(g) =>
-					g.name.toLowerCase().includes(q) ||
-					g.code.toLowerCase().includes(q),
+					g.name.toLowerCase().includes(q) || g.code.toLowerCase().includes(q),
 			);
 		}
 

@@ -32,6 +32,8 @@ const LOBBY_SLUG_ALIASES: Record<string, string> = {
 	virtual: "virtuals",
 	virtuals: "virtuals",
 	virtualsports: "virtuals",
+	swipegames: "swipegames",
+	swipegame: "swipegames",
 	tablecardgames: "tablecardgames",
 	tableandcardgames: "tablecardgames",
 	tablegames: "tablecardgames",
@@ -112,7 +114,10 @@ export function overlayScorpioLobbyCategories<
 		if (cats.length > 0 && !skipNameOverlayCodes.has(game.code)) {
 			byName.set(nameKey, mergeCategories(byName.get(nameKey) ?? [], cats));
 			if (game.code) {
-				byCode.set(game.code, mergeCategories(byCode.get(game.code) ?? [], cats));
+				byCode.set(
+					game.code,
+					mergeCategories(byCode.get(game.code) ?? [], cats),
+				);
 			}
 		} else if (cats.length > 0 && game.code) {
 			byCode.set(game.code, mergeCategories(byCode.get(game.code) ?? [], cats));
@@ -131,10 +136,7 @@ export function overlayScorpioLobbyCategories<
 				: undefined) ??
 			byCode.get(game.code);
 		const fromName = byName.get(normalizeGameName(game.name));
-		const lobby = mergeCategories(
-			[...(fromName ?? [])],
-			fromCode ?? [],
-		);
+		const lobby = mergeCategories([...(fromName ?? [])], fromCode ?? []);
 		const resolved = lobby.length > 0 ? lobby : [OTHERS_CATEGORY];
 
 		const providerCats = game.categories.filter((c) => {
@@ -152,8 +154,7 @@ export function overlayScorpioLobbyCategories<
 			imageByName.get(normalizeGameName(game.name)) ??
 			null;
 		const imageUrl = liveImage ?? d1Image;
-		const fallbackImageUrl =
-			d1Image && d1Image !== imageUrl ? d1Image : null;
+		const fallbackImageUrl = d1Image && d1Image !== imageUrl ? d1Image : null;
 
 		return {
 			...game,
