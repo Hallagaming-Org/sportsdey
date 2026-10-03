@@ -222,6 +222,12 @@ export const createAuth = (
 				enabled: true,
 			},
 		},
+		// The account deletion UI requires an explicit confirmation phrase.
+		// Allow that authenticated confirmation to work even when the session
+		// was created more than the default freshness window ago.
+		session: {
+			freshAge: 0,
+		},
 		baseURL: env.BETTER_AUTH_URL,
 		secret: env.BETTER_AUTH_SECRET,
 		trustedOrigins,

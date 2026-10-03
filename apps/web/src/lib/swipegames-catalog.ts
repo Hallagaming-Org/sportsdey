@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api";
+import { apiRequestFull } from "@/lib/api";
 import { resolveServerUrl } from "@/lib/server-url";
 
 export type SwipeGamesLobbyCategory = {
@@ -20,9 +20,9 @@ export type SwipeGamesLobbyGame = {
 	hasFreeSpins?: boolean;
 };
 
-export function isSwipeGamesGame(
-	game: { provider?: string },
-): game is SwipeGamesLobbyGame {
+export function isSwipeGamesGame(game: {
+	provider?: string;
+}): game is SwipeGamesLobbyGame {
 	return game.provider === "swipegames";
 }
 
@@ -30,7 +30,8 @@ export async function fetchSwipeGamesLobbyGames(): Promise<
 	SwipeGamesLobbyGame[]
 > {
 	try {
-		const games = await apiRequest<SwipeGamesLobbyGame[]>("swipegames/games");
+		const games =
+			await apiRequestFull<SwipeGamesLobbyGame[]>("swipegames/games");
 		return (games || []).filter((game) => game.enabled !== false);
 	} catch {
 		return [];

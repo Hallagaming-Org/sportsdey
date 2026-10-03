@@ -18,6 +18,7 @@ import {
 	isPhonePlaceholderEmail,
 } from "@/utils/phone-user";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
+import { createAuth } from "../auth";
 import type { CloudflareBindings } from "../types";
 
 const PROFILE_CHANGE_CONTACT_EMAIL = "support@sportsdey.com";
@@ -257,6 +258,23 @@ const UpdateUserResponseSchema = z
 	})
 	.openapi("UpdateUserResponse");
 
+const DeleteAccountRequestSchema = z
+	.object({
+		confirmation: z
+			.literal("Delete my account")
+			.openapi({
+				description: 'Must exactly equal "Delete my account".',
+			}),
+	})
+	.openapi("DeleteAccountRequest");
+
+const DeleteAccountResponseSchema = z
+	.object({
+		success: z.literal(true),
+		data: z.object({ deleted: z.literal(true) }),
+	})
+	.openapi("DeleteAccountResponse");
+
 const AdminErrorSchema = z
 	.object({
 		success: z.literal(false),
@@ -431,6 +449,45 @@ const updateUserRoute = createRoute({
 					schema: UpdateUserErrorSchema,
 				},
 			},
+		},
+	},
+});
+
+const deleteAccountRoute = createRoute({
+	method: "delete",
+	path: "/",
+	tags: ["User"],
+	summary: "Permanently delete the authenticated user's account",
+	description:
+		"Permanently removes the authenticated user's profile, credentials, sessions, wallet, transactions, bets, games, KYC records, notifications, and other user-linked data. Requires the exact confirmation phrase.",
+	security: [{ BearerAuth: [] }],
+	request: {
+		body: {
+			content: {
+				"application/json": { schema: DeleteAccountRequestSchema },
+			},
+		},
+	},
+	responses: {
+		200: {
+			description: "Account deleted",
+			content: { "application/json": { schema: DeleteAccountResponseSchema } },
+		},
+		400: {
+			description: "Confirmation phrase is invalid",
+			content: { "application/json": { schema: UpdateUserErrorSchema } },
+		},
+		401: {
+			description: "User is not authenticated",
+			content: { "application/json": { schema: UpdateUserErrorSchema } },
+		},
+		404: {
+			description: "User was not found",
+			content: { "application/json": { schema: UpdateUserErrorSchema } },
+		},
+		500: {
+			description: "Account deletion failed",
+			content: { "application/json": { schema: UpdateUserErrorSchema } },
 		},
 	},
 });
@@ -673,6 +730,136 @@ userRoute.openapi(updateUserRoute, async (c) => {
 		},
 		200,
 	);
+});
+
+userRoute.openapi(deleteAccountRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		return c.json(
+			{ success: false as const, error: "Unauthorized", details: null },
+			401,
+		);
+	}
+
+	const { confirmation } = c.req.valid("json");
+	if (confirmation !== "Delete my account") {
+		return c.json(
+			{
+				success: false as const,
+				error: 'Type "Delete my account" to confirm account deletion.',
+				details: null,
+			},
+			400,
+		);
+	}
+
+	let operation = "inspect_schema";
+	try {
+		const existingUser = await c.env.DB.prepare(
+			"SELECT id FROM user WHERE id = ? LIMIT 1",
+		)
+			.bind(user.id)
+			.first<{ id: string }>();
+		if (!existingUser) {
+			return c.json(
+				{ success: false as const, error: "User not found", details: null },
+				404,
+			);
+		}
+
+		const tableRows = await c.env.DB.prepare(
+			"SELECT name FROM sqlite_master WHERE type = 'table'",
+		).all<{ name: string }>();
+		const tableNames = new Set((tableRows.results ?? []).map((row) => row.name));
+		const userId = user.id;
+
+		const fileRows = tableNames.has("user_file")
+			? await c.env.DB.prepare(
+					"SELECT r2_key FROM user_file WHERE user_id = ?",
+				)
+					.bind(userId)
+					.all<{ r2_key: string }>()
+			: { results: [] as Array<{ r2_key: string }> };
+
+		const bucket =
+			c.env.NODE_ENV === "production"
+				? c.env.PRODUCTION_BUCKET
+				: c.env.STAGING_BUCKET;
+		operation = "delete_better_auth_user";
+		const authDeletion = await createAuth(c.env, c.executionCtx).api.deleteUser({
+			headers: c.req.raw.headers,
+			body: {},
+		});
+		if (!authDeletion?.success) {
+			throw new Error("Better Auth did not confirm account deletion");
+		}
+
+		operation = "delete_uploaded_files";
+		await Promise.all(
+			(fileRows.results ?? [])
+				.filter((file) => Boolean(file.r2_key))
+				.map((file) => bucket.delete(file.r2_key)),
+		);
+
+		const deletion = (table: string, statement: string) =>
+			tableNames.has(table) ? c.env.DB.prepare(statement).bind(userId) : null;
+		const deletions = [
+			tableNames.has("sportsbook_bet_event") && tableNames.has("sportsbook_bet")
+				? c.env.DB.prepare(
+						"DELETE FROM sportsbook_bet_event WHERE bet_id IN (SELECT id FROM sportsbook_bet WHERE user_id = ?)",
+					).bind(userId)
+				: null,
+			deletion("kyc", "DELETE FROM kyc WHERE user_id = ?"),
+			deletion("user_file", "DELETE FROM user_file WHERE user_id = ?"),
+			deletion("sportsbook_bet", "DELETE FROM sportsbook_bet WHERE user_id = ?"),
+			deletion("bonus_engine_user_bonus", "DELETE FROM bonus_engine_user_bonus WHERE user_id = ?"),
+			deletion("bonus_engine_mission_progress", "DELETE FROM bonus_engine_mission_progress WHERE user_id = ?"),
+			deletion("bonus_engine_loyalty_snapshot", "DELETE FROM bonus_engine_loyalty_snapshot WHERE user_id = ?"),
+			deletion("user_phone_number", "DELETE FROM user_phone_number WHERE user_id = ?"),
+			deletion("wallet", "DELETE FROM wallet WHERE user_id = ?"),
+			deletion("sportsbook_session", "DELETE FROM sportsbook_session WHERE user_id = ?"),
+			deletion("opay_transaction", "DELETE FROM opay_transaction WHERE user_id = ?"),
+			deletion("palmpay_transaction", "DELETE FROM palmpay_transaction WHERE user_id = ?"),
+			deletion("kuda_transactions", "DELETE FROM kuda_transactions WHERE user_id = ?"),
+			deletion("wallet_transaction", "DELETE FROM wallet_transaction WHERE user_id = ?"),
+			deletion("game_wallet_transaction", "DELETE FROM game_wallet_transaction WHERE user_id = ?"),
+			deletion("game_wallet", "DELETE FROM game_wallet WHERE user_id = ?"),
+			deletion("utility_transaction", "DELETE FROM utility_transaction WHERE user_id = ?"),
+			deletion("withdrawal_account", "DELETE FROM withdrawal_account WHERE user_id = ?"),
+			deletion("game_launch_tokens", "DELETE FROM game_launch_tokens WHERE user_id = ?"),
+			deletion("game_sessions", "DELETE FROM game_sessions WHERE user_id = ?"),
+			deletion("game_transactions", "DELETE FROM game_transactions WHERE user_id = ?"),
+			deletion("thundr_sessions", "DELETE FROM thundr_sessions WHERE user_id = ?"),
+			deletion("thundr_transactions", "DELETE FROM thundr_transactions WHERE user_id = ?"),
+			deletion("pockets_transactions", "DELETE FROM pockets_transactions WHERE user_id = ?"),
+			deletion("scorpio_transactions", "DELETE FROM scorpio_transactions WHERE user_id = ?"),
+			deletion("scorpio_players", "DELETE FROM scorpio_players WHERE user_id = ?"),
+			deletion("slotitegration_transactions", "DELETE FROM slotitegration_transactions WHERE user_id = ?"),
+			deletion("slotitegration_sessions", "DELETE FROM slotitegration_sessions WHERE user_id = ?"),
+			deletion("swipegames_transactions", "DELETE FROM swipegames_transactions WHERE user_id = ?"),
+			deletion("swipegames_sessions", "DELETE FROM swipegames_sessions WHERE user_id = ?"),
+			deletion("user_notification", "DELETE FROM user_notification WHERE user_id = ?"),
+		].filter((statement): statement is NonNullable<typeof statement> => statement !== null);
+
+		operation = "delete_database_records";
+		await c.env.DB.batch(deletions);
+
+		return c.json({ success: true as const, data: { deleted: true as const } }, 200);
+	} catch (error) {
+		console.error("Account deletion failed", {
+			userId: user.id,
+			operation,
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Account deletion failed. Please try again later.",
+				details: null,
+			},
+			500,
+		);
+	}
 });
 
 const getAllUsersRoute = createRoute({
