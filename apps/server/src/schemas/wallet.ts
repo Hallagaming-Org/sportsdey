@@ -387,6 +387,17 @@ export const TransferResponseSchema = z
 					.string()
 					.openapi({ description: "Recipient wallet ID" }),
 				recipientName: z.string().openapi({ description: "Recipient name" }),
+				senderWalletBalance: z
+					.number()
+					.nullable()
+					.openapi({ description: "Verified sender balance in Naira" }),
+				recipientWalletBalance: z
+					.number()
+					.nullable()
+					.openapi({ description: "Verified recipient balance in Naira" }),
+				balanceVerification: z
+					.enum(["verified", "failed"])
+					.openapi({ description: "Post-transfer balance read status" }),
 			})
 			.openapi({ description: "Response data" }),
 	})
@@ -444,12 +455,17 @@ export const TransferToGameWalletResponseSchema = z
 				transactionId: z.string().openapi({ description: "Transaction ID" }),
 				amount: z.number().openapi({ description: "Amount transferred" }),
 				gameWalletId: z.string().openapi({ description: "Game wallet ID" }),
-				normalWalletBalance: z.number().openapi({
-					description: "Remaining normal wallet balance",
-				}),
-				gameWalletBalance: z.number().openapi({
-					description: "New game wallet balance",
-				}),
+				normalWalletBalance: z
+					.number()
+					.nullable()
+					.openapi({ description: "Verified normal wallet balance" }),
+				gameWalletBalance: z
+					.number()
+					.nullable()
+					.openapi({ description: "Verified game wallet balance" }),
+				balanceVerification: z
+					.enum(["verified", "failed"])
+					.openapi({ description: "Post-transfer balance read status" }),
 			})
 			.openapi({ description: "Response data" }),
 	})

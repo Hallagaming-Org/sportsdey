@@ -10,7 +10,11 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import { requirePermission } from "@/middleware/admin-permissions";
 import { ErrorResponseSchema, successResponseSchema } from "@/schemas";
-import { runWalletReconciliation } from "@/services/wallet-reconciliation";
+import {
+	getWalletReconciliationOutcome,
+	runWalletReconciliation,
+	type WalletReconciliationReport,
+} from "@/services/wallet-reconciliation";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -37,16 +41,28 @@ const ReconciliationQuerySchema = z.object({
 const WalletDriftSchema = z.object({
 	userId: z.string(),
 	balanceKobo: z.number(),
+	frozenBalanceKobo: z.number(),
+	availableBalanceKobo: z.number(),
 	expectedKobo: z.number(),
+	expectedAvailableKobo: z.number(),
 	driftKobo: z.number(),
 	walletLedgerKobo: z.number(),
 	swipeLedgerKobo: z.number(),
 	unknownTypeCount: z.number(),
 });
 
+const WalletFrozenFundsSchema = z.object({
+	userId: z.string(),
+	frozenBalanceKobo: z.number(),
+	availableBalanceKobo: z.number(),
+	expectedAvailableKobo: z.number(),
+});
+
 const ReconciliationReportSchema = z.object({
+	outcome: z.enum(["clean", "drift_detected", "no_wallets_checked"]),
 	checkedUsers: z.number(),
 	driftedUsers: z.array(WalletDriftSchema),
+	walletsWithFrozenFunds: z.array(WalletFrozenFundsSchema),
 	sinceIso: z.string(),
 });
 
@@ -76,6 +92,10 @@ const reconcileWalletsRoute = createRoute({
 			description: "Forbidden",
 			content: { "application/json": { schema: ErrorResponseSchema } },
 		},
+		500: {
+			description: "Reconciliation run failed",
+			content: { "application/json": { schema: ErrorResponseSchema } },
+		},
 	},
 });
 
@@ -94,12 +114,19 @@ adminReconciliationRoute.openapi(reconcileWalletsRoute, async (c) => {
 		(session.role !== "admin" && session.role !== "super_admin")
 	) {
 		return c.json(
-			{ success: false as const, error: "Forbidden - admin only", details: null },
+			{
+				success: false as const,
+				error: "Forbidden - admin only",
+				details: null,
+			},
 			403,
 		);
 	}
 
-	if (session.role !== "super_admin" && !requirePermission(session, "general")) {
+	if (
+		session.role !== "super_admin" &&
+		!requirePermission(session, "general")
+	) {
 		return c.json(
 			{
 				success: false as const,
@@ -117,22 +144,45 @@ adminReconciliationRoute.openapi(reconcileWalletsRoute, async (c) => {
 	const maxUsers = query.maxUsers
 		? Math.min(Number.parseInt(query.maxUsers, 10), 500)
 		: undefined;
-	const report = await runWalletReconciliation(c.env, {
-		userIds: query.userIds
-			? query.userIds
-					.split(",")
-					.map((id) => id.trim())
-					.filter(Boolean)
-			: undefined,
-		sinceMs: sinceHours ? sinceHours * 60 * 60 * 1000 : undefined,
-		maxUsers,
-	});
+	let report: WalletReconciliationReport;
+	try {
+		report = await runWalletReconciliation(c.env, {
+			userIds: query.userIds
+				? query.userIds
+						.split(",")
+						.map((id) => id.trim())
+						.filter(Boolean)
+				: undefined,
+			sinceMs: sinceHours ? sinceHours * 60 * 60 * 1000 : undefined,
+			maxUsers,
+		});
+	} catch (error) {
+		console.error("Admin wallet reconciliation run failed", {
+			error: error instanceof Error ? error.message : "Unknown error",
+		});
+		return c.json(
+			{
+				success: false as const,
+				error: "Wallet reconciliation failed",
+				details: null,
+			},
+			500,
+		);
+	}
+
+	const outcome = getWalletReconciliationOutcome(report);
+	const message =
+		outcome === "no_wallets_checked"
+			? "Wallet reconciliation ran but checked no wallets"
+			: outcome === "drift_detected"
+				? `Wallet reconciliation found ${report.driftedUsers.length} drifted user(s)`
+				: "Wallet reconciliation ran clean";
 
 	return c.json(
 		{
 			success: true as const,
-			message: "Wallet reconciliation completed",
-			data: report,
+			message,
+			data: { ...report, outcome },
 		},
 		200,
 	);

@@ -2184,12 +2184,36 @@ walletRoute.openapi(transferRoute, async (c) => {
 	if (!debitResult || debitResult.meta.changes === 0) {
 		return c.json({ success: false, error: "Insufficient balance" }, 400);
 	}
+	const recipientCreditResult = batchResults[1];
+	const recipientCreditVerified = recipientCreditResult?.meta.changes === 1;
 
 	const [updatedSenderWallet] = await db
 		.select()
 		.from(schema.wallet)
 		.where(eq(schema.wallet.id, senderWallet.id))
 		.limit(1);
+	const [updatedRecipientWallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.id, recipientWallet.id))
+		.limit(1);
+
+	const balancesVerified = Boolean(
+		recipientCreditVerified && updatedSenderWallet && updatedRecipientWallet,
+	);
+	if (!balancesVerified) {
+		console.error(
+			JSON.stringify({
+				tag: "wallet_transfer_balance_verification_failed",
+				reference,
+				senderWalletId: senderWallet.id,
+				recipientWalletId: recipientWallet.id,
+				senderFound: Boolean(updatedSenderWallet),
+				recipientFound: Boolean(updatedRecipientWallet),
+				recipientCreditChanges: recipientCreditResult?.meta.changes ?? null,
+			}),
+		);
+	}
 
 	trackWebengageEvent(
 		c.env,
@@ -2200,7 +2224,9 @@ walletRoute.openapi(transferRoute, async (c) => {
 				wallet_id: recipientWalletId,
 				amount,
 				transaction_id: reference,
-				wallet_balance_after: (updatedSenderWallet?.balance ?? 0) / 100,
+				wallet_balance_after: updatedSenderWallet
+					? updatedSenderWallet.balance / 100
+					: null,
 			},
 		},
 		c.executionCtx,
@@ -2215,6 +2241,13 @@ walletRoute.openapi(transferRoute, async (c) => {
 				amount,
 				recipientWalletId,
 				recipientName,
+				senderWalletBalance: updatedSenderWallet
+					? updatedSenderWallet.balance / 100
+					: null,
+				recipientWalletBalance: updatedRecipientWallet
+					? updatedRecipientWallet.balance / 100
+					: null,
+				balanceVerification: balancesVerified ? "verified" : "failed",
 			},
 		},
 		200,
@@ -2254,7 +2287,7 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 
 		const walletResponse = {
 			id: newGameWallet.id,
-			balance: newGameWallet.balance,
+			balance: newGameWallet.balance / 100,
 			createdAt: toWAT(newGameWallet.createdAt),
 			updatedAt: toWAT(newGameWallet.updatedAt),
 		};
@@ -2408,8 +2441,20 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			}),
 		),
 		c.env.DB.prepare(
-			"INSERT INTO game_wallet_transaction (id, user_id, amount, type, reference, status) VALUES (?, ?, ?, 'credit', ?, 'completed')",
-		).bind(generateUUIDv7(), user.id, amountKobo, `${reference}_game`),
+			"INSERT INTO game_wallet_transaction (id, user_id, amount, type, reference, status, balance, metadata) VALUES (?, ?, ?, 'credit', ?, 'completed', (SELECT balance FROM game_wallet WHERE id = ?), ?)",
+		).bind(
+			generateUUIDv7(),
+			user.id,
+			amountKobo,
+			`${reference}_game`,
+			gameWallet.id,
+			JSON.stringify({
+				transferType: "from_main_wallet",
+				mainWalletId: normalWallet.id,
+				gameWalletId: gameWallet.id,
+				mainWalletTransactionReference: `${reference}_normal`,
+			}),
+		),
 	]);
 
 	const debitResult = batchResults[0];
@@ -2428,6 +2473,19 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		.from(schema.gameWallet)
 		.where(eq(schema.gameWallet.id, gameWallet.id))
 		.limit(1);
+	const balancesVerified = Boolean(updatedNormalWallet && updatedGameWallet);
+	if (!balancesVerified) {
+		console.error(
+			JSON.stringify({
+				tag: "game_wallet_transfer_balance_verification_failed",
+				reference,
+				normalWalletId: normalWallet.id,
+				gameWalletId: gameWallet.id,
+				normalWalletFound: Boolean(updatedNormalWallet),
+				gameWalletFound: Boolean(updatedGameWallet),
+			}),
+		);
+	}
 
 	trackWebengageEvent(
 		c.env,
@@ -2438,7 +2496,9 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 				wallet_id: "game_wallet",
 				amount,
 				transaction_id: reference,
-				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+				wallet_balance_after: updatedNormalWallet
+					? updatedNormalWallet.balance / 100
+					: null,
 			},
 		},
 		c.executionCtx,
@@ -2451,8 +2511,13 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 				transactionId: reference,
 				amount,
 				gameWalletId: gameWallet.id,
-				normalWalletBalance: (updatedNormalWallet?.balance ?? 0) / 100,
-				gameWalletBalance: (updatedGameWallet?.balance ?? amount * 100) / 100,
+				normalWalletBalance: updatedNormalWallet
+					? updatedNormalWallet.balance / 100
+					: null,
+				gameWalletBalance: updatedGameWallet
+					? updatedGameWallet.balance / 100
+					: null,
+				balanceVerification: balancesVerified ? "verified" : "failed",
 			},
 		},
 		200,
