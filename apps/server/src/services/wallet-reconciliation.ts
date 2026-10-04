@@ -4,15 +4,17 @@
  * For each recently-active wallet, recompute the expected balance as the
  * signed sum of its `wallet_transaction` ledger (plus `swipegames_transactions`,
  * which move the wallet without mirroring into `wallet_transaction`) and
- * compare against `wallet.balance`. Any drift is logged as a structured
- * `wallet_reconciliation_drift` event so it can be alerted on from Cloudflare
- * logs, and returned for the admin endpoint.
+ * compare against `wallet.balance`. Frozen funds are reported separately:
+ * they remain part of the total balance, but reduce the player's available
+ * balance. Any drift is logged as a structured `wallet_reconciliation_drift`
+ * event so it can be alerted on from Cloudflare logs, and returned for the
+ * admin endpoint.
  *
  * This job only ALERTS — it never mutates balances.
  *
  * Sign conventions (status-aware because reversals flip status in place, e.g.
  * a rejected withdrawal is credited back without a compensating ledger row):
- * - +amount: type in (credit, refund, deposit) with status success
+ * - +amount: type in (credit, refund, deposit) with status success/completed
  * - -amount: type in (debit, withdrawal, withdraw) unless status in
  *   (rejected, failed) — pending withdrawals HAVE debited the wallet
  * - other types are excluded from the sum and surfaced as `unknownTypeCount`
@@ -27,23 +29,48 @@ import type { CloudflareBindings } from "../types";
 const CREDIT_TYPES_SQL = `('credit', 'refund', 'deposit')`;
 const DEBIT_TYPES_SQL = `('debit', 'withdrawal', 'withdraw')`;
 const ALL_TYPES_SQL = `('credit', 'refund', 'deposit', 'debit', 'withdrawal', 'withdraw')`;
+const SUCCESS_STATUSES_SQL = `('success', 'completed')`;
 const REVERSED_STATUSES_SQL = `('rejected', 'failed')`;
 
 export type WalletDrift = {
 	userId: string;
 	balanceKobo: number;
+	frozenBalanceKobo: number;
+	availableBalanceKobo: number;
 	expectedKobo: number;
+	expectedAvailableKobo: number;
 	driftKobo: number;
 	walletLedgerKobo: number;
 	swipeLedgerKobo: number;
 	unknownTypeCount: number;
 };
 
+export type WalletFrozenFunds = {
+	userId: string;
+	frozenBalanceKobo: number;
+	availableBalanceKobo: number;
+	expectedAvailableKobo: number;
+};
+
 export type WalletReconciliationReport = {
 	checkedUsers: number;
 	driftedUsers: WalletDrift[];
+	walletsWithFrozenFunds: WalletFrozenFunds[];
 	sinceIso: string;
 };
+
+export type WalletReconciliationOutcome =
+	| "clean"
+	| "drift_detected"
+	| "no_wallets_checked";
+
+export function getWalletReconciliationOutcome(
+	report: WalletReconciliationReport,
+): WalletReconciliationOutcome {
+	if (report.checkedUsers === 0) return "no_wallets_checked";
+	if (report.driftedUsers.length > 0) return "drift_detected";
+	return "clean";
+}
 
 export async function runWalletReconciliation(
 	env: CloudflareBindings,
@@ -55,7 +82,9 @@ export async function runWalletReconciliation(
 ): Promise<WalletReconciliationReport> {
 	const db = drizzle(env.DB, { schema });
 	// 26h default: hourly cron with overlap so nothing slips between runs.
-	const since = new Date(Date.now() - (options?.sinceMs ?? 26 * 60 * 60 * 1000));
+	const since = new Date(
+		Date.now() - (options?.sinceMs ?? 26 * 60 * 60 * 1000),
+	);
 	const maxUsers = options?.maxUsers ?? 100;
 
 	let userIds = options?.userIds;
@@ -70,13 +99,19 @@ export async function runWalletReconciliation(
 	userIds = userIds.slice(0, maxUsers);
 
 	if (userIds.length === 0) {
-		return { checkedUsers: 0, driftedUsers: [], sinceIso: since.toISOString() };
+		return {
+			checkedUsers: 0,
+			driftedUsers: [],
+			walletsWithFrozenFunds: [],
+			sinceIso: since.toISOString(),
+		};
 	}
 
 	const wallets = await db
 		.select({
 			userId: schema.wallet.userId,
 			balance: schema.wallet.balance,
+			frozenBalance: schema.wallet.frozenBalance,
 		})
 		.from(schema.wallet)
 		.where(inArray(schema.wallet.userId, userIds));
@@ -86,7 +121,7 @@ export async function runWalletReconciliation(
 			userId: schema.walletTransaction.userId,
 			signedSum: sql<number>`COALESCE(SUM(CASE
 				WHEN ${schema.walletTransaction.type} IN ${sql.raw(CREDIT_TYPES_SQL)}
-					AND ${schema.walletTransaction.status} = 'success'
+					AND ${schema.walletTransaction.status} IN ${sql.raw(SUCCESS_STATUSES_SQL)}
 					THEN ${schema.walletTransaction.amount}
 				WHEN ${schema.walletTransaction.type} IN ${sql.raw(DEBIT_TYPES_SQL)}
 					AND ${schema.walletTransaction.status} NOT IN ${sql.raw(REVERSED_STATUSES_SQL)}
@@ -129,6 +164,7 @@ export async function runWalletReconciliation(
 	);
 
 	const driftedUsers: WalletDrift[] = [];
+	const walletsWithFrozenFunds: WalletFrozenFunds[] = [];
 	for (const wallet of wallets) {
 		const ledger = ledgerByUser.get(wallet.userId) ?? {
 			signedSum: 0,
@@ -136,12 +172,32 @@ export async function runWalletReconciliation(
 		};
 		const swipe = swipeByUser.get(wallet.userId) ?? 0;
 		const expected = ledger.signedSum + swipe;
+		const availableBalance = wallet.balance - wallet.frozenBalance;
+		const expectedAvailable = expected - wallet.frozenBalance;
 		const drift = wallet.balance - expected;
+		if (wallet.frozenBalance > 0) {
+			const frozenEntry: WalletFrozenFunds = {
+				userId: wallet.userId,
+				frozenBalanceKobo: wallet.frozenBalance,
+				availableBalanceKobo: availableBalance,
+				expectedAvailableKobo: expectedAvailable,
+			};
+			walletsWithFrozenFunds.push(frozenEntry);
+			console.warn(
+				JSON.stringify({
+					tag: "wallet_reconciliation_frozen_funds",
+					...frozenEntry,
+				}),
+			);
+		}
 		if (drift !== 0) {
 			const entry: WalletDrift = {
 				userId: wallet.userId,
 				balanceKobo: wallet.balance,
+				frozenBalanceKobo: wallet.frozenBalance,
+				availableBalanceKobo: availableBalance,
 				expectedKobo: expected,
+				expectedAvailableKobo: expectedAvailable,
 				driftKobo: drift,
 				walletLedgerKobo: ledger.signedSum,
 				swipeLedgerKobo: swipe,
@@ -159,6 +215,7 @@ export async function runWalletReconciliation(
 			tag: "wallet_reconciliation_run",
 			checkedUsers: wallets.length,
 			driftedUsers: driftedUsers.length,
+			walletsWithFrozenFunds: walletsWithFrozenFunds.length,
 			since: since.toISOString(),
 		}),
 	);
@@ -166,6 +223,7 @@ export async function runWalletReconciliation(
 	return {
 		checkedUsers: wallets.length,
 		driftedUsers,
+		walletsWithFrozenFunds,
 		sinceIso: since.toISOString(),
 	};
 }

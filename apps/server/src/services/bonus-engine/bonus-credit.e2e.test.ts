@@ -102,6 +102,8 @@ beforeEach(() => {
 			type text NOT NULL,
 			reference text NOT NULL UNIQUE,
 			status text NOT NULL,
+			balance integer,
+			metadata text,
 			created_at integer NOT NULL DEFAULT 0
 		);
 	`);

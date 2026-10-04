@@ -67,6 +67,7 @@ export class MemoryD1 {
 				this.failNextWalletUpdate &&
 				/\bupdate\b/i.test(nextSql) &&
 				/\bwallet\b/i.test(nextSql) &&
+				!/\bwallet_transaction\b/i.test(nextSql) &&
 				!/\bgame_transactions\b/i.test(nextSql)
 			) {
 				this.failNextWalletUpdate = false;

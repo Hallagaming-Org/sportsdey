@@ -480,6 +480,8 @@ export const gameWalletTransaction = sqliteTable("game_wallet_transaction", {
 	type: text("type").notNull(),
 	reference: text("reference").notNull().unique(),
 	status: text("status").notNull(),
+	balance: integer("balance"),
+	metadata: text("metadata"),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),

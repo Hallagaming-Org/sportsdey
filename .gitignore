@@ -67,6 +67,11 @@ docs/ai-engineering-checklist.md
 shaq
 shaq.pub
 
+# 155.io / Marbles RSA keys — never commit
+marbles-private.pem
+marbles-public.pem
+*.pem
+
 # Separate GitHub repo — never commit this clone into sportsdey
 apps/sportsdey-admin/
 

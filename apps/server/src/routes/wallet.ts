@@ -1040,14 +1040,229 @@ walletRoute.openapi(callbackRoute, async (c) => {
 				);
 			}
 
-			if (status === "success") {
+			if (status === "success" && transaction?.type === "credit") {
+				if (transaction.status !== "success") {
+					const markDepositNeedsRetry = async () => {
+						await db
+							.update(schema.walletTransaction)
+							.set({ status: "needs_retry" })
+							.where(
+								and(
+									eq(schema.walletTransaction.reference, reference),
+									eq(schema.walletTransaction.status, "processing"),
+								),
+							);
+					};
+
+					const settleClaimedDeposit = async () => {
+						let creditedBalance: number | null = null;
+						try {
+							const [wallet] = await db
+								.select()
+								.from(schema.wallet)
+								.where(eq(schema.wallet.userId, transaction.userId))
+								.limit(1);
+							if (!wallet) {
+								await markDepositNeedsRetry();
+								console.error(
+									JSON.stringify({
+										tag: "deposit_credit_failed_after_claim",
+										reference,
+										userId: transaction.userId,
+										reason: "wallet_not_found",
+									}),
+								);
+								return {
+									ok: false as const,
+									status: 409 as const,
+									error: "Wallet update failed",
+								};
+							}
+
+							const updatedWallet = await creditWallet(
+								db,
+								transaction.userId,
+								transaction.amount,
+							);
+							if (!updatedWallet) {
+								await markDepositNeedsRetry();
+								console.error(
+									JSON.stringify({
+										tag: "deposit_credit_failed_after_claim",
+										reference,
+										userId: transaction.userId,
+										reason: "wallet_update_returned_empty",
+									}),
+								);
+								return {
+									ok: false as const,
+									status: 409 as const,
+									error: "Wallet update failed",
+								};
+							}
+							creditedBalance = updatedWallet.balance;
+
+							let existingMeta: Record<string, unknown> = JSON.parse(
+								transaction.metadata || "{}",
+							);
+							const auth = tx.authorization;
+							existingMeta = {
+								...existingMeta,
+								cardType: auth?.card_type || null,
+								cardLast4: auth?.last4 || null,
+								amountCredited: (tx.amount ?? transaction.amount) / 100,
+								fees: (tx.fees ?? 0) / 100,
+								provider: "Paystack",
+							};
+
+							await db
+								.update(schema.walletTransaction)
+								.set({
+									status: "success",
+									paymentMethod,
+									balance: creditedBalance,
+									metadata: JSON.stringify(existingMeta),
+								})
+								.where(eq(schema.walletTransaction.reference, reference));
+
+							trackWebengageEvent(
+								c.env,
+								{
+									userId: transaction.userId,
+									eventName: "deposit_completed",
+									eventData: {
+										amount: (tx.amount ?? transaction.amount) / 100,
+										currency: "NGN",
+										payment_method: paymentMethod,
+										transaction_id: reference,
+										type: "credit",
+										wallet_balance_after: creditedBalance / 100,
+									},
+								},
+								c.executionCtx,
+							);
+							await syncWebengageUserProfile(
+								c.env,
+								transaction.userId,
+								c.executionCtx,
+							);
+							return { ok: true as const, balance: creditedBalance };
+						} catch (error) {
+							if (creditedBalance === null) {
+								try {
+									await markDepositNeedsRetry();
+								} catch {
+									// Keep the wallet error; the claim must not look settled.
+								}
+								console.error(
+									JSON.stringify({
+										tag: "deposit_credit_failed_after_claim",
+										reference,
+										userId: transaction.userId,
+										error:
+											error instanceof Error ? error.message : "unknown",
+									}),
+								);
+								return {
+									ok: false as const,
+									status: 500 as const,
+									error: "Deposit credit failed after claim",
+								};
+							}
+							console.error(
+								JSON.stringify({
+									tag: "deposit_credited_finalize_failed",
+									reference,
+									userId: transaction.userId,
+									error:
+										error instanceof Error ? error.message : "unknown",
+								}),
+							);
+							try {
+								await db
+									.update(schema.walletTransaction)
+									.set({
+										status: "success",
+										paymentMethod,
+										balance: creditedBalance,
+									})
+									.where(eq(schema.walletTransaction.reference, reference));
+							} catch {
+								// Already credited; retry must not credit again.
+							}
+							return { ok: true as const, balance: creditedBalance };
+						}
+					};
+
+					const reclaimable =
+						transaction.status === "pending" ||
+						transaction.status === "needs_retry";
+					if (reclaimable) {
+						const [claimed] = await db
+							.update(schema.walletTransaction)
+							.set({ status: "processing" })
+							.where(
+								and(
+									eq(schema.walletTransaction.reference, reference),
+									eq(schema.walletTransaction.status, transaction.status),
+								),
+							)
+							.returning({ id: schema.walletTransaction.id });
+						if (!claimed) {
+							const [latest] = await db
+								.select({ status: schema.walletTransaction.status })
+								.from(schema.walletTransaction)
+								.where(eq(schema.walletTransaction.reference, reference))
+								.limit(1);
+							if (latest?.status === "success") {
+								// Concurrent callback already settled this deposit.
+							} else if (
+								latest?.status === "processing" ||
+								latest?.status === "needs_retry"
+							) {
+								const settled = await settleClaimedDeposit();
+								if (!settled.ok) {
+									return c.json(
+										{ success: false, error: settled.error },
+										settled.status,
+									);
+								}
+							} else {
+								return c.json({ success: true, data: { status } }, 200);
+							}
+						} else {
+							const settled = await settleClaimedDeposit();
+							if (!settled.ok) {
+								return c.json(
+									{ success: false, error: settled.error },
+									settled.status,
+								);
+							}
+						}
+					} else if (transaction.status === "processing") {
+						console.warn(
+							JSON.stringify({
+								tag: "deposit_stale_processing_repair",
+								reference,
+								userId: transaction.userId,
+							}),
+						);
+						const settled = await settleClaimedDeposit();
+						if (!settled.ok) {
+							return c.json(
+								{ success: false, error: settled.error },
+								settled.status,
+							);
+						}
+					}
+				}
+			} else if (status === "success") {
 				if (
 					transaction &&
 					transaction.status !== "success" &&
 					transaction.status !== "processing"
 				) {
-					// Move the row out of its current status so a concurrent callback
-					// and webhook for the same reference cannot both credit the wallet.
+					// Withdrawal callback claim — leave this path unchanged (CR3/CR10).
 					const [claimed] = await db
 						.update(schema.walletTransaction)
 						.set({ status: "processing" })
@@ -1070,10 +1285,11 @@ walletRoute.openapi(callbackRoute, async (c) => {
 
 					let newBalance = wallet?.balance ?? 0;
 					if (wallet) {
-						const updatedWallet =
-							transaction.type === "credit"
-								? await creditWallet(db, transaction.userId, transaction.amount)
-								: await debitWallet(db, transaction.userId, transaction.amount);
+						const updatedWallet = await debitWallet(
+							db,
+							transaction.userId,
+							transaction.amount,
+						);
 						if (!updatedWallet) {
 							await db
 								.update(schema.walletTransaction)
@@ -1090,18 +1306,6 @@ walletRoute.openapi(callbackRoute, async (c) => {
 					let existingMeta: Record<string, unknown> = JSON.parse(
 						transaction.metadata || "{}",
 					);
-
-					const auth = tx.authorization;
-					if (transaction.type === "credit") {
-						existingMeta = {
-							...existingMeta,
-							cardType: auth?.card_type || null,
-							cardLast4: auth?.last4 || null,
-							amountCredited: (tx.amount ?? transaction.amount) / 100,
-							fees: (tx.fees ?? 0) / 100,
-							provider: "Paystack",
-						};
-					}
 
 					await db
 						.update(schema.walletTransaction)
@@ -2184,12 +2388,36 @@ walletRoute.openapi(transferRoute, async (c) => {
 	if (!debitResult || debitResult.meta.changes === 0) {
 		return c.json({ success: false, error: "Insufficient balance" }, 400);
 	}
+	const recipientCreditResult = batchResults[1];
+	const recipientCreditVerified = recipientCreditResult?.meta.changes === 1;
 
 	const [updatedSenderWallet] = await db
 		.select()
 		.from(schema.wallet)
 		.where(eq(schema.wallet.id, senderWallet.id))
 		.limit(1);
+	const [updatedRecipientWallet] = await db
+		.select()
+		.from(schema.wallet)
+		.where(eq(schema.wallet.id, recipientWallet.id))
+		.limit(1);
+
+	const balancesVerified = Boolean(
+		recipientCreditVerified && updatedSenderWallet && updatedRecipientWallet,
+	);
+	if (!balancesVerified) {
+		console.error(
+			JSON.stringify({
+				tag: "wallet_transfer_balance_verification_failed",
+				reference,
+				senderWalletId: senderWallet.id,
+				recipientWalletId: recipientWallet.id,
+				senderFound: Boolean(updatedSenderWallet),
+				recipientFound: Boolean(updatedRecipientWallet),
+				recipientCreditChanges: recipientCreditResult?.meta.changes ?? null,
+			}),
+		);
+	}
 
 	trackWebengageEvent(
 		c.env,
@@ -2200,7 +2428,9 @@ walletRoute.openapi(transferRoute, async (c) => {
 				wallet_id: recipientWalletId,
 				amount,
 				transaction_id: reference,
-				wallet_balance_after: (updatedSenderWallet?.balance ?? 0) / 100,
+				wallet_balance_after: updatedSenderWallet
+					? updatedSenderWallet.balance / 100
+					: null,
 			},
 		},
 		c.executionCtx,
@@ -2215,6 +2445,13 @@ walletRoute.openapi(transferRoute, async (c) => {
 				amount,
 				recipientWalletId,
 				recipientName,
+				senderWalletBalance: updatedSenderWallet
+					? updatedSenderWallet.balance / 100
+					: null,
+				recipientWalletBalance: updatedRecipientWallet
+					? updatedRecipientWallet.balance / 100
+					: null,
+				balanceVerification: balancesVerified ? "verified" : "failed",
 			},
 		},
 		200,
@@ -2254,7 +2491,7 @@ walletRoute.openapi(getGameWalletRoute, async (c) => {
 
 		const walletResponse = {
 			id: newGameWallet.id,
-			balance: newGameWallet.balance,
+			balance: newGameWallet.balance / 100,
 			createdAt: toWAT(newGameWallet.createdAt),
 			updatedAt: toWAT(newGameWallet.updatedAt),
 		};
@@ -2408,8 +2645,20 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 			}),
 		),
 		c.env.DB.prepare(
-			"INSERT INTO game_wallet_transaction (id, user_id, amount, type, reference, status) VALUES (?, ?, ?, 'credit', ?, 'completed')",
-		).bind(generateUUIDv7(), user.id, amountKobo, `${reference}_game`),
+			"INSERT INTO game_wallet_transaction (id, user_id, amount, type, reference, status, balance, metadata) VALUES (?, ?, ?, 'credit', ?, 'completed', (SELECT balance FROM game_wallet WHERE id = ?), ?)",
+		).bind(
+			generateUUIDv7(),
+			user.id,
+			amountKobo,
+			`${reference}_game`,
+			gameWallet.id,
+			JSON.stringify({
+				transferType: "from_main_wallet",
+				mainWalletId: normalWallet.id,
+				gameWalletId: gameWallet.id,
+				mainWalletTransactionReference: `${reference}_normal`,
+			}),
+		),
 	]);
 
 	const debitResult = batchResults[0];
@@ -2428,6 +2677,19 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 		.from(schema.gameWallet)
 		.where(eq(schema.gameWallet.id, gameWallet.id))
 		.limit(1);
+	const balancesVerified = Boolean(updatedNormalWallet && updatedGameWallet);
+	if (!balancesVerified) {
+		console.error(
+			JSON.stringify({
+				tag: "game_wallet_transfer_balance_verification_failed",
+				reference,
+				normalWalletId: normalWallet.id,
+				gameWalletId: gameWallet.id,
+				normalWalletFound: Boolean(updatedNormalWallet),
+				gameWalletFound: Boolean(updatedGameWallet),
+			}),
+		);
+	}
 
 	trackWebengageEvent(
 		c.env,
@@ -2438,7 +2700,9 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 				wallet_id: "game_wallet",
 				amount,
 				transaction_id: reference,
-				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
+				wallet_balance_after: updatedNormalWallet
+					? updatedNormalWallet.balance / 100
+					: null,
 			},
 		},
 		c.executionCtx,
@@ -2451,8 +2715,13 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 				transactionId: reference,
 				amount,
 				gameWalletId: gameWallet.id,
-				normalWalletBalance: (updatedNormalWallet?.balance ?? 0) / 100,
-				gameWalletBalance: (updatedGameWallet?.balance ?? amount * 100) / 100,
+				normalWalletBalance: updatedNormalWallet
+					? updatedNormalWallet.balance / 100
+					: null,
+				gameWalletBalance: updatedGameWallet
+					? updatedGameWallet.balance / 100
+					: null,
+				balanceVerification: balancesVerified ? "verified" : "failed",
 			},
 		},
 		200,
