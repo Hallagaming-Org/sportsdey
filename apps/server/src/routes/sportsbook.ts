@@ -1,5 +1,5 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import { and, eq, gte, or, sql } from "drizzle-orm";
+import { and, eq, gte, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { getSessionToken, validateAdminSession } from "@/auth/admin";
 import {
@@ -673,6 +673,22 @@ const betAcceptRoute = createRoute({
 				},
 			},
 		},
+		409: {
+			description: "Bet is accepted without a matching stake debit",
+			content: {
+				"application/json": {
+					schema: BetErrorResponseSchema,
+				},
+			},
+		},
+		500: {
+			description: "Accept failed after claim and is retryable",
+			content: {
+				"application/json": {
+					schema: BetErrorResponseSchema,
+				},
+			},
+		},
 	},
 });
 
@@ -823,7 +839,47 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		)
 		.returning({ id: schema.sportsbookBet.id });
 
+	const findAcceptDebit = async () =>
+		db.query.walletTransaction.findFirst({
+			where: and(
+				eq(schema.walletTransaction.userId, bet.userId),
+				eq(schema.walletTransaction.type, "debit"),
+				eq(schema.walletTransaction.paymentMethod, "sportsbook"),
+				like(
+					schema.walletTransaction.reference,
+					`sb_accept_${result.data.bet_id}_%`,
+				),
+			),
+		});
+
 	if (claimedBet.length === 0) {
+		if (bet.status === "accepted" && !bet.betFreebetId) {
+			const acceptDebit = await findAcceptDebit();
+			if (!acceptDebit) {
+				console.error(
+					JSON.stringify({
+						tag: "sportsbook_accepted_without_debit",
+						betId: result.data.bet_id,
+						userId: bet.userId,
+						requestId: result.data.request_id,
+					}),
+				);
+				return c.json(
+					{
+						error: {
+							code: "custom_error",
+							data: {
+								code: "accepted_without_debit",
+								current_status: bet.status,
+								message:
+									"Bet is accepted but no stake debit was recorded; retry or reconcile",
+							},
+						},
+					},
+					409,
+				);
+			}
+		}
 		return c.json(
 			{
 				error: {
@@ -851,7 +907,9 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 	};
 
 	let balAfter: number;
+	let stakeMoved = false;
 
+	try {
 	const wallet = await db.query.wallet.findFirst({
 		where: eq(schema.wallet.userId, bet.userId),
 	});
@@ -906,6 +964,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				400,
 			);
 		}
+		stakeMoved = true;
 		const newBalance = walletUpdate[0]!.balance;
 		balAfter = newBalance;
 
@@ -960,6 +1019,50 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				},
 			},
 			400,
+		);
+	}
+	} catch (error) {
+		if (!stakeMoved) {
+			try {
+				await releaseBetClaim();
+			} catch {
+				// Keep the wallet error; the claim must not block a later retry.
+			}
+			console.error(
+				JSON.stringify({
+					tag: "sportsbook_accept_failed_before_debit",
+					betId: result.data.bet_id,
+					userId: bet.userId,
+					requestId: result.data.request_id,
+					error: error instanceof Error ? error.message : "unknown",
+				}),
+			);
+		} else {
+			console.error(
+				JSON.stringify({
+					tag: "sportsbook_accept_failed_after_debit",
+					betId: result.data.bet_id,
+					userId: bet.userId,
+					requestId: result.data.request_id,
+					error: error instanceof Error ? error.message : "unknown",
+				}),
+			);
+		}
+		return c.json(
+			{
+				error: {
+					code: "custom_error",
+					data: {
+						code: stakeMoved
+							? "accept_failed_after_debit"
+							: "accept_failed_after_claim",
+						message: stakeMoved
+							? "Stake was taken but accept did not finish; do not retry debit"
+							: "Bet accept failed before the stake was taken and can be retried",
+					},
+				},
+			},
+			500,
 		);
 	}
 
