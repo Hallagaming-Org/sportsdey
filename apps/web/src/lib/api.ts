@@ -144,18 +144,19 @@ export async function apiRequest<T>(
 
 export async function apiRequestFull<T>(
 	endpoint: string,
-	options: RequestInit = {},
+	options: RequestInit & { timeoutMs?: number } = {},
 ): Promise<T> {
 	const url = `${apiBaseUrl()}${endpoint}`;
+	const { timeoutMs = 10_000, ...requestOptions } = options;
 
 	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), 10000);
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
 	const config: RequestInit = {
-		...options,
+		...requestOptions,
 		headers: {
 			"Content-Type": "application/json",
-			...options.headers,
+			...requestOptions.headers,
 		},
 		signal: controller.signal,
 	};

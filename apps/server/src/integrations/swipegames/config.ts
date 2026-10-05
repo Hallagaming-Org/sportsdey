@@ -45,6 +45,8 @@ type SwipeGamesEnvSource = {
 	SWIPEGAMES_ENV?: string;
 	SWIPEGAMES_ALLOWED_IPS?: string;
 	PROXY_URL?: string;
+	/** DNS-only / origin URL. Prefer this over orange-clouded PROXY_URL so gzip reaches Swipe Games. */
+	PROXY_ORIGIN_URL?: string;
 	PROXY_SECRET?: string;
 };
 
@@ -112,7 +114,10 @@ export function getSwipeGamesConfig(
 		name,
 		env.SWIPEGAMES_ALLOWED_IPS,
 	);
-	const proxyUrl = env.PROXY_URL?.trim().replace(/\/$/, "") ?? "";
+	const proxyUrl =
+		env.PROXY_ORIGIN_URL?.trim().replace(/\/$/, "") ||
+		env.PROXY_URL?.trim().replace(/\/$/, "") ||
+		"";
 	const proxySecret = env.PROXY_SECRET?.trim() ?? "";
 	return {
 		cid,
