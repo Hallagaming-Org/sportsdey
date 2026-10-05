@@ -46,6 +46,17 @@ describe("Swipe Games reverse-call IP allowlist", () => {
 		);
 	});
 
+	it("prefers PROXY_ORIGIN_URL over orange-clouded PROXY_URL", () => {
+		const config = getSwipeGamesConfig({
+			...keys,
+			PROXY_URL: "https://proxy.sportsdey.com",
+			PROXY_ORIGIN_URL: "http://143.198.145.62",
+			PROXY_SECRET: "proxy-secret",
+		});
+		assert.equal(config?.proxyUrl, "http://143.198.145.62");
+		assert.equal(config?.proxySecret, "proxy-secret");
+	});
+
 	it("can be disabled with off", () => {
 		const config = getSwipeGamesConfig({
 			...keys,

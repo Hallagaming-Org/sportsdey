@@ -30,8 +30,10 @@ export async function fetchSwipeGamesLobbyGames(): Promise<
 	SwipeGamesLobbyGame[]
 > {
 	try {
-		const games =
-			await apiRequestFull<SwipeGamesLobbyGame[]>("swipegames/games");
+		const games = await apiRequestFull<SwipeGamesLobbyGame[]>(
+			"swipegames/games",
+			{ timeoutMs: 45_000 },
+		);
 		return (games || []).filter((game) => game.enabled !== false);
 	} catch {
 		return [];

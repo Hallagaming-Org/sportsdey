@@ -169,6 +169,40 @@ describe("Swipe Games reverse-call signature gate", () => {
 		assert.deepEqual(await response.json(), []);
 	});
 
+	it("GET /games serves a cached catalog from the staging-kv binding", async () => {
+		const cached = [
+			{
+				id: "swipegames:sg_catch_97",
+				name: "Catch 97",
+				code: "sg_catch_97",
+				imageUrl: null,
+				categories: [
+					{ id: "swipegames", name: "Swipe Games", slug: "swipegames" },
+				],
+				enabled: true,
+				createdAt: 0,
+				updatedAt: 0,
+				provider: "swipegames",
+				hasFreeSpins: false,
+			},
+		];
+		const app = new OpenAPIHono();
+		app.route("/swipegames", swipegamesRoute);
+		const response = await app.request(
+			"/swipegames/games",
+			{ method: "GET" },
+			{
+				DB: {} as D1Database,
+				"staging-kv": {
+					get: async () => JSON.stringify(cached),
+					put: async () => undefined,
+				},
+			},
+		);
+		assert.equal(response.status, 200);
+		assert.deepEqual(await response.json(), cached);
+	});
+
 	it("rejects GET /balance from an IP that is not on the Swipe Games allowlist", async () => {
 		const app = new OpenAPIHono();
 		app.route("/swipegames", swipegamesRoute);

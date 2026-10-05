@@ -98,7 +98,23 @@ export class SwipeGamesClient {
 		if (options?.additionalCurrencies) {
 			query.additionalCurrencies = options.additionalCurrencies;
 		}
-		return this.get("/games", query, { timeoutMs: 30_000 });
+		try {
+			return await this.get("/games", query, {
+				timeoutMs: 8_000,
+				acceptGzip: true,
+				skipProxy: true,
+			});
+		} catch (error) {
+			console.error("Swipe Games direct catalog miss, retrying via proxy", {
+				message: error instanceof Error ? error.message : String(error),
+				status:
+					error instanceof SwipeGamesApiError ? error.status : undefined,
+			});
+			return this.get("/games", query, {
+				timeoutMs: 55_000,
+				acceptGzip: true,
+			});
+		}
 	}
 
 	async createFreeRounds(
@@ -149,12 +165,13 @@ export class SwipeGamesClient {
 	private async get<T>(
 		path: string,
 		query: Record<string, string>,
-		options?: { acceptGzip?: boolean; timeoutMs?: number },
+		options?: { acceptGzip?: boolean; timeoutMs?: number; skipProxy?: boolean },
 	): Promise<T> {
 		return this.request<T>("GET", path, {
 			query,
 			acceptGzip: options?.acceptGzip,
 			timeoutMs: options?.timeoutMs,
+			skipProxy: options?.skipProxy,
 		});
 	}
 
@@ -194,6 +211,7 @@ export class SwipeGamesClient {
 			body?: unknown;
 			acceptGzip?: boolean;
 			timeoutMs?: number;
+			skipProxy?: boolean;
 		},
 	): Promise<T> {
 		const signPayload =
@@ -202,7 +220,9 @@ export class SwipeGamesClient {
 			this.config.apiKey,
 			signPayload,
 		);
-		const viaProxy = Boolean(this.config.proxyUrl && this.config.proxySecret);
+		const viaProxy =
+			!options.skipProxy &&
+			Boolean(this.config.proxyUrl && this.config.proxySecret);
 		const requestBase = viaProxy
 			? `${this.config.proxyUrl}/${this.config.env === "production" ? "swipegames" : "swipegames-staging"}`
 			: this.config.baseUrl;
@@ -240,7 +260,8 @@ export class SwipeGamesClient {
 				viaProxy &&
 				(response.status === 404 ||
 					response.status === 502 ||
-					response.status === 503)
+					response.status === 503 ||
+					response.status === 504)
 			) {
 				console.error("Swipe Games proxy miss, retrying Swipe host", {
 					status: response.status,

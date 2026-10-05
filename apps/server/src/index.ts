@@ -33,6 +33,7 @@ import adminTicketsRoute from "./routes/admin-tickets";
 import adminTransactionsRoute from "./routes/admin-transactions";
 import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
+import { refreshSwipeGamesLobbyCache } from "./routes/swipegames";
 import routes from "./routes/route";
 import { optionalExecutionCtx } from "./services/bonus-engine";
 import { runWalletReconciliation } from "./services/wallet-reconciliation";
@@ -288,6 +289,14 @@ export default {
 			await runWalletReconciliation(env);
 		} catch (error) {
 			console.error("wallet reconciliation failed", error);
+		}
+		try {
+			const n = (await refreshSwipeGamesLobbyCache(env)).length;
+			if (n === 0) {
+				console.error("swipe games catalog refresh stored 0 games");
+			}
+		} catch (error) {
+			console.error("swipe games catalog refresh failed", error);
 		}
 	},
 };
