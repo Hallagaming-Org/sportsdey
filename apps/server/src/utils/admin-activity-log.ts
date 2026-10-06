@@ -37,6 +37,9 @@ function activityModule(action: string): string {
 	if (normalized.includes("wallet")) return "Wallet";
 	if (normalized.includes("document")) return "KYC & Documents";
 	if (normalized.includes("withdrawal")) return "Withdrawals";
+	if (normalized.includes("fraud") || normalized.includes("flagged")) {
+		return "Transactions";
+	}
 	if (normalized.includes("promotion")) return "Promotions";
 	if (normalized.includes("content")) return "CMS";
 	if (normalized.includes("notification")) return "Notifications";
@@ -153,6 +156,7 @@ export const adminActivityActions = {
 	reactivateUser: "Reactivated user",
 	manualCredit: "Manually credited user wallet",
 	manualDebit: "Manually debited user wallet",
+	flagTransaction: "Flagged transaction as fraud",
 } as const;
 
 export async function recordActivityForSession(
