@@ -37,6 +37,7 @@ import userRoute from "./user";
 import walletRoute from "./wallet";
 import webengageEventsRoute from "./webengage-events";
 import palmpayRoute from "./palmpay";
+import quidaxRoute from "./quidax";
 import hellodutyRoute from "./helloduty";
 import webengageSmsRoute from "./webengage-sms";
 
@@ -77,6 +78,7 @@ routes.route("/bet-history", betHistoryRoute);
 routes.route("/opay", opayRoute);
 routes.route("/kuda", kudaRoute);
 routes.route("/palmpay", palmpayRoute);
+routes.route("/quidax", quidaxRoute);
 routes.route("/loyalty", loyaltyRoute);
 routes.route("/mission", missionRoute);
 routes.route("/bonus", bonusRoute);

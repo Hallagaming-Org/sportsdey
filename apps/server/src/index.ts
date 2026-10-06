@@ -214,6 +214,7 @@ app.use("*", async (c, next) => {
 		path.startsWith("/wallet/paystack/webhook") ||
 		path.startsWith("/kuda/webhook") ||
 		path.startsWith("/palmpay/webhook") ||
+		path.startsWith("/quidax/webhook") ||
 		// Public server-to-server SSO exchange — authorized by code + token, not a session.
 		path.startsWith("/public/handoff/exchange")
 	) {
