@@ -23,9 +23,41 @@ export type TransactionDetails = {
 		| "electricity"
 		| "airtel"
 		| "default";
-	statusText: "Successful" | "Pending" | "Failed";
-	statusColor: "success" | "pending" | "failed";
+	statusText: "Successful" | "Pending" | "Failed" | "Reversed";
+	statusColor: "success" | "pending" | "failed" | "reversed";
 };
+
+export type TransactionDirection = "credit" | "debit" | "reversal";
+
+const REVERSAL_STATUSES = new Set([
+	"reversed", "reversal", "refunded", "refund", "declined", "decline",
+	"cancelled", "canceled",
+]);
+const REVERSAL_ACTIONS = new Set([
+	"reversal", "reversed", "refund", "refunded", "rollback", "reset",
+	"decline", "declined", "cancel", "cancelled", "canceled",
+]);
+
+export function getTransactionDirection(
+	transaction: WalletTransaction,
+): TransactionDirection {
+	const type = String(transaction.type || "").toLowerCase();
+	const status = String(transaction.status || "").toLowerCase();
+	const metadata = transaction.metadata as Record<string, unknown> | null;
+	const action = String(metadata?.action || "").toLowerCase();
+	if (REVERSAL_STATUSES.has(status) || REVERSAL_ACTIONS.has(action)) {
+		return "reversal";
+	}
+	if (type === "debit") return "debit";
+	if (type === "credit") return "credit";
+	return (transaction.amount ?? 0) < 0 ? "debit" : "credit";
+}
+
+export function getTransactionAmountPrefix(
+	direction: TransactionDirection,
+): string {
+	return direction === "credit" ? "+" : direction === "debit" ? "-" : "↩";
+}
 
 const MONTH_NAMES = [
 	"January",
@@ -85,8 +117,12 @@ export function getTransactionDetails(
 	let iconType: TransactionDetails["iconType"] = "default";
 	let statusText: TransactionDetails["statusText"] = "Pending";
 	let statusColor: TransactionDetails["statusColor"] = "pending";
+	const direction = getTransactionDirection(transaction);
 
-	if (
+	if (direction === "reversal") {
+		statusText = "Reversed";
+		statusColor = "reversed";
+	} else if (
 		statusLower === "success" ||
 		statusLower === "completed" ||
 		statusLower === "successful"
@@ -99,8 +135,7 @@ export function getTransactionDetails(
 	}
 
 	if (methodLower === "wallet_transfer") {
-		const isDebit =
-			typeLower === "debit" || (transaction.amount && transaction.amount < 0);
+		const isDebit = direction === "debit";
 		const transferType = meta?.transferType;
 		if (transferType === "to_game_wallet") {
 			title = "Transfer to game wallet";
@@ -121,8 +156,7 @@ export function getTransactionDetails(
 		methodLower === "bank transfer" ||
 		methodLower === "bank_transfer"
 	) {
-		const isCredit =
-			typeLower === "credit" || (transaction.amount && transaction.amount > 0);
+		const isCredit = direction === "credit";
 		if (isCredit) {
 			title = "Deposit";
 			iconType = "deposit";
@@ -172,7 +206,7 @@ export function getTransactionDetails(
 			title = "Bill Payment";
 			iconType = "default";
 		}
-	} else if (typeLower === "credit") {
+	} else if (direction === "credit") {
 		title = "Deposit";
 		iconType = "deposit";
 	} else {
@@ -192,8 +226,11 @@ export function getTransactionTypeLabel(
 		string,
 		string | undefined
 	> | null;
-	const isCredit = typeLower === "credit" || (transaction.amount ?? 0) > 0;
-	const isDebit = typeLower === "debit" || (transaction.amount ?? 0) < 0;
+	const direction = getTransactionDirection(transaction);
+	const isCredit = direction === "credit";
+	const isDebit = direction === "debit";
+	const isReversal = direction === "reversal";
+	const prefix = isReversal ? "Reversal - " : "";
 
 	const casinoPaymentMethods = new Set([
 		"lagos rush",
@@ -209,21 +246,20 @@ export function getTransactionTypeLabel(
 	const depositPaymentMethods = new Set(["opay", "kuda", "palmpay"]);
 
 	if (methodLower === "wallet_transfer") {
-		const transferDebit =
-			typeLower === "debit" || (transaction.amount && transaction.amount < 0);
+		const transferDebit = direction === "debit";
 		if (meta?.transferType === "to_game_wallet") {
-			return "Transfer to game";
+			return `${prefix}Transfer to game`;
 		}
-		return transferDebit ? "Transfer to friend" : "Received - Transfer";
+		return transferDebit ? `${prefix}Transfer to friend` : `${prefix}Received - Transfer`;
 	}
 
 	if (methodLower === "crypto") {
 		const asset = meta?.asset ? String(meta.asset) : "Crypto";
-		return isCredit ? `Crypto Deposit · ${asset}` : `Crypto Send · ${asset}`;
+		return isCredit ? `${prefix}Crypto Deposit · ${asset}` : `${prefix}Crypto Send · ${asset}`;
 	}
 
 	if (isCredit && depositPaymentMethods.has(methodLower)) {
-		return `Deposit - ${transaction.paymentMethod}`;
+		return `${prefix}Deposit - ${transaction.paymentMethod}`;
 	}
 
 	if (
@@ -233,7 +269,7 @@ export function getTransactionTypeLabel(
 		methodLower === "bank_transfer" ||
 		methodLower === "bank transfer"
 	) {
-		return isCredit ? "Deposit" : "Withdrawal";
+		return isCredit ? `${prefix}Deposit` : `${prefix}Withdrawal`;
 	}
 
 	if (
@@ -270,14 +306,17 @@ export function getTransactionTypeLabel(
 	}
 
 	if (casinoPaymentMethods.has(methodLower)) {
-		return isDebit ? "Debit - Casino" : "Credit - Casino";
+		return isReversal ? "Reversal - Casino" : isDebit ? "Debit - Casino" : "Credit - Casino";
 	}
 
 	if (sportsbookPaymentMethods.has(methodLower)) {
-		return isDebit ? "Debit - Sportsbook" : "Credit - Sportsbook";
+		return isReversal ? "Reversal - Sportsbook" : isDebit ? "Debit - Sportsbook" : "Credit - Sportsbook";
 	}
 
 	const paymentMethod = transaction.paymentMethod || "Unknown";
+	if (isReversal) {
+		return `Reversal - ${paymentMethod}`;
+	}
 	if (isCredit) {
 		return `Winnings - ${paymentMethod}`;
 	}
