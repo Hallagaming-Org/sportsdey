@@ -14,11 +14,19 @@ export const WalletResponseSchema = z
 	.object({
 		id: z.string().openapi({ description: "Wallet ID" }),
 		balance: z.number().openapi({
-			description: "Main wallet balance in Naira (withdrawable; stored as kobo internally)",
+			description:
+				"Cash balance in Naira, excluding locked bonus funds (stored as kobo internally)",
 		}),
 		bonusBalance: z.number().openapi({
 			description:
-				"Bonus / game-wallet balance in Naira (not withdrawable until wagering is complete)",
+				"Locked bonus funds in Naira: playable on any game, not withdrawable until wagering is complete",
+		}),
+		withdrawableBalance: z.number().openapi({
+			description:
+				"Naira that can leave the platform now: cash minus stakes held for pending sportsbook bets",
+		}),
+		totalBalance: z.number().openapi({
+			description: "Playable balance in Naira (cash + bonus); what games see",
 		}),
 		createdAt: z.string().openapi({ description: "Creation timestamp" }),
 		updatedAt: z.string().openapi({ description: "Last update timestamp" }),
