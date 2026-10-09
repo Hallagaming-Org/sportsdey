@@ -27,7 +27,13 @@ import adminTransactionsRoute from "./routes/admin-transactions";
 import adminWithdrawalsRoute from "./routes/admin-withdrawals";
 import cmsRoute from "./routes/cms";
 import routes from "./routes/route";
-import { optionalExecutionCtx } from "./services/bonus-engine";
+import {
+	drainBonusEngineOutbox,
+	optionalExecutionCtx,
+	pruneBonusStakeSplits,
+	reconcileLoyaltyRedemptions,
+	reconcileMissionRewards,
+} from "./services/bonus-engine";
 import { runWalletReconciliation } from "./services/wallet-reconciliation";
 import type { CloudflareBindings } from "./types";
 import type { ExportQueueMessage } from "./types/exports";
@@ -247,8 +253,14 @@ export default {
 		}
 	},
 	async scheduled(_controller: unknown, env: CloudflareBindings) {
-		await requeueStaleChunks(env);
-		await deleteExpiredExports(env);
+		// Each job is isolated: one throwing (e.g. export tables missing) must
+		// not skip the money-safety jobs after it.
+		try {
+			await requeueStaleChunks(env);
+			await deleteExpiredExports(env);
+		} catch (error) {
+			console.error("export maintenance failed", error);
+		}
 		// Money-safety net: alert (never mutate) when a wallet balance no longer
 		// matches the signed sum of its ledger entries.
 		try {
@@ -256,5 +268,35 @@ export default {
 		} catch (error) {
 			console.error("wallet reconciliation failed", error);
 		}
+		await runBonusEngineMaintenance(env);
 	},
 };
+
+/**
+ * Bonus Engine safety nets, each isolated so one failing cannot skip the rest:
+ * re-send parked reports, pay mission rewards whose complete callback was
+ * lost, finish loyalty credits the engine already accepted, and drop stake
+ * splits for bets long settled (60 days covers outright markets).
+ */
+async function runBonusEngineMaintenance(env: CloudflareBindings) {
+	const jobs: Array<[string, () => Promise<unknown>]> = [
+		["outbox drain", () => drainBonusEngineOutbox(env)],
+		["mission reward reconcile", () => reconcileMissionRewards(env)],
+		["loyalty redemption reconcile", () => reconcileLoyaltyRedemptions(env)],
+		[
+			"stake split prune",
+			() =>
+				pruneBonusStakeSplits(
+					env,
+					new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+				),
+		],
+	];
+	for (const [name, job] of jobs) {
+		try {
+			await job();
+		} catch (error) {
+			console.error(`Bonus Engine ${name} failed`, error);
+		}
+	}
+}
