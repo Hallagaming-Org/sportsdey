@@ -152,6 +152,15 @@ export const wallet = sqliteTable("wallet", {
 		.unique(),
 	balance: integer("balance").notNull().default(0),
 	frozenBalance: integer("frozen_balance").notNull().default(0),
+	/**
+	 * Locked Bonus Engine funds inside `balance` (kobo): spendable on bets, not
+	 * withdrawable. Kept <= `balance` by the `wallet_bonus_balance_spend` trigger.
+	 */
+	bonusBalance: integer("bonus_balance").notNull().default(0),
+	/** Size of the most recent debit (kobo, trigger-maintained). */
+	lastDebitKobo: integer("last_debit_kobo").notNull().default(0),
+	/** Part of the most recent debit paid from bonus funds (kobo, trigger-maintained). */
+	lastDebitBonusKobo: integer("last_debit_bonus_kobo").notNull().default(0),
 	createdAt: integer("created_at", { mode: "timestamp_ms" })
 		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 		.notNull(),
@@ -1112,7 +1121,10 @@ export const bonusEngineMissionProgress = sqliteTable(
 		userId: text("user_id").notNull(),
 		missionId: text("mission_id").notNull(),
 		progressPercentage: real("progress_percentage").notNull().default(0),
+		/** Set only once the reward was handled (complete callback or reconcile). */
 		completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+		/** When `/mission/progress` first reported the mission complete. */
+		engineCompletedAt: integer("engine_completed_at", { mode: "timestamp_ms" }),
 		rewardJson: text("reward_json"),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
@@ -1199,6 +1211,95 @@ export const bonusEngineUserBonus = sqliteTable(
 			columns: [table.userId, table.bonusId],
 		}),
 		index("bonus_engine_user_bonus_user_idx").on(table.userId),
+	],
+);
+
+/**
+ * Audit + idempotency ledger for every change to `wallet.bonus_balance`.
+ * `amount` is the signed change to the locked portion (kobo).
+ */
+export const bonusWalletLedger = sqliteTable(
+	"bonus_wallet_ledger",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull(),
+		amount: integer("amount").notNull(),
+		kind: text("kind").notNull(),
+		reference: text("reference").notNull().unique(),
+		bonusBalanceAfter: integer("bonus_balance_after"),
+		metadata: text("metadata"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [index("bonus_wallet_ledger_user_idx").on(table.userId)],
+);
+
+/** Bonus-funded part of a reported stake, so its result can lock winnings. */
+export const bonusStakeSplit = sqliteTable(
+	"bonus_stake_split",
+	{
+		userId: text("user_id").notNull(),
+		betRef: text("bet_ref").notNull(),
+		stakeKobo: integer("stake_kobo").notNull(),
+		bonusKobo: integer("bonus_kobo").notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		primaryKey({
+			name: "bonus_stake_split_pk",
+			columns: [table.userId, table.betRef],
+		}),
+		index("bonus_stake_split_created_idx").on(table.createdAt),
+	],
+);
+
+/** Bonus Engine reports that exhausted their inline retries. */
+export const bonusEngineOutbox = sqliteTable(
+	"bonus_engine_outbox",
+	{
+		id: text("id").primaryKey(),
+		kind: text("kind").notNull(),
+		dedupeKey: text("dedupe_key").notNull().unique(),
+		payloadJson: text("payload_json").notNull(),
+		status: text("status").notNull().default("pending"),
+		attempts: integer("attempts").notNull().default(0),
+		lastError: text("last_error"),
+		nextAttemptAt: integer("next_attempt_at", { mode: "timestamp_ms" }).notNull(),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+	},
+	(table) => [
+		index("bonus_engine_outbox_due_idx").on(table.status, table.nextAttemptAt),
+	],
+);
+
+/** One row per loyalty redemption so the reward is credited exactly once. */
+export const bonusEngineLoyaltyRedemption = sqliteTable(
+	"bonus_engine_loyalty_redemption",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull(),
+		loyaltyId: text("loyalty_id"),
+		points: integer("points").notNull(),
+		rewardType: text("reward_type").notNull(),
+		rewardKobo: integer("reward_kobo").notNull().default(0),
+		status: text("status").notNull(),
+		error: text("error"),
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("bonus_engine_loyalty_redemption_user_idx").on(table.userId),
+		index("bonus_engine_loyalty_redemption_status_idx").on(table.status),
 	],
 );
 
