@@ -190,7 +190,10 @@ loyaltyRoute.openapi(redeemRoute, async (c) => {
 	return c.json(
 		{
 			success: true as const,
-			data: result.data?.data ?? {},
+			data: {
+				...(result.data?.data ?? {}),
+				...(result.reward ? { reward: result.reward } : {}),
+			},
 			message:
 				result.data?.message ||
 				result.message ||
