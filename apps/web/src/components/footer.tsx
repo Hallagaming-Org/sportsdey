@@ -46,12 +46,15 @@ const Footer = () => {
 									setTab(item);
 									if (item === "scores") {
 										trackCategory("Home");
+										const targetSport = currentSport || "football";
 										router.navigate({
-											to: "/",
-											search: {
-												league: undefined,
-												sports: currentSport || "football",
-											} as any,
+											to:
+												targetSport === "tennis"
+													? "/tennis"
+													: targetSport === "basketball"
+														? "/basketball"
+														: "/",
+											search: { league: undefined, sports: targetSport } as any,
 										});
 									}
 

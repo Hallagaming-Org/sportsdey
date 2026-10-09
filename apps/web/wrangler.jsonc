@@ -21,7 +21,8 @@
 				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.int.databet.cloud/v2/f7078267/bootstrap.js",
 				"VITE_DATABET_SPA_BASENAME": "/",
 				"VITE_DATABET_DEFAULT_LOCALE": "en",
-				"VITE_WEBENGAGE_LICENSE_CODE": "ksa~aa13187c"
+				"VITE_WEBENGAGE_LICENSE_CODE": "ksa~aa13187c",
+				"VITE_QUIDAX_RAMP_PUBLIC_KEY": "pub_zusKzW6ZF6VcGFRSqtGRK59Xa5eAesFg"
 			},
 			"routes": [
 				{
@@ -40,7 +41,8 @@
 				"VITE_DATABET_SPA_BOOTSTRAP_SCRIPT": "https://spa.databet.cloud/v2/f7078267/bootstrap.js",
 				"VITE_DATABET_SPA_BASENAME": "/",
 				"VITE_DATABET_DEFAULT_LOCALE": "en",
-				"VITE_WEBENGAGE_LICENSE_CODE": "ksa~~71680a0c"
+				"VITE_WEBENGAGE_LICENSE_CODE": "ksa~~71680a0c",
+				"VITE_QUIDAX_RAMP_PUBLIC_KEY": "pub_zusKzW6ZF6VcGFRSqtGRK59Xa5eAesFg"
 			},
 			"routes": [
 				{

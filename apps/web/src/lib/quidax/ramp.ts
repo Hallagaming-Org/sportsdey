@@ -1,18 +1,19 @@
 import { OPENFORT_CHAIN } from "@/lib/openfort/config";
 
 /**
- * Quidax Ramp widget (client-only). Public key in web env; never put the
+ * Quidax Ramp (client-only). Public key in web env; never put the
  * Quidax private key in the web app.
  *
- * Worker + buy_transaction webhooks are intentionally not implemented.
- * Stay on the widget until we need server-issued merchant_reference rows,
- * payouts that complete after the modal closes, custom bank-account UI,
- * refund / needs_attention handling, or settlement that cannot trust
- * widget onSuccess. If that work is added later: the Worker holds the
- * private key and still must never call creditWallet / Paystack / OPay.
+ * Official ramp.js mounts an iframe to https://ramp.quidax.io. That origin
+ * answers cross-site iframes with Cloudflare Bot Fight (X-Frame-Options:
+ * SAMEORIGIN), which Chrome renders as "ramp.quidax.io refused to connect."
+ * We open the same checkout as a popup and send INITIALIZE_QUIDAX_RAMP via
+ * postMessage — the protocol ramp.js already uses after iframe load.
+ *
+ * Worker webhooks only acknowledge events. Crypto is paid on-chain to the
+ * Openfort address — never creditWallet / Paystack / OPay.
  */
-export const QUIDAX_RAMP_SCRIPT_URL =
-	"https://d309lcjd52k0i0.cloudfront.net/ramp.js";
+export const QUIDAX_RAMP_CHECKOUT_URL = "https://ramp.quidax.io";
 
 export const QUIDAX_RAMP_PUBLIC_KEY = import.meta.env
 	.VITE_QUIDAX_RAMP_PUBLIC_KEY as string | undefined;
@@ -66,75 +67,33 @@ export function createQuidaxRampReference(): string {
 	return `sd-ramp-${Date.now()}-${rand}`;
 }
 
-export type QuidaxRampInitializeOptions = {
+type QuidaxRampInitPayload = {
+	type: "INITIALIZE_QUIDAX_RAMP";
 	public_key: string;
 	reference: string;
 	from_currency: string;
 	to_currency: string;
 	from_amount?: string;
-	mode: "buy" | "sell";
-	address?: string;
+	mode: "buy";
+	address: string;
 	network: string;
-	onClose?: (ref: unknown) => void;
-	onSuccess?: (transaction: unknown) => void;
-	onReceiveWalletDetails?: (walletDetails: unknown) => void;
+	enableWalletConnect: false;
 };
 
-declare global {
-	interface Window {
-		ramp?: {
-			initialize: (options: QuidaxRampInitializeOptions) => void;
-		};
-	}
+function isQuidaxCheckoutOrigin(origin: string): boolean {
+	return origin === QUIDAX_RAMP_CHECKOUT_URL;
 }
 
-let scriptLoad: Promise<void> | null = null;
-
-export function loadQuidaxRampScript(): Promise<void> {
-	if (typeof window === "undefined") {
-		return Promise.reject(new Error("Quidax Ramp is browser-only"));
-	}
-	if (window.ramp) return Promise.resolve();
-	if (scriptLoad) return scriptLoad;
-
-	scriptLoad = new Promise((resolve, reject) => {
-		const existing = document.querySelector<HTMLScriptElement>(
-			`script[src="${QUIDAX_RAMP_SCRIPT_URL}"]`,
-		);
-		if (existing) {
-			if (window.ramp) {
-				resolve();
-				return;
-			}
-			existing.addEventListener("load", () => resolve(), { once: true });
-			existing.addEventListener(
-				"error",
-				() => reject(new Error("Failed to load Quidax Ramp")),
-				{ once: true },
-			);
-			return;
-		}
-
-		const script = document.createElement("script");
-		script.src = QUIDAX_RAMP_SCRIPT_URL;
-		script.async = true;
-		script.onload = () => resolve();
-		script.onerror = () => {
-			scriptLoad = null;
-			reject(new Error("Failed to load Quidax Ramp"));
-		};
-		document.head.appendChild(script);
-	});
-
-	return scriptLoad;
+function postRampInit(target: Window, payload: QuidaxRampInitPayload) {
+	target.postMessage(payload, QUIDAX_RAMP_CHECKOUT_URL);
 }
 
-export async function openQuidaxRampBuy(params: {
+export function openQuidaxRampBuy(params: {
 	address: string;
 	fromAmountNgn?: string;
 	onSuccess?: () => void;
 	onClose?: () => void;
-}): Promise<void> {
+}): void {
 	const check = canPassOpenfortAddressToQuidax();
 	if (!check.ok) {
 		throw new Error(check.reason);
@@ -142,13 +101,12 @@ export async function openQuidaxRampBuy(params: {
 	if (!QUIDAX_RAMP_PUBLIC_KEY) {
 		throw new Error("Missing Quidax Ramp public key");
 	}
-
-	await loadQuidaxRampScript();
-	if (!window.ramp) {
-		throw new Error("Quidax Ramp failed to initialize");
+	if (typeof window === "undefined") {
+		throw new Error("Quidax Ramp is browser-only");
 	}
 
-	window.ramp.initialize({
+	const payload: QuidaxRampInitPayload = {
+		type: "INITIALIZE_QUIDAX_RAMP",
 		public_key: QUIDAX_RAMP_PUBLIC_KEY,
 		reference: createQuidaxRampReference(),
 		from_currency: "ngn",
@@ -157,12 +115,66 @@ export async function openQuidaxRampBuy(params: {
 		mode: "buy",
 		address: params.address,
 		network: check.network,
-		onClose: () => {
-			params.onClose?.();
-		},
-		onSuccess: () => {
-			// On-chain credit is Quidax's payout to Openfort — never D1 / creditWallet.
+		enableWalletConnect: false,
+	};
+
+	// Must run in the same tick as the click. Any await here gets the popup blocked.
+	const popup = window.open(
+		QUIDAX_RAMP_CHECKOUT_URL,
+		"quidax-ramp",
+		"popup=yes,width=480,height=740,scrollbars=yes,resizable=yes",
+	);
+	if (!popup) {
+		throw new Error(
+			"Allow popups for sportsdey.com to continue Naira buy with Quidax.",
+		);
+	}
+
+	let settled = false;
+	const finish = (kind: "success" | "close") => {
+		if (settled) return;
+		settled = true;
+		window.removeEventListener("message", onMessage);
+		window.clearInterval(closedPoll);
+		window.clearInterval(initPoll);
+		if (!popup.closed) popup.close();
+		if (kind === "success") {
 			params.onSuccess?.();
-		},
-	});
+		} else {
+			params.onClose?.();
+		}
+	};
+
+	const onMessage = (event: MessageEvent) => {
+		if (!isQuidaxCheckoutOrigin(event.origin)) return;
+		const type =
+			event.data && typeof event.data === "object"
+				? (event.data as { type?: string }).type
+				: undefined;
+		if (type === "ready") {
+			window.clearInterval(initPoll);
+			postRampInit(popup, payload);
+			return;
+		}
+		if (type === "quidaxRampTransactionSuccess") {
+			finish("success");
+			return;
+		}
+		if (type === "closeQuidaxRampWidget") {
+			finish("close");
+		}
+	};
+
+	window.addEventListener("message", onMessage);
+	const initPoll = window.setInterval(() => {
+		if (popup.closed) return;
+		try {
+			postRampInit(popup, payload);
+		} catch {
+			// Popup may not be ready yet.
+		}
+	}, 800);
+	const closedPoll = window.setInterval(() => {
+		if (popup.closed) finish("close");
+	}, 400);
 }
