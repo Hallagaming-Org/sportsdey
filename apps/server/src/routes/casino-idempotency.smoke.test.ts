@@ -59,6 +59,9 @@ function createSchema(db: DatabaseSync) {
 			user_id text NOT NULL UNIQUE,
 			balance integer NOT NULL DEFAULT 0,
 			frozen_balance integer NOT NULL DEFAULT 0,
+			bonus_balance integer NOT NULL DEFAULT 0,
+			last_debit_kobo integer NOT NULL DEFAULT 0,
+			last_debit_bonus_kobo integer NOT NULL DEFAULT 0,
 			created_at integer NOT NULL DEFAULT 0,
 			updated_at integer NOT NULL DEFAULT 0
 		);
