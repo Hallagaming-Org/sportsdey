@@ -15,25 +15,26 @@ import type {
 	BonusEngineUserBonusItem,
 } from "./bonus-engine.service.type";
 import {
-	bonusEngineRequest,
 	extractBonusEngineMessage,
 	isBonusEngineJsonNotFound,
 	isBonusEngineUnhandledException,
 } from "./client";
 import { getBonusEngineConfig } from "./config";
 import { attachLiveSportsbookPaths } from "./mission-sportsbook-path";
-import { getBonusEngineWalletBalances, listBonusEngineUserBonusSnapshots } from "./persistence.service";
+import {
+	getBonusEngineWalletBalances,
+	listBonusEngineUserBonusSnapshots,
+	upsertBonusEngineUserBonus,
+} from "./persistence.service";
 import { syncBonusEnginePlayerOnAppLogin } from "./player.service";
-import { creditBonusActivation } from "./rewards.service";
-import { getBonusEngineAccessToken } from "./token.service";
+import { creditBonusActivation, forfeitCancelledBonus } from "./rewards.service";
+import { bonusEngineAuthedRequest } from "./token.service";
 
 type LocalUserBonusSnapshot = {
 	bonusId: string;
 	status: string;
 	payloadJson: string;
 };
-
-const KOBO_PER_MAJOR = 100;
 
 type BonusEngineEnvelope<T> = {
 	status?: number;
@@ -116,21 +117,6 @@ export function parseBonusActivationAmounts(
 	return {
 		bonusAmountMajor: asPositiveAmount(record.bonus_amount),
 		cashAmountMajor: asPositiveAmount(record.cash_amount),
-	};
-}
-
-/**
- * Maps `updateBonus` amount_change fields to signed kobo. Real change is
- * applied as sent. Positive bonus change is funds leaving the bonus wallet
- * (debit); negative bonus change credits it back.
- */
-export function resolveBonusStatusWalletDeltas(payload: {
-	realAmountChange: number;
-	bonusAmountChange: number;
-}): { realKobo: number; bonusKobo: number } {
-	return {
-		realKobo: toSignedKobo(payload.realAmountChange),
-		bonusKobo: -toSignedKobo(payload.bonusAmountChange),
 	};
 }
 
@@ -328,8 +314,11 @@ export async function listBonusEngineUserBonuses(payload: {
 
 /**
  * Activates a player bonus on Bonus Engine, then credits SportsDey wallets from
- * the assignment amounts. Engine wallet figures in the response are replaced
- * with SportsDey balances after credit.
+ * the assignment amounts (`bonus_amount` locked, `cash_amount` withdrawable).
+ * Engine wallet figures in the response are replaced with SportsDey balances.
+ * If the assignment was not in the player list before activation, the list is
+ * re-read afterwards; if it still is not there, the credit waits for the
+ * engine's `bonusAllocation` callback (same idempotency keys) and is logged.
  */
 export async function activateBonusEngineUserBonus(payload: {
 	env: CloudflareBindings;
@@ -337,25 +326,7 @@ export async function activateBonusEngineUserBonus(payload: {
 	userbonusId: string;
 	username?: string;
 }): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineBonusWalletData>>> {
-	const listResult = await listBonusEngineUserBonuses({
-		env: payload.env,
-		userId: payload.userId,
-		username: payload.username,
-	});
-	const bonuses = listResult.ok
-		? asRecordArray(listResult.data?.data)
-		: [];
-	const assignment = findUserBonusById({
-		bonuses,
-		userbonusId: payload.userbonusId,
-	});
-	const amounts = parseBonusActivationAmounts(assignment);
-	if (!assignment) {
-		console.warn("Bonus assignment not in player list; activate credit may skip", {
-			userId: payload.userId,
-			userbonusId: payload.userbonusId,
-		});
-	}
+	let assignment = await findPlayerAssignment(payload);
 
 	const activateResult = await signedBonusActionRequest({
 		env: payload.env,
@@ -366,6 +337,34 @@ export async function activateBonusEngineUserBonus(payload: {
 	if (!isBonusEngineActivateAccepted(activateResult)) {
 		return activateResult;
 	}
+
+	assignment ??= await findPlayerAssignment(payload);
+	const amounts = parseBonusActivationAmounts(assignment);
+	if (!assignment) {
+		console.error(
+			JSON.stringify({
+				tag: "bonus_activation_uncredited",
+				userId: payload.userId,
+				userbonusId: payload.userbonusId,
+				reason: "assignment_not_in_player_list",
+			}),
+		);
+	}
+
+	// Mark the bonus ACTIVE locally so cancel / status callbacks can tell
+	// which locked funds belong to it.
+	await upsertBonusEngineUserBonus({
+		env: payload.env,
+		userId: payload.userId,
+		bonusId: payload.userbonusId,
+		status: BONUS_ENGINE_BONUS_STATUS.ACTIVE,
+		payloadJson: JSON.stringify({
+			...(assignment ?? {}),
+			_id: payload.userbonusId,
+			status: BONUS_ENGINE_BONUS_STATUS.ACTIVE,
+			user_action: BONUS_ENGINE_USER_ACTION.ACTIVATED,
+		}),
+	});
 
 	const credit = await creditBonusActivation({
 		env: payload.env,
@@ -389,9 +388,21 @@ export async function activateBonusEngineUserBonus(payload: {
 	});
 }
 
+async function findPlayerAssignment(payload: {
+	env: CloudflareBindings;
+	userId: string;
+	userbonusId: string;
+	username?: string;
+}): Promise<BonusEngineUserBonusItem | null> {
+	const listResult = await listBonusEngineUserBonuses(payload);
+	const bonuses = listResult.ok ? asRecordArray(listResult.data?.data) : [];
+	return findUserBonusById({ bonuses, userbonusId: payload.userbonusId });
+}
+
 /**
- * Cancels a player bonus on Bonus Engine. Remaining bonus wallet is not
- * debited here — SportsDey has one shared game wallet, not per-assignment.
+ * Cancels a player bonus on Bonus Engine, then claws back its locked funds
+ * (the bonus and winnings from it). The forfeit shares its reference with the
+ * engine's CANCELLED `updateBonus`, so whichever lands first applies once.
  */
 export async function cancelBonusEngineUserBonus(payload: {
 	env: CloudflareBindings;
@@ -405,6 +416,28 @@ export async function cancelBonusEngineUserBonus(payload: {
 		userbonusId: payload.userbonusId,
 	});
 	if (!cancelResult.ok) return cancelResult;
+
+	const forfeit = await forfeitCancelledBonus({
+		env: payload.env,
+		userId: payload.userId,
+		bonusId: payload.userbonusId,
+	});
+	if (forfeit.status === "wallet_missing") {
+		console.error("Bonus cancel clawback blocked — wallet missing", {
+			userId: payload.userId,
+			userbonusId: payload.userbonusId,
+		});
+	}
+	await upsertBonusEngineUserBonus({
+		env: payload.env,
+		userId: payload.userId,
+		bonusId: payload.userbonusId,
+		status: BONUS_ENGINE_BONUS_STATUS.CANCELLED,
+		payloadJson: JSON.stringify({
+			_id: payload.userbonusId,
+			status: BONUS_ENGINE_BONUS_STATUS.CANCELLED,
+		}),
+	});
 
 	return overlaySportsDeyWalletBalances({
 		env: payload.env,
@@ -442,21 +475,12 @@ async function overlaySportsDeyWalletBalances(payload: {
 	};
 }
 
-async function signedBonusRequest<T>(payload: {
+function signedBonusRequest<T>(payload: {
 	env: CloudflareBindings;
 	path: string;
 	userId: string;
 	bonusType?: string;
 }): Promise<BonusEngineApiResult<T>> {
-	const tokenResult = await getBonusEngineAccessToken(payload.env);
-	if (!tokenResult.ok || !tokenResult.data) {
-		return {
-			ok: false,
-			status: tokenResult.status,
-			error: tokenResult.error ?? "Failed to obtain Bonus Engine access token",
-		};
-	}
-
 	const config = getBonusEngineConfig(payload.env);
 	const body = payload.bonusType
 		? buildBonusEngineListCampaignsBody({
@@ -471,36 +495,23 @@ async function signedBonusRequest<T>(payload: {
 				userId: payload.userId,
 			});
 
-	return bonusEngineRequest<T>({
+	return bonusEngineAuthedRequest<T>({
 		env: payload.env,
 		path: payload.path,
-		accessToken: tokenResult.data,
 		body,
 	});
 }
 
-async function signedBonusActionRequest(
-	payload: {
-		env: CloudflareBindings;
-		path: string;
-		userId: string;
-		userbonusId: string;
-	},
-): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineBonusWalletData>>> {
-	const tokenResult = await getBonusEngineAccessToken(payload.env);
-	if (!tokenResult.ok || !tokenResult.data) {
-		return {
-			ok: false,
-			status: tokenResult.status,
-			error: tokenResult.error ?? "Failed to obtain Bonus Engine access token",
-		};
-	}
-
+function signedBonusActionRequest(payload: {
+	env: CloudflareBindings;
+	path: string;
+	userId: string;
+	userbonusId: string;
+}): Promise<BonusEngineApiResult<BonusEngineEnvelope<BonusEngineBonusWalletData>>> {
 	const config = getBonusEngineConfig(payload.env);
-	return bonusEngineRequest({
+	return bonusEngineAuthedRequest({
 		env: payload.env,
 		path: payload.path,
-		accessToken: tokenResult.data,
 		body: buildBonusEngineUserBonusActionBody({
 			clientId: config.clientId,
 			projectId: config.projectId,
@@ -551,9 +562,4 @@ function asPositiveAmount(value: unknown): number {
 		if (Number.isFinite(parsed) && parsed > 0) return parsed;
 	}
 	return 0;
-}
-
-function toSignedKobo(amountMajor: number): number {
-	if (!Number.isFinite(amountMajor) || amountMajor === 0) return 0;
-	return Math.round(amountMajor * KOBO_PER_MAJOR);
 }

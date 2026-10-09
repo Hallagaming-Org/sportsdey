@@ -71,6 +71,46 @@ export async function verifyBonusEngineSecureDataHeader(payload: {
 }
 
 /**
+ * True when the configured callback verification key is the public half of
+ * our own merchant signing key. Callbacks are signed by Bonus Engine, so in
+ * that setup every genuine callback fails verification (413) unless the
+ * engine signs with our private key. Used to make that misconfiguration
+ * obvious in logs instead of a silent wall of 413s.
+ */
+export async function isCallbackKeyMerchantKey(payload: {
+	privateKeyPem: string;
+	callbackPublicKeyPem: string;
+}): Promise<boolean> {
+	try {
+		const privateKey = await crypto.subtle.importKey(
+			"pkcs8",
+			pemToArrayBuffer(payload.privateKeyPem),
+			{ name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+			true,
+			["sign"],
+		);
+		const jwk = (await crypto.subtle.exportKey("jwk", privateKey)) as {
+			n?: string;
+			e?: string;
+		};
+		const callbackKey = await crypto.subtle.importKey(
+			"spki",
+			pemToArrayBuffer(payload.callbackPublicKeyPem),
+			{ name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+			true,
+			["verify"],
+		);
+		const callbackJwk = (await crypto.subtle.exportKey("jwk", callbackKey)) as {
+			n?: string;
+			e?: string;
+		};
+		return Boolean(jwk.n) && jwk.n === callbackJwk.n && jwk.e === callbackJwk.e;
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Builds a stable SHA-256 hex digest for callback idempotency keys.
  */
 export async function hashBonusEngineIdempotencyKey(

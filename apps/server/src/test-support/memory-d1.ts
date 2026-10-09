@@ -1,4 +1,7 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import type { CloudflareBindings } from "../types";
+
+type D1Database = CloudflareBindings["DB"];
 
 /**
  * Minimal in-memory D1 shim over `node:sqlite` so tests can drive the real
@@ -8,7 +11,7 @@ class MemoryD1Statement {
 	constructor(
 		private readonly sqlite: DatabaseSync,
 		private readonly sql: string,
-		private readonly params: unknown[] = [],
+		private readonly params: SQLInputValue[] = [],
 		private readonly onRun?: (sql: string) => void,
 	) {}
 
@@ -16,16 +19,36 @@ class MemoryD1Statement {
 		return new MemoryD1Statement(
 			this.sqlite,
 			this.sql,
-			params.map((value) => (value === undefined ? null : value)),
+			params.map((value) =>
+				value === undefined ? null : (value as SQLInputValue),
+			),
 			this.onRun,
 		);
 	}
 
 	async all() {
+		return this.allSync();
+	}
+
+	/** Synchronous body of `all()`, so a batch can run without yielding. */
+	allSync() {
 		this.onRun?.(this.sql);
 		const statement = this.sqlite.prepare(this.sql);
+		// Like D1, writes report `meta.changes` (what batch callers inspect).
+		if (statement.columns().length === 0) {
+			const info = statement.run(...this.params);
+			return {
+				results: [] as Record<string, unknown>[],
+				success: true as const,
+				meta: { changes: Number(info.changes) },
+			};
+		}
 		const results = statement.all(...this.params) as Record<string, unknown>[];
-		return { results, success: true as const };
+		return {
+			results,
+			success: true as const,
+			meta: { changes: results.length },
+		};
 	}
 
 	async run() {
@@ -76,11 +99,24 @@ export class MemoryD1 {
 		});
 	}
 
+	/**
+	 * Like D1, a batch is one isolated transaction: any failing statement rolls
+	 * back all, and it runs without yielding so concurrent batches on this
+	 * single connection cannot interleave inside each other's savepoints.
+	 */
 	async batch(statements: MemoryD1Statement[]) {
 		const results = [];
-		for (const statement of statements) {
-			results.push(await statement.all());
+		this.sqlite.exec("SAVEPOINT memory_d1_batch");
+		try {
+			for (const statement of statements) {
+				results.push(statement.allSync());
+			}
+		} catch (error) {
+			this.sqlite.exec("ROLLBACK TO memory_d1_batch");
+			this.sqlite.exec("RELEASE memory_d1_batch");
+			throw error;
 		}
+		this.sqlite.exec("RELEASE memory_d1_batch");
 		return results;
 	}
 }

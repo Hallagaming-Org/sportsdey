@@ -9,6 +9,7 @@ import {
 	queryDynamicCollectionStatus,
 } from "@/lib/kuda/clients";
 import { trackWebengageEvent } from "@/lib/webengage";
+import { reportBonusEngineDepositInBackground } from "@/services/bonus-engine";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import { toWAT } from "@/utils";
 import type { CloudflareBindings } from "../types";
@@ -219,13 +220,24 @@ async function confirmAndCreditDeposit(env: CloudflareBindings, transactionId: s
 		}
 		const walletTransactionId = `wt_${crypto.randomUUID()}`;
 
-		await env.DB.batch([
+		const [, walletCredit] = await env.DB.batch([
 			env.DB.prepare("INSERT OR IGNORE INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, metadata, created_at) VALUES (?, ?, ?, 'credit', ?, 'pending', 'kuda', NULL, ?, ?)").bind(walletTransactionId, transaction.userId, transaction.amount, transaction.reference, JSON.stringify({ kudaReference: payload.transactionReference, accountNumberLast4: transaction.beneficiaryAccount.slice(-4) }), Date.now()),
 			env.DB.prepare("UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM wallet_transaction WHERE reference = ? AND status = 'pending')").bind(transaction.amount, transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE kuda_transactions SET status = 'success', updated_at = ? WHERE id = ?").bind(Date.now(), transaction.id),
 		]);
 
+		// Only the run whose guarded UPDATE moved money reports the deposit.
+		if ((walletCredit?.meta?.changes ?? 0) > 0) {
+			await reportBonusEngineDepositInBackground({
+				env,
+				executionCtx: undefined,
+				userId: transaction.userId,
+				amountKobo: transaction.amount,
+				transactionId: transaction.reference,
+				paymentMethod: "kuda",
+			});
+		}
 		const [walletRow] = await db
 			.select({ balance: schema.wallet.balance })
 			.from(schema.wallet)

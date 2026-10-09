@@ -49,6 +49,21 @@ export const LoyaltyRedeemSuccessSchema = z
 				total_points: z.number().optional(),
 				redeemed_points: z.number().optional(),
 				loyalty_level: z.string().optional(),
+				reward: z
+					.object({
+						redemption_id: z.string(),
+						type: z.string(),
+						amount: z.number().openapi({
+							description: "Naira credited to the main wallet (0 if none)",
+						}),
+						status: z.enum([
+							"credited",
+							"engine_fulfilled",
+							"manual_review",
+							"redeemed",
+						]),
+					})
+					.optional(),
 			})
 			.passthrough(),
 		message: z.string().optional(),

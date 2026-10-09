@@ -10,6 +10,10 @@ import {
 } from "@/lib/opay/client";
 import { verifyCallbackSignature } from "@/lib/opay/signature";
 import { trackWebengageEvent } from "@/lib/webengage";
+import {
+	optionalExecutionCtx,
+	reportBonusEngineDepositInBackground,
+} from "@/services/bonus-engine";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
 import type { CloudflareBindings } from "../types";
 
@@ -61,17 +65,29 @@ async function settleOpayTransaction(
 	transaction: { id: string; userId: string; amount: number; reference: string; status: string },
 	providerStatus: string,
 	payload?: Record<string, unknown>,
+	executionCtx?: ReturnType<typeof optionalExecutionCtx>,
 ) {
 	const status = normalizeStatus(providerStatus);
 	const callbackRecord = payload ? safeCallbackRecord(payload) : null;
 	const now = Date.now();
 
 	if (status === "success") {
-		await env.DB.batch([
+		const [walletCredit] = await env.DB.batch([
 			env.DB.prepare("UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM wallet_transaction WHERE reference = ? AND status = 'pending')").bind(transaction.amount, transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE wallet_transaction SET status = 'success', balance = (SELECT balance FROM wallet WHERE user_id = ?) WHERE reference = ? AND status = 'pending'").bind(transaction.userId, transaction.reference),
 			env.DB.prepare("UPDATE opay_transaction SET status = 'success', raw_callback_payload = COALESCE(?, raw_callback_payload), updated_at = ? WHERE id = ? AND status != 'success'").bind(callbackRecord, now, transaction.id),
 		]);
+		// Only the call whose guarded UPDATE moved money reports the deposit.
+		if ((walletCredit?.meta?.changes ?? 0) > 0) {
+			await reportBonusEngineDepositInBackground({
+				env,
+				executionCtx,
+				userId: transaction.userId,
+				amountKobo: transaction.amount,
+				transactionId: transaction.reference,
+				paymentMethod: "opay",
+			});
+		}
 		return status;
 	}
 
@@ -338,7 +354,7 @@ opayRoute.openapi(statusRoute, async (c) => {
 	if (transaction.status !== "success" && transaction.orderNo && c.env.OPAY_MERCHANT_ID && c.env.OPAY_PUBLIC_KEY && c.env.OPAY_PRIVATE_KEY) {
 		try {
 			const remote = await queryCashierOrderStatus(opayConfig(c.env), { reference, orderNo: transaction.orderNo });
-			await settleOpayTransaction(c.env, transaction, remote.status, { reference, orderNo: transaction.orderNo, status: remote.status });
+			await settleOpayTransaction(c.env, transaction, remote.status, { reference, orderNo: transaction.orderNo, status: remote.status }, optionalExecutionCtx(c));
 		} catch (error) {
 			console.error("OPay deposit reconciliation failed", { operation: "query_order_status", reason: error instanceof Error ? error.name : "UnknownError" });
 		}
@@ -432,7 +448,7 @@ opayRoute.openapi(callbackRoute, async (c) => {
 		return c.json({ success: true }, 200);
 	}
 
-	const dbStatus = await settleOpayTransaction(c.env, existingTxn, status, payload);
+	const dbStatus = await settleOpayTransaction(c.env, existingTxn, status, payload, optionalExecutionCtx(c));
 
 	if (dbStatus === "success") {
 		const [walletRow] = await db

@@ -7,6 +7,11 @@ import {
 	BONUS_ENGINE_FALLBACK_CASINO_PROVIDER,
 	BONUS_ENGINE_PRODUCT_TYPE,
 } from "./bonus-engine.service.constant";
+import {
+	captureBonusStakeSplit,
+	lockBonusShareOfResult,
+	type StakeSplit,
+} from "./bonus-stake.service";
 import { nativeCasinoProviderByGameCode } from "./casino-catalog.constant";
 import {
 	reportBonusEngineBet,
@@ -99,6 +104,8 @@ export type CasinoBetReport = {
 	gameRef?: string | null;
 	/** Provider id to report when the game is not in the D1 catalog. */
 	fallbackProviderId?: string;
+	/** Real vs bonus-funded part of the stake (kobo); defaults to all real. */
+	split?: StakeSplit;
 };
 
 /**
@@ -121,8 +128,12 @@ export async function reportCasinoBet(report: CasinoBetReport): Promise<void> {
 				betId: report.betId,
 				internalBetId: report.betId,
 				amount: report.amount,
-				realBetAmount: report.amount,
-				bonusBetAmount: 0,
+				realBetAmount: report.split
+					? casinoBetAmountFromKobo(report.split.realKobo)
+					: report.amount,
+				bonusBetAmount: report.split
+					? casinoBetAmountFromKobo(report.split.bonusKobo)
+					: 0,
 				productType: BONUS_ENGINE_PRODUCT_TYPE.CASINO,
 				currency: report.currency,
 				providerId: identity.providerId,
@@ -171,14 +182,22 @@ export function optionalExecutionCtx(
 }
 
 /**
- * Fire-and-forget wrapper for provider callbacks. Uses `waitUntil` when the
- * Worker runtime provides it so the provider gets its wallet response promptly.
+ * Wrapper for provider callbacks, called right after the stake debit. Records
+ * the bonus-funded share of the stake synchronously (it reads the debit that
+ * just happened), then reports to Bonus Engine via `waitUntil` when the Worker
+ * runtime provides it so the provider gets its wallet response promptly.
  */
 export async function reportCasinoBetInBackground(
 	report: CasinoBetReport & { executionCtx: ExecutionContext | undefined },
 ): Promise<void> {
 	const { executionCtx, ...rest } = report;
-	await runBonusEngineBackground(executionCtx, reportCasinoBet(rest));
+	const split = await captureBonusStakeSplit({
+		env: rest.env,
+		userId: rest.userId,
+		betRef: rest.betId,
+		stakeKobo: Math.round(rest.amount * 100),
+	});
+	await runBonusEngineBackground(executionCtx, reportCasinoBet({ ...rest, split }));
 }
 
 export type CasinoBetResultReport = {
@@ -191,6 +210,8 @@ export type CasinoBetResultReport = {
 	isRollback?: 0 | 1;
 	isUnsettle?: 0 | 1;
 	isResettle?: 0 | 1;
+	/** Real vs bonus share of the win/refund (kobo); defaults to all real. */
+	split?: StakeSplit;
 };
 
 export async function reportCasinoBetResult(
@@ -206,8 +227,12 @@ export async function reportCasinoBetResult(
 				betId: report.betId,
 				internalBetId: report.betId,
 				totalWinAmount: report.totalWinAmount,
-				realWinAmount: report.totalWinAmount,
-				bonusWinAmount: 0,
+				realWinAmount: report.split
+					? casinoBetAmountFromKobo(report.split.realKobo)
+					: report.totalWinAmount,
+				bonusWinAmount: report.split
+					? casinoBetAmountFromKobo(report.split.bonusKobo)
+					: 0,
 				isWin,
 				isResettle: report.isResettle ?? 0,
 				isUnsettle: report.isUnsettle ?? 0,
@@ -231,11 +256,35 @@ export async function reportCasinoBetResult(
 	}
 }
 
+/**
+ * Wrapper for provider win / refund callbacks, called right after the credit.
+ * Locks the bonus-funded share synchronously so it is never withdrawable even
+ * briefly, then reports to Bonus Engine in the background.
+ */
 export async function reportCasinoBetResultInBackground(
 	report: CasinoBetResultReport & {
 		executionCtx: ExecutionContext | undefined;
 	},
 ): Promise<void> {
 	const { executionCtx, ...rest } = report;
-	await runBonusEngineBackground(executionCtx, reportCasinoBetResult(rest));
+	// An unsettle takes a win back; nothing new to lock.
+	const split = rest.isUnsettle
+		? undefined
+		: await lockBonusShareOfResult({
+				env: rest.env,
+				userId: rest.userId,
+				betRef: rest.betId,
+				resultRef: `${rest.betId}:${resultKind(rest)}`,
+				amountKobo: Math.round(rest.totalWinAmount * 100),
+			});
+	await runBonusEngineBackground(
+		executionCtx,
+		reportCasinoBetResult({ ...rest, split }),
+	);
+}
+
+function resultKind(report: CasinoBetResultReport): string {
+	if (report.isRollback) return "rollback";
+	if (report.isResettle) return "resettle";
+	return "result";
 }

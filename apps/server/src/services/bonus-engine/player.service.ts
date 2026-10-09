@@ -5,10 +5,9 @@ import type {
 	BonusEngineApiResult,
 	BonusEngineLoginInput,
 } from "./bonus-engine.service.type";
-import { bonusEngineRequest } from "./client";
 import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
 import { getBonusEngineWalletBalances } from "./persistence.service";
-import { getBonusEngineAccessToken } from "./token.service";
+import { bonusEngineAuthedRequest } from "./token.service";
 
 /**
  * Syncs a SportsDey player through Bonus Engine `POST /login`.
@@ -20,22 +19,12 @@ export async function loginBonusEnginePlayer(payload: {
 	env: CloudflareBindings;
 	player: BonusEngineLoginInput;
 }): Promise<BonusEngineApiResult<unknown>> {
-	const tokenResult = await getBonusEngineAccessToken(payload.env);
-	if (!tokenResult.ok || !tokenResult.data) {
-		return {
-			ok: false,
-			status: tokenResult.status,
-			error: tokenResult.error ?? "Failed to obtain Bonus Engine access token",
-		};
-	}
-
 	const config = getBonusEngineConfig(payload.env);
 	const player = payload.player;
 
-	return bonusEngineRequest({
+	return bonusEngineAuthedRequest({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.LOGIN,
-		accessToken: tokenResult.data,
 		body: {
 			client_id: config.clientId,
 			project_id: config.projectId,

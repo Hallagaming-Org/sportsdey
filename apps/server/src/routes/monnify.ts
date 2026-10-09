@@ -2,7 +2,8 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { debitWallet } from "@/db/atomic-wallet";
+import { debitWithdrawableWallet } from "@/db/atomic-wallet";
+import { walletFundsFromRow } from "@/db/bonus-wallet";
 import {
 	MonnifyBillerSchema,
 	MonnifyCategorySchema,
@@ -421,7 +422,8 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 
 	const amountInKobo = amount * 100;
 
-	if (wallet.balance < amountInKobo) {
+	// Bills are cash leaving the platform: locked bonus funds cannot pay them.
+	if (walletFundsFromRow(wallet).withdrawableKobo < amountInKobo) {
 		return c.json(
 			{
 				success: false as const,
@@ -537,7 +539,7 @@ monnifyRoute.openapi(vendRoute, async (c) => {
 		.where(eq(schema.utilityTransaction.id, transactionId));
 
 	if (status === "success") {
-		const updatedWallet = await debitWallet(db, userId, amountInKobo);
+		const updatedWallet = await debitWithdrawableWallet(db, userId, amountInKobo);
 		if (!updatedWallet) {
 			await db
 				.update(schema.utilityTransaction)

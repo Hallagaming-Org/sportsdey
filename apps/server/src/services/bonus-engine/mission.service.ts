@@ -1,17 +1,21 @@
 import type { CloudflareBindings } from "../../types";
-import { BONUS_ENGINE_PATH } from "./bonus-engine.service.constant";
+import {
+	BONUS_ENGINE_MISSION_RECONCILE_GRACE_MS,
+	BONUS_ENGINE_PATH,
+} from "./bonus-engine.service.constant";
 import type {
 	BonusEngineApiResult,
 	BonusEngineMissionListItem,
 } from "./bonus-engine.service.type";
-import { bonusEngineRequest } from "./client";
-import { getBonusEngineConfig } from "./config";
+import { getBonusEngineConfig, isBonusEngineConfigured } from "./config";
 import { attachLiveSportsbookPaths } from "./mission-sportsbook-path";
 import {
 	listBonusEngineMissionProgressForUser,
+	listMissionsAwaitingReward,
 	upsertBonusEngineMissionProgress,
 } from "./persistence.service";
-import { getBonusEngineAccessToken } from "./token.service";
+import { creditMissionReward } from "./rewards.service";
+import { bonusEngineAuthedRequest } from "./token.service";
 
 type BonusEngineMissionListEnvelope = {
 	status?: number;
@@ -23,6 +27,7 @@ type LocalMissionProgress = {
 	missionId: string;
 	progressPercentage: number;
 	completedAt: Date | null;
+	engineCompletedAt?: Date | null;
 	rewardJson: string | null;
 };
 
@@ -33,6 +38,16 @@ export type BonusEngineMissionProgressView = {
 	progressTarget: number;
 	completed: boolean;
 };
+
+/**
+ * `reward_status` on a completed mission: `credited` once the reward was
+ * handled (complete callback or reconciliation), `pending` while the engine
+ * says complete but the reward has not landed yet.
+ */
+export const MISSION_REWARD_STATUS = {
+	CREDITED: "credited",
+	PENDING: "pending",
+} as const;
 
 export function mergeMissionListWithLocalProgress(payload: {
 	missions: BonusEngineMissionListItem[];
@@ -55,33 +70,13 @@ export async function listBonusEngineMissions(payload: {
 	env: CloudflareBindings;
 	userId: string;
 }): Promise<BonusEngineApiResult<BonusEngineMissionListEnvelope>> {
-	const tokenResult = await getBonusEngineAccessToken(payload.env);
-	if (!tokenResult.ok || !tokenResult.data) {
-		return {
-			ok: false,
-			status: tokenResult.status,
-			error: tokenResult.error ?? "Failed to obtain Bonus Engine access token",
-		};
-	}
-
-	const config = getBonusEngineConfig(payload.env);
-	const result = await bonusEngineRequest<BonusEngineMissionListEnvelope>({
-		env: payload.env,
-		path: BONUS_ENGINE_PATH.MISSION_LIST,
-		accessToken: tokenResult.data,
-		body: {
-			client_id: config.clientId,
-			project_id: config.projectId,
-			user_id: payload.userId,
-		},
-	});
+	const result = await fetchMissionList(payload);
 	if (!result.ok) return result;
 
 	const missions = Array.isArray(result.data?.data) ? result.data.data : [];
 	const withEngineProgress = await attachEngineMissionProgress({
 		env: payload.env,
 		userId: payload.userId,
-		accessToken: tokenResult.data,
 		missions,
 	});
 	const withSportsbookPaths = await attachLiveSportsbookPaths({
@@ -106,20 +101,7 @@ export async function refreshBonusEngineMissionProgressForUser(payload: {
 	userId: string;
 }): Promise<void> {
 	try {
-		const tokenResult = await getBonusEngineAccessToken(payload.env);
-		if (!tokenResult.ok || !tokenResult.data) return;
-
-		const config = getBonusEngineConfig(payload.env);
-		const listResult = await bonusEngineRequest<BonusEngineMissionListEnvelope>({
-			env: payload.env,
-			path: BONUS_ENGINE_PATH.MISSION_LIST,
-			accessToken: tokenResult.data,
-			body: {
-				client_id: config.clientId,
-				project_id: config.projectId,
-				user_id: payload.userId,
-			},
-		});
+		const listResult = await fetchMissionList(payload);
 		if (!listResult.ok) return;
 
 		const missions = Array.isArray(listResult.data?.data)
@@ -128,7 +110,6 @@ export async function refreshBonusEngineMissionProgressForUser(payload: {
 		await attachEngineMissionProgress({
 			env: payload.env,
 			userId: payload.userId,
-			accessToken: tokenResult.data,
 			missions,
 		});
 	} catch (error) {
@@ -137,6 +118,148 @@ export async function refreshBonusEngineMissionProgressForUser(payload: {
 			error,
 		});
 	}
+}
+
+function fetchMissionList(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<BonusEngineApiResult<BonusEngineMissionListEnvelope>> {
+	const config = getBonusEngineConfig(payload.env);
+	return bonusEngineAuthedRequest<BonusEngineMissionListEnvelope>({
+		env: payload.env,
+		path: BONUS_ENGINE_PATH.MISSION_LIST,
+		body: {
+			client_id: config.clientId,
+			project_id: config.projectId,
+			user_id: payload.userId,
+		},
+	});
+}
+
+/**
+ * Reward entries a mission definition advertises, from
+ * `mission_triggers[].parameters.rewards[]` (and top-level `reward(s)`).
+ */
+export function missionRewardDefinitions(
+	mission: BonusEngineMissionListItem,
+): Array<{ type: string; amount: number }> {
+	const entries: Array<{ type: string; amount: number }> = [];
+	const pushReward = (value: unknown) => {
+		const row = asRecord(value);
+		if (!row) return;
+		const type = typeof row.type === "string" ? row.type.trim() : "";
+		const amount = asProgressNumber(row.amount ?? row.value);
+		if (type && amount > 0) entries.push({ type, amount });
+	};
+
+	const triggers = Array.isArray(mission.mission_triggers)
+		? mission.mission_triggers
+		: Array.isArray(mission.triggers)
+			? mission.triggers
+			: [];
+	for (const trigger of triggers) {
+		const parameters = asRecord(asRecord(trigger)?.parameters);
+		const rewards = Array.isArray(parameters?.rewards)
+			? parameters.rewards
+			: [];
+		rewards.forEach(pushReward);
+	}
+	if (entries.length === 0) {
+		const topLevel = Array.isArray(mission.rewards)
+			? mission.rewards
+			: [mission.reward];
+		topLevel.forEach(pushReward);
+	}
+	return entries;
+}
+
+/**
+ * Safety net for a lost `mission/complete` callback. For missions the engine
+ * reported complete more than the grace window ago with no reward handled,
+ * re-reads the mission definition and grants its reward under the same
+ * reference the callback uses, so the two paths can never both pay. Only an
+ * unambiguous single reward is granted; anything else is flagged for ops.
+ */
+export async function reconcileMissionRewards(
+	env: CloudflareBindings,
+	options?: { now?: Date; limit?: number },
+): Promise<{ reconciled: number; manualReview: number }> {
+	const stats = { reconciled: 0, manualReview: 0 };
+	if (!isBonusEngineConfigured(env)) return stats;
+
+	const now = options?.now ?? new Date();
+	const pending = await listMissionsAwaitingReward({
+		env,
+		olderThan: new Date(
+			now.getTime() - BONUS_ENGINE_MISSION_RECONCILE_GRACE_MS,
+		),
+		limit: options?.limit ?? 25,
+	});
+
+	const byUser = new Map<string, string[]>();
+	for (const row of pending) {
+		byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row.missionId]);
+	}
+
+	for (const [userId, missionIds] of byUser) {
+		const listResult = await fetchMissionList({ env, userId });
+		if (!listResult.ok) continue;
+		const missions = Array.isArray(listResult.data?.data)
+			? listResult.data.data
+			: [];
+		const byId = new Map(
+			missions.map((mission) => [missionListItemId(mission), mission]),
+		);
+
+		for (const missionId of missionIds) {
+			const mission = byId.get(missionId);
+			const rewards = mission ? missionRewardDefinitions(mission) : [];
+			if (rewards.length !== 1) {
+				console.error(
+					JSON.stringify({
+						tag: "bonus_engine_mission_reward_manual_review",
+						userId,
+						missionId,
+						reason: mission
+							? "ambiguous_or_missing_rewards"
+							: "mission_not_listed",
+						rewards,
+					}),
+				);
+				await upsertBonusEngineMissionProgress({
+					env,
+					userId,
+					missionId,
+					progressPercentage: 100,
+					completedAt: now,
+					rewardJson: JSON.stringify({
+						reconcile: "manual_review",
+						rewards,
+					}),
+				});
+				stats.manualReview += 1;
+				continue;
+			}
+
+			const credit = await creditMissionReward({
+				env,
+				userId,
+				missionId,
+				reward: rewards,
+			});
+			if (credit.status === "wallet_missing") continue;
+			await upsertBonusEngineMissionProgress({
+				env,
+				userId,
+				missionId,
+				progressPercentage: 100,
+				completedAt: now,
+				rewardJson: JSON.stringify({ ...rewards[0], reconciled: true }),
+			});
+			stats.reconciled += 1;
+		}
+	}
+	return stats;
 }
 
 export function parseBonusEngineMissionProgress(payload: {
@@ -196,9 +319,7 @@ export function parseBonusEngineMissionProgress(payload: {
 		progressCurrent = (progressPercentage / 100) * progressTarget;
 	}
 
-	const status = String(
-		data.mission_status ?? data.status ?? "",
-	).toUpperCase();
+	const status = String(data.mission_status ?? data.status ?? "").toUpperCase();
 	const completed =
 		status === "COMPLETED" ||
 		status === "COMPLETE" ||
@@ -216,7 +337,6 @@ export function parseBonusEngineMissionProgress(payload: {
 async function attachEngineMissionProgress(payload: {
 	env: CloudflareBindings;
 	userId: string;
-	accessToken: string;
 	missions: BonusEngineMissionListItem[];
 }): Promise<BonusEngineMissionListItem[]> {
 	if (payload.missions.length === 0) return payload.missions;
@@ -227,10 +347,9 @@ async function attachEngineMissionProgress(payload: {
 			const missionId = missionListItemId(mission);
 			if (!missionId) return { mission, view: null };
 			try {
-				const result = await bonusEngineRequest({
+				const result = await bonusEngineAuthedRequest({
 					env: payload.env,
 					path: BONUS_ENGINE_PATH.MISSION_PROGRESS,
-					accessToken: payload.accessToken,
 					body: {
 						client_id: config.clientId,
 						project_id: config.projectId,
@@ -243,12 +362,14 @@ async function attachEngineMissionProgress(payload: {
 					missionId,
 					body: result.data,
 				});
+				// Polling only records that the engine sees the mission done;
+				// `completedAt` (reward handled) is the complete callback's job.
 				await upsertBonusEngineMissionProgress({
 					env: payload.env,
 					userId: payload.userId,
 					missionId,
 					progressPercentage: view.progressPercentage,
-					completedAt: view.completed ? new Date() : null,
+					engineCompletedAt: view.completed ? new Date() : null,
 				});
 				return { mission, view };
 			} catch (error) {
@@ -262,24 +383,22 @@ async function attachEngineMissionProgress(payload: {
 		}),
 	);
 
-	const missing = views.some((entry) => entry.view === null);
-	const local = missing
-		? await listBonusEngineMissionProgressForUser({
-				env: payload.env,
-				userId: payload.userId,
-			})
-		: [];
+	const local = await listBonusEngineMissionProgressForUser({
+		env: payload.env,
+		userId: payload.userId,
+	});
 	const localById = new Map(local.map((row) => [row.missionId, row]));
 
 	return views.map((entry) => {
+		const missionId = missionListItemId(entry.mission);
+		const snapshot = missionId ? localById.get(missionId) : undefined;
 		if (entry.view) {
 			return overlayEngineProgress({
 				mission: entry.mission,
 				view: entry.view,
+				rewardHandled: Boolean(snapshot?.completedAt),
 			});
 		}
-		const missionId = missionListItemId(entry.mission);
-		const snapshot = missionId ? localById.get(missionId) : undefined;
 		if (!snapshot) return entry.mission;
 		return overlayMissionProgress({
 			mission: entry.mission,
@@ -291,6 +410,7 @@ async function attachEngineMissionProgress(payload: {
 function overlayEngineProgress(payload: {
 	mission: BonusEngineMissionListItem;
 	view: BonusEngineMissionProgressView;
+	rewardHandled: boolean;
 }): BonusEngineMissionListItem {
 	return {
 		...payload.mission,
@@ -300,7 +420,13 @@ function overlayEngineProgress(payload: {
 		progress_target: payload.view.progressTarget,
 		target: payload.view.progressTarget,
 		...(payload.view.completed
-			? { mission_status: "COMPLETED", progress_percentage: 100 }
+			? {
+					mission_status: "COMPLETED",
+					progress_percentage: 100,
+					reward_status: payload.rewardHandled
+						? MISSION_REWARD_STATUS.CREDITED
+						: MISSION_REWARD_STATUS.PENDING,
+				}
 			: {}),
 	};
 }
@@ -326,7 +452,13 @@ function overlayMissionProgress(payload: {
 			? { reward: parseRewardJson(payload.snapshot.rewardJson) }
 			: {}),
 		...(completed
-			? { mission_status: "COMPLETED", progress_percentage: 100 }
+			? {
+					mission_status: "COMPLETED",
+					progress_percentage: 100,
+					reward_status: payload.snapshot.completedAt
+						? MISSION_REWARD_STATUS.CREDITED
+						: MISSION_REWARD_STATUS.PENDING,
+				}
 			: {}),
 	};
 }

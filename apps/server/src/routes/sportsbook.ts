@@ -40,10 +40,13 @@ import {
 import {
 	BONUS_ENGINE_DEFAULT_CURRENCY,
 	BONUS_ENGINE_PRODUCT_TYPE,
+	captureBonusStakeSplit,
 	extractSportsbookBetReportIds,
+	lockBonusShareOfResult,
 	reportBonusEngineBet,
 	reportBonusEngineBetResult,
 	runBonusEngineBackground,
+	type StakeSplit,
 } from "@/services/bonus-engine";
 import {
 	ACCUMULATOR_MAX_SELECTIONS,
@@ -84,6 +87,27 @@ const SPORT_IDS: Record<"Football" | "Basketball" | "Tennis", string> = {
 	Basketball: "basketball",
 	Tennis: "tennis",
 };
+
+/**
+ * Locks the bonus-funded share of a sportsbook payout. Sportsbook results
+ * always carry the bet id, so only the split recorded at accept is used.
+ */
+function lockSportsbookBonusShare(payload: {
+	env: CloudflareBindings;
+	userId: string;
+	betId: string;
+	resultRef: string;
+	amountKobo: number;
+}): Promise<StakeSplit> {
+	return lockBonusShareOfResult({
+		env: payload.env,
+		userId: payload.userId,
+		betRef: payload.betId,
+		resultRef: payload.resultRef,
+		amountKobo: payload.amountKobo,
+		allowLatestDebitFallback: false,
+	});
+}
 
 const sportsbookRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -931,6 +955,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 
 	const balanceBefore = wallet.balance;
 	balAfter = balanceBefore;
+	let stakeSplit: StakeSplit | undefined;
 
 	if (!bet.betFreebetId) {
 		const walletUpdate = await db
@@ -967,6 +992,14 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 		stakeMoved = true;
 		const newBalance = walletUpdate[0]!.balance;
 		balAfter = newBalance;
+		// Real cash is spent first; remember how much of this stake was bonus
+		// funds so the settle can lock the same share of any winnings.
+		stakeSplit = await captureBonusStakeSplit({
+			env: c.env,
+			userId: bet.userId,
+			betRef: result.data.bet_id,
+			stakeKobo: bet.stake,
+		});
 
 		const [walletTxn] = await db
 			.insert(schema.walletTransaction)
@@ -1122,8 +1155,8 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 				betId: result.data.bet_id,
 				internalBetId: result.data.bet_id,
 				amount: stakeMajor,
-				realBetAmount: stakeMajor,
-				bonusBetAmount: 0,
+				realBetAmount: stakeSplit ? stakeSplit.realKobo / 100 : stakeMajor,
+				bonusBetAmount: stakeSplit ? stakeSplit.bonusKobo / 100 : 0,
 				productType: BONUS_ENGINE_PRODUCT_TYPE.SPORTSBOOK,
 				currency: BONUS_ENGINE_DEFAULT_CURRENCY,
 				...(reportIds.sportId ? { sportId: reportIds.sportId } : {}),
@@ -1335,6 +1368,13 @@ sportsbookRoute.openapi(betDeclineRoute, async (c) => {
 					400,
 				);
 			}
+			await lockSportsbookBonusShare({
+				env: c.env,
+				userId: bet.userId,
+				betId: result.data.bet_id,
+				resultRef: `${result.data.bet_id}:decline:${result.data.request_id}`,
+				amountKobo: bet.stake,
+			});
 
 			const [walletTxn] = await db
 				.insert(schema.walletTransaction)
@@ -1749,6 +1789,17 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 
 	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
 
+	// Winnings / refund of a bonus-funded stake stay locked in proportion.
+	const settleSplit = shouldCredit
+		? await lockSportsbookBonusShare({
+				env: c.env,
+				userId: bet.userId,
+				betId: result.data.bet_id,
+				resultRef: `${result.data.bet_id}:settle:${result.data.request_id}`,
+				amountKobo: settleAmount,
+			})
+		: undefined;
+
 	const settleReport = reportBonusEngineBetResult({
 		env: c.env,
 		result: {
@@ -1756,6 +1807,12 @@ sportsbookRoute.openapi(betSettleRoute, async (c) => {
 			betId: result.data.bet_id,
 			internalBetId: result.data.bet_id,
 			totalWinAmount: settleAmount / 100,
+			...(settleSplit
+				? {
+						realWinAmount: settleSplit.realKobo / 100,
+						bonusWinAmount: settleSplit.bonusKobo / 100,
+					}
+				: {}),
 			isWin: settleType === 1 ? 1 : 0,
 			isRollback: settleType === 2 ? 1 : 0,
 		},
@@ -2360,6 +2417,16 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 	scheduleWebengageUserProfileSync(c.env, bet.userId, c.executionCtx);
 
 	const cashoutWinAmount = refundAmountKobo / 100;
+	const cashoutSplit =
+		refundAmountKobo > 0
+			? await lockSportsbookBonusShare({
+					env: c.env,
+					userId: bet.userId,
+					betId: result.data.bet_id,
+					resultRef: `${result.data.bet_id}:cashout:${result.data.request_id}`,
+					amountKobo: refundAmountKobo,
+				})
+			: undefined;
 	const cashoutReport = reportBonusEngineBetResult({
 		env: c.env,
 		result: {
@@ -2367,6 +2434,12 @@ sportsbookRoute.openapi(cashOutAcceptedRoute, async (c) => {
 			betId: result.data.bet_id,
 			internalBetId: result.data.bet_id,
 			totalWinAmount: cashoutWinAmount,
+			...(cashoutSplit
+				? {
+						realWinAmount: cashoutSplit.realKobo / 100,
+						bonusWinAmount: cashoutSplit.bonusKobo / 100,
+					}
+				: {}),
 			isWin: cashoutWinAmount > 0 ? 1 : 0,
 		},
 	})

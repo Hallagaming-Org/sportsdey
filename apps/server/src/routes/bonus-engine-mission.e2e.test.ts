@@ -17,6 +17,7 @@ import {
 	BONUS_ENGINE_NATIVE_PROVIDER_ID,
 	mergeMissionListWithLocalProgress,
 } from "@/services/bonus-engine";
+import { applyBonusWalletMigration } from "../test-support/bonus-wallet-schema";
 import { createMemoryD1 } from "../test-support/memory-d1";
 import bonusEngineCallbackRoute from "./bonus-engine-callbacks";
 import pocketsRoute from "./pockets";
@@ -161,6 +162,8 @@ function createSchema(db: DatabaseSync) {
 			PRIMARY KEY (user_id, mission_id)
 		);
 	`);
+
+	applyBonusWalletMigration(db);
 
 	db.prepare(
 		"INSERT INTO user (id, name, email, email_verified) VALUES (?, ?, ?, 1)",
@@ -465,6 +468,39 @@ describe("mission progress end-to-end (real handlers, stubbed engine)", () => {
 		assert.equal(betReports[0]?.game_id, SLOTEGRATOR_GAME_UUID);
 		// Slotegrator already speaks major units.
 		assert.equal(betReports[0]?.real_bet_amount, 75.5);
+	});
+
+	it("reports a Slotegrator bet and its win exactly once each", async () => {
+		const round = {
+			player_id: USER_ID,
+			currency: "NGN",
+			game_uuid: SLOTEGRATOR_GAME_UUID,
+			session_id: "slotegrator-e2e-session",
+			round_id: "slotegrator-e2e-round-1",
+		};
+		const bet = await postSlotegratorBet({
+			...round,
+			action: "bet",
+			amount: "20",
+			transaction_id: "slotegrator-e2e-round-bet",
+			type: "bet",
+		});
+		assert.equal(bet.status, 200, await bet.text());
+		const win = await postSlotegratorBet({
+			...round,
+			action: "win",
+			amount: "50",
+			transaction_id: "slotegrator-e2e-round-win",
+			type: "win",
+		});
+		assert.equal(win.status, 200, await win.text());
+
+		// Regression: both callbacks used to report twice, double-counting
+		// mission, tournament and wagering progress for every spin.
+		assert.equal(betReports.length, 1);
+		assert.equal(betResultReports.length, 1);
+		assert.equal(betResultReports[0]?.total_win_amount, 50);
+		assert.equal(walletBalance(), START_KOBO - 2_000 + 5_000);
 	});
 
 	it("reports a bet for a game missing from the catalog, not silently dropping it", async () => {
