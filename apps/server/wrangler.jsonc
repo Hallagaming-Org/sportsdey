@@ -63,7 +63,7 @@
 				"CORS_ORIGIN": "https://stagingweb.sportsdey.com",
 				"COOKIE_DOMAIN": "sportsdey.com",
 				"LUCKYWORLDGAMES_LAUNCH_URL": "https://play.luckyworldgames.com/launch",
-				"SWIPEGAMES_ENV": "production",
+				"SWIPEGAMES_ENV": "staging",
 				"SWIPEGAMES_ALLOWED_IPS": "18.185.156.20",
 				"HELLODUTY_ALLOWED_IPS": "134.199.188.102"
 			}

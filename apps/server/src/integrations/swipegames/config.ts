@@ -65,6 +65,23 @@ export function pickSwipeGamesProxyUrl(
 	return origin || fallback;
 }
 
+/** Nginx location names on proxy.sportsdey.com. */
+export function swipeGamesProxyMount(envName: SwipeGamesEnvName): string {
+	return envName === "production" ? "swipegames" : "swipegames-staging";
+}
+
+/**
+ * Outbound Core API origin. Nginx `proxy_pass`s `/swipegames-staging/` to the
+ * Swipe host root, which drops `/api/v1` unless we send it on this hop.
+ */
+export function swipeGamesOutboundBase(
+	config: Pick<SwipeGamesConfig, "baseUrl" | "env" | "proxyUrl">,
+	viaProxy: boolean,
+): string {
+	if (!viaProxy || !config.proxyUrl) return config.baseUrl;
+	return `${config.proxyUrl}/${swipeGamesProxyMount(config.env)}/api/v1`;
+}
+
 function parseAllowedIps(raw?: string): string[] {
 	if (!raw?.trim()) return [];
 	return raw

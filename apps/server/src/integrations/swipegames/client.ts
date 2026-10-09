@@ -1,4 +1,4 @@
-import type { SwipeGamesConfig } from "./config";
+import { swipeGamesOutboundBase, type SwipeGamesConfig } from "./config";
 import { signCanonicalPayload } from "./sign";
 import type {
 	CoreErrorResponse,
@@ -99,25 +99,14 @@ export class SwipeGamesClient {
 		if (options?.additionalCurrencies) {
 			query.additionalCurrencies = options.additionalCurrencies;
 		}
-		try {
-			return await this.get("/games", query, {
-				timeoutMs: 8_000,
-				acceptGzip: true,
-				skipProxy: true,
-			});
-		} catch (error) {
-			console.error("Swipe Games direct catalog miss, retrying via proxy", {
-				message: error instanceof Error ? error.message : String(error),
-				status:
-					error instanceof SwipeGamesApiError ? error.status : undefined,
-			});
-			return this.get("/games", query, {
-				timeoutMs: 55_000,
-				// Do not set Accept-Encoding on the Worker→proxy hop. Workers then
-				// auto-decompress; setting gzip made the catalog 403 / unreadable JSON.
-				acceptGzip: false,
-			});
-		}
+		// Cloudflare IPs are not allowlisted; Swipe 403s anything that does not
+		// come from proxy.sportsdey.com (143.198.145.62). Never skip the proxy.
+		return this.get("/games", query, {
+			timeoutMs: 55_000,
+			// Do not set Accept-Encoding on the Worker→proxy hop. Workers then
+			// auto-decompress; setting gzip made the catalog unreadable JSON.
+			acceptGzip: false,
+		});
 	}
 
 	async createFreeRounds(
@@ -168,13 +157,12 @@ export class SwipeGamesClient {
 	private async get<T>(
 		path: string,
 		query: Record<string, string>,
-		options?: { acceptGzip?: boolean; timeoutMs?: number; skipProxy?: boolean },
+		options?: { acceptGzip?: boolean; timeoutMs?: number },
 	): Promise<T> {
 		return this.request<T>("GET", path, {
 			query,
 			acceptGzip: options?.acceptGzip,
 			timeoutMs: options?.timeoutMs,
-			skipProxy: options?.skipProxy,
 		});
 	}
 
@@ -214,7 +202,6 @@ export class SwipeGamesClient {
 			body?: unknown;
 			acceptGzip?: boolean;
 			timeoutMs?: number;
-			skipProxy?: boolean;
 		},
 	): Promise<T> {
 		const signPayload =
@@ -223,13 +210,12 @@ export class SwipeGamesClient {
 			this.config.apiKey,
 			signPayload,
 		);
-		const viaProxy =
-			!options.skipProxy &&
-			Boolean(this.config.proxyUrl && this.config.proxySecret);
-		const requestBase = viaProxy
-			? `${this.config.proxyUrl}/${this.config.env === "production" ? "swipegames" : "swipegames-staging"}`
-			: this.config.baseUrl;
-		const url = joinUrl(requestBase, path, options.query);
+		const viaProxy = Boolean(this.config.proxyUrl && this.config.proxySecret);
+		const url = joinUrl(
+			swipeGamesOutboundBase(this.config, viaProxy),
+			path,
+			options.query,
+		);
 		const headers: Record<string, string> = {
 			"X-REQUEST-SIGN": signature,
 			Accept: "application/json",
@@ -258,29 +244,6 @@ export class SwipeGamesClient {
 				options.body !== undefined ? canonicalJSON : undefined,
 				controller.signal,
 			);
-			if (
-				!response.ok &&
-				viaProxy &&
-				(response.status === 502 ||
-					response.status === 503 ||
-					response.status === 504)
-			) {
-				console.error("Swipe Games proxy miss, retrying Swipe host", {
-					status: response.status,
-					path,
-					env: this.config.env,
-				});
-				const directHeaders = { ...headers };
-				delete directHeaders["X-Proxy-Auth"];
-				const direct = await this.fetchSigned(
-					joinUrl(this.config.baseUrl, path, options.query),
-					method,
-					directHeaders,
-					options.body !== undefined ? canonicalJSON : undefined,
-					controller.signal,
-				);
-				return this.readResponse<T>(direct, method);
-			}
 			return this.readResponse<T>(response, method);
 		} finally {
 			clearTimeout(timeout);
