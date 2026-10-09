@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
+import { walletFundsFromRow } from "../../db/bonus-wallet";
 import * as schema from "../../db/schema";
+import { isUniqueConstraintError } from "../casino-settlement";
 import type { CloudflareBindings } from "../../types";
 import { hashBonusEngineIdempotencyKey } from "./crypto";
 
@@ -36,8 +38,13 @@ export async function recordBonusEngineCallbackEvent(payload: {
 			payloadJson: payload.bodyJson,
 		});
 		return { isNew: true, idempotencyKey };
-	} catch {
-		return { isNew: false, idempotencyKey };
+	} catch (error) {
+		// Only a concurrent identical delivery counts as a duplicate; any other
+		// failure must surface so the engine retries instead of getting a 200.
+		if (isUniqueConstraintError(error)) {
+			return { isNew: false, idempotencyKey };
+		}
+		throw error;
 	}
 }
 
@@ -79,6 +86,7 @@ export async function listBonusEngineMissionProgressForUser(payload: {
 		missionId: string;
 		progressPercentage: number;
 		completedAt: Date | null;
+		engineCompletedAt: Date | null;
 		rewardJson: string | null;
 	}>
 > {
@@ -90,16 +98,23 @@ export async function listBonusEngineMissionProgressForUser(payload: {
 		missionId: row.missionId,
 		progressPercentage: row.progressPercentage,
 		completedAt: row.completedAt ?? null,
+		engineCompletedAt: row.engineCompletedAt ?? null,
 		rewardJson: row.rewardJson ?? null,
 	}));
 }
 
+/**
+ * Upserts a mission snapshot. Progress only moves forward. `completedAt`
+ * means "reward handled" and is only ever set by the complete callback or
+ * reconciliation; `engineCompletedAt` records when polling first saw 100%.
+ */
 export async function upsertBonusEngineMissionProgress(payload: {
 	env: CloudflareBindings;
 	userId: string;
 	missionId: string;
 	progressPercentage: number;
 	completedAt?: Date | null;
+	engineCompletedAt?: Date | null;
 	rewardJson?: string | null;
 }): Promise<void> {
 	const db = createBonusEngineDb(payload.env);
@@ -121,7 +136,9 @@ export async function upsertBonusEngineMissionProgress(payload: {
 			.update(schema.bonusEngineMissionProgress)
 			.set({
 				progressPercentage: nextPercentage,
-				completedAt: payload.completedAt ?? existing.completedAt,
+				completedAt: existing.completedAt ?? payload.completedAt ?? null,
+				engineCompletedAt:
+					existing.engineCompletedAt ?? payload.engineCompletedAt ?? null,
 				rewardJson: payload.rewardJson ?? existing.rewardJson,
 				updatedAt: new Date(),
 			})
@@ -134,8 +151,32 @@ export async function upsertBonusEngineMissionProgress(payload: {
 		missionId: payload.missionId,
 		progressPercentage: payload.progressPercentage,
 		completedAt: payload.completedAt ?? null,
+		engineCompletedAt: payload.engineCompletedAt ?? null,
 		rewardJson: payload.rewardJson ?? null,
 	});
+}
+
+/**
+ * Missions the engine reported complete whose reward callback never arrived
+ * within the grace window. Bounded so the hourly cron stays cheap.
+ */
+export async function listMissionsAwaitingReward(payload: {
+	env: CloudflareBindings;
+	olderThan: Date;
+	limit: number;
+}): Promise<Array<{ userId: string; missionId: string }>> {
+	const { results } = await payload.env.DB.prepare(
+		`SELECT user_id, mission_id FROM bonus_engine_mission_progress
+		 WHERE completed_at IS NULL AND engine_completed_at IS NOT NULL
+		   AND engine_completed_at <= ?
+		 ORDER BY engine_completed_at LIMIT ?`,
+	)
+		.bind(payload.olderThan.getTime(), payload.limit)
+		.all<{ user_id: string; mission_id: string }>();
+	return (results ?? []).map((row) => ({
+		userId: row.user_id,
+		missionId: row.mission_id,
+	}));
 }
 
 export async function getBonusEngineWalletBalances(payload: {
@@ -143,18 +184,19 @@ export async function getBonusEngineWalletBalances(payload: {
 	userId: string;
 }): Promise<{ realWalletBalance: number; bonusWalletBalance: number }> {
 	const db = createBonusEngineDb(payload.env);
-	const [mainWallet, gameWalletRow] = await Promise.all([
-		db.query.wallet.findFirst({
-			where: eq(schema.wallet.userId, payload.userId),
-		}),
-		db.query.gameWallet.findFirst({
-			where: eq(schema.gameWallet.userId, payload.userId),
-		}),
-	]);
+	const mainWallet = await db.query.wallet.findFirst({
+		where: eq(schema.wallet.userId, payload.userId),
+	});
+	if (!mainWallet) {
+		return { realWalletBalance: 0, bonusWalletBalance: 0 };
+	}
 
+	// Bonus funds are a locked part of the main wallet; the engine models them
+	// as a separate bonus wallet, so split them back out.
+	const funds = walletFundsFromRow(mainWallet);
 	return {
-		realWalletBalance: (mainWallet?.balance ?? 0) / 100,
-		bonusWalletBalance: (gameWalletRow?.balance ?? 0) / 100,
+		realWalletBalance: funds.realKobo / 100,
+		bonusWalletBalance: funds.bonusKobo / 100,
 	};
 }
 
@@ -193,6 +235,17 @@ export async function getBonusEngineCallbackWalletView(payload: {
 		bonusWalletBalance: balances.bonusWalletBalance,
 		timestamp: new Date().toISOString(),
 	};
+}
+
+/** Local snapshots of the player's bonuses that are still ACTIVE. */
+export async function listActiveBonusEngineUserBonusIds(payload: {
+	env: CloudflareBindings;
+	userId: string;
+}): Promise<string[]> {
+	const snapshots = await listBonusEngineUserBonusSnapshots(payload);
+	return snapshots
+		.filter((row) => row.status.trim().toUpperCase() === "ACTIVE")
+		.map((row) => row.bonusId);
 }
 
 /**

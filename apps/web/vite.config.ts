@@ -3,9 +3,12 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import type { IncomingMessage } from "node:http";
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
 import tsconfigPaths from "vite-tsconfig-paths";
+
+const SRC_DIR = fileURLToPath(new URL("./src", import.meta.url));
 
 // Must match apps/server `wrangler dev --port=3000`.
 const LOCAL_API_TARGET = "http://localhost:3000";
@@ -169,9 +172,14 @@ export default defineConfig(({ command, mode }) => {
 	}
 
 	return {
+		resolve: {
+			alias: {
+				"@": SRC_DIR,
+			},
+		},
 		plugins: [
-			cloudflare({ viteEnvironment: { name: "ssr" } }),
 			tsconfigPaths(),
+			cloudflare({ viteEnvironment: { name: "ssr" } }),
 			tailwindcss(),
 			tanstackStart(),
 			viteReact(),
@@ -208,6 +216,7 @@ export default defineConfig(({ command, mode }) => {
 				"/kyc": proxyToLocalApi(),
 				"/handoff": proxyToLocalApi(),
 				"/bills": proxyToLocalApi(),
+				"/webengage": proxyToLocalApi(),
 				"/loyalty": proxyLoyaltyApiToLocalApi(),
 				"/mission": proxyMissionApiToLocalApi(),
 				"/bonus": proxyBonusApiToLocalApi(),

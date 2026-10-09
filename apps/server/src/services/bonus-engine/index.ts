@@ -68,6 +68,7 @@ export {
 } from "./client";
 export {
 	hashBonusEngineIdempotencyKey,
+	isCallbackKeyMerchantKey,
 	signBonusEngineBody,
 	verifyBonusEngineBody,
 	verifyBonusEngineSecureDataHeader,
@@ -109,16 +110,28 @@ export type {
 export {
 	buildBonusEngineBetReportBody,
 	buildBonusEngineBetResultBody,
+	drainBonusEngineOutbox,
 	reportBonusEngineBet,
 	reportBonusEngineBetResult,
 	reportBonusEngineDeposit,
 	runBonusEngineBackground,
 } from "./events.service";
+export { reportBonusEngineDepositInBackground } from "./deposit.service";
+export {
+	captureBonusStakeSplit,
+	lockBonusShareOfResult,
+	pruneBonusStakeSplits,
+} from "./bonus-stake.service";
+export type { StakeSplit } from "./bonus-stake.service";
 export {
 	applyBonusStatusWalletChanges,
 	creditBonusActivation,
-	creditMissionRealCashReward,
+	creditLoyaltyRedemption,
+	creditMissionReward,
+	creditTournamentPrize,
+	forfeitCancelledBonus,
 	parseMissionRealCashReward,
+	parseMissionRewards,
 } from "./rewards.service";
 export { extractSportsbookBetReportIds } from "./sportsbook-bet.service";
 export {
@@ -128,13 +141,17 @@ export {
 	getBonusEngineLoyaltyHistory,
 	getBonusEngineLoyaltyLists,
 	getBonusEngineLoyaltyPoints,
+	reconcileLoyaltyRedemptions,
 	redeemBonusEngineLoyaltyPoints,
+	resolveLoyaltyRedeemReward,
 	shouldTreatLoyaltyHistoryAsEmpty,
 } from "./loyalty.service";
 export {
 	listBonusEngineMissions,
 	mergeMissionListWithLocalProgress,
+	missionRewardDefinitions,
 	parseBonusEngineMissionProgress,
+	reconcileMissionRewards,
 	refreshBonusEngineMissionProgressForUser,
 } from "./mission.service";
 export {
@@ -155,7 +172,6 @@ export {
 	mergeUserBonusesWithLocalSnapshots,
 	parseBonusActivationAmounts,
 	parseBonusAllocationRecords,
-	resolveBonusStatusWalletDeltas,
 	shouldCreditAllocatedBonus,
 } from "./bonus.service";
 export {
@@ -174,6 +190,8 @@ export {
 	syncBonusEnginePlayerOnAppLogin,
 } from "./player.service";
 export {
+	classifyTournamentPrize,
+	findBonusEngineTournament,
 	buildBonusEngineTournamentJoinBody,
 	buildBonusEngineTournamentLeaderboardBody,
 	buildBonusEngineTournamentListBody,
@@ -183,4 +201,10 @@ export {
 	mapBonusEngineTournamentJoinError,
 	unwrapTournamentLeaderboardRows,
 } from "./tournament.service";
-export { getBonusEngineAccessToken } from "./token.service";
+export type { TournamentPrizeKind } from "./tournament.service";
+export {
+	bonusEngineAuthedRequest,
+	getBonusEngineAccessToken,
+	invalidateBonusEngineAccessToken,
+	isBonusEngineTokenRejected,
+} from "./token.service";

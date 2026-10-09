@@ -116,6 +116,11 @@ export function normalizeMissionRecord(
 		startAt,
 		endAt,
 	});
+	// Server sets `reward_status: "pending"` while the engine says complete but
+	// the reward has not been credited yet.
+	const rewardPending =
+		status === "completed" &&
+		asString(record.reward_status).toLowerCase() === "pending";
 	const progressCurrent = resolveProgressCurrent({
 		status,
 		progressPercentage,
@@ -171,6 +176,7 @@ export function normalizeMissionRecord(
 		progressTarget,
 		progressLabel: resolveProgressLabel({
 			status,
+			rewardPending,
 			actionKind: action.kind,
 			providers,
 			games,
@@ -183,7 +189,11 @@ export function normalizeMissionRecord(
 		missionStatus,
 		lockedMessage: null,
 		actionLabel:
-			status === "completed" ? MISSION_ACTION_LABEL.COMPLETED : action.label,
+			status === "completed"
+				? rewardPending
+					? MISSION_ACTION_LABEL.REWARD_PENDING
+					: MISSION_ACTION_LABEL.COMPLETED
+				: action.label,
 		actionHref: action.href,
 		...(action.search ? { actionSearch: action.search } : {}),
 		actionKind: action.kind,
@@ -735,13 +745,18 @@ function resolveMissionStatus(payload: {
 
 function resolveProgressLabel(payload: {
 	status: MissionCard["status"];
+	rewardPending: boolean;
 	actionKind: MissionActionKind;
 	providers: MissionCard["providers"];
 	games: MissionCard["games"];
 	leagues: MissionCard["leagues"];
 	categories: MissionCard["categories"];
 }): string {
-	if (payload.status === "completed") return "Completed";
+	if (payload.status === "completed") {
+		return payload.rewardPending
+			? MISSION_ACTION_LABEL.REWARD_PENDING
+			: MISSION_ACTION_LABEL.COMPLETED;
+	}
 	if (payload.actionKind === "invite") return "Referral";
 	if (payload.games[0]?.name) return payload.games[0].name;
 	if (payload.leagues[0]?.name) return payload.leagues[0].name;

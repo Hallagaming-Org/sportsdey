@@ -1,3 +1,5 @@
+import { resolveServerUrl } from "./server-url";
+
 declare global {
 	interface Window {
 		webengage?: {
@@ -190,10 +192,10 @@ async function postWebengageApiEvent(
 ) {
 	if (!WEBENGAGE_API_EVENTS.has(eventName)) return;
 	try {
-		const { apiRequest } = await import("@/lib/api");
-		await apiRequest("webengage/events", {
+		await fetch(`${resolveServerUrl()}/webengage/events`, {
 			method: "POST",
 			credentials: "include",
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				eventName,
 				eventData: serializeEventData(attributes),
