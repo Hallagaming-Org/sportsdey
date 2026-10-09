@@ -2,7 +2,12 @@ import crypto from "node:crypto";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, count, desc, eq, gte, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { creditWallet, debitWallet } from "@/db/atomic-wallet";
+import {
+	creditWallet,
+	debitWallet,
+	debitWithdrawableWallet,
+} from "@/db/atomic-wallet";
+import { walletFundsFromRow } from "@/db/bonus-wallet";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
@@ -35,9 +40,8 @@ import {
 	WithdrawSchema,
 } from "@/schemas/wallet";
 import {
-	BONUS_ENGINE_DEFAULT_CURRENCY,
-	reportBonusEngineDeposit,
-	runBonusEngineBackground,
+	optionalExecutionCtx,
+	reportBonusEngineDepositInBackground,
 } from "@/services/bonus-engine";
 import { toWAT } from "@/utils";
 import {
@@ -59,19 +63,34 @@ import { maskBankAccountNumber } from "@/utils/webengage-event";
 import type { CloudflareBindings } from "../types";
 
 /**
- * Reads the SportsDey game-wallet (bonus ₦) for GET /wallet.
- * Header uses this, not Engine `/bonus-engine/callback/balance`.
+ * GET /wallet figures in Naira. Bonus Engine funds sit inside `balance` as a
+ * locked part, so the cash figure excludes them and games see the total.
  */
-async function bonusBalanceNaira(
-	db: ReturnType<typeof drizzle<typeof schema>>,
-	userId: string,
-): Promise<number> {
-	const [row] = await db
-		.select({ balance: schema.gameWallet.balance })
-		.from(schema.gameWallet)
-		.where(eq(schema.gameWallet.userId, userId))
-		.limit(1);
-	return (row?.balance ?? 0) / 100;
+function walletBalancesNaira(wallet: {
+	balance: number;
+	frozenBalance?: number | null;
+	bonusBalance?: number | null;
+}) {
+	const funds = walletFundsFromRow(wallet);
+	return {
+		balance: funds.realKobo / 100,
+		bonusBalance: funds.bonusKobo / 100,
+		withdrawableBalance: funds.withdrawableKobo / 100,
+		totalBalance: funds.balanceKobo / 100,
+	};
+}
+
+function insufficientWithdrawableMessage(
+	wallet:
+		| { balance: number; frozenBalance?: number | null; bonusBalance?: number | null }
+		| undefined,
+): string {
+	if (!wallet) return "Insufficient balance";
+	const funds = walletFundsFromRow(wallet);
+	if (funds.bonusKobo > 0 || funds.frozenKobo > 0) {
+		return `Insufficient withdrawable balance. Available: ₦${(funds.withdrawableKobo / 100).toFixed(2)} (bonus funds and stakes on open bets cannot be withdrawn)`;
+	}
+	return "Insufficient balance";
 }
 
 const walletRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
@@ -540,9 +559,9 @@ const transferToGameWalletRoute = createRoute({
 	method: "post",
 	path: "/transfer-to-game",
 	tags: ["Wallet"],
-	summary: "Transfer to game wallet",
+	summary: "Transfer to game wallet (retired)",
 	description:
-		"Transfer funds from normal wallet to game wallet for gaming purposes",
+		"Retired: the game wallet is no longer spendable. Bonus funds live in the main wallet as a locked balance, so there is nothing to transfer. Always returns 410.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		body: {
@@ -572,6 +591,14 @@ const transferToGameWalletRoute = createRoute({
 		},
 		401: {
 			description: "Unauthorized",
+			content: {
+				"application/json": {
+					schema: TransferToGameWalletErrorSchema,
+				},
+			},
+		},
+		410: {
+			description: "Game wallet retired",
 			content: {
 				"application/json": {
 					schema: TransferToGameWalletErrorSchema,
@@ -812,8 +839,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 
 		const walletResponse = {
 			id: newWallet.id,
-			balance: newWallet.balance / 100,
-			bonusBalance: await bonusBalanceNaira(db, user.id),
+			...walletBalancesNaira(newWallet ?? { balance: 0 }),
 			createdAt: toWAT(newWallet.createdAt),
 			updatedAt: toWAT(newWallet.updatedAt),
 		};
@@ -829,8 +855,7 @@ walletRoute.openapi(getWalletRoute, async (c) => {
 
 	const walletResponse = {
 		id: wallet.id,
-		balance: wallet.balance / 100,
-		bonusBalance: await bonusBalanceNaira(db, user.id),
+		...walletBalancesNaira(wallet),
 		createdAt: toWAT(wallet.createdAt),
 		updatedAt: toWAT(wallet.updatedAt),
 	};
@@ -1029,6 +1054,7 @@ walletRoute.openapi(callbackRoute, async (c) => {
 				);
 			}
 
+			let creditedNow = false;
 			if (status === "success") {
 				if (transaction && transaction.status !== "success") {
 					const [claimed] = await db
@@ -1118,39 +1144,20 @@ walletRoute.openapi(callbackRoute, async (c) => {
 						transaction.userId,
 						c.executionCtx,
 					);
+					creditedNow = true;
 				}
 			}
 
-			if (status === "success" && transaction?.type === "credit") {
-				const depositAmountMajor = (tx.amount ?? transaction.amount) / 100;
-				const depositReport = reportBonusEngineDeposit({
+			// Only the request that credited the wallet reports the deposit.
+			if (creditedNow && transaction?.type === "credit") {
+				await reportBonusEngineDepositInBackground({
 					env: c.env,
-					deposit: {
-						userId: transaction.userId,
-						amount: depositAmountMajor,
-						transactionId: reference,
-						currency: BONUS_ENGINE_DEFAULT_CURRENCY,
-					},
-				})
-					.then((result) => {
-						if (!result.ok) {
-							console.error("Bonus Engine deposit report failed", {
-								transactionId: reference,
-								userId: transaction.userId,
-								status: result.status,
-								error: result.error,
-							});
-						}
-					})
-					.catch((error: unknown) => {
-						console.error("Bonus Engine deposit report error", {
-							transactionId: reference,
-							userId: transaction.userId,
-							error,
-						});
-					});
-
-				await runBonusEngineBackground(c.executionCtx, depositReport);
+					executionCtx: optionalExecutionCtx(c),
+					userId: transaction.userId,
+					amountKobo: tx.amount ?? transaction.amount,
+					transactionId: reference,
+					paymentMethod: "paystack",
+				});
 			}
 		}
 	}
@@ -1823,11 +1830,11 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 		.where(eq(schema.wallet.userId, user.id))
 		.limit(1);
 
-	if (!wallet || wallet.balance < amount * 100) {
+	if (!wallet || walletFundsFromRow(wallet).withdrawableKobo < amount * 100) {
 		return c.json(
 			{
 				success: false as const,
-				error: "Insufficient balance",
+				error: insufficientWithdrawableMessage(wallet),
 				details: null,
 			},
 			400,
@@ -1879,12 +1886,15 @@ walletRoute.openapi(withdrawRoute, async (c) => {
 		);
 	}
 
-	const debitedWallet = await debitWallet(db, user.id, amountInKobo);
+	const debitedWallet = await debitWithdrawableWallet(db, user.id, amountInKobo);
 	if (!debitedWallet) {
 		await db
 			.delete(schema.walletTransaction)
 			.where(eq(schema.walletTransaction.id, txnId));
-		return c.json({ success: false, error: "Insufficient balance" }, 400);
+		return c.json(
+			{ success: false, error: insufficientWithdrawableMessage(wallet) },
+			400,
+		);
 	}
 	newBalance = debitedWallet.balance;
 	await db
@@ -1996,11 +2006,11 @@ walletRoute.openapi(transferRoute, async (c) => {
 		);
 	}
 
-	if (senderWallet.balance < amount * 100) {
+	if (walletFundsFromRow(senderWallet).withdrawableKobo < amount * 100) {
 		return c.json(
 			{
 				success: false as const,
-				error: "Insufficient balance",
+				error: insufficientWithdrawableMessage(senderWallet),
 				details: null,
 			},
 			400,
@@ -2060,21 +2070,21 @@ walletRoute.openapi(transferRoute, async (c) => {
 		c.executionCtx,
 	);
 
-	const batchResults = await c.env.DB.batch([
+	// Ledger-first: the sender's debit row is only written when withdrawable
+	// funds cover the amount, and every other statement is conditional on that
+	// row, so a race past the pre-check can never credit the recipient alone.
+	const senderReference = `${reference}_sender`;
+	const senderDebited =
+		"EXISTS (SELECT 1 FROM wallet_transaction WHERE reference = ?)";
+	const now = Date.now();
+	await c.env.DB.batch([
 		c.env.DB.prepare(
-			"UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
-		).bind(amountKobo, Date.now(), user.id, amountKobo),
-		c.env.DB.prepare(
-			"UPDATE wallet SET balance = balance + ?, updated_at = ? WHERE id = ?",
-		).bind(amountKobo, Date.now(), recipientWallet.id),
-		c.env.DB.prepare(
-			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, recipient_wallet_id, recipient_name, metadata) VALUES (?, ?, ?, 'debit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?, ?, ?)",
+			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, recipient_wallet_id, recipient_name, metadata) SELECT ?, user_id, ?, 'debit', ?, 'completed', 'wallet_transfer', balance - ?, ?, ?, ? FROM wallet WHERE user_id = ? AND balance - frozen_balance - bonus_balance >= ?",
 		).bind(
 			generateUUIDv7(),
-			user.id,
 			amountKobo,
-			`${reference}_sender`,
-			user.id,
+			senderReference,
+			amountKobo,
 			recipientWalletId,
 			recipientName,
 			JSON.stringify({
@@ -2082,9 +2092,17 @@ walletRoute.openapi(transferRoute, async (c) => {
 				recipientName,
 				recipientWalletId,
 			}),
+			user.id,
+			amountKobo,
 		),
 		c.env.DB.prepare(
-			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, recipient_wallet_id, recipient_name, metadata) VALUES (?, ?, ?, 'credit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?, ?, ?)",
+			`UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND ${senderDebited}`,
+		).bind(amountKobo, now, user.id, senderReference),
+		c.env.DB.prepare(
+			`UPDATE wallet SET balance = balance + ?, updated_at = ? WHERE id = ? AND ${senderDebited}`,
+		).bind(amountKobo, now, recipientWallet.id, senderReference),
+		c.env.DB.prepare(
+			`INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, recipient_wallet_id, recipient_name, metadata) SELECT ?, ?, ?, 'credit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?, ?, ? WHERE ${senderDebited}`,
 		).bind(
 			generateUUIDv7(),
 			recipientWallet.userId,
@@ -2098,12 +2116,20 @@ walletRoute.openapi(transferRoute, async (c) => {
 				senderName: user.name || "Unknown",
 				senderWalletId: senderWallet.id,
 			}),
+			senderReference,
 		),
 	]);
 
-	const debitResult = batchResults[0];
-	if (!debitResult || (debitResult as any).changes === 0) {
-		return c.json({ success: false, error: "Insufficient balance" }, 400);
+	const senderDebit = await c.env.DB.prepare(
+		"SELECT 1 AS found FROM wallet_transaction WHERE reference = ? LIMIT 1",
+	)
+		.bind(senderReference)
+		.first();
+	if (!senderDebit) {
+		return c.json(
+			{ success: false, error: insufficientWithdrawableMessage(senderWallet) },
+			400,
+		);
 	}
 
 	const [updatedSenderWallet] = await db
@@ -2210,173 +2236,16 @@ walletRoute.openapi(transferToGameWalletRoute, async (c) => {
 	if (!user) {
 		return c.json({ success: false, error: "Unauthorized" }, 401);
 	}
-	const result = TransferToGameWalletSchema.safeParse(await c.req.json());
-
-	if (!result.success) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Invalid request body",
-				details: null,
-			},
-			400,
-		);
-	}
-
-	const { amount } = result.data;
-
-	if (amount < 100) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Minimum transfer amount is 100 Naira",
-				details: null,
-			},
-			400,
-		);
-	}
-
-	const db = drizzle(c.env.DB, { schema });
-
-	const [normalWallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.userId, user.id))
-		.limit(1);
-
-	if (!normalWallet) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Normal wallet not found",
-				details: null,
-			},
-			400,
-		);
-	}
-
-	if (normalWallet.balance < amount * 100) {
-		return c.json(
-			{
-				success: false as const,
-				error: "Insufficient balance in normal wallet",
-				details: null,
-			},
-			400,
-		);
-	}
-
-	let [gameWallet] = await db
-		.select()
-		.from(schema.gameWallet)
-		.where(eq(schema.gameWallet.userId, user.id))
-		.limit(1);
-
-	if (!gameWallet) {
-		const [newGameWallet] = await db
-			.insert(schema.gameWallet)
-			.values({
-				id: generateUUIDv7(),
-				userId: user.id,
-				balance: 0,
-			})
-			.returning();
-		if (!newGameWallet) {
-			return c.json(
-				{ success: false, error: "Failed to create game wallet" },
-				500,
-			);
-		}
-		gameWallet = newGameWallet;
-	}
-
-	const reference = `tg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-	const now = new Date();
-	const nowMs = now.getTime();
-	const amountKobo = amount * 100;
-
-	await trackWebengageEvent(
-		c.env,
-		{
-			userId: user.id,
-			eventName: "transfer_funds_initiated",
-			eventData: {
-				wallet_id: "game_wallet",
-				amount,
-			},
-		},
-		c.executionCtx,
-	);
-
-	const batchResults = await c.env.DB.batch([
-		c.env.DB.prepare(
-			"UPDATE wallet SET balance = balance - ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
-		).bind(amountKobo, nowMs, user.id, amountKobo),
-		c.env.DB.prepare(
-			"UPDATE game_wallet SET balance = balance + ?, updated_at = ? WHERE id = ?",
-		).bind(amountKobo, nowMs, gameWallet.id),
-		c.env.DB.prepare(
-			"INSERT INTO wallet_transaction (id, user_id, amount, type, reference, status, payment_method, balance, metadata) VALUES (?, ?, ?, 'debit', ?, 'completed', 'wallet_transfer', (SELECT balance FROM wallet WHERE user_id = ?), ?)",
-		).bind(
-			generateUUIDv7(),
-			user.id,
-			amountKobo,
-			`${reference}_normal`,
-			user.id,
-			JSON.stringify({
-				transferType: "to_game_wallet",
-				gameWalletId: gameWallet.id,
-			}),
-		),
-		c.env.DB.prepare(
-			"INSERT INTO game_wallet_transaction (id, user_id, amount, type, reference, status) VALUES (?, ?, ?, 'credit', ?, 'completed')",
-		).bind(generateUUIDv7(), user.id, amountKobo, `${reference}_game`),
-	]);
-
-	const debitResult = batchResults[0];
-	if (!debitResult || (debitResult as any).changes === 0) {
-		return c.json({ success: false, error: "Insufficient balance" }, 400);
-	}
-
-	const [updatedNormalWallet] = await db
-		.select()
-		.from(schema.wallet)
-		.where(eq(schema.wallet.id, normalWallet.id))
-		.limit(1);
-
-	const [updatedGameWallet] = await db
-		.select()
-		.from(schema.gameWallet)
-		.where(eq(schema.gameWallet.id, gameWallet.id))
-		.limit(1);
-
-	trackWebengageEvent(
-		c.env,
-		{
-			userId: user.id,
-			eventName: "transfer_funds_completed",
-			eventData: {
-				wallet_id: "game_wallet",
-				amount,
-				transaction_id: reference,
-				wallet_balance_after: (updatedNormalWallet?.balance ?? 0) / 100,
-			},
-		},
-		c.executionCtx,
-	);
-
+	// game_wallet is no longer read by any game or by GET /wallet; moving cash
+	// into it would strand the player's money.
 	return c.json(
 		{
-			success: true as const,
-			data: {
-				transactionId: reference,
-				amount,
-				gameWalletId: gameWallet.id,
-				normalWalletBalance: (updatedNormalWallet?.balance ?? 0) / 100,
-				gameWalletBalance: (updatedGameWallet?.balance ?? amount * 100) / 100,
-			},
+			success: false as const,
+			error:
+				"The game wallet has been retired. Bonus funds are part of your main wallet.",
+			details: null,
 		},
-		200,
+		410,
 	);
 });
 
