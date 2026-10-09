@@ -8,15 +8,19 @@ import {
 } from "@/services/bonus-engine/bonus-engine.service.constant";
 import {
 	applyBonusStatusWalletChanges,
+	classifyTournamentPrize,
 	creditBonusActivation,
-	creditMissionRealCashReward,
+	creditMissionReward,
+	creditTournamentPrize,
+	findBonusEngineTournament,
 	getBonusEngineCallbackWalletView,
 	getBonusEngineConfig,
+	hashBonusEngineIdempotencyKey,
 	isBonusEngineCallbackVerifyConfigured,
+	isCallbackKeyMerchantKey,
 	parseBonusActivationAmounts,
 	parseBonusAllocationRecords,
 	recordBonusEngineCallbackEvent,
-	resolveBonusStatusWalletDeltas,
 	shouldCreditAllocatedBonus,
 	upsertBonusEngineLoyaltySnapshot,
 	upsertBonusEngineMissionProgress,
@@ -61,6 +65,7 @@ async function readAndVerifyCallbackBody(
 		signatureBase64: signature,
 	});
 	if (!valid) {
+		await logCallbackSignatureFailure(c.env, Boolean(signature));
 		return {
 			ok: false,
 			response: c.json(
@@ -74,6 +79,41 @@ async function readAndVerifyCallbackBody(
 	}
 
 	return { ok: true, bodyString };
+}
+
+let callbackKeyIsMerchantKey: Promise<boolean> | null = null;
+
+/**
+ * Signature failures are logged without bodies. The first one per isolate also
+ * says whether BONUS_ENGINE_CALLBACK_PUBLIC_KEY is just our own merchant
+ * public key — the engine signs callbacks, so that config rejects them all.
+ */
+async function logCallbackSignatureFailure(
+	env: CloudflareBindings,
+	hasSignature: boolean,
+): Promise<void> {
+	if (!callbackKeyIsMerchantKey) {
+		const config = getBonusEngineConfig(env);
+		callbackKeyIsMerchantKey = isCallbackKeyMerchantKey({
+			privateKeyPem: config.privateKeyPem,
+			callbackPublicKeyPem: config.callbackPublicKeyPem,
+		});
+		const sameKey = await callbackKeyIsMerchantKey;
+		console.error(
+			JSON.stringify({
+				tag: "bonus_engine_callback_signature_invalid",
+				hasSignature,
+				callbackKeyIsMerchantKey: sameKey,
+				hint: sameKey
+					? "BONUS_ENGINE_CALLBACK_PUBLIC_KEY is the public half of BONUS_ENGINE_PRIVATE_KEY. Set it to the Bonus Engine's callback signing public key."
+					: undefined,
+			}),
+		);
+		return;
+	}
+	console.warn(
+		JSON.stringify({ tag: "bonus_engine_callback_signature_invalid", hasSignature }),
+	);
 }
 
 function parseJsonObject(bodyString: string): Record<string, unknown> | null {
@@ -242,14 +282,14 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 
 	if (playerId && missionId) {
 		try {
-			const cashCredit = await creditMissionRealCashReward({
+			const credit = await creditMissionReward({
 				env: c.env,
 				userId: playerId,
 				missionId,
 				reward,
 			});
-			if (cashCredit.status === "wallet_missing") {
-				console.error("Mission Real Cash credit blocked — wallet missing", {
+			if (credit.status === "wallet_missing") {
+				console.error("Mission reward credit blocked — wallet missing", {
 					userId: playerId,
 					missionId,
 				});
@@ -258,16 +298,16 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.MISSION_COMPLETE, async (c) => {
 					502,
 				);
 			}
-			if (cashCredit.credited) {
+			if (credit.credited) {
 				console.info("Mission Real Cash credited", {
 					userId: playerId,
 					missionId,
-					amountKobo: cashCredit.amountKobo,
-					reference: cashCredit.reference,
+					amountKobo: credit.amountKobo,
+					reference: credit.reference,
 				});
 			}
 		} catch (error: unknown) {
-			console.error("Mission Real Cash credit failed", {
+			console.error("Mission reward credit failed", {
 				userId: playerId,
 				missionId,
 				error,
@@ -375,19 +415,14 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.UPDATE_BONUS, async (c) => {
 		);
 	}
 
-	const deltas = resolveBonusStatusWalletDeltas({
-		realAmountChange: asNumber(body.real_amount_change),
-		bonusAmountChange: asNumber(body.bonus_amount_change),
-	});
-
 	try {
 		const walletApply = await applyBonusStatusWalletChanges({
 			env: c.env,
 			userId,
 			bonusId,
 			bonusStatus,
-			realKobo: deltas.realKobo,
-			bonusKobo: deltas.bonusKobo,
+			realAmountChangeMajor: asNumber(body.real_amount_change),
+			bonusAmountChangeMajor: asNumber(body.bonus_amount_change),
 		});
 		if (walletApply.status === "wallet_missing") {
 			console.error("Bonus status wallet update blocked — wallet missing", {
@@ -415,10 +450,12 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.UPDATE_BONUS, async (c) => {
 		payloadJson: verified.bodyString,
 	});
 
+	// Keyed on the whole body: two updates with the same status but different
+	// amounts are distinct events. Money is guarded by per-bonus references.
 	await recordBonusEngineCallbackEvent({
 		env: c.env,
 		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.BONUS_STATUS_UPDATE,
-		idempotencySeed: `${bonusId}:${userId}:${bonusStatus}`,
+		idempotencySeed: `${bonusId}:${userId}:${bonusStatus}:${await hashBonusEngineIdempotencyKey(verified.bodyString)}`,
 		bodyJson: verified.bodyString,
 	});
 
@@ -542,5 +579,172 @@ callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.BONUS_ALLOCATION, async (c) => {
 		200,
 	);
 });
+
+/**
+ * A tournament closed. Cash prizes are credited once per winner (keyed
+ * `be_tournament_prize:{tournamentId}:{playerId}`). Bonus prizes
+ * (`tournament_win_type: bonus`) arrive as a player bonus through the bonus
+ * flow, and free-bet / free-spin prizes cannot be granted here, so both are
+ * logged instead of paid as cash. A config lookup or credit failure returns
+ * 502 so the engine retries; prizes already paid are skipped.
+ */
+callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.TOURNAMENT_END, async (c) => {
+	const verified = await readAndVerifyCallbackBody(c);
+	if (!verified.ok) return verified.response;
+
+	const body = parseJsonObject(verified.bodyString);
+	if (!body) {
+		return c.json(
+			{ status: 400, message: BONUS_ENGINE_CALLBACK_MESSAGE.INVALID_JSON },
+			400,
+		);
+	}
+
+	const tournamentId = asString(body.tournament_id ?? body.tournamentId);
+	if (!tournamentId || !Array.isArray(body.winners)) {
+		return c.json(
+			{ status: 410, message: BONUS_ENGINE_CALLBACK_MESSAGE.MISSING_FIELDS },
+			410,
+		);
+	}
+
+	const winners = body.winners
+		.filter(
+			(row): row is Record<string, unknown> =>
+				typeof row === "object" && row !== null && !Array.isArray(row),
+		)
+		.map((row) => ({
+			playerId: tournamentPlayerId(row.player_id ?? row.user_id),
+			prize: asNumber(row.prize),
+			rank: asNumber(row.rank),
+		}));
+
+	const lookup = await findBonusEngineTournament({ env: c.env, tournamentId });
+	if (!lookup.ok) {
+		return c.json({ status: 502, message: "TOURNAMENT_LOOKUP_FAILED" }, 502);
+	}
+	const prizeKind = classifyTournamentPrize(lookup.tournament);
+	if (!lookup.tournament) {
+		console.warn("Tournament not listed; paying end-callback prizes as cash", {
+			tournamentId,
+		});
+	}
+	if (prizeKind !== "cash") {
+		console.error(
+			JSON.stringify({
+				tag:
+					prizeKind === "bonus"
+						? "bonus_engine_tournament_prize_via_bonus"
+						: "bonus_engine_reward_unfulfilled",
+				source: "tournament",
+				tournamentId,
+				prizeKind,
+				winners,
+			}),
+		);
+	}
+
+	for (const winner of prizeKind === "cash" ? winners : []) {
+		if (!winner.playerId) {
+			console.error("Tournament winner without player id", { tournamentId });
+			continue;
+		}
+		try {
+			const credit = await creditTournamentPrize({
+				env: c.env,
+				userId: winner.playerId,
+				tournamentId,
+				prizeMajor: winner.prize,
+				rank: winner.rank,
+			});
+			if (credit.status === "wallet_missing") {
+				console.error("Tournament prize credit blocked — wallet missing", {
+					tournamentId,
+					userId: winner.playerId,
+				});
+				return c.json({ status: 502, message: "WALLET_MISSING" }, 502);
+			}
+		} catch (error: unknown) {
+			console.error("Tournament prize credit failed", {
+				tournamentId,
+				userId: winner.playerId,
+				error,
+			});
+			return c.json({ status: 502, message: "CREDIT_FAILED" }, 502);
+		}
+	}
+
+	const recorded = await recordBonusEngineCallbackEvent({
+		env: c.env,
+		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.TOURNAMENT_END,
+		idempotencySeed: tournamentId,
+		bodyJson: verified.bodyString,
+	});
+
+	return c.json(
+		{
+			status: 200,
+			message: BONUS_ENGINE_CALLBACK_MESSAGE.TOURNAMENT_ENDED,
+			data: {
+				tournament_id: tournamentId,
+				prize_kind: prizeKind,
+				winners: winners.map((winner) => ({
+					player_id: winner.playerId,
+					prize: winner.prize,
+					rank: winner.rank,
+				})),
+				duplicate: !recorded.isNew,
+				timestamp: new Date().toISOString(),
+			},
+		},
+		200,
+	);
+});
+
+/** Live rank batches. The UI reads the leaderboard API, so this only ACKs. */
+callbackRoute.post(BONUS_ENGINE_CALLBACK_PATH.TOURNAMENT_RANK_UPDATE, async (c) => {
+	const verified = await readAndVerifyCallbackBody(c);
+	if (!verified.ok) return verified.response;
+
+	const body = parseJsonObject(verified.bodyString);
+	if (!body) {
+		return c.json(
+			{ status: 400, message: BONUS_ENGINE_CALLBACK_MESSAGE.INVALID_JSON },
+			400,
+		);
+	}
+	const tournamentId = asString(body.tournament_id ?? body.tournamentId);
+	if (!tournamentId || !Array.isArray(body.users)) {
+		return c.json(
+			{ status: 410, message: BONUS_ENGINE_CALLBACK_MESSAGE.MISSING_FIELDS },
+			410,
+		);
+	}
+
+	await recordBonusEngineCallbackEvent({
+		env: c.env,
+		eventType: BONUS_ENGINE_CALLBACK_EVENT_TYPE.TOURNAMENT_RANK_UPDATE,
+		idempotencySeed: `${tournamentId}:${await hashBonusEngineIdempotencyKey(verified.bodyString)}`,
+		bodyJson: verified.bodyString,
+	});
+
+	return c.json(
+		{
+			status: 200,
+			message: BONUS_ENGINE_CALLBACK_MESSAGE.TOURNAMENT_RANKS_UPDATED,
+			data: { tournament_id: tournamentId },
+		},
+		200,
+	);
+});
+
+/** `player_id` is our user id, either bare or as `{ user_id }` (results API shape). */
+function tournamentPlayerId(value: unknown): string {
+	if (typeof value === "string") return value.trim();
+	if (typeof value === "object" && value !== null) {
+		return asString((value as { user_id?: unknown }).user_id).trim();
+	}
+	return "";
+}
 
 export default callbackRoute;
