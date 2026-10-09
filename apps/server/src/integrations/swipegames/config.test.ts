@@ -46,15 +46,25 @@ describe("Swipe Games reverse-call IP allowlist", () => {
 		);
 	});
 
-	it("prefers PROXY_ORIGIN_URL over orange-clouded PROXY_URL", () => {
+	it("ignores http PROXY_ORIGIN_URL when https PROXY_URL exists", () => {
 		const config = getSwipeGamesConfig({
 			...keys,
 			PROXY_URL: "https://proxy.sportsdey.com",
 			PROXY_ORIGIN_URL: "http://143.198.145.62",
 			PROXY_SECRET: "proxy-secret",
 		});
-		assert.equal(config?.proxyUrl, "http://143.198.145.62");
+		assert.equal(config?.proxyUrl, "https://proxy.sportsdey.com");
 		assert.equal(config?.proxySecret, "proxy-secret");
+	});
+
+	it("prefers https PROXY_ORIGIN_URL over PROXY_URL", () => {
+		const config = getSwipeGamesConfig({
+			...keys,
+			PROXY_URL: "https://proxy.sportsdey.com",
+			PROXY_ORIGIN_URL: "https://origin.example",
+			PROXY_SECRET: "proxy-secret",
+		});
+		assert.equal(config?.proxyUrl, "https://origin.example");
 	});
 
 	it("can be disabled with off", () => {

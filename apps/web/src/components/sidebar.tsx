@@ -101,18 +101,8 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	const goToHome = () => {
 		setTab("scores");
 		trackWebengageEvent("Category", { Name: "Home" });
-		const target =
-			currentSport === SPORTS.TENNIS
-				? "/tennis"
-				: currentSport === SPORTS.BASKETBALL
-					? "/basketball"
-					: currentSport === SPORTS.BOXING
-						? "/boxing"
-						: currentSport === SPORTS.UFC
-							? "/ufc"
-							: "/";
 		navigate({
-			to: target,
+			to: "/",
 			search: { league: undefined, sports: currentSport } as any,
 		});
 	};
@@ -257,15 +247,7 @@ const Sidebar = ({ onItemClick, isMobile }: SidebarProps = {}) => {
 	// };
 
 	const isHomeActive =
-		location.pathname === "/" ||
-		location.pathname === "/basketball" ||
-		location.pathname === "/basketball/" ||
-		location.pathname === "/tennis" ||
-		location.pathname === "/tennis/" ||
-		location.pathname === "/boxing" ||
-		location.pathname === "/boxing/" ||
-		location.pathname === "/ufc" ||
-		location.pathname === "/ufc/";
+		location.pathname === "/" || location.pathname === "";
 
 	const isSportsActive =
 		location.pathname.startsWith("/sportsbetting") && !isThreeXThreePath;

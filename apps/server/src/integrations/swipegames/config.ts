@@ -50,6 +50,21 @@ type SwipeGamesEnvSource = {
 	PROXY_SECRET?: string;
 };
 
+/**
+ * Workers get 403 hitting the nginx origin over plain HTTP. Prefer an https
+ * PROXY_URL (proxy.sportsdey.com) unless PROXY_ORIGIN_URL is already https.
+ */
+export function pickSwipeGamesProxyUrl(
+	originUrl?: string,
+	proxyUrl?: string,
+): string {
+	const origin = originUrl?.trim().replace(/\/$/, "") || "";
+	const fallback = proxyUrl?.trim().replace(/\/$/, "") || "";
+	if (origin.startsWith("https://")) return origin;
+	if (fallback.startsWith("https://")) return fallback;
+	return origin || fallback;
+}
+
 function parseAllowedIps(raw?: string): string[] {
 	if (!raw?.trim()) return [];
 	return raw
@@ -114,10 +129,10 @@ export function getSwipeGamesConfig(
 		name,
 		env.SWIPEGAMES_ALLOWED_IPS,
 	);
-	const proxyUrl =
-		env.PROXY_ORIGIN_URL?.trim().replace(/\/$/, "") ||
-		env.PROXY_URL?.trim().replace(/\/$/, "") ||
-		"";
+	const proxyUrl = pickSwipeGamesProxyUrl(
+		env.PROXY_ORIGIN_URL,
+		env.PROXY_URL,
+	);
 	const proxySecret = env.PROXY_SECRET?.trim() ?? "";
 	return {
 		cid,

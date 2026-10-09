@@ -32,6 +32,7 @@ import {
 	webengageLicenseCode,
 } from "@/lib/webengage";
 import { store } from "@/store";
+import { PremiumAppBanner } from "../components/premium-app-banner";
 import Header from "../components/header";
 import appCss from "../index.css?url";
 
@@ -319,6 +320,7 @@ var webengage;!function(w,e,b,n,g){function o(e,t){e[t[t.length-1]]=function(){r
 									) : (
 										<div className="flex h-dvh flex-col overflow-hidden">
 											<header className="shrink-0">
+												{!isGameRoute ? <PremiumAppBanner /> : null}
 												<Header />
 												{!isGameRoute && <Socials />}
 											</header>

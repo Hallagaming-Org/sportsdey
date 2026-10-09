@@ -46,13 +46,14 @@ async function parseError(response: Response): Promise<SwipeGamesApiError> {
 	let message = `Swipe Games API error (${response.status})`;
 	let details: string | undefined;
 	let code: string | undefined;
+	const raw = await response.text();
 	try {
-		const body = (await response.json()) as CoreErrorResponse;
+		const body = JSON.parse(raw) as CoreErrorResponse;
 		if (body.message) message = body.message;
 		details = body.details;
 		code = body.code;
 	} catch {
-		// keep generic message
+		details = raw.slice(0, 180) || undefined;
 	}
 	return new SwipeGamesApiError(message, response.status, details, code);
 }
@@ -112,7 +113,9 @@ export class SwipeGamesClient {
 			});
 			return this.get("/games", query, {
 				timeoutMs: 55_000,
-				acceptGzip: true,
+				// Do not set Accept-Encoding on the Worker→proxy hop. Workers then
+				// auto-decompress; setting gzip made the catalog 403 / unreadable JSON.
+				acceptGzip: false,
 			});
 		}
 	}
@@ -258,8 +261,7 @@ export class SwipeGamesClient {
 			if (
 				!response.ok &&
 				viaProxy &&
-				(response.status === 404 ||
-					response.status === 502 ||
+				(response.status === 502 ||
 					response.status === 503 ||
 					response.status === 504)
 			) {
