@@ -825,16 +825,6 @@ slotegratorRoute.post("/", async (c) => {
 			gameRef: gameUuid,
 		});
 
-		await reportCasinoBetInBackground({
-			env: c.env,
-			executionCtx: optionalExecutionCtx(c),
-			userId: playerId,
-			betId: transactionId,
-			amount,
-			currency,
-			gameRef: gameUuid,
-		});
-
 		return c.json({ balance, transaction_id: txId }, 200);
 	}
 
@@ -974,15 +964,6 @@ slotegratorRoute.post("/", async (c) => {
 		}
 
 		const balance = settle.balanceKobo / 100;
-
-		await reportCasinoBetResultInBackground({
-			env: c.env,
-			executionCtx: optionalExecutionCtx(c),
-			userId: playerId,
-			betId: transactionId,
-			totalWinAmount: amount,
-			isWin: 1,
-		});
 
 		await reportCasinoBetResultInBackground({
 			env: c.env,
