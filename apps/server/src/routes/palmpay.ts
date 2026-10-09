@@ -5,6 +5,10 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
 import { trackWebengageEvent } from "@/lib/webengage";
 import {
+	optionalExecutionCtx,
+	reportBonusEngineDepositInBackground,
+} from "@/services/bonus-engine";
+import {
 	createPalmPayOrder,
 	assertPalmPaySigningKey,
 	PalmPayNetworkError,
@@ -278,7 +282,7 @@ route.openapi(
 			if (current.orderStatus !== 2 || current.amount !== txn.amount) {
 				return c.text("success");
 			}
-			await c.env.DB.batch([
+			const [walletCredit] = await c.env.DB.batch([
 				c.env.DB.prepare(
 					"UPDATE wallet SET balance = balance + ? WHERE user_id = ? AND EXISTS (SELECT 1 FROM palmpay_transaction WHERE id = ? AND status != 'success')",
 				).bind(txn.amount, txn.userId, txn.id),
@@ -297,6 +301,17 @@ route.openapi(
 					txn.id,
 				),
 			]);
+			// Only the callback whose guarded UPDATE moved money reports it.
+			if ((walletCredit?.meta?.changes ?? 0) > 0) {
+				await reportBonusEngineDepositInBackground({
+					env: c.env,
+					executionCtx: optionalExecutionCtx(c),
+					userId: txn.userId,
+					amountKobo: txn.amount,
+					transactionId: reference,
+					paymentMethod: "palmpay",
+				});
+			}
 			const [wallet] = await db
 				.select({ balance: schema.wallet.balance })
 				.from(schema.wallet)
