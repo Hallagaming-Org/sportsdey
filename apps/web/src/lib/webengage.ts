@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "./api";
 
 declare global {
 	interface Window {

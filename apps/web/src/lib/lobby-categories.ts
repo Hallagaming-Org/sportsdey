@@ -28,6 +28,7 @@ const LOBBY_SLUG_ALIASES: Record<string, string> = {
 	crashgames: "crash",
 	wheel: "jackpot",
 	jackpot: "jackpot",
+	jackpotslot: "slots",
 	lotto: "lottery",
 	virtual: "virtuals",
 	virtuals: "virtuals",

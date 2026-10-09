@@ -932,6 +932,7 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 
 	let balAfter: number;
 	let stakeMoved = false;
+	let stakeSplit: StakeSplit | undefined;
 
 	try {
 	const wallet = await db.query.wallet.findFirst({
@@ -955,7 +956,6 @@ sportsbookRoute.openapi(betAcceptRoute, async (c) => {
 
 	const balanceBefore = wallet.balance;
 	balAfter = balanceBefore;
-	let stakeSplit: StakeSplit | undefined;
 
 	if (!bet.betFreebetId) {
 		const walletUpdate = await db

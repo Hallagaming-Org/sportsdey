@@ -1,4 +1,4 @@
-import { resolveServerUrl } from "@/lib/server-url";
+import { resolveServerUrl } from "./server-url";
 
 const API_REQUEST_TIMEOUT_MS = 10_000;
 
