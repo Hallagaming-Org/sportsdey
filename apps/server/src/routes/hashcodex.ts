@@ -591,7 +591,7 @@ hashcodexRoute.openapi(walletRoute, async (c) => {
 			);
 		}
 
-		const debitClaimId = `hashcodex:debit:${body.originalTransactionId}`;
+		const debitClaimId = `binary:debit:${body.originalTransactionId}`;
 		const [priorDebit] = await db
 			.select()
 			.from(schema.pocketsTransactions)

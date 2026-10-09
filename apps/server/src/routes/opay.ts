@@ -3,7 +3,11 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "@/db/schema";
-import { createCashierOrder, queryCashierOrderStatus } from "@/lib/opay/client";
+import {
+	createCashierOrder,
+	OpayProviderError,
+	queryCashierOrderStatus,
+} from "@/lib/opay/client";
 import { verifyCallbackSignature } from "@/lib/opay/signature";
 import { trackWebengageEvent } from "@/lib/webengage";
 import { syncWebengageUserProfile } from "@/utils/webengage-user-profile";
@@ -294,6 +298,10 @@ opayRoute.openapi(initiateRoute, async (c) => {
 		console.error("OPay deposit initiation failed", {
 			operation: "create_cashier_order",
 			reason: err instanceof Error ? err.name : "UnknownError",
+			message: err instanceof Error ? err.message : "Unknown error",
+			providerStatus: err instanceof OpayProviderError ? err.providerStatus : undefined,
+			providerCode: err instanceof OpayProviderError ? err.providerCode : undefined,
+			providerMessage: err instanceof OpayProviderError ? err.providerMessage : undefined,
 		});
 		return c.json(
 			{ success: false as const, error: "Failed to initiate deposit" },

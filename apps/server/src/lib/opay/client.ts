@@ -15,6 +15,27 @@ export type OpayConfig = {
 	privateKey: string;
 };
 
+export class OpayProviderError extends Error {
+	readonly providerStatus?: number;
+	readonly providerCode?: string;
+	readonly providerMessage?: string;
+
+	constructor(
+		message: string,
+		options: {
+			status?: number;
+			code?: string;
+			providerMessage?: string;
+		} = {},
+	) {
+		super(message);
+		this.name = "OpayProviderError";
+		this.providerStatus = options.status;
+		this.providerCode = options.code;
+		this.providerMessage = options.providerMessage;
+	}
+}
+
 export type CreateCashierOrderParams = {
 	reference: string; // sportdey unique reference 
 	amountKobo: number;
@@ -81,11 +102,17 @@ export async function createCashierOrder(
 	try {
 		json = JSON.parse(rawText);
 	} catch {
-		throw new Error(`OPay returned a non-JSON response (${response.status})`);
+		throw new OpayProviderError(`OPay returned a non-JSON response (${response.status})`, {
+			status: response.status,
+		});
 	}
 
 	if (json.code !== "00000" || !json.data) {
-		throw new Error(`OPay cashier creation failed (${json.code ?? response.status})`);
+		throw new OpayProviderError("OPay cashier creation was rejected", {
+			status: response.status,
+			code: json.code,
+			providerMessage: json.message,
+		});
 	}
 
 	return {
@@ -121,11 +148,17 @@ export async function queryCashierOrderStatus(
 	try {
 		json = JSON.parse(rawText);
 	} catch {
-		throw new Error(`OPay returned a non-JSON response (${response.status})`);
+		throw new OpayProviderError(`OPay returned a non-JSON response (${response.status})`, {
+			status: response.status,
+		});
 	}
 
 	if (json.code !== "00000" || !json.data) {
-		throw new Error(`OPay status query failed (${json.code ?? response.status})`);
+		throw new OpayProviderError("OPay status query was rejected", {
+			status: response.status,
+			code: json.code,
+			providerMessage: json.message,
+		});
 	}
 
 	return { status: json.data.status };

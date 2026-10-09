@@ -737,7 +737,7 @@ describe("Hashcodex signed wallet callback", () => {
 			.prepare(
 				"SELECT provider, game_code, round_id FROM pockets_transactions WHERE id = ?",
 			)
-			.get("hashcodex:debit:bet-1") as {
+			.get("binary:debit:bet-1") as {
 			provider: string;
 			game_code: string;
 			round_id: string;
