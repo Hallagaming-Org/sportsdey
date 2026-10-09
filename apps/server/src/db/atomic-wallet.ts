@@ -40,6 +40,34 @@ export const debitWallet = async (
 	return wallet;
 };
 
+/**
+ * Debit for money leaving the platform (withdrawals, transfers, bill
+ * payments). Only withdrawable funds qualify: locked bonus and stakes frozen
+ * for pending sportsbook bets stay put.
+ */
+export const debitWithdrawableWallet = async (
+	db: WalletDb,
+	userId: string,
+	amount: number,
+) => {
+	if (!isValidMutationAmount(amount)) return undefined;
+	const [wallet] = await db
+		.update(schema.wallet)
+		.set({
+			balance: sql`${schema.wallet.balance} - ${amount}`,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(schema.wallet.userId, userId),
+				sql`${schema.wallet.balance} - ${schema.wallet.frozenBalance} - ${schema.wallet.bonusBalance} >= ${amount}`,
+			),
+		)
+		.returning({ id: schema.wallet.id, balance: schema.wallet.balance });
+
+	return wallet;
+};
+
 export const creditWallet = async (
 	db: WalletDb,
 	userId: string,
