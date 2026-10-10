@@ -97,7 +97,7 @@ function NairaRampPanel({ address }: { address: `0x${string}` }) {
 		}
 		setOpening(true);
 		try {
-			await openQuidaxRampBuy({
+			const mode = await openQuidaxRampBuy({
 				address,
 				fromAmountNgn: ngn || undefined,
 				onSuccess: () => {
@@ -110,6 +110,11 @@ function NairaRampPanel({ address }: { address: `0x${string}` }) {
 					);
 				},
 			});
+			if (mode === "popup") {
+				toast.message(
+					"Finish the USDC buy in the Quidax window. If it asks for a security check, complete that first.",
+				);
+			}
 		} catch (err) {
 			toast.error(
 				err instanceof Error ? err.message : "Could not open Naira buy",
