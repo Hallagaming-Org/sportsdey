@@ -50,6 +50,7 @@ export const MISSION_ACTION_LABEL = {
 	INVITE: "Invite Now",
 	PLAY: "Play Now",
 	COMPLETED: "Completed",
+	REWARD_PENDING: "Reward pending",
 	LOCKED: "Locked",
 } as const;
 

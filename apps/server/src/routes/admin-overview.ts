@@ -171,7 +171,7 @@ const getTopBetsRoute = createRoute({
 	tags: ["Admin - Overview"],
 	summary: "Get top 5 biggest bets",
 	description:
-		"Retrieve the five biggest bets across sportsbook and casino providers for the selected date range.",
+		"Retrieve the five biggest bets across sportsbook and casino providers. When no date range is supplied, defaults to the rolling last 24 hours.",
 	security: [{ BearerAuth: [] }],
 	request: {
 		query: OverviewDateQuerySchema,
@@ -608,10 +608,17 @@ adminOverviewRoute.openapi(getTopBetsRoute, async (c) => {
 	}
 
 	const query = c.req.valid("query");
-	const { fromDate, toDate } = parseQueryDateRange({
+	const requestedRange = parseQueryDateRange({
 		fromDate: query.fromDate,
 		toDate: query.toDate,
 	});
+
+	const hasExplicitRange = Boolean(query.fromDate || query.toDate);
+	const now = new Date();
+	const fromDate = requestedRange.fromDate ??
+		(!hasExplicitRange ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : undefined);
+	const toDate = requestedRange.toDate ??
+		(!hasExplicitRange ? now : undefined);
 	const db = drizzle(c.env.DB, { schema });
 	const dateConditions = (createdAt: any) => [
 		...(fromDate ? [gte(createdAt, fromDate)] : []),

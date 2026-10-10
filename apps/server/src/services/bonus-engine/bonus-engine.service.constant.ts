@@ -16,6 +16,7 @@ export const BONUS_ENGINE_PATH = {
 	TOURNAMENT_LIST: "/tournament/list",
 	TOURNAMENT_JOIN: "/tournament/join",
 	TOURNAMENT_LEADERBOARD: "/tournament/leaderboard",
+	TOURNAMENT_RESULTS: "/tournament/results",
 	LIST_ACTIVE_CAMPAIGN: "/list_active_campaign",
 	GETALL_USER_BONUS: "/getall_User_bonus",
 	ACTIVATE_BONUS: "/activate_bonus",
@@ -33,6 +34,8 @@ export const BONUS_ENGINE_CALLBACK_PATH = {
 	LOYALTY_LEVEL_UP: "/gamification/callback/loyalty/level-up",
 	MISSION_PROGRESS: "/gamification/callback/mission/progress-update",
 	MISSION_COMPLETE: "/gamification/callback/mission/complete",
+	TOURNAMENT_END: "/gamification/callback/tournament/end",
+	TOURNAMENT_RANK_UPDATE: "/gamification/callback/tournament/rank-update",
 } as const;
 
 export const BONUS_ENGINE_HEADER = {
@@ -95,12 +98,15 @@ export const BONUS_ENGINE_DEFAULT_CAMPAIGN_TYPE =
 
 export const BONUS_ENGINE_REWARD_TYPE = {
 	REAL_CASH: "Real Cash",
+	POINTS: "Points",
 } as const;
 
 export const BONUS_ENGINE_WALLET_PAYMENT_METHOD = {
 	MISSION_REAL_CASH: "bonus_engine_mission",
 	BONUS_ACTIVATE: "bonus_engine_bonus",
 	BONUS_STATUS: "bonus_engine_bonus_status",
+	TOURNAMENT_PRIZE: "bonus_engine_tournament",
+	LOYALTY_REDEEM: "bonus_engine_loyalty",
 } as const;
 
 export const BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX = "be_mission_reward";
@@ -108,6 +114,51 @@ export const BONUS_ENGINE_MISSION_REWARD_REFERENCE_PREFIX = "be_mission_reward";
 export const BONUS_ENGINE_BONUS_ACTIVATE_REFERENCE_PREFIX = "be_bonus_activate";
 
 export const BONUS_ENGINE_BONUS_STATUS_REFERENCE_PREFIX = "be_bonus_status";
+
+/** One forfeit per bonus, shared by player cancel and engine status callbacks. */
+export const BONUS_ENGINE_BONUS_FORFEIT_REFERENCE_PREFIX = "be_bonus_forfeit";
+
+export const BONUS_ENGINE_BONUS_WIN_LOCK_REFERENCE_PREFIX = "be_bonus_lock";
+
+export const BONUS_ENGINE_TOURNAMENT_PRIZE_REFERENCE_PREFIX =
+	"be_tournament_prize";
+
+export const BONUS_ENGINE_LOYALTY_REDEEM_REFERENCE_PREFIX = "be_loyalty_redeem";
+
+/** Loyalty `redeem_levels_type` values SportsDey can fulfil as cash. */
+export const BONUS_ENGINE_LOYALTY_CASH_REWARD_TYPES = new Set<string>([
+	"cash",
+	"real_cash",
+	"real cash",
+]);
+
+/** Missions whose engine completion has waited this long get reconciled. */
+export const BONUS_ENGINE_MISSION_RECONCILE_GRACE_MS = 10 * 60 * 1000;
+
+/** At most one post-bet `/mission/progress` refresh per player per window. */
+export const BONUS_ENGINE_MISSION_REFRESH_DEBOUNCE_SECONDS = 60;
+
+export const BONUS_ENGINE_MISSION_REFRESH_KEY_PREFIX =
+	"bonus-engine:mission-refresh";
+
+export const BONUS_ENGINE_OUTBOX_KIND = {
+	BET: "bet",
+	BET_RESULT: "bet_result",
+	DEPOSIT: "deposit",
+} as const;
+
+export const BONUS_ENGINE_OUTBOX_MAX_ATTEMPTS = 12;
+
+export const BONUS_ENGINE_OUTBOX_BATCH_SIZE = 50;
+
+/** Statuses after which a bonus can never move money again. */
+export const BONUS_ENGINE_TERMINAL_BONUS_STATUSES = new Set<string>([
+	"COMPLETED",
+	"EXPIRED",
+	"CANCELED",
+	"CANCELLED",
+	"LOST",
+]);
 
 export const BONUS_ENGINE_USER_ACTION = {
 	ACTIVATED: "ACTIVATED",
@@ -127,6 +178,8 @@ export const BONUS_ENGINE_CALLBACK_MESSAGE = {
 	BONUS_STATUS_UPDATED: "Bonus status updated successfully",
 	BALANCE_RETRIEVED: "Balance retrieved successfully",
 	BONUS_ALLOCATION_UPDATED: "Bonus allocation updated successfully",
+	TOURNAMENT_ENDED: "Tournament ended and winners processed successfully",
+	TOURNAMENT_RANKS_UPDATED: "Tournament ranks updated successfully",
 	INVALID_JSON: "Invalid JSON body",
 } as const;
 
@@ -148,6 +201,8 @@ export const BONUS_ENGINE_CALLBACK_EVENT_TYPE = {
 	MISSION_COMPLETE: "mission.complete",
 	BONUS_STATUS_UPDATE: "bonus.status-update",
 	BONUS_ALLOCATION: "bonus.allocation",
+	TOURNAMENT_END: "tournament.end",
+	TOURNAMENT_RANK_UPDATE: "tournament.rank-update",
 } as const;
 
 export const BONUS_ENGINE_LOYALTY_PATHS_WITH_QUERY_SIGNATURE = new Set<string>([
@@ -207,6 +262,7 @@ export const BONUS_ENGINE_BODY_FIELD = {
 	RESULT_TIME: "result_time",
 	MISSION_ID: "mission_id",
 	TOURNAMENT_ID: "tournamentId",
+	TOURNAMENT_ID_SNAKE: "tournament_id",
 } as const;
 
 export const BONUS_ENGINE_REPORT_RETRY_ATTEMPTS = 3;

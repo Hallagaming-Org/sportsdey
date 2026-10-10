@@ -12,9 +12,8 @@ import type {
 	BonusEngineTournamentListBody,
 	BonusEngineTournamentListItem,
 } from "./bonus-engine.service.type";
-import { bonusEngineRequest } from "./client";
 import { getBonusEngineConfig } from "./config";
-import { getBonusEngineAccessToken } from "./token.service";
+import { bonusEngineAuthedRequest } from "./token.service";
 
 type BonusEngineEnvelope<T> = {
 	success?: boolean;
@@ -129,7 +128,9 @@ export async function joinBonusEngineTournament(payload: {
 	env: CloudflareBindings;
 	userId: string;
 	tournamentId: string;
-}): Promise<BonusEngineApiResult<BonusEngineEnvelope<Record<string, unknown>>>> {
+}): Promise<
+	BonusEngineApiResult<BonusEngineEnvelope<Record<string, unknown>>>
+> {
 	const config = getBonusEngineConfig(payload.env);
 	const result = await signedTournamentRequest<
 		BonusEngineEnvelope<Record<string, unknown>>
@@ -176,6 +177,69 @@ export function mapBonusEngineTournamentJoinError(
 	return message || "Failed to join tournament";
 }
 
+export type TournamentPrizeKind = "cash" | "bonus" | "unsupported";
+
+/**
+ * How a tournament pays its winners, from its Admin config:
+ * `tournament_win_type: bonus` prizes are bonus funds the engine allocates as
+ * a player bonus (credited through the bonus flow, locked until wagered);
+ * prizes made only of free bets / free spins cannot be granted by SportsDey;
+ * everything else is cash. No config falls back to cash, which is what the
+ * end callback contract describes.
+ */
+export function classifyTournamentPrize(
+	tournament: BonusEngineTournamentListItem | null,
+): TournamentPrizeKind {
+	if (!tournament) return "cash";
+	const winType = asTrimmedString(tournament.tournament_win_type).toLowerCase();
+	if (winType === "bonus") return "bonus";
+	if (winType && !CASH_WIN_TYPES.has(winType)) return "unsupported";
+
+	const configs = Array.isArray(tournament.prize_configs)
+		? tournament.prize_configs.filter(isRecord)
+		: [];
+	const amountTypes = configs.flatMap((config) =>
+		(Array.isArray(config.price_amount_type)
+			? config.price_amount_type
+			: [config.price_amount_type]
+		)
+			.map((type) => asTrimmedString(type).toLowerCase())
+			.filter(Boolean),
+	);
+	if (
+		amountTypes.length > 0 &&
+		amountTypes.every((type) => NON_CASH_PRIZE_TYPES.has(type))
+	) {
+		return "unsupported";
+	}
+	return "cash";
+}
+
+const CASH_WIN_TYPES = new Set(["real", "cash", "real_cash", "fix", "fixed"]);
+const NON_CASH_PRIZE_TYPES = new Set(["free_bets", "free_spins"]);
+
+/**
+ * Loads one tournament's config from `POST /tournament/list`. `ok: false`
+ * means the engine could not be asked (retry); `tournament: null` means it
+ * is not listed.
+ */
+export async function findBonusEngineTournament(payload: {
+	env: CloudflareBindings;
+	tournamentId: string;
+}): Promise<
+	{ ok: true; tournament: BonusEngineTournamentListItem | null } | { ok: false }
+> {
+	const result = await listBonusEngineTournaments({ env: payload.env });
+	if (!result.ok) return { ok: false };
+	const rows = Array.isArray(result.data?.data) ? result.data.data : [];
+	return {
+		ok: true,
+		tournament:
+			rows.find((row) => asTrimmedString(row._id) === payload.tournamentId) ??
+			null,
+	};
+}
+
 /**
  * Proxies Bonus Engine `POST /tournament/leaderboard` for one tournament.
  * Always returns an array in `data`, even when the engine wraps rows.
@@ -189,9 +253,7 @@ export async function getBonusEngineTournamentLeaderboard(payload: {
 	>
 > {
 	const config = getBonusEngineConfig(payload.env);
-	const result = await signedTournamentRequest<
-		BonusEngineEnvelope<unknown>
-	>({
+	const result = await signedTournamentRequest<BonusEngineEnvelope<unknown>>({
 		env: payload.env,
 		path: BONUS_ENGINE_PATH.TOURNAMENT_LEADERBOARD,
 		body: buildBonusEngineTournamentLeaderboardBody({
@@ -221,26 +283,12 @@ export async function getBonusEngineTournamentLeaderboard(payload: {
 	};
 }
 
-async function signedTournamentRequest<T>(payload: {
+function signedTournamentRequest<T>(payload: {
 	env: CloudflareBindings;
 	path: string;
 	body: Record<string, unknown>;
 }): Promise<BonusEngineApiResult<T>> {
-	const tokenResult = await getBonusEngineAccessToken(payload.env);
-	if (!tokenResult.ok || !tokenResult.data) {
-		return {
-			ok: false,
-			status: tokenResult.status,
-			error: tokenResult.error ?? "Failed to obtain Bonus Engine access token",
-		};
-	}
-
-	return bonusEngineRequest<T>({
-		env: payload.env,
-		path: payload.path,
-		accessToken: tokenResult.data,
-		body: payload.body,
-	});
+	return bonusEngineAuthedRequest<T>(payload);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -252,4 +300,8 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return asRecord(value) !== null;
+}
+
+function asTrimmedString(value: unknown): string {
+	return typeof value === "string" ? value.trim() : "";
 }

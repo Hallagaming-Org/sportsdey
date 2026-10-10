@@ -26,6 +26,10 @@ import {
 } from "@/lib/bonuses.constant";
 import { OpenfortWalletScope } from "@/lib/openfort/scope";
 import { formatAmount } from "@/lib/utils";
+import {
+	playableWalletNaira,
+	type PlayerWalletBalances,
+} from "@/lib/wallet-balance";
 import type { WalletTransaction } from "@/lib/wallet-transactions";
 import AirtimeIcon from "@/logos/airtime.svg?react";
 import CableTvIcon from "@/logos/cable-tv.svg?react";
@@ -49,9 +53,8 @@ export const Route = createFileRoute("/wallet")({
 	component: WalletPage,
 });
 
-type WalletResponse = {
+type WalletResponse = PlayerWalletBalances & {
 	id: string;
-	balance?: number | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -239,7 +242,7 @@ function WalletPage() {
 
 	const isInitialPageLoading = isSessionLoading;
 	const isWalletSectionLoading = isWalletLoading;
-	const walletBalance = formatAmount(walletData?.balance);
+	const walletBalance = formatAmount(playableWalletNaira(walletData));
 	const validateDepositAmount = (amount: number) => {
 		if (!Number.isFinite(amount)) {
 			return "Enter a valid amount.";
@@ -442,7 +445,7 @@ function WalletPage() {
 				isPending={depositMutation.isPending}
 				error={depositError}
 				kudaDepositInstructions={kudaDepositInstructions}
-				walletBalance={walletData?.balance ?? undefined}
+				walletBalance={playableWalletNaira(walletData)}
 			/>
 
 

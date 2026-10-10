@@ -16,6 +16,7 @@ import {
 	parseMarketId,
 } from "@/utils/ticket-selection-labels";
 import type { CloudflareBindings } from "../types";
+import { fetchSportsDeyTradeHistory } from "@/utils/sportsdey-trade-history";
 
 const betHistoryRoute = new OpenAPIHono<{ Bindings: CloudflareBindings }>();
 
@@ -286,6 +287,133 @@ function pushCollapsedCasinoItems(
 			settledAt: toWAT(item.settledAt),
 			betType: "Casino",
 			createdAt: item.createdAt,
+		});
+	}
+}
+
+function remoteTradeValue(
+	record: Record<string, unknown>,
+	keys: string[],
+): unknown {
+	for (const key of keys) {
+		if (record[key] !== undefined && record[key] !== null) return record[key];
+	}
+	return null;
+}
+
+function remoteTradeNumber(
+	record: Record<string, unknown>,
+	keys: string[],
+): number {
+	const value = remoteTradeValue(record, keys);
+	const number = typeof value === "number" ? value : Number(value);
+	return Number.isFinite(number) ? number : 0;
+}
+
+function mapRemoteTradeStatus(
+	record: Record<string, unknown>,
+): "success" | "pending" | "failed" {
+	const value = String(
+		remoteTradeValue(record, ["status", "result", "outcome"]) ?? "pending",
+	).toLowerCase();
+	if (["won", "win", "success", "successful", "completed"].includes(value)) {
+		return "success";
+	}
+	if (["lost", "loss", "failed", "cancelled", "canceled"].includes(value)) {
+		return "failed";
+	}
+	return "pending";
+}
+
+function mapRemoteTradeDate(record: Record<string, unknown>): Date {
+	const value = remoteTradeValue(record, [
+		"createdAt",
+		"created_at",
+		"startTime",
+		"start_time",
+		"openedAt",
+	]);
+	const date = value instanceof Date ? value : new Date(String(value ?? ""));
+	return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+function pushRemoteTradeItems(
+	allItems: Array<{
+		id: string;
+		ticketId: string;
+		type: string;
+		amount: number;
+		multiplier: number;
+		status: "success" | "pending" | "failed";
+		placedAt: string;
+		totalOdds: string | null;
+		potentialWin: number | null;
+		actualPayout: number | null;
+		settledAt: string | null;
+		betType: string | null;
+		createdAt: Date;
+	}>,
+	records: Array<Record<string, unknown>>,
+) {
+	for (const record of records) {
+		const rawId = remoteTradeValue(record, [
+			"id",
+			"_id",
+			"tradeId",
+			"trade_id",
+			"orderId",
+			"order_id",
+			"roundId",
+		]);
+		if (!rawId) continue;
+		const id = String(rawId);
+		const status = mapRemoteTradeStatus(record);
+		const createdAt = mapRemoteTradeDate(record);
+		const type = String(
+			remoteTradeValue(record, ["type", "game", "gameType", "tradeType"]) ??
+			"Trading",
+		);
+		const amount = remoteTradeNumber(record, [
+			"amount",
+			"bet_amount",
+			"stake",
+			"stakeAmount",
+			"entryAmount",
+			"volume",
+		]);
+		const payout = remoteTradeNumber(record, [
+			"payout",
+			"received_amount",
+			"return_amount",
+			"totalReturn",
+			"total_return",
+		]);
+		const profit = remoteTradeNumber(record, ["profit", "realizedPnl", "profit_loss"]);
+		const settledAtValue = remoteTradeValue(record, [
+			"settledAt",
+			"settled_at",
+			"endTime",
+			"end_time",
+			"updatedAt",
+		]);
+		const settledAt = settledAtValue ? new Date(String(settledAtValue)) : null;
+		const validSettledAt = settledAt && !Number.isNaN(settledAt.getTime()) ? settledAt : null;
+		const actualPayout = status === "success" ? (payout || amount + profit) : status === "failed" ? 0 : null;
+
+		allItems.push({
+			id: `hashcodex-trade:${id}`,
+			ticketId: id,
+			type: `Trading - ${type}`,
+			amount,
+			multiplier: amount > 0 && actualPayout !== null ? actualPayout / amount : 0,
+			status,
+			placedAt: toWAT(createdAt),
+			totalOdds: null,
+			potentialWin: status === "pending" ? (payout || null) : actualPayout,
+			actualPayout,
+			settledAt: validSettledAt ? toWAT(validSettledAt) : status === "pending" ? null : toWAT(createdAt),
+			betType: "Trading",
+			createdAt,
 		});
 	}
 }
@@ -627,7 +755,13 @@ betHistoryRoute.openapi(getBetHistoryRoute, async (c) => {
 	}
 	pushCollapsedCasinoItems(allItems, collapseCasinoLedgerRows(scorpioLedger));
 
-	// ===== 7. SORT AND PAGINATE =====
+	// ===== 8. FETCH UNIFIED BINARY-SERVICE TRADING HISTORY =====
+	// This is deliberately best-effort: local betting history remains available
+	// if the binary service is unavailable or the session exchange is missing.
+	const remoteTradeRecords = await fetchSportsDeyTradeHistory(c.req.raw, c.env);
+	pushRemoteTradeItems(allItems, remoteTradeRecords);
+
+	// ===== 9. SORT AND PAGINATE =====
 	allItems.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
 	const settledItems = allItems.filter((item) => item.status !== "pending");
@@ -1173,6 +1307,96 @@ betHistoryRoute.openapi(getTicketDetailRoute, async (c) => {
 			: [];
 		return c.json(
 			processCasinoTransaction(scorpioBet, gameName, "Scorpio", roundTxs),
+			200,
+		);
+	}
+
+	// Unified binary-service trading history (endpoint 112).
+	const remoteTrade = (await fetchSportsDeyTradeHistory(c.req.raw, c.env)).find(
+		(record) =>
+			[
+				"id",
+				"_id",
+				"tradeId",
+				"trade_id",
+				"orderId",
+				"order_id",
+				"roundId",
+			].some((key) => String(record[key] ?? "") === id),
+	);
+	if (remoteTrade) {
+		const status = mapRemoteTradeStatus(remoteTrade);
+		const createdAt = mapRemoteTradeDate(remoteTrade);
+		const amount = remoteTradeNumber(remoteTrade, [
+			"amount",
+			"bet_amount",
+			"stake",
+			"stakeAmount",
+			"entryAmount",
+			"volume",
+		]);
+		const payout = remoteTradeNumber(remoteTrade, [
+			"payout",
+			"received_amount",
+			"return_amount",
+			"totalReturn",
+			"total_return",
+		]);
+		const profit = remoteTradeNumber(remoteTrade, [
+			"profit",
+			"realizedPnl",
+			"profit_loss",
+		]);
+		const outcome =
+			status === "success" ? "won" : status === "failed" ? "lost" : "pending";
+		const type = String(
+			remoteTradeValue(remoteTrade, [
+				"type",
+				"game",
+				"gameType",
+				"tradeType",
+			]) ?? "Trading",
+		);
+
+		return c.json(
+			{
+				success: true as const,
+				data: {
+					ticketId: id,
+					dateTime: toWAT(createdAt),
+					betType: "Trading",
+					outcome,
+					stake: amount,
+					totalOdds: amount > 0 && payout > 0 ? payout / amount : 0,
+					totalReturn: status === "success" ? payout || amount + profit : null,
+					potentialCashout: null,
+					numberOfBets: 1,
+					selections: [
+						{
+							matchId: null,
+							match: String(
+								remoteTradeValue(remoteTrade, ["pair", "symbol", "asset"]) ??
+									"Trading",
+							),
+							market: type,
+							result: String(
+								remoteTradeValue(remoteTrade, ["result", "outcome", "status"]) ??
+									"pending",
+							),
+							pick: String(
+								remoteTradeValue(remoteTrade, ["direction", "side"]) ?? "-",
+							),
+							odds: null,
+							status: outcome,
+							startTime: createdAt.toISOString(),
+						},
+					],
+					isCasino: false,
+					gameName: type,
+					provider: "Hashcodex",
+					multiplier: amount > 0 && payout > 0 ? payout / amount : 0,
+				},
+			},
 			200,
 		);
 	}

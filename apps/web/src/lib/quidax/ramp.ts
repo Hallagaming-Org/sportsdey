@@ -1,16 +1,19 @@
 import { OPENFORT_CHAIN } from "@/lib/openfort/config";
 
 /**
- * Quidax Ramp widget (client-only). Public key in web env; never put the
+ * Quidax Ramp (client-only). Public key in web env; never put the
  * Quidax private key in the web app.
  *
- * Worker + buy_transaction webhooks are intentionally not implemented.
- * Stay on the widget until we need server-issued merchant_reference rows,
- * payouts that complete after the modal closes, custom bank-account UI,
- * refund / needs_attention handling, or settlement that cannot trust
- * widget onSuccess. If that work is added later: the Worker holds the
- * private key and still must never call creditWallet / Paystack / OPay.
+ * Official integration is `window.ramp.initialize()` from ramp.js. That
+ * mounts an overlay iframe to https://ramp.quidax.io and posts
+ * INITIALIZE_QUIDAX_RAMP after load. Opening ramp.quidax.io as a tab
+ * stays blank: checkout posts `ready` to `parent`, Cloudflare COOP
+ * severs `window.opener`, and the page never receives init.
+ *
+ * Worker webhooks only acknowledge events. Crypto is paid on-chain to the
+ * Openfort address — never creditWallet / Paystack / OPay.
  */
+export const QUIDAX_RAMP_CHECKOUT_URL = "https://ramp.quidax.io";
 export const QUIDAX_RAMP_SCRIPT_URL =
 	"https://d309lcjd52k0i0.cloudfront.net/ramp.js";
 
@@ -18,8 +21,13 @@ export const QUIDAX_RAMP_PUBLIC_KEY = import.meta.env
 	.VITE_QUIDAX_RAMP_PUBLIC_KEY as string | undefined;
 
 export type QuidaxRampAddressCheck =
-	| { ok: true; network: "POLYGON"; toCurrency: string }
+	| { ok: true; network: "polygon"; toCurrency: string }
 	| { ok: false; reason: string };
+
+type QuidaxRampSdk = {
+	initialize: (config: Record<string, unknown>) => void;
+	destroy?: () => void;
+};
 
 /**
  * Hard rule: never pass a testnet (Amoy) Openfort address to Quidax.
@@ -36,13 +44,13 @@ export function canPassOpenfortAddressToQuidax(
 				"Naira buy is unavailable on testnet. The Crypto address is not on a Quidax production network.",
 		};
 	}
-	if (chain.quidaxNetwork !== "POLYGON") {
+	if (chain.quidaxNetwork !== "polygon") {
 		return {
 			ok: false,
 			reason: `This Openfort chain (${chain.label}) is not a Quidax payout network. Use Polygon.`,
 		};
 	}
-	if (!publicKey?.trim()) {
+	if (!publicKey?.trim() || !publicKey.trim().startsWith("pub_")) {
 		return {
 			ok: false,
 			reason: "Naira buy is not configured (missing Quidax Ramp public key).",
@@ -66,50 +74,33 @@ export function createQuidaxRampReference(): string {
 	return `sd-ramp-${Date.now()}-${rand}`;
 }
 
-export type QuidaxRampInitializeOptions = {
-	public_key: string;
-	reference: string;
-	from_currency: string;
-	to_currency: string;
-	from_amount?: string;
-	mode: "buy" | "sell";
-	address?: string;
-	network: string;
-	onClose?: (ref: unknown) => void;
-	onSuccess?: (transaction: unknown) => void;
-	onReceiveWalletDetails?: (walletDetails: unknown) => void;
-};
-
-declare global {
-	interface Window {
-		ramp?: {
-			initialize: (options: QuidaxRampInitializeOptions) => void;
-		};
-	}
+function getRampSdk(): QuidaxRampSdk | undefined {
+	if (typeof window === "undefined") return undefined;
+	return (window as Window & { ramp?: QuidaxRampSdk }).ramp;
 }
 
-let scriptLoad: Promise<void> | null = null;
+function loadQuidaxRampScript(): Promise<QuidaxRampSdk> {
+	const existing = getRampSdk();
+	if (existing?.initialize) return Promise.resolve(existing);
 
-export function loadQuidaxRampScript(): Promise<void> {
-	if (typeof window === "undefined") {
-		return Promise.reject(new Error("Quidax Ramp is browser-only"));
-	}
-	if (window.ramp) return Promise.resolve();
-	if (scriptLoad) return scriptLoad;
-
-	scriptLoad = new Promise((resolve, reject) => {
-		const existing = document.querySelector<HTMLScriptElement>(
-			`script[src="${QUIDAX_RAMP_SCRIPT_URL}"]`,
-		);
-		if (existing) {
-			if (window.ramp) {
-				resolve();
+	return new Promise((resolve, reject) => {
+		const finish = () => {
+			const sdk = getRampSdk();
+			if (sdk?.initialize) {
+				resolve(sdk);
 				return;
 			}
-			existing.addEventListener("load", () => resolve(), { once: true });
-			existing.addEventListener(
+			reject(new Error("Quidax Ramp failed to load"));
+		};
+
+		const found = document.querySelector<HTMLScriptElement>(
+			'script[data-quidax-ramp="1"]',
+		);
+		if (found) {
+			found.addEventListener("load", finish, { once: true });
+			found.addEventListener(
 				"error",
-				() => reject(new Error("Failed to load Quidax Ramp")),
+				() => reject(new Error("Could not load Quidax Ramp")),
 				{ once: true },
 			);
 			return;
@@ -118,15 +109,15 @@ export function loadQuidaxRampScript(): Promise<void> {
 		const script = document.createElement("script");
 		script.src = QUIDAX_RAMP_SCRIPT_URL;
 		script.async = true;
-		script.onload = () => resolve();
-		script.onerror = () => {
-			scriptLoad = null;
-			reject(new Error("Failed to load Quidax Ramp"));
-		};
+		script.dataset.quidaxRamp = "1";
+		script.addEventListener("load", finish, { once: true });
+		script.addEventListener(
+			"error",
+			() => reject(new Error("Could not load Quidax Ramp")),
+			{ once: true },
+		);
 		document.head.appendChild(script);
 	});
-
-	return scriptLoad;
 }
 
 export async function openQuidaxRampBuy(params: {
@@ -139,17 +130,21 @@ export async function openQuidaxRampBuy(params: {
 	if (!check.ok) {
 		throw new Error(check.reason);
 	}
-	if (!QUIDAX_RAMP_PUBLIC_KEY) {
+	if (!QUIDAX_RAMP_PUBLIC_KEY?.trim().startsWith("pub_")) {
 		throw new Error("Missing Quidax Ramp public key");
 	}
-
-	await loadQuidaxRampScript();
-	if (!window.ramp) {
-		throw new Error("Quidax Ramp failed to initialize");
+	if (typeof window === "undefined") {
+		throw new Error("Quidax Ramp is browser-only");
 	}
 
-	window.ramp.initialize({
-		public_key: QUIDAX_RAMP_PUBLIC_KEY,
+	const publicKey = QUIDAX_RAMP_PUBLIC_KEY.trim();
+	if (!publicKey.startsWith("pub_")) {
+		throw new Error("Quidax Ramp public key is not a Ramp pub_ key.");
+	}
+
+	const ramp = await loadQuidaxRampScript();
+	ramp.initialize({
+		public_key: publicKey,
 		reference: createQuidaxRampReference(),
 		from_currency: "ngn",
 		to_currency: check.toCurrency,
@@ -157,12 +152,8 @@ export async function openQuidaxRampBuy(params: {
 		mode: "buy",
 		address: params.address,
 		network: check.network,
-		onClose: () => {
-			params.onClose?.();
-		},
-		onSuccess: () => {
-			// On-chain credit is Quidax's payout to Openfort — never D1 / creditWallet.
-			params.onSuccess?.();
-		},
+		enableWalletConnect: false,
+		onClose: () => params.onClose?.(),
+		onSuccess: () => params.onSuccess?.(),
 	});
 }

@@ -8,6 +8,8 @@ import { useOpenfortReady } from "@/lib/openfort/scope";
 import { useCryptoIncomingTransactions } from "@/lib/openfort/use-crypto-transactions";
 import {
 	getTransactionDetails,
+	getTransactionAmountPrefix,
+	getTransactionDirection,
 	getTransactionTypeLabel,
 	getWalletReceiptDetails,
 	type WalletTransaction,
@@ -24,6 +26,7 @@ const statusBadgeStyles = {
 	success: "bg-[#D1FAE5] text-[#065F46]",
 	pending: "bg-[#FFF4CC] text-[#A66A00]",
 	failed: "bg-[#FEE2E2] text-[#991B1B]",
+	reversed: "bg-[#FFF4CC] text-[#A66A00]",
 };
 
 const transactionVisualStyles = {
@@ -42,14 +45,22 @@ const transactionVisualStyles = {
 		iconColor: "text-[#A66A00]",
 		amountColor: "text-[#A66A00]",
 	},
+	reversed: {
+		iconBackground: "bg-[#FFF4CC]",
+		iconColor: "text-[#A66A00]",
+		amountColor: "text-[#A66A00]",
+	},
 };
 
 function getTransactionVisualStyle(
-	isCredit: boolean,
+	direction: "credit" | "debit" | "reversal",
 	statusColor: keyof typeof statusBadgeStyles,
 ) {
 	if (statusColor === "pending") return transactionVisualStyles.pending;
-	return isCredit
+	if (statusColor === "reversed" || direction === "reversal") {
+		return transactionVisualStyles.reversed;
+	}
+	return direction === "credit"
 		? transactionVisualStyles.credit
 		: transactionVisualStyles.debit;
 }
@@ -133,15 +144,16 @@ function WalletRecentTransactionsView({
 				const { date, time } = parseDateTime(tx.createdAt);
 				const typeLabel = getTransactionTypeLabel(tx);
 				const amountLabel = getTransactionAmountLabel(tx);
-				const isCredit = (tx.amount ?? 0) > 0;
-				const visualStyle = getTransactionVisualStyle(isCredit, statusColor);
+				const direction = getTransactionDirection(tx);
+				const visualStyle = getTransactionVisualStyle(direction, statusColor);
 				return {
 					id: tx.id,
 					date,
 					time,
 					typeLabel,
 					amountLabel,
-					isCredit,
+					direction,
+					amountPrefix: getTransactionAmountPrefix(direction),
 					statusText: statusText === "Successful" ? "Success" : statusText,
 					statusColor,
 					visualStyle,
@@ -279,7 +291,7 @@ function WalletRecentTransactionsView({
 											<span
 												className={`font-semibold text-[15px] ${tx.visualStyle.amountColor}`}
 											>
-												{tx.isCredit ? "+" : "-"}
+								{tx.amountPrefix}
 												{tx.amountLabel.replace("-", "")}
 											</span>
 											<button
@@ -332,8 +344,8 @@ function WalletRecentTransactionsView({
 												<td className="max-w-[200px] truncate py-4 pr-4 font-medium text-[15px] text-white">
 													{tx.typeLabel}
 												</td>
-												<td className="py-4 pr-4 font-semibold text-[15px] text-white">
-													{tx.amountLabel}
+								<td className={`py-4 pr-4 font-semibold text-[15px] ${tx.visualStyle.amountColor}`}>
+									{tx.amountPrefix}{tx.amountLabel}
 												</td>
 												<td className="py-4 pr-4">
 													<span
@@ -376,7 +388,9 @@ function WalletRecentTransactionsView({
 							? "Successful"
 							: selectedTx.status.toLowerCase() === "pending"
 								? "Pending"
-								: "Failed"
+								: ["reversed", "reversal", "refunded", "declined", "cancelled", "canceled"].includes(selectedTx.status.toLowerCase())
+									? "Reversed"
+									: "Failed"
 					}
 					statusMessage={
 						["success", "completed", "successful"].includes(
@@ -385,7 +399,9 @@ function WalletRecentTransactionsView({
 							? "Transaction has been completed."
 							: selectedTx.status.toLowerCase() === "pending"
 								? "Transaction is still processing."
-								: "Transaction failed."
+								: ["reversed", "reversal", "refunded", "declined", "cancelled", "canceled"].includes(selectedTx.status.toLowerCase())
+									? "Transaction was reversed."
+									: "Transaction failed."
 					}
 					onBack={() => setSelectedTx(null)}
 				/>

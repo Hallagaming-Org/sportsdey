@@ -13,6 +13,8 @@ build
 .env*.local
 .env.production
 !.env.example
+.dev.vars
+.dev.vars*
 
 # IDEs and editors
 .vscode/*

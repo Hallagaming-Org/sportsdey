@@ -5,6 +5,7 @@ import {
 	getSwipeGamesConfig,
 	SWIPEGAMES_PRODUCTION_CALLBACK_IPS,
 	SWIPEGAMES_STAGING_CALLBACK_IPS,
+	swipeGamesOutboundBase,
 	SwipeGamesIpForbiddenError,
 } from "./config";
 
@@ -46,15 +47,53 @@ describe("Swipe Games reverse-call IP allowlist", () => {
 		);
 	});
 
-	it("prefers PROXY_ORIGIN_URL over orange-clouded PROXY_URL", () => {
+	it("ignores http PROXY_ORIGIN_URL when https PROXY_URL exists", () => {
 		const config = getSwipeGamesConfig({
 			...keys,
 			PROXY_URL: "https://proxy.sportsdey.com",
 			PROXY_ORIGIN_URL: "http://143.198.145.62",
 			PROXY_SECRET: "proxy-secret",
 		});
-		assert.equal(config?.proxyUrl, "http://143.198.145.62");
+		assert.equal(config?.proxyUrl, "https://proxy.sportsdey.com");
 		assert.equal(config?.proxySecret, "proxy-secret");
+	});
+
+	it("prefers https PROXY_ORIGIN_URL over PROXY_URL", () => {
+		const config = getSwipeGamesConfig({
+			...keys,
+			PROXY_URL: "https://proxy.sportsdey.com",
+			PROXY_ORIGIN_URL: "https://origin.example",
+			PROXY_SECRET: "proxy-secret",
+		});
+		assert.equal(config?.proxyUrl, "https://origin.example");
+	});
+
+	it("keeps /api/v1 on the staging proxy hop so nginx does not drop it", () => {
+		const config = getSwipeGamesConfig({
+			...keys,
+			SWIPEGAMES_ENV: "staging",
+			PROXY_URL: "https://proxy.sportsdey.com",
+			PROXY_SECRET: "proxy-secret",
+		});
+		assert.ok(config);
+		assert.equal(config.env, "staging");
+		assert.equal(config.baseUrl, "https://staging.platform.0.swipegames.io/api/v1");
+		assert.equal(
+			swipeGamesOutboundBase(config, true),
+			"https://proxy.sportsdey.com/swipegames-staging/api/v1",
+		);
+	});
+
+	it("keeps production Core off the staging Worker", () => {
+		const config = getSwipeGamesConfig({
+			...keys,
+			SWIPEGAMES_ENV: "staging",
+			SWIPEGAMES_EXT_CID: "staging_sportsdey",
+			PROXY_URL: "https://proxy.sportsdey.com",
+			PROXY_SECRET: "proxy-secret",
+		});
+		assert.equal(config?.extCid, "staging_sportsdey");
+		assert.notEqual(config?.baseUrl.includes("prod.platform"), true);
 	});
 
 	it("can be disabled with off", () => {

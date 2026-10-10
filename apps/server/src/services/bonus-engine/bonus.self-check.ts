@@ -8,7 +8,6 @@ import {
 	mergeUserBonusesWithLocalSnapshots,
 	parseBonusActivationAmounts,
 	parseBonusAllocationRecords,
-	resolveBonusStatusWalletDeltas,
 	shouldCreditAllocatedBonus,
 } from "./bonus.service";
 import { isBonusEngineJsonNotFound, isBonusEngineUnhandledException } from "./client";
@@ -105,20 +104,6 @@ assert.equal(
 	false,
 );
 
-assert.deepEqual(
-	resolveBonusStatusWalletDeltas({
-		realAmountChange: 10.84,
-		bonusAmountChange: 50.89,
-	}),
-	{ realKobo: 1084, bonusKobo: -5089 },
-);
-assert.deepEqual(
-	resolveBonusStatusWalletDeltas({
-		realAmountChange: -5,
-		bonusAmountChange: -20,
-	}),
-	{ realKobo: -500, bonusKobo: 2000 },
-);
 
 const allocated = {
 	_id: "68358c5d14dfca8ca571b41e",

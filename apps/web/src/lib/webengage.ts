@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "./api";
 
 declare global {
 	interface Window {
@@ -238,6 +238,7 @@ async function postWebengageApiEvent(
 		await apiRequest("webengage/events", {
 			method: "POST",
 			credentials: "include",
+			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({
 				eventName,
 				eventData: serializeEventData(attributes),

@@ -30,6 +30,7 @@ import {
 	adminActivityActions,
 	recordActivityForSession,
 } from "@/utils/admin-activity-log";
+import { isWalletTransactionFlagged } from "@/utils/wallet-transaction-fraud-flag";
 import type { CloudflareBindings } from "../types";
 
 type AdminRouteContext = { Bindings: CloudflareBindings };
@@ -184,6 +185,12 @@ const GetWalletTransactionsQuerySchema = z.object({
 		.enum(["success", "pending", "failed", "refund"])
 		.optional()
 		.openapi({ description: "Filter by transaction status" }),
+	flagged: z
+		.enum(["true", "false"])
+		.optional()
+		.openapi({
+			description: "When true, only return transactions flagged as fraud",
+		}),
 	fromDate: z
 		.string()
 		.optional()
@@ -219,6 +226,9 @@ const TransactionResponseSchema = z.object({
 		.number()
 		.openapi({ description: "Wallet balance after transaction" }),
 	status: z.string().openapi({ description: "Transaction status" }),
+	flagged: z
+		.boolean()
+		.openapi({ description: "Whether this transaction is flagged as fraud" }),
 	metadata: z.any().nullable(),
 });
 
@@ -1428,6 +1438,7 @@ const handleGetWalletTransactions = async (
 		search: c.req.query("search"),
 		type: c.req.query("type"),
 		status: c.req.query("status"),
+		flagged: c.req.query("flagged"),
 		fromDate: c.req.query("fromDate"),
 		toDate: c.req.query("toDate"),
 		page: c.req.query("page"),
@@ -1438,7 +1449,7 @@ const handleGetWalletTransactions = async (
 		return c.json({ success: false, error: "Invalid query parameters" }, 400);
 	}
 
-	const { search, type, status, fromDate, toDate } = query.data;
+	const { search, type, status, flagged, fromDate, toDate } = query.data;
 
 	const { fromDate: fromDateBoundary, toDate: toDateBoundary } =
 		parseQueryDateRange({
@@ -1484,6 +1495,12 @@ const handleGetWalletTransactions = async (
 	} else if (status === "refund") {
 		conditions.push(
 			inArray(schema.walletTransaction.status, ["refund", "refunded"]),
+		);
+	}
+
+	if (flagged === "true") {
+		conditions.push(
+			sql`json_extract(${schema.walletTransaction.metadata}, '$.fraudFlag.flagged') = 1`,
 		);
 	}
 
@@ -1547,6 +1564,9 @@ const handleGetWalletTransactions = async (
 
 		const filtered = transactions.filter((tx) => {
 			if (excludedPaymentMethods.includes(tx.paymentMethod)) return false;
+			if (flagged === "true" && !isWalletTransactionFlagged(tx.metadata)) {
+				return false;
+			}
 			if (!fromDateBoundary && !toDateBoundary) return true;
 			const ts = new Date(tx.createdAt).getTime();
 			if (fromDateBoundary && ts < fromDateBoundary.getTime()) return false;
@@ -1620,6 +1640,7 @@ const handleGetWalletTransactions = async (
 			amount: tx.amount / 100,
 			balance_after: tx.balance / 100,
 			status: tx.status,
+			flagged: isWalletTransactionFlagged(tx.metadata),
 			metadata: JSON.parse(tx.metadata || "{}"),
 		};
 	});
