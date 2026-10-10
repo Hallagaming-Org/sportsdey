@@ -243,12 +243,22 @@ function isRetryableReportFailure(result: BonusEngineApiResult<unknown>) {
 	);
 }
 
+/**
+ * Posts `POST /deposit`. Amount is `deposit` in major units, and the balances
+ * are the wallet after this credit. `campaign_code` is included only when the
+ * player entered one; a blank code is the same as a missing field to the engine.
+ */
 async function sendBonusEngineDeposit(payload: {
 	env: CloudflareBindings;
 	deposit: BonusEngineReportDepositInput;
 }): Promise<BonusEngineApiResult<unknown>> {
 	const config = getBonusEngineConfig(payload.env);
 	const deposit = payload.deposit;
+	const balances = await getBonusEngineWalletBalances({
+		env: payload.env,
+		userId: deposit.userId,
+	});
+	const campaignCode = deposit.campaignCode?.trim();
 
 	return bonusEngineAuthedRequest({
 		env: payload.env,
@@ -256,10 +266,14 @@ async function sendBonusEngineDeposit(payload: {
 		body: {
 			client_id: config.clientId,
 			project_id: config.projectId,
-			user_id: deposit.userId,
-			amount: deposit.amount,
-			transaction_id: deposit.transactionId,
+			payment_provider: deposit.paymentProvider || "all",
 			currency: deposit.currency ?? config.currency,
+			user_id: deposit.userId,
+			deposit: deposit.amount,
+			...(campaignCode ? { campaign_code: campaignCode } : {}),
+			real_wallet_balance: balances.realWalletBalance,
+			bonus_wallet_balance: balances.bonusWalletBalance,
+			transaction_id: deposit.transactionId,
 		},
 	});
 }

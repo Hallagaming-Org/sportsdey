@@ -32,6 +32,7 @@ export async function reportBonusEngineDepositInBackground(payload: {
 			amount: payload.amountKobo / 100,
 			transactionId: payload.transactionId,
 			currency: BONUS_ENGINE_DEFAULT_CURRENCY,
+			paymentProvider: payload.paymentMethod,
 		},
 	})
 		.then((result) => {

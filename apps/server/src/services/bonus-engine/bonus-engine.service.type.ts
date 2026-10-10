@@ -123,9 +123,14 @@ export type BonusEngineBonusWalletData = {
 
 export type BonusEngineReportDepositInput = {
 	userId: string;
+	/** Deposit in major units. Sent as `deposit`. */
 	amount: number;
 	transactionId: string;
 	currency?: string;
+	/** Cashier that settled the deposit, such as `paystack`. */
+	paymentProvider: string;
+	/** Player-entered campaign code. Omitted when the cashier did not collect one. */
+	campaignCode?: string;
 };
 
 export type BonusEngineReportBetInput = {

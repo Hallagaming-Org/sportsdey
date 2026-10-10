@@ -906,8 +906,17 @@ describe("deposits from every provider reach the engine", () => {
 		assert.equal(wallet().balance, START_KOBO + 50_000);
 		const deposits = engineCallsTo("/deposit");
 		assert.equal(deposits.length, 1);
-		assert.equal(deposits[0]?.body.amount, 500);
-		assert.equal(deposits[0]?.body.transaction_id, "opay-ref-1");
+		assert.deepEqual(deposits[0]?.body, {
+			client_id: "client-wallet-e2e",
+			project_id: "project-wallet-e2e",
+			payment_provider: "opay",
+			currency: "NGN",
+			user_id: USER_ID,
+			deposit: 500,
+			real_wallet_balance: (START_KOBO + 50_000) / 100,
+			bonus_wallet_balance: 0,
+			transaction_id: "opay-ref-1",
+		});
 	});
 });
 

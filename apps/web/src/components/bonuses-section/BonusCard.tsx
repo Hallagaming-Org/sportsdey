@@ -36,7 +36,7 @@ export function BonusCard({
 				</div>
 				<div className="min-w-0">
 					<div className="mb-1 flex items-center gap-2">
-						<h3 className="font-extrabold text-base text-white">{bonus.title}</h3>
+						<h3 className="font-bold text-base text-white">{bonus.title}</h3>
 						<span className="rounded-full bg-[#1B2722] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#8C8F8F]">
 							{bonus.statusLabel}
 						</span>
