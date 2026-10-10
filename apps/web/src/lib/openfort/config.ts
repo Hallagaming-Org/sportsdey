@@ -29,7 +29,7 @@ export type OpenfortChainKey = "amoy" | "polygon";
 
 export const OPENFORT_PRODUCTION_CHAIN_KEY: OpenfortChainKey = "polygon";
 export const OPENFORT_PRODUCTION_STABLECOIN = "USDC";
-export const OPENFORT_PRODUCTION_QUIDAX_NETWORK = "POLYGON";
+export const OPENFORT_PRODUCTION_QUIDAX_NETWORK = "polygon";
 
 const AMOY_USDC = "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582" as const;
 /** Circle native USDC on Polygon PoS (6 decimals). Override via env if Quidax pays USDC.e. */
@@ -38,7 +38,7 @@ const POLYGON_USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as const;
 const AMOY_RPC = "https://polygon-amoy.gateway.tenderly.co";
 const POLYGON_RPC = "https://polygon-rpc.com";
 
-export type OpenfortQuidaxNetwork = "POLYGON";
+export type OpenfortQuidaxNetwork = "polygon";
 
 export type OpenfortChainConfig = {
 	key: OpenfortChainKey;
@@ -94,7 +94,7 @@ function chainPreset(key: OpenfortChainKey): OpenfortChainConfig {
 			rpcUrl: POLYGON_RPC,
 			explorerTxBaseUrl: "https://polygonscan.com/tx",
 			viemChain: polygon,
-			quidaxNetwork: "POLYGON",
+			quidaxNetwork: "polygon",
 		};
 	}
 	return {

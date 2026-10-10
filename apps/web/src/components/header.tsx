@@ -6,6 +6,7 @@ import { useCurrentSport } from "@/hooks/use-current-sport";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/auth/client";
+import type { PlayerWalletBalances } from "@/lib/wallet-balance";
 import { SPORTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import MenuBar from "@/logos/MenuBar";
@@ -45,11 +46,7 @@ export default function Header(
 	const { data: walletData } = useQuery({
 		queryKey: ["wallet"],
 		queryFn: () =>
-			apiRequest<{
-				id: string;
-				balance?: number | null;
-				bonusBalance?: number | null;
-			}>("wallet", {
+			apiRequest<PlayerWalletBalances & { id: string }>("wallet", {
 				credentials: "include",
 			}),
 		enabled: !!session?.user,

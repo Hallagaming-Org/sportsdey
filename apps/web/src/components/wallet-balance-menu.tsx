@@ -10,12 +10,14 @@ import {
 } from "@/lib/bonuses";
 import { BONUS_QUERY_KEY, BONUS_STATUS } from "@/lib/bonuses.constant";
 import { cn, formatAmount } from "@/lib/utils";
+import {
+	playableWalletNaira,
+	type PlayerWalletBalances,
+} from "@/lib/wallet-balance";
 import NigerianFlag from "@/logos/NigerianFlag";
 
-export type WalletOverview = {
+export type WalletOverview = PlayerWalletBalances & {
 	id: string;
-	balance?: number | null;
-	bonusBalance?: number | null;
 };
 
 type WalletBalanceMenuProps = {
@@ -66,7 +68,7 @@ export function WalletBalanceMenu({
 		staleTime: 10_000,
 	});
 
-	const mainBalance = wallet?.balance ?? 0;
+	const mainBalance = playableWalletNaira(wallet);
 	const bonusBalance = wallet?.bonusBalance ?? 0;
 	const activeBonuses = activeAssignedBonuses(bonusesQuery.data ?? []);
 	const headerLabel = naira(mainBalance);
