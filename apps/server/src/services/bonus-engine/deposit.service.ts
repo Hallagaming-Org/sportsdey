@@ -22,8 +22,24 @@ export async function reportBonusEngineDepositInBackground(payload: {
 	transactionId: string;
 	paymentMethod: string;
 }): Promise<void> {
-	if (!isBonusEngineConfigured(payload.env)) return;
-	if (!(payload.amountKobo > 0) || !payload.transactionId) return;
+	if (!isBonusEngineConfigured(payload.env)) {
+		console.warn("Bonus Engine deposit report skipped", {
+			transactionId: payload.transactionId,
+			userId: payload.userId,
+			paymentMethod: payload.paymentMethod,
+			reason: "not_configured",
+		});
+		return;
+	}
+	if (!(payload.amountKobo > 0) || !payload.transactionId) {
+		console.warn("Bonus Engine deposit report skipped", {
+			transactionId: payload.transactionId,
+			userId: payload.userId,
+			paymentMethod: payload.paymentMethod,
+			reason: "invalid_amount",
+		});
+		return;
+	}
 
 	const work = reportBonusEngineDeposit({
 		env: payload.env,
@@ -36,15 +52,22 @@ export async function reportBonusEngineDepositInBackground(payload: {
 		},
 	})
 		.then((result) => {
-			if (!result.ok) {
-				console.error("Bonus Engine deposit report failed", {
+			if (result.ok) {
+				console.info("Bonus Engine deposit report accepted", {
 					transactionId: payload.transactionId,
 					userId: payload.userId,
 					paymentMethod: payload.paymentMethod,
 					status: result.status,
-					error: result.error,
 				});
+				return;
 			}
+			console.error("Bonus Engine deposit report failed", {
+				transactionId: payload.transactionId,
+				userId: payload.userId,
+				paymentMethod: payload.paymentMethod,
+				status: result.status,
+				error: result.error,
+			});
 		})
 		.catch((error: unknown) => {
 			console.error("Bonus Engine deposit report error", {
